@@ -71,9 +71,9 @@
   (define refr
     (make-local-object-refr (procedure-name constructor)
                             #f))
-  (define initial-handler
+  (define initial-behavior
     (apply constructor 'fake-bcom args))
-  (actormap-set! am refr initial-handler)
+  (actormap-set! am refr initial-behavior)
   refr)
 
 (define (actormap-peek am refr . args)
