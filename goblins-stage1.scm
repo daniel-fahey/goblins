@@ -79,18 +79,18 @@
                             #f))
   (define-values (become become-unsealer become-sealed?)
     (make-become-sealer-triplet))
-  (define initial-handler
+  (define initial-behavior
     (apply constructor become args))
   (define mactor
-    (mactor:object initial-handler become-unsealer become-sealed?))
+    (mactor:object initial-behavior become-unsealer become-sealed?))
   (actormap-set! am refr mactor)
   refr)
 
 (define (actormap-peek am refr . args)
   (define mactor
     (actormap-ref am refr))
-  (define handler (mactor:object-handler mactor))
-  (apply handler args))
+  (define behavior (mactor:object-behavior mactor))
+  (apply behavior args))
 
 
 #;(define (actormap-poke! am refr . args)
@@ -101,14 +101,14 @@
 
 (define (make-become-sealer-triplet)
   (define-record-type <become-seal>
-    (make-become-seal new-handler return-val)
+    (make-become-seal new-behavior return-val)
     become-sealed?
-    (new-handler unseal-handler)
+    (new-behavior unseal-behavior)
     (return-val unseal-return-val))
-  (define* (become new-handler #:optional [return-val #f])
-    (make-become-seal new-handler return-val))
+  (define* (become new-behavior #:optional [return-val #f])
+    (make-become-seal new-behavior return-val))
   (define (unseal sealed)
-    (values (unseal-handler sealed)
+    (values (unseal-behavior sealed)
             (unseal-return-val sealed)))
   (values become unseal become-sealed?))
 
@@ -118,9 +118,9 @@
 ;; Starting with the simplest.
 
 (define-record-type <mactor:object>
-  (mactor:object handler become-unsealer become?)
+  (mactor:object behavior become-unsealer become?)
   mactor:object?
-  (handler mactor:object-handler)
+  (behavior mactor:object-behavior)
   (become-unsealer mactor:object-become-unsealer)
   (become? mactor:object-become?))
 
