@@ -6,7 +6,16 @@
 ;;  - actormap-turn
 
 (define-module (goblins stage1)
-  #:export ()
+  #:export (make-whactormap
+            make-actormap
+
+            spawn $
+
+            actormap-direct-run!
+
+            ;;;; yet to come:
+            ;; <- <-np on
+            )
   #:use-module (srfi srfi-9)
   #:use-module (ice-9 match))
 
@@ -60,6 +69,8 @@
                  (make-whactormap-data (make-weak-key-hash-table))
                  vat-connector))
 
+(define make-actormap make-whactormap)
+
 
 
 ;; Ref(r)s
@@ -96,20 +107,17 @@
 ;; Pre-turn operations, not composable
 ;; ===================================
 
-(define (actormap-spawn! am constructor . args)
-  (define (spawn-it)
-    (define refr
-      (make-local-object-refr (procedure-name constructor)
-                              #f))
-    (define-values (become become-unsealer become-sealed?)
-      (make-become-sealer-triplet))
-    (define initial-behavior
-      (apply constructor become args))
-    (define mactor
-      (mactor:object initial-behavior become-unsealer become-sealed?))
-    (actormap-set! am refr mactor)
-    refr)
-  (call-with-fresh-syscaller am spawn-it))
+#;(define (actormap-spawn! am constructor . args)
+  (call-with-fresh-syscaller
+   am
+   (lambda (sys get-sys-internals)
+     (apply spawn constructor args))))
+
+(define (actormap-peek am refr . args)
+  (define mactor
+    (actormap-ref am refr))
+  (define behavior (mactor:object-behavior mactor))
+  (apply behavior args))
 
 (define (actormap-peek am refr . args)
   (define mactor
@@ -154,10 +162,6 @@
 
 ;; Do NOT export this esp under serious ocap confinement
 (define current-syscaller (make-parameter #f))
-
-(define (call-with-fresh-syscaller am thunk)
-  (parameterize ((current-syscaller (fresh-syscaller am)))
-    (thunk)))
 
 (define (fresh-syscaller actormap)
   (define vat-connector
@@ -753,12 +757,29 @@
       return-promise))
 
   (define (get-internals)
-    (list actormap new-msgs))
+    (values actormap new-msgs))
 
   (define (close-up!)
     (set! closed? #t))
 
   (values this-syscaller get-internals close-up!))
+
+(define (call-with-fresh-syscaller am proc)
+  (define-values (sys get-sys-internals close-up!)
+    (fresh-syscaller am))
+  (dynamic-wind
+    (lambda () #f)
+    (lambda ()
+      (proc sys get-sys-internals))
+    (lambda ()
+      (close-up!))))
+
+(define (actormap-direct-run! am thunk)
+  (call-with-fresh-syscaller
+   am
+   (lambda (sys get-sys-internals)
+     (parameterize ([current-syscaller sys])
+       (thunk)))))
 
 ;; In case you want to spawn PROC right off of your vat without
 ;; involving the syscaller at all
@@ -819,7 +840,7 @@
 ;; Test area
 ;; ---------
 
-(define (_test)
+#;(define (_test)
   (define am (make-whactormap))
   (define (^greeter _bcom my-name)
     (lambda (your-name)
