@@ -138,7 +138,7 @@
     become-sealed?
     (new-behavior unseal-behavior)
     (return-val unseal-return-val))
-  (define* (become new-behavior #:optional [return-val #f])
+  (define* (become new-behavior #:optional [return-val _void])
     (make-become-seal new-behavior return-val))
   (define (unseal sealed)
     (values (unseal-behavior sealed)
