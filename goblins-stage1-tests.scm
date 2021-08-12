@@ -22,4 +22,52 @@
    (lambda ()
      ($ alice "Bob"))))
 
+(define (^gregarious _bcom my-name)
+  (lambda (talk-to)
+    (format #f "I heard back: ~a"
+            ($ talk-to my-name))))
+
+(define greg
+  (actormap-direct-run!
+   am
+   (lambda ()
+     (spawn ^gregarious "Greg"))))
+
+;; Actors which call other actors
+(test-equal "I heard back: Hello Greg, my name is Alice!"
+  (actormap-direct-run!
+   am
+   (lambda ()
+     ($ greg alice))))
+
+;; Actor updates: update and return value separately
+(define* (^cell bcom #:optional [val #f])
+  (case-lambda
+    [() val]
+    [(new-val) (bcom (^cell bcom new-val))]))
+
+(define _void (if #f #f))
+
+(actormap-direct-run!
+ am
+ (lambda ()
+   (define cell (spawn ^cell))
+   (test-equal ($ cell) #f)          ; initial val
+   (test-equal ($ cell 'foo) _void)  ; update (no return value)
+   (test-equal ($ cell) 'foo)))      ; new val
+
+;; Actor updates: update and return value at same time
+(define* (^counter bcom #:optional [n 0])
+  (lambda ()
+    (bcom (^counter bcom (1+ n)) n)))
+
+(actormap-direct-run!
+ am
+ (lambda ()
+   (define ctr (spawn ^counter))
+   (test-equal 0 ($ ctr))
+   (test-equal 1 ($ ctr))
+   (test-equal 2 ($ ctr))
+   (test-equal 3 ($ ctr))))
+
 (test-end "test-goblins-stage1")
