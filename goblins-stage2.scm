@@ -21,7 +21,8 @@
 (define _void (if #f #f))
 
 (define-record-type <actormap>
-  (make-actormap metatype data vat-connector)
+  ;; TODO: This is confusing, naming-wise? (see make-actormap alias)
+  (_make-actormap metatype data vat-connector)
   actormap?
   (metatype actormap-metatype)
   (data actormap-data)
@@ -63,12 +64,93 @@
   (make-actormap-metatype 'whactormap whactormap-ref whactormap-set!))
 
 (define* (make-whactormap #:key [vat-connector #f])
-  (make-actormap whactormap-metatype
-                 (make-whactormap-data (make-weak-key-hash-table))
-                 vat-connector))
+  (_make-actormap whactormap-metatype
+                  (make-whactormap-data (make-weak-key-hash-table))
+                  vat-connector))
 
+(define (whactormap? obj)
+  (and (actormap? obj)
+       (eq? (actormap-metatype obj) whactormap-metatype)))
+
+;; TODO: again, confusing (see <actormap>)
 (define make-actormap make-whactormap)
 
+
+;; Transactional actormaps
+;; =======================
+
+(define-record-type <transactormap-data>
+  (make-transactormap-data parent delta merged?)
+  transactormap-data?
+  (parent transactormap-data-parent)
+  (delta transactormap-data-delta)
+  (merged? transactormap-data-merged? set-transactormap-data-merged?!))
+
+(define (transactormap-merged? transactormap)
+  (transactormap-data-merged? (actormap-data transactormap)))
+
+(define (transactormap-ref transactormap key)
+  (define tm-data (actormap-data transactormap))
+  (when (transactormap-data-merged? tm-data)
+    (error "Can't use transactormap-ref on merged transactormap"))
+  (define tm-delta
+    (transactormap-data-delta tm-data))
+  (define tm-val (hashq-ref tm-delta key #f))
+  (if tm-val
+      ;; we got it, it's in our delta
+      tm-val
+      ;; search parents for key
+      (let ([parent (transactormap-data-parent tm-data)])
+        (actormap-ref parent key))))
+
+(define (transactormap-set! transactormap key val)
+  (when (transactormap-merged? transactormap)
+    (error "Can't use transactormap-set! on merged transactormap"))
+  (define tm-delta (transactormap-data-delta (actormap-data transactormap)))
+  (hash-set! tm-delta key val)
+  _void)
+
+;; Not threadsafe, but probably doesn't matter
+(define (transactormap-merge! transactormap)
+  ;; Serves two functions:
+  ;;  - to extract the root weak-hasheq
+  ;;  - to merge this transaction on top of the weak-hasheq
+  (define (do-merge! transactormap)
+    (define tm-data (actormap-data transactormap))
+    (define parent (transactormap-data-parent tm-data))
+    (define parent-mtype (actormap-metatype parent))
+    ;; TODO: Should we actually return the root-wht instead,
+    ;;   since that's what we're comitting to?
+    (define root-actormap
+      (cond
+       [(eq? parent-mtype whactormap-metatype)
+        parent]
+       [(eq? parent-mtype transactormap)
+        (do-merge! parent)]
+       [else
+        (error (format #f "Actormap metatype not supported for merging: ~a"
+                       parent-mtype))]))
+    ;; Optimization: we pull out the root weak hash table here and
+    ;; merge it
+    (define root-wht (whactormap-data-wht (actormap-data root-actormap)))
+    (unless (transactormap-data-merged? tm-data)
+      (hash-for-each
+       (lambda (key val)
+         (hashq-set! root-wht key val))
+       (transactormap-data-delta tm-data))
+      (set-transactormap-data-merged?! tm-data #t))
+    root-actormap)
+  (do-merge! transactormap)
+  _void)
+
+(define transactormap-metatype
+  (make-actormap-metatype 'transactormap transactormap-ref transactormap-set!))
+
+(define (make-transactormap parent)
+  (define vat-connector (actormap-vat-connector parent))
+  (_make-actormap transactormap-metatype
+                  (make-transactormap-data parent (make-hash-table) #f)
+                  vat-connector))
 
 
 ;; Ref(r)s
@@ -100,29 +182,6 @@
   (or (local-refr? obj)
       ;; TODO: Finish as we fill in the other refr types
       ))
-
-
-;; Pre-turn operations, not composable
-;; ===================================
-
-#;(define (actormap-spawn! am constructor . args)
-  (call-with-fresh-syscaller
-   am
-   (lambda (sys get-sys-internals)
-     (apply spawn constructor args))))
-
-(define (actormap-peek am refr . args)
-  (define mactor
-    (actormap-ref am refr))
-  (define behavior (mactor:object-behavior mactor))
-  (apply behavior args))
-
-(define (actormap-peek am refr . args)
-  (define mactor
-    (actormap-ref am refr))
-  (define behavior (mactor:object-behavior mactor))
-  (apply behavior args))
-
 
 #;(define (actormap-poke! am refr . args)
   'TODO)
@@ -175,7 +234,7 @@
       (case method-id
         [($) _$]
         [(spawn) _spawn]
-        #;['spawn-mactor spawn-mactor]
+        ['spawn-mactor spawn-mactor]
         ;; TODO:
         ;; ['fulfill-promise fulfill-promise]
         ;; ['break-promise break-promise]
@@ -302,7 +361,7 @@
       [_
        (error 'invalid-actor-handler "Not a procedure or live refr: ~a" initial-behavior)]))
 
-  #;(define (spawn-mactor mactor [debug-name #f])
+  (define (spawn-mactor mactor debug-name)
     (actormap-spawn-mactor! actormap mactor debug-name))
 
   #;(define (fulfill-promise promise-id sealed-val)
@@ -755,7 +814,7 @@
       return-promise))
 
   (define (get-internals)
-    (values actormap new-msgs))
+    (list actormap new-msgs))
 
   (define (close-up!)
     (set! closed? #t))
@@ -771,13 +830,6 @@
       (proc sys get-sys-internals))
     (lambda ()
       (close-up!))))
-
-(define (actormap-direct-run! am thunk)
-  (call-with-fresh-syscaller
-   am
-   (lambda (sys get-sys-internals)
-     (parameterize ([current-syscaller sys])
-       (thunk)))))
 
 ;; In case you want to spawn PROC right off of your vat without
 ;; involving the syscaller at all
@@ -832,6 +884,115 @@
 ;; ;; (define am (make-whactormap))
 
 ;; ;; (actormap-set! am 'hello 'world)
+
+
+;; Spawning
+;; ========
+
+;; This is the internally used version of actormap-spawn,
+;; also used by the syscaller.  It doesn't set up a syscaller
+;; if there isn't currently one.
+(define* (actormap-spawn!* actormap actor-constructor
+                           args
+                           #:optional
+                           [debug-name (procedure-name actor-constructor)])
+  (define vat-connector
+    (actormap-vat-connector actormap))
+  (define-values (become become-unseal become?)
+    (make-become-sealer-triplet))
+  (define actor-handler
+    (apply actor-constructor become args))
+  (match actor-handler
+    ;; New procedure, so let's set it
+    [(? procedure?)
+     (let ((actor-refr
+            (make-local-object-refr debug-name vat-connector)))
+       (actormap-set! actormap actor-refr
+                      (mactor:object actor-handler
+                                     become-unseal become?))
+       actor-refr)]
+    [(? live-refr? pre-existing-refr)
+     pre-existing-refr]
+    [_
+     (error 'invalid-actor-handler "Not a procedure or live refr: ~a" actor-handler)]))
+
+;; These two are user-facing procedures.  Thus, they set up
+;; their own syscaller.
+
+;; non-committal version of actormap-spawn
+(define (actormap-spawn actormap actor-constructor . args)
+  (define new-actormap
+    (make-transactormap actormap))
+  (call-with-fresh-syscaller
+   new-actormap
+   (lambda (sys get-sys-internals)
+     (define actor-refr
+       (actormap-spawn!* new-actormap actor-constructor
+                         args))
+     (values actor-refr new-actormap))))
+
+(define (actormap-spawn! actormap actor-constructor . args)
+  (define new-actormap
+    (make-transactormap actormap))
+  (define actor-refr
+    (call-with-fresh-syscaller
+     new-actormap
+     (lambda (sys get-sys-internals)
+       (actormap-spawn!* new-actormap actor-constructor args))))
+  (transactormap-merge! new-actormap)
+  actor-refr)
+
+(define* (actormap-spawn-mactor! actormap mactor
+                                 #:optional
+                                 [debug-name #f])
+  (define vat-connector
+    (actormap-vat-connector actormap))
+  (define actor-refr
+    (if (mactor:object? mactor)
+        (make-local-object-refr debug-name vat-connector)
+        (make-local-promise-refr vat-connector)))
+  (actormap-set! actormap actor-refr mactor)
+  actor-refr)
+
+
+;;; actormap turning and utils
+;;; ==========================
+
+(define (actormap-turn* actormap to-refr args)
+  (call-with-fresh-syscaller
+   actormap
+   (lambda (sys get-sys-internals)
+     (define result-val
+       (sys '$ to-refr args))
+     (apply values result-val
+            (get-sys-internals)))))  ; actormap new-msgs
+
+(define (actormap-turn actormap to-refr . args)
+  (define new-actormap
+    (make-transactormap actormap))
+  (actormap-turn* new-actormap to-refr args))
+
+;; Note that this does nothing with the messages.
+(define (actormap-poke! actormap to-refr . args)
+  (define-values (returned-val transactormap _nm)
+    (actormap-turn* (make-transactormap actormap)
+                    to-refr args))
+  (transactormap-merge! transactormap)
+  returned-val)
+
+(define (actormap-reckless-poke! actormap to-refr . args)
+  (define-values (returned-val transactormap _nm)
+    (actormap-turn* actormap to-refr args))
+  returned-val)
+
+;; run a turn but only for getting the result.
+;; we're not interested in committing the result
+;; so we discard everything but the result.
+(define (actormap-peek actormap to-refr . args)
+  (define-values (returned-val _am _nm)
+    (actormap-turn* (make-transactormap actormap)
+                    to-refr args))
+  returned-val)
 
 
 
