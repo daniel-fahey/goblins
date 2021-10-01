@@ -9,7 +9,15 @@
 
             spawn $
 
-            actormap-direct-run!
+            actormap-spawn!
+            ;; actormap-spawn-mactor!
+
+            actormap-turn*
+            actormap-turn
+
+            actormap-peek
+            actormap-poke!
+            actormap-reckless-poke!
 
             ;;;; yet to come:
             ;; <- <-np on
