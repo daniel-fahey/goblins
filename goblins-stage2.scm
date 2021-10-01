@@ -972,6 +972,15 @@
     (make-transactormap actormap))
   (actormap-turn* new-actormap to-refr args))
 
+;; run a turn but only for getting the result.
+;; we're not interested in committing the result
+;; so we discard everything but the result.
+(define (actormap-peek actormap to-refr . args)
+  (define-values (returned-val _am _nm)
+    (actormap-turn* (make-transactormap actormap)
+                    to-refr args))
+  returned-val)
+
 ;; Note that this does nothing with the messages.
 (define (actormap-poke! actormap to-refr . args)
   (define-values (returned-val transactormap _nm)
@@ -984,16 +993,6 @@
   (define-values (returned-val transactormap _nm)
     (actormap-turn* actormap to-refr args))
   returned-val)
-
-;; run a turn but only for getting the result.
-;; we're not interested in committing the result
-;; so we discard everything but the result.
-(define (actormap-peek actormap to-refr . args)
-  (define-values (returned-val _am _nm)
-    (actormap-turn* (make-transactormap actormap)
-                    to-refr args))
-  returned-val)
-
 
 
 ;; Test area
