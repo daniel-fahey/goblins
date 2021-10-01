@@ -9,15 +9,7 @@
 
             spawn $
 
-            actormap-spawn!
-            ;; actormap-spawn-mactor!
-
-            actormap-turn*
-            actormap-turn
-
-            actormap-peek
-            actormap-poke!
-            actormap-reckless-poke!
+            actormap-direct-run!
 
             ;;;; yet to come:
             ;; <- <-np on
@@ -835,7 +827,8 @@
   (dynamic-wind
     (lambda () #f)
     (lambda ()
-      (proc sys get-sys-internals))
+      (parameterize ([current-syscaller sys])
+        (proc sys get-sys-internals)))
     (lambda ()
       (close-up!))))
 
