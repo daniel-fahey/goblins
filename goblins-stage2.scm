@@ -255,15 +255,40 @@
 ;;
 ;; Or rather, re-entry protection goes here.
 ;; This works fairly ideally in Racket; in Guile the
-;; with-continuation-barrier doesn't work quite as we might want.
+;; with-continuation-barrier version below... well it's complicated because
+;; unlike in Racket, it's not "marking the stack" to prevent re-entry but
+;; permitting exceptions to "move upward" as it were... so we have to do
+;; that ourselves, and it's kind of a mess.  No idea what the performance
+;; implications are.
 
 (define %re-entry-protect (make-parameter #f))
 
+(define (_re-protec proc)
+  (define result
+    ;; protect against re-entrancy attacks
+    ;; (... but also "protects" against live debugging, unfortunately)
+    (with-continuation-barrier
+     (lambda ()
+       (with-exception-handler
+           (lambda (exn)
+             (list 'error exn))
+         (lambda ()
+           ;; actors are only permitted one value from their
+           ;; continuation
+           (define result
+             (proc))
+           (list 'success result))
+         #:unwind? #t
+         #:unwind-for-type #t))))
+  (match result
+    [('success result)
+     result]
+    [('error err)
+     (raise-exception err)]))
+
 (define (with-re-entry-protection proc)
   (if (%re-entry-protect)
-      ;; TODO: This isn't good enough, because it just returns #f in case of
-      ;; an error instead of properly raising again.
-      (with-continuation-barrier proc)
+      (_re-protec proc)
       (proc)))
 
 
