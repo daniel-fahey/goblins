@@ -241,6 +241,23 @@
   (become-unsealer mactor:object-become-unsealer)
   (become? mactor:object-become?))
 
+;; Re-entry Protection
+;; ===================
+;;
+;; Or rather, re-entry protection goes here.
+;; This works fairly ideally in Racket; in Guile the
+;; with-continuation-barrier doesn't work quite as we might want.
+
+(define %re-entry-protect (make-parameter #f))
+
+(define (with-re-entry-protection proc)
+  (if (%re-entry-protect)
+      ;; TODO: This isn't good enough, because it just returns #f in case of
+      ;; an error instead of properly raising again.
+      (with-continuation-barrier proc)
+      (proc)))
+
+
 ;; Syscaller
 ;; =========
 
@@ -329,7 +346,7 @@
          ;; TODO: We need to document that.
          (define-values (new-behavior return-val)
            (let ([returned
-                  (with-continuation-barrier
+                  (with-re-entry-protection
                    (lambda ()
                      (apply actor-behavior args)))])
              (if (become? returned)
