@@ -23,6 +23,7 @@
             ;; <- <-np on
             )
   #:use-module (srfi srfi-9)
+  #:use-module (srfi srfi-9 gnu)
   #:use-module (ice-9 match))
 
 ;; Old hack to get the "unspecified/undefined type"
@@ -35,6 +36,11 @@
   (metatype actormap-metatype)
   (data actormap-data)
   (vat-connector actormap-vat-connector))
+
+(set-record-type-printer!
+ <actormap>
+ (lambda (am port)
+   (format port "#<actormap ~a>" (actormap-metatype-name (actormap-metatype am)))))
 
 (define-record-type <actormap-metatype>
   (make-actormap-metatype name ref-proc set!-proc)
@@ -170,10 +176,23 @@
   (debug-name local-object-refr-debug-name)
   (vat-connector local-object-refr-vat-connector))
 
+(set-record-type-printer!
+ <local-object-refr>
+ (lambda (lor port)
+   (match (local-object-refr-debug-name lor)
+     [#f (display "#<local-object>" port)]
+     [debug-name
+      (format port "#<local-object ~a>" debug-name)])))
+
 (define-record-type <local-promise-refr>
   (make-local-promise-refr vat-connector)
   local-promise-refr?
   (vat-connector local-promise-refr-vat-connector))
+
+(set-record-type-printer!
+ <local-promise-refr>
+ (lambda (lpr port)
+   (display "#<local-promise>" port)))
 
 (define (local-refr? obj)
   (or (local-object-refr? obj) (local-promise-refr? obj)))
