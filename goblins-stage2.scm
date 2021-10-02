@@ -9,6 +9,7 @@
 
             spawn $
 
+            actormap-spawn
             actormap-spawn!
             ;; actormap-spawn-mactor!
 
