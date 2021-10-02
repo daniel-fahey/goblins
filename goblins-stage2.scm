@@ -121,7 +121,7 @@
   (when (transactormap-merged? transactormap)
     (error "Can't use transactormap-set! on merged transactormap"))
   (define tm-delta (transactormap-data-delta (actormap-data transactormap)))
-  (hash-set! tm-delta key val)
+  (hashq-set! tm-delta key val)
   _void)
 
 ;; Not threadsafe, but probably doesn't matter
