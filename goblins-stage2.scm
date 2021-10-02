@@ -19,6 +19,10 @@
             actormap-poke!
             actormap-reckless-poke!
 
+            actormap-run
+            actormap-run!
+            actormap-run*
+
             ;;;; yet to come:
             ;; <- <-np on
             )
@@ -1038,6 +1042,35 @@
   (define-values (returned-val transactormap _nm)
     (actormap-turn* actormap to-refr args))
   returned-val)
+
+;; like actormap-run but also returns the new actormap, new-msgs
+(define (actormap-run* actormap thunk)
+  (define-values (actor-refr new-actormap)
+    (actormap-spawn (make-transactormap actormap) (lambda (bcom) thunk)))
+  (define-values (returned-val new-actormap2 new-msgs)
+    (actormap-turn* (make-transactormap new-actormap) actor-refr '()))
+  (values returned-val new-actormap2 new-msgs))
+
+;; non-committal version of actormap-run
+(define (actormap-run actormap thunk)
+  (define-values (returned-val _am _nm)
+    (actormap-run* (make-transactormap actormap) thunk))
+  returned-val)
+
+;; committal version
+;; Run, and also commit the results of, the code in the thunk
+(define* (actormap-run! actormap thunk
+                        #:key [reckless? #f])
+  (define actor-refr
+    (actormap-spawn! actormap
+                     (lambda (bcom)
+                       (lambda ()
+                         (call-with-values thunk list)))))
+  (define actormap-poker!
+    (if reckless?
+        actormap-reckless-poke!
+        actormap-poke!))
+  (apply values (actormap-poker! actormap actor-refr)))
 
 
 ;; Test area
