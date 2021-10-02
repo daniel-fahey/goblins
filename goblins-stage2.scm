@@ -24,6 +24,10 @@
             actormap-run!
             actormap-run*
 
+            whactormap?
+            transactormap?
+            transactormap-merge!
+
             ;;;; yet to come:
             ;; <- <-np on
             )
