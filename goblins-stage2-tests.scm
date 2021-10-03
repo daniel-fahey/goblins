@@ -2,7 +2,7 @@
   #:use-module (goblins stage2)
   #:use-module (srfi srfi-64))
 
-(test-begin "test-goblins-stage2")
+(test-begin "test-goblins-stage2")>
 
 (define am (make-whactormap))
 
@@ -59,5 +59,20 @@
    (test-equal 3 ($ ctr))))
 
 ;; Now for some noncommittal stuff.
+
+;; Let's noncommittally spawn our friend here...
+(define-values (greety greety-tm)
+  (actormap-spawn am ^greeter "Greety"))
+;; We should be able to use actormap-peek on the transactormap...
+(test-equal (actormap-peek greety-tm greety "Marge")
+  "Hello Marge, my name is Greety!")
+;; But we shouldn't be able to act on greety against the uncommitted
+;; actormap, because nothing happened there...
+(test-error #t (actormap-peek am greety "Marge"))
+;; But now let's commmit it...
+(transactormap-merge! greety-tm)
+;; And now we should be able to.
+(test-equal (actormap-peek am greety "Marge")
+  "Hello Marge, my name is Greety!")
 
 (test-end "test-goblins-stage2")
