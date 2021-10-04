@@ -675,7 +675,9 @@
 (define (mactor-get-m~eventual obj)
   (match obj
     [(? mactor-unresolved? obj)
-     (m~unresolved-eventual (mactor-get-m~unresolved obj))]))
+     (m~unresolved-eventual (mactor-get-m~unresolved obj))]
+    [(? mactor:remote-link? obj)
+     (mactor:remote-link-eventual obj)]))
 
 ;; (define (mactor:unresolved-add-listener mactor new-listener wants-partial?)
 ;;   (define new-listener-info
