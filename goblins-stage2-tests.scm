@@ -75,4 +75,16 @@
 (test-equal (actormap-peek am greety "Marge")
   "Hello Marge, my name is Greety!")
 
+;; Test that peek and poke work right
+(define a-ctr (actormap-spawn! am ^counter))
+(test-equal (actormap-peek am a-ctr) 0)
+(test-equal (actormap-peek am a-ctr) 0)
+(test-equal (actormap-poke! am a-ctr) 0)
+(test-equal (actormap-poke! am a-ctr) 1)
+(test-equal (actormap-peek am a-ctr) 2)
+(test-equal (actormap-peek am a-ctr) 2)
+(test-equal (actormap-poke! am a-ctr) 2)
+(test-equal (actormap-peek am a-ctr) 3)
+
+
 (test-end "test-goblins-stage2")
