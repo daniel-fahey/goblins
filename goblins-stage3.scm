@@ -658,6 +658,25 @@
   (resolve-me listener-info-resolve-me)
   (wants-partial? listener-info-wants-partial?))
 
+(define (mactor-eventual? obj)
+  (or (mactor:remote-link? obj)
+      (mactor-unresolved? obj)))
+(define (mactor-unresolved? obj)
+  (or (mactor:naive? obj)
+      (mactor:question? obj)
+      (mactor:closer? obj)))
+
+(define (mactor-get-m~unresolved obj)
+  (match obj
+    [(? mactor:naive?) (mactor:naive-unresolved obj)]
+    [(? mactor:question?) (mactor:question-unresolved obj)]
+    [(? mactor:closer?) (mactor:closer-unresolved obj)]))
+
+(define (mactor-get-m~eventual obj)
+  (match obj
+    [(? mactor-unresolved? obj)
+     (m~unresolved-eventual (mactor-get-m~unresolved obj))]))
+
 ;; (define (mactor:unresolved-add-listener mactor new-listener wants-partial?)
 ;;   (define new-listener-info
 ;;     (listener-info new-listener wants-partial?))
