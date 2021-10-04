@@ -667,6 +667,14 @@
   mactor:broken?
   (problem mactor:broken-problem))
 
+;; Rather than directly storing references to listeners, we use these
+;; <listener-info> structs because, at least at the time, we have this
+;; notion of being interested in "partial" updates (rather than waiting
+;; until full promise resolution)
+;;
+;; While this is a curious feature, we never fully documented why we
+;; made the decision to enable this.  It would be interesting to document
+;; it, and we probably will indeed need to for ocapn interoperability.
 (define-record-type <listener-info>
   (make-listener-info resolve-me wants-partial?)
   listener-info?
