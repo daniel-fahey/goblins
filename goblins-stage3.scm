@@ -692,10 +692,10 @@
   (resolve-me listener-info-resolve-me)
   (wants-partial? listener-info-wants-partial?))
 
-(define (mactor-eventual? obj)
+(define (mactor:eventual? obj)
   (or (mactor:remote-link? obj)
-      (mactor-unresolved? obj)))
-(define (mactor-unresolved? obj)
+      (mactor:unresolved? obj)))
+(define (mactor:unresolved? obj)
   (or (mactor:naive? obj)
       (mactor:question? obj)
       (mactor:closer? obj)))
@@ -708,7 +708,7 @@
 
 (define (mactor-get-m~eventual obj)
   (match obj
-    [(? mactor-unresolved? obj)
+    [(? mactor:unresolved? obj)
      (m~unresolved-eventual (mactor-get-m~unresolved obj))]
     [(? mactor:remote-link? obj)
      (mactor:remote-link-eventual obj)]))
