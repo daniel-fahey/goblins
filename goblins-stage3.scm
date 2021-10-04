@@ -52,6 +52,7 @@
   #:use-module (srfi srfi-9 gnu)
   #:use-module (ice-9 match))
 
+
 ;;;                  .============================.
 ;;;                  | High level view of Goblins |
 ;;;                  '============================'
@@ -301,6 +302,10 @@
 ;;; determined relative to another local-refr or the current actor
 ;;; context.)
 
+
+;; Actormaps, etc
+;; ==============
+
 ;; Old hack to get the "unspecified/undefined type"
 (define _void (if #f #f))
 
@@ -365,6 +370,7 @@
 (define make-actormap make-whactormap)
 
 
+
 ;; Transactional actormaps
 ;; =======================
 
@@ -442,6 +448,7 @@
                   vat-connector))
 
 
+
 ;; Ref(r)s
 ;; =======
 
@@ -488,6 +495,8 @@
 #;(define (actormap-poke! am refr . args)
   'TODO)
 
+
+
 ;; "Become" sealer/unsealers
 ;; =========================
 
@@ -504,6 +513,8 @@
             (unseal-return-val sealed)))
   (values become unseal become-sealed?))
 
+
+
 ;; Mactors
 ;; =======
 
@@ -814,6 +825,7 @@
       (proc)))
 
 
+
 ;; Syscaller
 ;; =========
 
@@ -1438,15 +1450,14 @@
   (parameterize ((current-syscaller #f))
     (thread proc)))
 
-;; Internal utilities
-;; ==================
-
 (define (get-syscaller-or-die)
   (define sys (current-syscaller))
   (unless sys
     (error "No current syscaller"))
   sys)
 
+
+
 ;; Core API
 ;; ========
 
@@ -1487,6 +1498,7 @@
 ;; ;; (actormap-set! am 'hello 'world)
 
 
+
 ;; Spawning
 ;; ========
 
@@ -1556,6 +1568,7 @@
   actor-refr)
 
 
+
 ;;; actormap turning and utils
 ;;; ==========================
 
