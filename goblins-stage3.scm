@@ -713,25 +713,20 @@
     [(? mactor:remote-link? obj)
      (mactor:remote-link-eventual obj)]))
 
-;; (define (mactor:unresolved-add-listener mactor new-listener wants-partial?)
-;;   (define new-listener-info
-;;     (listener-info new-listener wants-partial?))
-;;   (match mactor
-;;     [(mactor:naive resolver-unsealer resolver-tm? listeners
-;;                    waiting-messages)
-;;      (mactor:naive resolver-unsealer resolver-tm?
-;;                    (cons new-listener-info listeners)
-;;                    waiting-messages)]
-;;     [(mactor:question resolver-unsealer resolver-tm? listeners
-;;                       captp-connector question-finder)
-;;      (mactor:question resolver-unsealer resolver-tm?
-;;                       (cons new-listener-info listeners)
-;;                       captp-connector question-finder)]
-;;     [(mactor:closer resolver-unsealer resolver-tm? listeners
-;;                     point-to history waiting-messages)
-;;      (mactor:closer resolver-unsealer resolver-tm?
-;;                     (cons new-listener-info listeners)
-;;                     point-to history waiting-messages)]))
+(define (mactor:unresolved-add-listener mactor new-listener wants-partial?)
+  (define new-listener-info
+    (make-listener-info new-listener wants-partial?))
+  (define new-unresolved
+    (match (mactor-get-m~unresolved mactor)
+      [($ <m~unresolved> eventual listeners)
+       (make-m~unresolved eventual (cons new-listener-info listeners))]))
+  (match mactor
+    [($ <mactor:naive> unresolved waiting-messages)
+     (make-mactor:naive new-unresolved waiting-messages)]
+    [($ <mactor:question> unresolved captp-connector question-finder)
+     (make-mactor:question new-unresolved captp-connector question-finder)]
+    [($ <mactor:closer> unresolved point-to history waiting-messages)
+     (make-mactor:closer new-unresolved point-to history waiting-messages)]))
 
 ;; ;; Helper for syscaller's fulfill-promise and break-promise methods
 ;; (define (unseal-mactor-resolution mactor sealed-resolution)
