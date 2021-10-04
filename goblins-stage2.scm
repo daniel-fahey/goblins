@@ -310,18 +310,6 @@
         [($) _$]
         [(spawn) _spawn]
         ['spawn-mactor spawn-mactor]
-        ;; TODO:
-        ;; ['fulfill-promise fulfill-promise]
-        ;; ['break-promise break-promise]
-        ;; ;; TODO: These are all variants of 'send-message.
-        ;; ;;   Shouldn't we collapse them?
-        ;; ['<-np _<-np]
-        ;; ['<- _<-]
-        ;; ['send-message _send-message]
-        ;; ['handle-message _handle-message]
-        ;; ['handle-listen _handle-listen]
-        ;; ['send-listen _send-listen]
-        ;; ['on _on]
         [(vat-connector) get-vat-connector]
         [(near-refr?) near-refr?]
         [(near-mactor) near-mactor]
