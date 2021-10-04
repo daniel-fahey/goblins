@@ -751,33 +751,8 @@
 ;; (define (near-mactor refr)
 ;;   (-> near-refr? any/c)
 ;;   ((current-syscaller) 'near-mactor refr))
-;; ;;; "Become" special sealers
-;; ;;; ========================
 
-;; ;; Note that this isn't really perfect; if someone has intercepted an
-;; ;; old become-value, they can still make us become that again... but
-;; ;; that's a fairly rare risk probably (I can't think of any likely
-;; ;; scenarios currently)
-
-;; (define (make-become-sealer-triplet)
-;;   (define-values (struct:seal make-seal sealed? seal-ref seal-set!)
-;;     (make-struct-type 'become #f 2 0))
-;;   (define (become new-handler [return-val (void)])
-;;     (make-seal new-handler return-val))
-;;   (define unseal-become-handler
-;;     (procedure-rename
-;;      (make-struct-field-accessor seal-ref 0)
-;;      'unseal-become-handler))
-;;   (define unseal-become-return-val
-;;     (procedure-rename
-;;      (make-struct-field-accessor seal-ref 1)
-;;      'unseal-become-return-val))
-;;   (define (unseal sealed)
-;;     (values (unseal-become-handler sealed)
-;;             (unseal-become-return-val sealed)))
-;;   (values become unseal sealed?))
-
-
+
 ;; Re-entry Protection
 ;; ===================
 ;;
