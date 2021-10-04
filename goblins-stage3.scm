@@ -552,14 +552,181 @@
 ;;;  - "Reference mechanics":
 ;;;      http://erights.org/elib/concurrency/refmech.html
 
-;; Starting with the simplest.
-
+;; local-objects are the most common type, have a message handler
+;; which specifies how to respond to the next message, as well as
+;; a predicate and unsealer to identify and unpack when a message
+;; handler specifies that this actor would like to "become" a new
+;; version of itself (get a new handler)
 (define-record-type <mactor:object>
   (mactor:object behavior become-unsealer become?)
   mactor:object?
   (behavior mactor:object-behavior)
   (become-unsealer mactor:object-become-unsealer)
   (become? mactor:object-become?))
+
+;; The other kinds of mactors correspond to promises and their resolutions.
+
+;; There are two supertypes here which are not used directly:
+;; mactor:unresolved and mactor:eventual.  See above for an explaination
+;; of what these mean.
+;; These are never directly exposed as mactors, hence the ~
+(define-record-type <m~eventual>
+  (make-m~eventual resolver-unsealer resolver-tm?)
+  m~eventual?
+  ;; We can still be resolved, so identify who is allowed to do that
+  ;; and provide a mechanism for unsealing the resolution
+  (resolver-unsealer m~eventual-resolver-unsealer)
+  (resolver-tm? m~eventual-resolver-tm?))
+(define-record-type <m~unresolved>
+  (make-m~unresolved eventual listeners)
+  m~unresolved?
+  ;; the <m~eventual> info
+  (eventual m~unresolved-eventual)
+  ;; Who's listening for a resolution?
+  (listeners m~unresolved-listeners))
+
+;; The most common kind of freshly made promise is a naive one.
+;; It knows no interesting information about how what it will eventually
+;; become.
+;; Since it knows of no closer information it keeps a queue of waiting
+;; messages which will eventually be transmitted.
+(define-record-type <mactor:naive>
+  (make-mactor:naive unresolved waiting-messages)
+  mactor:naive?
+  (unresolved mactor:naive-unresolved)
+  ;; All of these get "rewritten" as this promise is either resolved
+   ;; or moved closer to resolution.
+  (waiting-messages mactor:naive-waiting-messages))
+
+;; A special kind of "freshly made" promise which also corresponds to being
+;; a question on the remote end.  Keeps track of the captp-connector
+;; relevant to this connection so it can send it messages and the
+;; question-finder that it corresponds to (used for passing along messages).
+(define-record-type <mactor:question>
+  (make-mactor:question unresolved captp-connector question-finder)
+  mactor:question?
+  (unresolved mactor:question-unresolved)
+  (captp-connector mactor:question-captp-connector)
+  (question-finder mactor:question-question-finder))
+
+;; "You make me closer to God" -- Nine Inch Nails
+;; Well, in this case we're actually just "closer to resolution"...
+;; pointing at some other promise that isn't us.
+(define-record-type <mactor:closer>
+  (make-mactor:closer unresolved point-to history waiting-messages)
+  mactor:closer?
+  (unresolved mactor:closer-unresolved)
+  ;; Who do we currently point to?
+  (point-to mactor:closer-point-to)
+  ;; A set of promises we used to point to before they themselves
+  ;; resolved... used to detect cycles
+  (history mactor:closer-history)
+  ;; Any messages that are waiting to be passed along...
+  ;; Currently only if we're pointing to a remote-promise, otherwise
+  ;; this will be an empty list.
+  (waiting-messages mactor:closer-waiting-messages))
+
+;; Point at a remote object.
+;; It's eventual because, well, it could still break on network partition.
+(define-record-type <mactor:remote-link>
+  (make-mactor:remote-link eventual point-to)
+  mactor:remote-link?
+  (eventual mactor:remote-link-eventual)
+  (point-to mactor:remote-link-point-to))
+
+;; Link to an object on the same machine.
+(define-record-type <mactor:local-link>
+  (make-mactor:local-link point-to)
+  mactor:local-link?
+  (point-to mactor:local-link-point-to))
+
+;; A promise that has resolved to some value
+(define-record-type <mactor:encased>
+  (make-mactor:encased val)
+  mactor:encased?
+  (val mactor:encased-val))
+
+;; Breakage (and remember why!)
+(define-record-type <mactor:broken>
+  (make-mactor:broken problem)
+  mactor:broken?
+  (problem mactor:broken-problem))
+
+(define-record-type <listener-info>
+  (make-listener-info resolve-me wants-partial?)
+  listener-info?
+  (resolve-me listener-info-resolve-me)
+  (wants-partial? listener-info-wants-partial?))
+
+;; (define (mactor:unresolved-add-listener mactor new-listener wants-partial?)
+;;   (define new-listener-info
+;;     (listener-info new-listener wants-partial?))
+;;   (match mactor
+;;     [(mactor:naive resolver-unsealer resolver-tm? listeners
+;;                    waiting-messages)
+;;      (mactor:naive resolver-unsealer resolver-tm?
+;;                    (cons new-listener-info listeners)
+;;                    waiting-messages)]
+;;     [(mactor:question resolver-unsealer resolver-tm? listeners
+;;                       captp-connector question-finder)
+;;      (mactor:question resolver-unsealer resolver-tm?
+;;                       (cons new-listener-info listeners)
+;;                       captp-connector question-finder)]
+;;     [(mactor:closer resolver-unsealer resolver-tm? listeners
+;;                     point-to history waiting-messages)
+;;      (mactor:closer resolver-unsealer resolver-tm?
+;;                     (cons new-listener-info listeners)
+;;                     point-to history waiting-messages)]))
+
+;; ;; Helper for syscaller's fulfill-promise and break-promise methods
+;; (define (unseal-mactor-resolution mactor sealed-resolution)
+;;   (define resolver-tm?
+;;     (mactor:eventual-resolver-tm? mactor))
+;;   (define resolver-unsealer
+;;     (mactor:eventual-resolver-unsealer mactor))
+;;   ;; Is this a valid resolution?
+;;   (unless (resolver-tm? sealed-resolution)
+;;     (error "Resolution sealed with wrong trademark!"))
+;;   (resolver-unsealer sealed-resolution))
+
+;; (define (near-refr? refr)
+;;   (define sys (get-syscaller-or-die))
+;;   (sys 'near-refr? refr))
+;; (define (far-refr? refr)
+;;   (not (near-refr? refr)))
+
+;; ;; Dangerous and dynamic... not intended to be exposed outside of here
+;; ;; at this time, anyway.
+;; ;; Used to implement some promise-introspection methods...
+;; (define (near-mactor refr)
+;;   (-> near-refr? any/c)
+;;   ((current-syscaller) 'near-mactor refr))
+;; ;;; "Become" special sealers
+;; ;;; ========================
+
+;; ;; Note that this isn't really perfect; if someone has intercepted an
+;; ;; old become-value, they can still make us become that again... but
+;; ;; that's a fairly rare risk probably (I can't think of any likely
+;; ;; scenarios currently)
+
+;; (define (make-become-sealer-triplet)
+;;   (define-values (struct:seal make-seal sealed? seal-ref seal-set!)
+;;     (make-struct-type 'become #f 2 0))
+;;   (define (become new-handler [return-val (void)])
+;;     (make-seal new-handler return-val))
+;;   (define unseal-become-handler
+;;     (procedure-rename
+;;      (make-struct-field-accessor seal-ref 0)
+;;      'unseal-become-handler))
+;;   (define unseal-become-return-val
+;;     (procedure-rename
+;;      (make-struct-field-accessor seal-ref 1)
+;;      'unseal-become-return-val))
+;;   (define (unseal sealed)
+;;     (values (unseal-become-handler sealed)
+;;             (unseal-become-return-val sealed)))
+;;   (values become unseal sealed?))
+
 
 ;; Re-entry Protection
 ;; ===================
