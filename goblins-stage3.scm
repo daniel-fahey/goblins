@@ -726,16 +726,17 @@
     [($ <mactor:closer> unresolved point-to history waiting-messages)
      (make-mactor:closer new-unresolved point-to history waiting-messages)]))
 
-;; ;; Helper for syscaller's fulfill-promise and break-promise methods
-;; (define (unseal-mactor-resolution mactor sealed-resolution)
-;;   (define resolver-tm?
-;;     (mactor:eventual-resolver-tm? mactor))
-;;   (define resolver-unsealer
-;;     (mactor:eventual-resolver-unsealer mactor))
-;;   ;; Is this a valid resolution?
-;;   (unless (resolver-tm? sealed-resolution)
-;;     (error "Resolution sealed with wrong trademark!"))
-;;   (resolver-unsealer sealed-resolution))
+;; Helper for syscaller's fulfill-promise and break-promise methods
+(define (unseal-mactor-resolution mactor sealed-resolution)
+  (define eventual (mactor-get-m~eventual mactor))
+  (define resolver-tm?
+    (m~eventual-resolver-tm? eventual))
+  (define resolver-unsealer
+    (m~eventual-resolver-unsealer eventual))
+  ;; Is this a valid resolution?
+  (unless (resolver-tm? sealed-resolution)
+    (error "Resolution sealed with wrong trademark!"))
+  (resolver-unsealer sealed-resolution))
 
 ;; (define (near-refr? refr)
 ;;   (define sys (get-syscaller-or-die))
