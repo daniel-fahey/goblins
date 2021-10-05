@@ -846,13 +846,13 @@
       (case method-id
         [($) _$]
         [(spawn) _spawn]
-        ['spawn-mactor spawn-mactor]
+        [(spawn-mactor) spawn-mactor]
         ;; TODO:
         ;; ['fulfill-promise fulfill-promise]
         ;; ['break-promise break-promise]
         ;; ;; TODO: These are all variants of 'send-message.
         ;; ;;   Shouldn't we collapse them?
-        ;; ['<-np _<-np]
+        [(<-np) _<-np]
         ;; ['<- _<-]
         ;; ['send-message _send-message]
         ;; ['handle-message _handle-message]
