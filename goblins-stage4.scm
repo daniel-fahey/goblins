@@ -940,8 +940,8 @@
         [(spawn-mactor) spawn-mactor]
         [(send-message) _send-message]
         ;; TODO:
-        ;; [(fulfill-promise) fulfill-promise]
-        ;; [(break-promise) break-promise]
+        [(fulfill-promise) fulfill-promise]
+        [(break-promise) break-promise]
         ;; [(handle-message) _handle-message]
         ;; [(handle-listen) _handle-listen]
         ;; [(send-listen) _send-listen]
