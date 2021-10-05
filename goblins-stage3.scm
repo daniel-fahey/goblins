@@ -846,7 +846,7 @@
       (case method-id
         [($) _$]
         [(spawn) _spawn]
-        [(<-) _<-]
+        ;; [(<-) _<-]
         [(<-np) _<-np]
         [(spawn-mactor) spawn-mactor]
         [(send-message) _send-message]
