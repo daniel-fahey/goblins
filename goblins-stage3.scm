@@ -753,6 +753,36 @@
 ;;   ((current-syscaller) 'near-mactor refr))
 
 
+
+;; Messages
+;; --------
+
+;; These are the main things that get sent as the toplevel of a turn in a vat!
+(define-record-type <message>
+  (make-message to resolve-me args answer-this-question)
+  message?
+  ;; who's receiving the message (the invoked actor)
+  (to message-to)
+  ;; who's interested in the result (a resolver)
+  (resolve-me message-resolve-me)
+  ;; arguments to the invoked actor
+  (args message-args)
+  ;; Either a question-finder or #f
+  (answer-this-question message-answer-this-question))
+
+(define (question-message? msg)
+  (if (message-answer-this-question msg) #t #f))
+
+;; ;; Sent in the same way as <message>, but does listen requests specifically
+;; (define-record-type <listen-request>
+;;   (make-listen-request to listener wants-partial?)
+;;   listen-request?
+;;   (to listen-request-to)
+;;   (listener listen-request-listener)
+;;   (wants-partial? listen-request-wants-partial?))
+
+
+
 ;; Re-entry Protection
 ;; ===================
 ;;
