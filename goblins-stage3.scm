@@ -846,19 +846,17 @@
       (case method-id
         [($) _$]
         [(spawn) _spawn]
-        [(spawn-mactor) spawn-mactor]
-        ;; TODO:
-        ;; ['fulfill-promise fulfill-promise]
-        ;; ['break-promise break-promise]
-        ;; ;; TODO: These are all variants of 'send-message.
-        ;; ;;   Shouldn't we collapse them?
+        [(<-) _<-]
         [(<-np) _<-np]
-        ;; ['<- _<-]
-        ;; ['send-message _send-message]
-        ;; ['handle-message _handle-message]
-        ;; ['handle-listen _handle-listen]
-        ;; ['send-listen _send-listen]
-        ;; ['on _on]
+        [(spawn-mactor) spawn-mactor]
+        [(send-message) _send-message]
+        ;; TODO:
+        ;; [(fulfill-promise) fulfill-promise]
+        ;; [(break-promise) break-promise]
+        ;; [(handle-message) _handle-message]
+        ;; [(handle-listen) _handle-listen]
+        ;; [(send-listen) _send-listen]
+        ;; [(on) _on]
         [(vat-connector) get-vat-connector]
         [(near-refr?) near-refr?]
         [(near-mactor) near-mactor]
@@ -1276,23 +1274,20 @@
              (void)])))]))
 
   ;; helper to the below two methods
-  #;(define (_send-message kws kw-vals to-refr resolve-me args
-                         #:answer-this-question [answer-this-question #f])
+  (define* (_send-message to-refr resolve-me args
+                          #:key [answer-this-question #f])
     (unless (live-refr? to-refr)
       (error 'send-message
-             "Don't know how to send a message to: ~a" to-refr))
+             "Don't know how to send a message to:" to-refr))
     (define new-message
       (if answer-this-question
-          (question-message to-refr resolve-me kws kw-vals args
-                            answer-this-question)
-          (message to-refr resolve-me kws kw-vals args)))
+          (make-message to-refr resolve-me args answer-this-question)
+          (make-message to-refr resolve-me args #f)))
     (set! new-msgs (cons new-message new-msgs)))
 
-  #;(define _<-np
-    (make-keyword-procedure
-     (lambda (kws kw-vals to-refr . args)
-       (_send-message kws kw-vals to-refr #f args)
-       (void))))
+  (define (_<-np to-refr . args)
+    (_send-message to-refr #f args)
+    _void)
 
   #;(define _<-
     (make-keyword-procedure
