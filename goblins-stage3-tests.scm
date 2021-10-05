@@ -14,7 +14,8 @@
 
 (define-module (goblins tests test-stage3)
   #:use-module (goblins stage3)
-  #:use-module (srfi srfi-64))
+  #:use-module (srfi srfi-64)
+  #:use-module (srfi srfi-11))
 
 (test-begin "test-goblins-stage3")
 
@@ -99,6 +100,28 @@
 (test-equal (actormap-peek am a-ctr) 2)
 (test-equal (actormap-poke! am a-ctr) 2)
 (test-equal (actormap-peek am a-ctr) 3)
+
+;; Make sure using <-np queues a message
+(test-eqv
+    (let-values (((_returned tam msgs)
+                  (actormap-run*
+                   am
+                   (lambda ()
+                     (<-np alice "Nobody")))))
+      (length msgs))
+  1)
+
+;; ... or three
+(test-eqv
+    (let-values (((_returned tam msgs)
+                  (actormap-run*
+                   am
+                   (lambda ()
+                     (<-np alice "Nobody")
+                     (<-np alice "Was")
+                     (<-np alice "Here")))))
+      (length msgs))
+  3)
 
 
 (test-end "test-goblins-stage3")
