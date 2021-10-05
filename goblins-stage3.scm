@@ -933,16 +933,15 @@
                            (mactor:object-become? mactor))))
 
          return-val)]
-      ;; ;; If it's an encased value, "calling" it just returns the
-      ;; ;; internal value.
-      ;; [(? mactor:encased?)
-      ;;  (mactor:encased-val mactor)]
-      ;; ;; Ah... we're linking to another actor locally, so let's
-      ;; ;; just de-symlink and call that instead.
-      ;; [(? mactor:local-link?)
-      ;;  (keyword-apply _$ kws kw-vals
-      ;;                 (mactor:local-link-point-to mactor)
-      ;;                 args)]
+      ;; If it's an encased value, "calling" it just returns the
+      ;; internal value.
+      [(? mactor:encased?)
+       (mactor:encased-val mactor)]
+      ;; Ah... we're linking to another actor locally, so let's
+      ;; just de-symlink and call that instead.
+      [(? mactor:local-link?)
+       (apply _$ (mactor:local-link-point-to mactor)
+              args)]
       ;; Not a callable mactor!
       [_other
        (error 'not-callable
