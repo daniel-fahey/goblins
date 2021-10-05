@@ -63,6 +63,43 @@
   #:use-module (ice-9 vlist))
 
 
+;;; Utilities (which should be moved to their own modules)
+;;; ======================================================
+
+;;; Here's basically your pre-goblins area.
+
+;; Old hack to get the "unspecified/undefined type"
+(define _void (if #f #f))
+
+;; mimic Racket's seteq
+(define (vseteq . items)
+  (alist->vhash (map (lambda (x) (cons x #t)) items) hashq))
+(define (vseteq-add vseteq item)
+  (vhash-consq item #t vseteq))
+(define (vseteq-member? vseteq item)
+  (vhash-assq item vseteq))
+
+;; (TODO: Use from (goblins simple-sealers) when we break
+;; into modules.  For now we want to demonstrate stages as quasi-self-contained.)
+
+(define* (make-sealer-triplet #:optional name)
+  (define-record-type <seal>
+    (seal val)
+    sealed?
+    (val unseal))
+  (set-record-type-printer! 
+   <seal>
+   (lambda (record port)
+     (if name
+         (begin
+           (display "<sealed: " port)
+           (display name port)
+           (display ">" port))
+         (display "<sealed>"))))
+  (values seal unseal sealed?))
+
+
+
 ;;;                  .============================.
 ;;;                  | High level view of Goblins |
 ;;;                  '============================'
@@ -315,9 +352,6 @@
 
 ;; Actormaps, etc
 ;; ==============
-
-;; Old hack to get the "unspecified/undefined type"
-(define _void (if #f #f))
 
 (define-record-type <actormap>
   ;; TODO: This is confusing, naming-wise? (see make-actormap alias)
@@ -1688,29 +1722,6 @@
 
 
 
-;;; Simple sealers
-;;; ==============
-
-;; (TODO: Use from (goblins simple-sealers) when we break
-;; into modules.  For now we want to demonstrate stages as quasi-self-contained.)
-
-(define* (make-sealer-triplet #:optional name)
-  (define-record-type <seal>
-    (seal val)
-    sealed?
-    (val unseal))
-  (set-record-type-printer! 
-   <seal>
-   (lambda (record port)
-     (if name
-         (begin
-           (display "<sealed: " port)
-           (display name port)
-           (display ">" port))
-         (display "<sealed>"))))
-  (values seal unseal sealed?))
-
-
 ;;; actormap turning and utils
 ;;; ==========================
 
@@ -1840,21 +1851,6 @@
 ;;         (values call-result new-actormap new-msgs)]))))
 
 
-
-
-;; Test area
-;; ---------
-
-#;(define (_test)
-  (define am (make-whactormap))
-  (define (^greeter _bcom my-name)
-    (lambda (your-name)
-      (format #f "Hello ~a, my name is ~a!" your-name my-name)))
-  (define alice
-    (actormap-spawn! am ^greeter "Alice"))
-  (display (actormap-peek am alice "Bob"))(newline))
-
-
 
 ;; Vats
 ;; ----
@@ -1914,15 +1910,3 @@
 ;;; implement the vat-connnector behavior (currently the handle-message
 ;;; and vat-id methods, though it's not unlikely this module will get
 ;;; out of date... oops)
-
-
-;;; Utilities (which should be moved to their own modules)
-;;; ======================================================
-
-;; mimic Racket's seteq
-(define (vseteq . items)
-  (alist->vhash (map (lambda (x) (cons x #t)) items) hashq))
-(define (vseteq-add vseteq item)
-  (vhash-consq item #t vseteq))
-(define (vseteq-member? vseteq item)
-  (vhash-assq item vseteq))
