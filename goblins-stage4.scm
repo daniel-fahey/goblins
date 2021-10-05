@@ -1456,8 +1456,8 @@
 
 
 
-;; Core API
-;; ========
+;; Core API (spawn, $, <-, <-np, on)
+;; =================================
 
 ;; System calls
 (define (spawn constructor . args)
@@ -1480,20 +1480,58 @@
              [promise? #f])
   'TODO)
 
-#;(define (_spawn-promise-values #:key
-                               (question-finder #f)
-                               (captp-connector #f))
-  'TODO)
 
+
+;; Spawning promises
+;; =================
+
+;; We've made the decision
+(define already-resolved
+  (lambda _ #f))
+
+(define (^resolver bcom promise sealer)
+  (match-lambda*
+    [(list 'fulfill val)
+     (define sys (get-syscaller-or-die))
+     (sys 'fulfill-promise promise (sealer val))
+     (bcom already-resolved)]
+    [(list 'break problem)
+     (define sys (get-syscaller-or-die))
+     (sys 'break-promise promise (sealer problem))
+     (bcom already-resolved)]))
+
+(define* (_spawn-promise-values #:key
+                                (question-finder #f)
+                                (captp-connector #f))
+  (define-values (sealer unsealer tm?)
+    (make-sealer-triplet 'fulfill-promise))
+  (define sys (get-syscaller-or-die))
+  (define m-eventual
+    (make-m~eventual unsealer tm?))
+  (define m-unresolved
+    (make-m~unresolved m-eventual '()))
+  (define promise
+    (sys 'spawn-mactor
+         (if question-finder
+             (begin
+               (unless captp-connector
+                 (error 'question-finder-without-captp-connector))
+               (make-mactor:question m-unresolved
+                                     captp-connector
+                                     question-finder))
+             (make-mactor:naive m-unresolved '()))))
+  (define resolver
+    (spawn ^resolver promise sealer))
+  (values promise resolver))
+
+;; We don't want to expose the keyword arguments of the parent
+;; procedure to just everyone, hence this indirection
 (define (spawn-promise-values)
-  'TODO)
+  (spawn-promise-values))
+
+;; Convenient, sometimes
 (define (spawn-promise-cons)
-  'TODO)
-
-
-;; ;; (define am (make-whactormap))
-
-;; ;; (actormap-set! am 'hello 'world)
+  (call-with-values spawn-promise-values cons))
 
 
 
@@ -1565,6 +1603,29 @@
   (actormap-set! actormap actor-refr mactor)
   actor-refr)
 
+
+
+;;; Simple sealers
+;;; ==============
+
+;; (TODO: Use from (goblins simple-sealers) when we break
+;; into modules.  For now we want to demonstrate stages as quasi-self-contained.)
+
+(define* (make-sealer-triplet #:optional name)
+  (define-record-type <seal>
+    (seal val)
+    sealed?
+    (val unseal))
+  (set-record-type-printer! 
+   <seal>
+   (lambda (record port)
+     (if name
+         (begin
+           (display "<sealed: " port)
+           (display name port)
+           (display ">" port))
+         (display "<sealed>"))))
+  (values seal unseal sealed?))
 
 
 ;;; actormap turning and utils
