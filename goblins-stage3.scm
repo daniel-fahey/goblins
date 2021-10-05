@@ -14,11 +14,8 @@
 
 
 ;; STAGE 3: Add:
-;;  - <-
 ;;  - <-np
-;;  - on
-;;  - most of the whactormaps
-;;  - a simple vat
+;;  - most of the mactors
 
 (define-module (goblins stage3)
   #:export (make-whactormap
