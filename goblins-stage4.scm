@@ -13,11 +13,12 @@
 ;;; limitations under the License.
 
 
-;; STAGE 3: Add:
-;;  - <-np
-;;  - most of the mactors
+;; STAGE 4: Add:
+;;  - <-
+;;  - promises
+;;  - proto-vats...?
 
-(define-module (goblins stage3)
+(define-module (goblins stage4)
   #:export (make-whactormap
             make-actormap
 
