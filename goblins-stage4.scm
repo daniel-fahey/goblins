@@ -14,15 +14,22 @@
 
 
 ;; STAGE 4: Add:
+;;  - remote-refrs
 ;;  - <-
 ;;  - promises
 ;;  - proto-vats...?
 
 (define-module (goblins stage4)
-  #:export (make-whactormap
-            make-actormap
+  #:export (live-refr?
+            local-refr?
+            remote-refr?
+            local-object-refr?
+            local-promise-refr?
+            remote-object-refr?
+            remote-promise-refr?
 
-            spawn $
+            make-whactormap
+            make-actormap
 
             actormap-spawn
             actormap-spawn!
@@ -43,6 +50,7 @@
             transactormap?
             transactormap-merge!
 
+            spawn $
             <-np
             ;;;; yet to come:
             ;; <- on
@@ -485,14 +493,54 @@
     [(? local-promise-refr?)
      (local-promise-refr-vat-connector local-refr)]))
 
+;; Captp-connector should be a procedure which both sends a message
+;; to the local machine representative actor, but also has something
+;; serialized that knows which specific remote machine + session this
+;; corresponds to (to look up the right captp session and forward)
+
+(define-record-type <remote-object-refr>
+  (make-remote-object-refr captp-connector sealed-pos)
+  remote-object-refr?
+  (captp-connector remote-object-refr-captp-connector)
+  (sealed-pos remote-object-refr-sealed-pos))
+
+(define-record-type <remote-promise-refr>
+  (make-remote-promise-refr captp-connector sealed-pos)
+  remote-promise-refr?
+  (captp-connector remote-promise-refr-captp-connector)
+  (sealed-pos remote-promise-refr-sealed-pos))
+
+(define (remote-refr-captp-connector remote-refr)
+  (match remote-refr
+    [(? remote-object-refr?)
+     (remote-object-refr-captp-connector remote-refr)]
+    [(? remote-promise-refr?)
+     (remote-promise-refr-captp-connector remote-refr)]))
+
+(define (remote-refr-sealed-pos remote-refr)
+  (match remote-refr
+    [(? remote-object-refr?)
+     (remote-object-refr-sealed-pos remote-refr)]
+    [(? remote-promise-refr?)
+     (remote-promise-refr-sealed-pos remote-refr)]))
+
+(set-record-type-printer!
+ <remote-object-refr>
+ (lambda (lpr port)
+   (display "#<remote-object>" port)))
+
+(set-record-type-printer!
+ <remote-promise-refr>
+ (lambda (lpr port)
+   (display "#<remote-promise>" port)))
+
+(define (remote-refr? obj)
+  (or (remote-object-refr? obj)
+      (remote-promise-refr? obj)))
 
 (define (live-refr? obj)
   (or (local-refr? obj)
-      ;; TODO: Finish as we fill in the other refr types
-      ))
-
-#;(define (actormap-poke! am refr . args)
-  'TODO)
+      (remote-refr? obj)))
 
 
 
