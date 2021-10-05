@@ -16,6 +16,9 @@
 ;; STAGE 3: Add:
 ;;  - <-np
 ;;  - most of the mactors
+;;
+;; Breaking things into stages is starting to get a bit messy as I run
+;; out of time...
 
 (define-module (goblins stage3)
   #:export (make-whactormap
