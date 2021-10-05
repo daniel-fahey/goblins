@@ -42,8 +42,9 @@
             transactormap?
             transactormap-merge!
 
+            <-np
             ;;;; yet to come:
-            ;; <- <-np on
+            ;; <- on
             )
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
@@ -1282,10 +1283,14 @@
           (make-message to-refr resolve-me args #f)))
     (set! new-msgs (cons new-message new-msgs)))
 
-  (define (_<-np to-refr . args)
+  (define (_<-np to-refr args)
     (_send-message to-refr #f args)
     _void)
 
+  ;; Well, this does do a bit more heavy lifting than *just* call
+  ;; _send-message.
+  ;;
+  ;; It also constructs a promise (including, possibly, a question promise)
   #;(define _<-
     (make-keyword-procedure
      (lambda (kws kw-vals to-refr . args)
