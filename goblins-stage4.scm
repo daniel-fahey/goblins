@@ -57,7 +57,10 @@
             )
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
-  #:use-module (ice-9 match))
+  #:use-module (srfi srfi-11)
+  #:use-module (ice-9 match)
+  #:use-module (ice-9 control)
+  #:use-module (ice-9 vlist))
 
 
 ;;;                  .============================.
@@ -760,6 +763,10 @@
     [(? mactor:remote-link? obj)
      (mactor:remote-link-eventual obj)]))
 
+(define (mactor:unresolved-listeners mactor)
+  (define unresolved (mactor-get-m~unresolved mactor))
+  (m~unresolved-listeners unresolved))
+
 (define (mactor:unresolved-add-listener mactor new-listener wants-partial?)
   (define new-listener-info
     (make-listener-info new-listener wants-partial?))
@@ -821,13 +828,13 @@
 (define (question-message? msg)
   (if (message-answer-this-question msg) #t #f))
 
-;; ;; Sent in the same way as <message>, but does listen requests specifically
-;; (define-record-type <listen-request>
-;;   (make-listen-request to listener wants-partial?)
-;;   listen-request?
-;;   (to listen-request-to)
-;;   (listener listen-request-listener)
-;;   (wants-partial? listen-request-wants-partial?))
+;; Sent in the same way as <message>, but does listen requests specifically
+(define-record-type <listen-request>
+  (make-listen-request to listener wants-partial?)
+  listen-request?
+  (to listen-request-to)
+  (listener listen-request-listener)
+  (wants-partial? listen-request-wants-partial?))
 
 
 
@@ -1021,7 +1028,7 @@
   (define (spawn-mactor mactor debug-name)
     (actormap-spawn-mactor! actormap mactor debug-name))
 
-  #;(define (fulfill-promise promise-id sealed-val)
+  (define (fulfill-promise promise-id sealed-val)
     (call/ec
      (lambda (return-early)
        (define orig-mactor
@@ -1040,16 +1047,25 @@
             (mactor:closer-waiting-messages orig-mactor)]
            [_ '()]))
 
-       (define (forward-messages [waiting-messages orig-waiting-messages])
-         (match waiting-messages
-           ['() (void)]
-           [(list (message _old-to resolve-me kws kw-vals args)
-                  rest-waiting ...)
-            ;; preserve FIFO by recursing first
-            (forward-messages rest-waiting)
-            ;; shouldn't be a question message so we don't need to
-            ;; #:answer-this-question, I think?
-            (_send-message kws kw-vals resolve-to-val resolve-me args)]))
+       (define (forward-messages)
+         (let send-rest ([waiting-messages orig-waiting-messages])
+           (match waiting-messages
+             ['() _void]
+             [(list ($ message _old-to resolve-me args q-finder)
+                    rest-waiting ...)
+              ;; preserve FIFO by recursing first
+              (send-rest rest-waiting)
+              ;; and then send this message along
+              (_send-message resolve-to-val resolve-me args
+                             ;; do we pass along the original q-finder when
+                             ;; it's not #f?  Though I'm not sure why it would
+                             ;; ever have a q-finder... so let's insert some
+                             ;; debugging tooling
+                             #:answer-this-question
+                             (if q-finder
+                                 (pk 'you-found-a-q-finder-in-message-forwarding
+                                     q-finder)
+                                 #f))])))
 
        (define new-waiting-messages
          (if (remote-promise-refr? resolve-to-val)
@@ -1075,29 +1091,32 @@
                               ;;   allow to explicitly be shared, this one is a
                               ;;   reasonable candidate
                               'cycle-in-promise-resolution)))
-            (mactor:local-link resolve-to-val)]
+            (make-mactor:local-link resolve-to-val)]
            [(? remote-object-refr?)
             ;; Since the captp connection is the one that might break this,
             ;; we need to ask it what it uses as its resolver unsealer/tm
             ;; @@: ... This doesn't seem like a good solution.
-            ;;   Whatever, we need to add when-broken or something.
-            (match-define (cons new-resolver-unsealer new-resolver-tm?)
-              (let ([connector (remote-refr-captp-connector resolve-to-val)])
-                ;; TODO: Do we need to notify it that we want to know about
-                ;;   breakage?  Presumably... so do it here instead...?
-                (connector 'partition-unsealer-tm-cons)))
-
-            (mactor:remote-link new-resolver-unsealer new-resolver-tm?
-                                resolve-to-val)]
+            ;;   Maybe bears re-examination with the addition of on-sever.
+            (let* ([connector (remote-refr-captp-connector resolve-to-val)]
+                   [partition-unsealer-tm-cons (connector 'partition-unsealer-tm-cons)])
+              ;; TODO: Do we need to notify it that we want to know about
+              ;;   breakage?  Presumably... so do it here instead...?
+              ;; TODO: Do we really need to pattern match against a cons here?
+              ;;   Couldn't we return multiple values?
+              (match partition-unsealer-tm-cons
+                [(new-resolver-unsealer . new-resolver-tm?)
+                 (make-mactor:remote-link (make-m~eventual new-resolver-unsealer
+                                                           new-resolver-tm?)
+                                          resolve-to-val)]))]
            [(or (? local-promise-refr?)
                 (? remote-promise-refr?))
             (define new-history
               (if (mactor:closer? orig-mactor)
-                  (set-add (mactor:closer-history orig-mactor)
-                           (mactor:closer-point-to orig-mactor))
-                  (seteq promise-id)))
+                  (vseteq-add (mactor:closer-history orig-mactor)
+                              (mactor:closer-point-to orig-mactor))
+                  (vseteq promise-id)))
             ;; Detect cycles!
-            (when (set-member? new-history resolve-to-val)
+            (when (vseteq-member? new-history resolve-to-val)
               ;; not sure we actually need to return anything, but I guess
               ;; this is mildly future-proof.
               (return-early
@@ -1112,32 +1131,41 @@
             ;; Make a new set of resolver sealers for this.
             ;; However, we don't use the general ^resolver because we're
             ;; explicitly using the fulfilled-handler/broken-handler things
-            (define-values (new-resolver-sealer new-resolver-unsealer new-resolver-tm?)
-              (make-sealer-triplet 'fulfill-promise))
-            (define new-resolver
-              (_spawn ^resolver '() '() (list promise-id new-resolver-sealer)))
-            ;; Now subscribe to the promise...
-            (_send-listen resolve-to-val new-resolver #t)
-            ;; Now we want to both inform any listeners that are interested
-            ;; in partial information and scrub them out of the current
-            ;; listeners list.
-            (define new-listeners
-              (for/fold ([new-listeners '()]
-                         #:result (reverse new-listeners))
-                        ([listener-info orig-listeners])
-                (if (listener-info-wants-partial? listener-info)
-                    ;; resolve and drop out of listeners
-                    (begin (_<-np (listener-info-resolve-me listener-info)
-                                  'fulfill resolve-to-val)
-                           new-listeners)
-                    (cons listener-info new-listeners))))
-            ;; Now we become "closer" to this promise
-            (mactor:closer new-resolver-unsealer new-resolver-tm?
-                           new-listeners
-                           resolve-to-val new-history
-                           new-waiting-messages)]
+            (let*-values ([(new-resolver-sealer new-resolver-unsealer new-resolver-tm?)
+                           (make-sealer-triplet 'fulfill-promise)]
+                          [(new-resolver)
+                           (_spawn ^resolver (list promise-id new-resolver-sealer)
+                                   '^resolver)])
+              ;; Now subscribe to the promise...
+              (_send-listen resolve-to-val new-resolver #t)
+              (let* ([new-listeners
+                      ;; inform those who want partial resolution and gather those who don't
+                      (let lp ([listeners orig-listeners]
+                               [new-listeners '()])
+                        (match listeners
+                          ['() new-listeners]
+                          [(listener-info rest-listeners ...)
+                           (if (listener-info-wants-partial? listener-info)
+                               ;; resolve and drop out of listeners
+                               (begin
+                                 ;; resolve
+                                 (_<-np (listener-info-resolve-me listener-info)
+                                        (list 'fulfill resolve-to-val))
+                                 ;; recurse and drop out
+                                 (lp rest-listeners new-listeners))
+                               ;; recurse with this one present
+                               (lp rest-listeners
+                                   (cons listener-info new-listeners)))]))]
+                     [new-eventual (make-m~eventual new-resolver-unsealer
+                                                    new-resolver-tm?)]
+                     [new-unresolved (make-m~unresolved new-eventual
+                                                        new-listeners)])
+                ;; Now we become "closer" to this promise
+                (make-mactor:closer new-unresolved
+                                    resolve-to-val new-history
+                                    new-waiting-messages)))]
            ;; anything else is an encased value
-           [_ (mactor:encased resolve-to-val)]))
+           [_ (make-mactor:encased resolve-to-val)]))
 
        ;;  - Now actually switch to the new mactor state
        (actormap-set! actormap promise-id
@@ -1145,14 +1173,18 @@
 
        ;; Resolve listeners, if appropriate (ie, if not mactor:closer)
        (unless (mactor:unresolved? next-mactor-state)
-         (for ([listener-info orig-listeners])
-           (<-np (listener-info-resolve-me listener-info)
-                 'fulfill resolve-to-val))))))
+         (let lp ([listeners orig-listeners])
+           (match listeners
+             ['() _void]
+             [(listener-info rest-listeners ...)
+              (<-np (listener-info-resolve-me listener-info)
+                    'fulfill resolve-to-val)
+              (lp rest-listeners)]))))))
 
   ;; TODO: Add support for broken-because-of-network-partition support
   ;;   even for mactor:remote-link
-  #;(define (break-promise promise-id sealed-problem)
-    (match (actormap-ref actormap promise-id #f)
+  (define (break-promise promise-id sealed-problem)
+    (match (actormap-ref actormap promise-id)
       ;; TODO: Not just local-promise, anything that can
       ;;   break
       [(? mactor:unresolved? unresolved-mactor)
@@ -1160,11 +1192,14 @@
          (unseal-mactor-resolution unresolved-mactor sealed-problem))
        ;; Now we "become" broken with that problem
        (actormap-set! actormap promise-id
-                      (mactor:broken problem))
+                      (make-mactor:broken problem))
        ;; Inform all listeners of the resolution
-       (for ([listener-info (in-list (mactor:unresolved-listeners unresolved-mactor))])
-         (<-np (listener-info-resolve-me listener-info)
-               'break problem))]
+       (let lp ([unresolved-listeners (mactor:unresolved-listeners unresolved-mactor)])
+         (match unresolved-listeners
+           [(listener-info rest-listeners ...)
+            (<-np (listener-info-resolve-me listener-info)
+                  'break problem)
+            (lp rest-listeners)]))]
       [(? mactor:remote-link?)
        (error "TODO: Implement breaking on captp disconnect!")]
       [#f (error "no actor with this id")]
@@ -1366,12 +1401,12 @@
           (error 'send-message
                  "Don't know how to send a message to:" to-refr)]))))
 
-  #;(define (_send-listen to-refr listener [wants-partial? #f])
+  (define* (_send-listen to-refr listener #:optional [wants-partial? #f])
     (match to-refr
       [(? live-refr?)
-       (define listen-req
-         (listen-request to-refr listener wants-partial?))
-       (set! new-msgs (cons listen-req new-msgs))]
+       (let ([listen-req
+              (make-listen-request to-refr listener wants-partial?)])
+         (set! new-msgs (cons listen-req new-msgs)))]
       [val (<-np listener 'fulfill val)]))
 
   #;(define (_handle-listen to-refr listener wants-partial? display-or-log-error)
@@ -1806,6 +1841,7 @@
 
 
 
+
 ;; Test area
 ;; ---------
 
@@ -1878,3 +1914,15 @@
 ;;; implement the vat-connnector behavior (currently the handle-message
 ;;; and vat-id methods, though it's not unlikely this module will get
 ;;; out of date... oops)
+
+
+;;; Utilities (which should be moved to their own modules)
+;;; ======================================================
+
+;; mimic Racket's seteq
+(define (vseteq . items)
+  (alist->vhash (map (lambda (x) (cons x #t)) items) hashq))
+(define (vseteq-add vseteq item)
+  (vhash-consq item #t vseteq))
+(define (vseteq-member? vseteq item)
+  (vhash-assq item vseteq))
