@@ -928,7 +928,7 @@
          ;; let's replace it
          (when new-behavior
            (unless (procedure? new-behavior)
-             (error 'become-failure "Tried to become a non-procedure behavior: ~s"
+             (error 'become-failure "Tried to become a non-procedure behavior:"
                     new-behavior))
            (actormap-set! actormap to-refr
                           (mactor:object
@@ -1318,7 +1318,7 @@
           promise]
          [to-refr
           (error 'send-message
-                 "Don't know how to send a message to: ~a" to-refr)]))))
+                 "Don't know how to send a message to:" to-refr)]))))
 
   #;(define (_send-listen to-refr listener [wants-partial? #f])
     (match to-refr
@@ -1335,7 +1335,7 @@
                          (display-or-log-error err while-handling-listen-header))
                        `#(fail ,err))])
       (unless (near-refr? to-refr)
-        (error 'not-a-near-refr "Not a near refr: ~a" to-refr))
+        (error 'not-a-near-refr "Not a near refr:" to-refr))
       (define mactor
         (actormap-ref-or-die to-refr))
       (match mactor
