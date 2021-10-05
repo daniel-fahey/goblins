@@ -1638,11 +1638,6 @@
   (apply values (actormap-poker! actormap actor-refr)))
 
 
-;; Messages
-;; --------
-
-;; TODO
-
 
 ;; Test area
 ;; ---------
