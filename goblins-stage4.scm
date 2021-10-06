@@ -1681,7 +1681,8 @@
                (make-mactor:question m-unresolved
                                      captp-connector
                                      question-finder))
-             (make-mactor:naive m-unresolved '()))))
+             (make-mactor:naive m-unresolved '()))
+         #f))
   (define resolver
     (spawn ^resolver promise sealer))
   (values promise resolver))
