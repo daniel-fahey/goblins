@@ -722,6 +722,10 @@
 ;; "You make me closer to God" -- Nine Inch Nails
 ;; Well, in this case we're actually just "closer to resolution"...
 ;; pointing at some other promise that isn't us.
+;;
+;; NOTE: Any attempt to remove this in favor of "deferring an answer
+;; until fulfillment is possible" should think through whether it will
+;; also prevent cycles.  A great deal of work went into that here.
 (define-record-type <mactor:closer>
   (make-mactor:closer unresolved point-to history waiting-messages)
   mactor:closer?
