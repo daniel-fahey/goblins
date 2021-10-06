@@ -1043,8 +1043,8 @@
       ;; Ah... we're linking to another actor locally, so let's
       ;; just de-symlink and call that instead.
       [(? mactor:local-link?)
-       (apply _$ (mactor:local-link-point-to mactor)
-              args)]
+       (_$ (mactor:local-link-point-to mactor)
+           args)]
       ;; Not a callable mactor!
       [_other
        (error 'not-callable
