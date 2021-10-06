@@ -1481,7 +1481,7 @@
         [(? mactor:remote-link? mactor)
          (_<-np listener 'fulfill (mactor:remote-link-point-to mactor))])
       ;; return with same semantics that _handle-message does
-      `#(success ,(void))))
+      `#(success ,_void)))
 
   ;; At THIS stage, fulfilled-handler, broken-handler, finally-handler should
   ;; be actors or #f.  That's not the case in the user-facing
@@ -1532,10 +1532,10 @@
       (match-lambda*
         [(list 'fulfill val)
          (handle-fulfilled val)
-         (void)]
+         _void]
         [(list 'break problem)
          (handle-broken problem)
-         (void)]))
+         _void]))
     (define listener
       (_spawn ^on-listener '() '() '()))
     (_send-listen on-refr listener)
@@ -1808,7 +1808,7 @@
 
 ;; (define (make-no-op msg)
 ;;   (make-keyword-procedure
-;;    (lambda _ (void))))
+;;    (lambda _ _void)))
 
 ;; ;; TODO: We might want to return one of the following:
 ;; ;;   (values ('call-success val) ('resolve-success val)
