@@ -41,6 +41,8 @@
             actormap-turn*
             actormap-turn
 
+            actormap-turn-message
+
             actormap-peek
             actormap-poke!
             actormap-reckless-poke!
