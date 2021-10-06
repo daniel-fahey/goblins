@@ -53,11 +53,9 @@
             transactormap?
             transactormap-merge!
 
-            spawn $
-            <-np <-
-            ;;;; yet to come:
-            ;; on
-            )
+            spawn spawn-named
+            $ <-np <-
+            on)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (srfi srfi-11)
@@ -1496,10 +1494,12 @@
   ;; At THIS stage, fulfilled-handler, broken-handler, finally-handler should
   ;; be actors or #f.  That's not the case in the user-facing
   ;; `on' procedure.
-  #;(define (_on on-refr [fulfilled-handler #f]
-               #:catch [broken-handler #f]
-               #:finally [finally-handler #f]
-               #:promise? [promise? #f])
+  (define* (_on on-refr
+                #:optional [fulfilled-handler #f]
+                #:key
+                [broken-handler #f]
+                [finally-handler #f]
+                [promise? #f])
     (define-values (return-promise return-p-resolver)
       (if promise?
           (spawn-promise-values)
@@ -1507,29 +1507,31 @@
 
     ;; These two procedures are called once the fulfillment
     ;; or break of the on-refr has actually occurred.
-    (define ((handle-resolution on-resolution
-                                resolve-fulfill-command) val)
-      (cond [on-resolution
-             ;; We can't use _send-message directly, because this may
-             ;; be in a separate syscaller at the time it's resolved.
-             (define syscaller (get-syscaller-or-die))
-             ;; But anyway, we want to resolve the return-p-resolver with
-             ;; whatever the on-resolution is, which is why we do this goofier
-             ;; roundabout
-             (syscaller 'send-message
-                        '() '() on-resolution
-                        ;; Which may be #f!
-                        return-p-resolver
-                        (list val))
-             (when finally-handler
-               (<-np finally-handler))]
-            ;; There's no on-resolution, which means we can just fulfill
-            ;; the promise immediately!
-            [else
-             (when finally-handler
-               (<-np finally-handler))
-             (when return-p-resolver
-               (<-np return-p-resolver resolve-fulfill-command val))]))
+    (define (handle-resolution on-resolution
+                               resolve-fulfill-command)
+      (lambda (val)
+        (cond [on-resolution
+               ;; We can't use _send-message directly, because this may
+               ;; be in a separate syscaller at the time it's resolved.
+               (let ((syscaller (get-syscaller-or-die)))
+                 ;; But anyway, we want to resolve the return-p-resolver with
+                 ;; whatever the on-resolution is, which is why we do this goofier
+                 ;; roundabout
+                 (syscaller 'send-message
+                            '() '() on-resolution
+                            ;; Which may be #f!
+                            return-p-resolver
+                            (list val))
+                 (when finally-handler
+                   (<-np finally-handler)))]
+              ;; There's no on-resolution, which means we can just fulfill
+              ;; the promise immediately!
+              [else
+               (when finally-handler
+                 (<-np finally-handler))
+               (when return-p-resolver
+                 (<-np return-p-resolver resolve-fulfill-command val))])))
+    
     (define handle-fulfilled
       (handle-resolution fulfilled-handler 'fulfill))
     (define handle-broken
@@ -1547,7 +1549,7 @@
          (handle-broken problem)
          _void]))
     (define listener
-      (_spawn ^on-listener '() '() '()))
+      (_spawn ^on-listener '() '^on-listener))
     (_send-listen on-refr listener)
     (when promise?
       return-promise))
@@ -1592,6 +1594,9 @@
 (define (spawn constructor . args)
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args (procedure-name constructor)))
+(define (spawn-named constructor name . args)
+  (define sys (get-syscaller-or-die))
+  (sys 'spawn constructor args name))
 (define ($ refr . args)
   (define sys (get-syscaller-or-die))
   (sys '$ refr args))
@@ -1607,7 +1612,33 @@
              [catch #f]
              [finally #f]
              [promise? #f])
-  'TODO)
+  (define broken-handler catch)
+  (define finally-handler finally)
+  (define sys (get-syscaller-or-die))
+  (define (maybe-actorize obj proc-name)
+    (match obj
+      ;; if it's a reference, it's already fine
+      [(? live-refr?)
+       obj]
+      ;; if it's a procedure, let's spawn it
+      [(? procedure?)
+       (let ((already-ran
+              (lambda _
+                (error "Already ran for automatically generated listener"))))
+         (spawn-named
+          (lambda (bcom)
+            (lambda args
+              (bcom already-ran (apply obj args))))
+          proc-name))]
+      ;; If it's #f, leave it as #f
+      [#f #f]
+      ;; Otherwise, this doesn't belong here
+      [_ (error 'invalid-on-handler
+                "Invalid handler for on: ~a" obj)]))
+  (sys 'on vow (maybe-actorize fulfilled-handler 'fulfilled-handler)
+       #:catch (maybe-actorize broken-handler 'broken-handler)
+       #:finally (maybe-actorize finally-handler 'finally-handler)
+       #:promise? promise?))
 
 
 
@@ -1810,57 +1841,60 @@
 (define while-handling-listen-header
   "While handling listen request")
 
-;; (define (make-simple-display-error msg)
-;;   (lambda* (err #:optional [header while-handling-header])
-;;     (format (current-error-port) ";; === ~a: ===\n" header)
-;;     (format (current-error-port) (format ";;  ~s" msg))
-;;     ((error-display-handler) (exn-message err) err)))
+(define (make-simple-display-error msg)
+  (lambda* (err #:optional [header while-handling-header])
+    (format (current-error-port) ";; === ~a: ===\n" header)
+    (format (current-error-port) ";;  ~s" msg)
+    #;((error-display-handler) (exn-message err) err)
+    (display "*** TODO: Proper error displaying here ***\n" (current-error-port))))
 
-;; (define (make-no-op msg)
-;;   (make-keyword-procedure
-;;    (lambda _ _void)))
+(define (make-no-op msg)
+  (lambda _ _void))
 
-;; ;; TODO: We might want to return one of the following:
-;; ;;   (values ('call-success val) ('resolve-success val)
-;; ;;           actormap new-msgs)
-;; ;;   (values ('call-fail problem) ('resolve-fail problem)
-;; ;;           actormap new-msgs)
-;; ;;   (values ('call-success val) #f  ; there was nothing to resolve
-;; ;;           actormap new-msgs)
-;; ;; Mix and match the fail/success
-;; (define* (actormap-turn-message actormap msg
-;;                                 #:key
-;;                                 [make-display-or-log-error make-simple-display-error]
-;;                                 [reckless? #f])
-;;   (define display-or-log-error
-;;     (make-display-or-log-error msg))
-;;   ;; TODO: Kuldgily reimplements part of actormap-turn*... maybe
-;;   ;; there's some opportunity to combine things, dunno.
-;;   (call-with-fresh-syscaller
-;;    (if reckless?
-;;        actormap
-;;        (make-transactormap actormap))
-;;    (lambda (sys get-sys-internals)
-;;      (define call-result
-;;        (with-handlers ([exn:fail?
-;;                         (lambda (err)
-;;                           ;; TODO: Maybe make clear that this is even more
-;;                           ;;   fundamental error?  Note that the resolver might
-;;                           ;;   not even be resolved.  Goofy approach to that
-;;                           ;;   for now...
-;;                           (when display-or-log-error
-;;                             (display-or-log-error
-;;                              err before-even-able-to-handle-header))
-;;                           `#(fail ,err))])
-;;          (match msg
-;;            [(? message?)
-;;             (sys 'handle-message msg display-or-log-error)]
-;;            [(listen-request to listener wants-partial?)
-;;             (sys 'handle-listen to listener wants-partial? display-or-log-error)])))
-
-;;      (match (get-sys-internals)
-;;        [(list new-actormap new-msgs)
-;;         (values call-result new-actormap new-msgs)]))))
+;; TODO: We might want to return one of the following:
+;;   (values ('call-success val) ('resolve-success val)
+;;           actormap new-msgs)
+;;   (values ('call-fail problem) ('resolve-fail problem)
+;;           actormap new-msgs)
+;;   (values ('call-success val) #f  ; there was nothing to resolve
+;;           actormap new-msgs)
+;; Mix and match the fail/success
+(define* (actormap-turn-message actormap msg
+                                #:key
+                                [make-display-or-log-error make-simple-display-error]
+                                [reckless? #f])
+  (define display-or-log-error
+    (make-display-or-log-error msg))
+  ;; TODO: Kuldgily reimplements part of actormap-turn*... maybe
+  ;; there's some opportunity to combine things, dunno.
+  (call-with-fresh-syscaller
+   (if reckless?
+       actormap
+       (make-transactormap actormap))
+   (lambda (sys get-sys-internals)
+     (define (handle-exn err)
+       ;; TODO: Maybe make clear that this is even more
+       ;;   fundamental error?  Note that the resolver might
+       ;;   not even be resolved.  Goofy approach to that
+       ;;   for now...
+       (when display-or-log-error
+         (display-or-log-error
+          err before-even-able-to-handle-header))
+       `#(fail ,err))
+     (define (do-call)
+       (match msg
+         [(? message?)
+          (sys 'handle-message msg display-or-log-error)]
+         [($ <listen-request> to listener wants-partial?)
+          (sys 'handle-listen to listener wants-partial? display-or-log-error)]))
+     (define call-result
+       (with-exception-handler handle-exn
+         do-call
+         #:unwind? #t
+         #:unwind-for-type #t))
+     (match (get-sys-internals)
+       [(list new-actormap new-msgs)
+        (values call-result new-actormap new-msgs)]))))
 
 
 
