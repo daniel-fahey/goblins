@@ -1096,21 +1096,12 @@
          (let send-rest ([waiting-messages orig-waiting-messages])
            (match waiting-messages
              ['() _void]
-             [(list ($ message _old-to resolve-me args q-finder)
+             [(list ($ <message> _old-to resolve-me args)
                     rest-waiting ...)
               ;; preserve FIFO by recursing first
               (send-rest rest-waiting)
               ;; and then send this message along
-              (_send-message resolve-to-val resolve-me args
-                             ;; do we pass along the original q-finder when
-                             ;; it's not #f?  Though I'm not sure why it would
-                             ;; ever have a q-finder... so let's insert some
-                             ;; debugging tooling
-                             #:answer-this-question
-                             (if q-finder
-                                 (pk 'you-found-a-q-finder-in-message-forwarding
-                                     q-finder)
-                                 #f))])))
+              (_send-message resolve-to-val resolve-me args)])))
 
        (define new-waiting-messages
          (if (remote-promise-refr? resolve-to-val)
