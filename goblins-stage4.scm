@@ -18,6 +18,9 @@
 ;;  - <-
 ;;  - promises
 ;;  - proto-vats...?
+;;
+;; TODO: Also we factored out <questioned> into its own thing.  Maybe
+;;   would be a good idea to mirror that in stage 3..
 
 (define-module (goblins stage4)
   #:export (live-refr?
