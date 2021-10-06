@@ -51,9 +51,9 @@
             transactormap-merge!
 
             spawn $
-            <-np
+            <-np <-
             ;;;; yet to come:
-            ;; <- on
+            ;; on
             )
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
@@ -947,7 +947,7 @@
       (case method-id
         [($) _$]
         [(spawn) _spawn]
-        ;; [(<-) _<-]
+        [(<-) _<-]
         [(<-np) _<-np]
         [(spawn-mactor) spawn-mactor]
         [(send-message) _send-message]
@@ -1423,31 +1423,29 @@
   ;; _send-message.
   ;;
   ;; It also constructs a promise (including, possibly, a question promise)
-  #;(define _<-
-    (make-keyword-procedure
-     (lambda (kws kw-vals to-refr . args)
-       (match to-refr
-         [(? local-refr?)
-          (define-values (promise resolver)
-            (_spawn-promise-values))
-          (_send-message kws kw-vals to-refr resolver args)
-          promise]
-         [(? remote-refr?)
-          (define captp-connector
-            (remote-refr-captp-connector to-refr))
-          (define question-finder
-            (captp-connector 'new-question-finder))
-          (define-values (promise resolver)
-            (_spawn-promise-values #:question-finder
-                                   question-finder
-                                   #:captp-connector
-                                   captp-connector))
-          (_send-message kws kw-vals to-refr resolver args
-                         #:answer-this-question question-finder)
-          promise]
-         [to-refr
-          (error 'send-message
-                 "Don't know how to send a message to:" to-refr)]))))
+  (define (_<- to-refr . args)
+    (match to-refr
+      [(? local-refr?)
+       (let-values ([(promise resolver)
+                     (_spawn-promise-values)])
+         (_send-message to-refr resolver args)
+         promise)]
+      [(? remote-refr?)
+       (let*-values (((captp-connector)
+                      (remote-refr-captp-connector to-refr))
+                     ((question-finder)
+                      (captp-connector 'new-question-finder))
+                     ((promise resolver)
+                      (_spawn-promise-values #:question-finder
+                                             question-finder
+                                             #:captp-connector
+                                             captp-connector)))         
+         (_send-message to-refr resolver args
+                        #:answer-this-question question-finder)
+         promise)]
+      [to-refr
+       (error 'send-message
+              "Don't know how to send a message to:" to-refr)]))
 
   (define* (_send-listen to-refr listener #:optional [wants-partial? #f])
     (match to-refr
