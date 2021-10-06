@@ -850,6 +850,14 @@
 ;; Messages
 ;; --------
 
+;; TODO: Switch out <question-message> into its own thing...?
+;;   The "inheritance" on racket implementation's question-message was a
+;;   bit hack, probably inappropriate.
+;;   The right solution isn't to inline the argument into every <message>,
+;;   but to create a compositional structure, as we have everywhere else
+;;   in this design.  It would be a good idea to port that same idea to
+;;   the Racket implementation.
+
 ;; These are the main things that get sent as the toplevel of a turn in a vat!
 (define-record-type <message>
   (make-message to resolve-me args answer-this-question)
