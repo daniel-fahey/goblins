@@ -850,29 +850,25 @@
 ;; Messages
 ;; --------
 
-;; TODO: Switch out <question-message> into its own thing...?
-;;   The "inheritance" on racket implementation's question-message was a
-;;   bit hack, probably inappropriate.
-;;   The right solution isn't to inline the argument into every <message>,
-;;   but to create a compositional structure, as we have everywhere else
-;;   in this design.  It would be a good idea to port that same idea to
-;;   the Racket implementation.
-
 ;; These are the main things that get sent as the toplevel of a turn in a vat!
 (define-record-type <message>
-  (make-message to resolve-me args answer-this-question)
+  (make-message to resolve-me args)
   message?
   ;; who's receiving the message (the invoked actor)
   (to message-to)
   ;; who's interested in the result (a resolver)
   (resolve-me message-resolve-me)
   ;; arguments to the invoked actor
-  (args message-args)
-  ;; Either a question-finder or #f
-  (answer-this-question message-answer-this-question))
+  (args message-args))
 
-(define (question-message? msg)
-  (if (message-answer-this-question msg) #t #f))
+;; When speaking to the captp connector, sometimes we're really asking
+;; a question.
+(define-record-type <questioned>
+  (make-questioned message answer-this-question)
+  questioned?
+  (message questioned-message)
+  ;; This one's a question-finder... supplied by the captp connector!
+  (answer-this-question questioned-answer-this-question))
 
 ;; Sent in the same way as <message>, but does listen requests specifically
 (define-record-type <listen-request>
@@ -1258,10 +1254,7 @@
   ;; handles any toplevel invocation of an actor, probably via message send.)
   (define (_handle-message msg display-or-log-error)
     (match msg
-      [($ <message> to-refr resolve-me args
-          ;; should never have a question-finder attached at this stage, since
-          ;; that's for captp only.
-          #f)
+      [($ <message> to-refr resolve-me args)
        (unless (near-refr? to-refr)
          (error 'not-a-near-refr "Not a near refr: ~a" to-refr))
 
@@ -1334,7 +1327,7 @@
                (cond
                 [(near-refr? point-to)
                  ;; (We don't use call-with-resolution because the next one will!)
-                 (_handle-message (make-message to-refr resolve-me args #f)
+                 (_handle-message (make-message to-refr resolve-me args)
                                   display-or-log-error)]
                 [else
                  ;; Otherwise, we need to forward this message to the appropriate
@@ -1389,18 +1382,17 @@
                                                        captp-connector)])
                    (captp-connector
                     'handle-message
-                    (make-message to-question-finder followup-question-resolver
-                                  args
-                                  followup-question-finder))
+                    (make-questioned (make-message to-question-finder
+                                                   followup-question-resolver
+                                                   args)
+                                     followup-question-finder))
                    followup-question-promise)]
                 ;; Otherwise, we can just send it without any question and return
                 ;; void
                 [else
                  (captp-connector
                   'handle-message
-                  (make-message to-question-finder #f
-                                args
-                                #f))
+                  (make-message to-question-finder #f args))
                  _void])))]))]))
 
   ;; helper to the below two methods
@@ -1409,10 +1401,11 @@
     (unless (live-refr? to-refr)
       (error 'send-message
              "Don't know how to send a message to:" to-refr))
-    (let ((new-message
-           (if answer-this-question
-               (make-message to-refr resolve-me args answer-this-question)
-               (make-message to-refr resolve-me args #f))))
+    (let* ((base-message (make-message to-refr resolve-me args))
+           (new-message
+            (if answer-this-question
+                (make-questioned base-message answer-this-question)
+                base-message)))
       (set! new-msgs (cons new-message new-msgs))))
 
   (define (_<-np to-refr args)
