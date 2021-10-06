@@ -953,7 +953,7 @@
         ;; TODO:
         [(fulfill-promise) fulfill-promise]
         [(break-promise) break-promise]
-        ;; [(handle-message) _handle-message]
+        [(handle-message) _handle-message]
         ;; [(handle-listen) _handle-listen]
         ;; [(send-listen) _send-listen]
         ;; [(on) _on]
