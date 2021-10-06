@@ -1409,11 +1409,11 @@
     (unless (live-refr? to-refr)
       (error 'send-message
              "Don't know how to send a message to:" to-refr))
-    (define new-message
-      (if answer-this-question
-          (make-message to-refr resolve-me args answer-this-question)
-          (make-message to-refr resolve-me args #f)))
-    (set! new-msgs (cons new-message new-msgs)))
+    (let ((new-message
+           (if answer-this-question
+               (make-message to-refr resolve-me args answer-this-question)
+               (make-message to-refr resolve-me args #f))))
+      (set! new-msgs (cons new-message new-msgs))))
 
   (define (_<-np to-refr args)
     (_send-message to-refr #f args)
