@@ -1896,7 +1896,7 @@
          #:unwind? #t
          #:unwind-for-type #t))
      (match (get-sys-internals)
-       [(list new-actormap new-msgs)
+       [(new-actormap new-msgs)
         (values call-result new-actormap new-msgs)]))))
 
 
