@@ -954,7 +954,7 @@
         [(fulfill-promise) fulfill-promise]
         [(break-promise) break-promise]
         [(handle-message) _handle-message]
-        ;; [(handle-listen) _handle-listen]
+        [(handle-listen) _handle-listen]
         ;; [(send-listen) _send-listen]
         ;; [(on) _on]
         [(vat-connector) get-vat-connector]
@@ -1451,24 +1451,24 @@
          (set! new-msgs (cons listen-req new-msgs)))]
       [val (<-np listener 'fulfill val)]))
 
-  #;(define (_handle-listen to-refr listener wants-partial? display-or-log-error)
-    (with-handlers ([exn:fail?
-                     (lambda (err)
-                       (when display-or-log-error
-                         (display-or-log-error err while-handling-listen-header))
-                       `#(fail ,err))])
+  (define (_handle-listen to-refr listener wants-partial? display-or-log-error)
+    (define (handle-exn err)
+      (when display-or-log-error
+        (display-or-log-error err while-handling-listen-header))
+      `#(fail ,err))
+    (define (do-call)
       (unless (near-refr? to-refr)
         (error 'not-a-near-refr "Not a near refr:" to-refr))
       (define mactor
         (actormap-ref-or-die to-refr))
       (match mactor
         [(? mactor:local-link?)
-         (define point-to
-           (mactor:local-link-point-to mactor))
-         (if (near-refr? point-to)
-             (_handle-listen (mactor:local-link-point-to mactor)
-                             listener wants-partial? display-or-log-error)
-             (_send-listen point-to listener wants-partial?))]
+         (let ((point-to
+                (mactor:local-link-point-to mactor)))
+           (if (near-refr? point-to)
+               (_handle-listen (mactor:local-link-point-to mactor)
+                               listener wants-partial? display-or-log-error)
+               (_send-listen point-to listener wants-partial?)))]
         ;; This object is a local promise, so we should handle it.
         [(? mactor:unresolved?)
          ;; Set a new version of the local-promise with this
@@ -1478,16 +1478,20 @@
                                                         wants-partial?))]
         ;; In the following cases we can resolve the listener immediately...
         [(? mactor:broken? mactor)
-         (_<-np listener 'break (mactor:broken-problem mactor))]
+         (_<-np listener (list 'break (mactor:broken-problem mactor)))]
         [(? mactor:encased? mactor)
-         (_<-np listener 'fulfill (mactor:encased-val mactor))]
+         (_<-np listener (list 'fulfill (mactor:encased-val mactor)))]
         [(? mactor:object? mactor)
-         (_<-np listener 'fulfill to-refr)]
+         (_<-np listener (list 'fulfill to-refr))]
         ;; For remote links, we resolve directly to that reference
         [(? mactor:remote-link? mactor)
-         (_<-np listener 'fulfill (mactor:remote-link-point-to mactor))])
+         (_<-np listener (list 'fulfill (mactor:remote-link-point-to mactor)))])
       ;; return with same semantics that _handle-message does
-      `#(success ,_void)))
+      `#(success ,_void))
+    (with-exception-handler handle-exn
+      do-call
+      #:unwind? #t
+      #:unwind-for-type #t))
 
   ;; At THIS stage, fulfilled-handler, broken-handler, finally-handler should
   ;; be actors or #f.  That's not the case in the user-facing
@@ -1799,12 +1803,12 @@
   (apply values (actormap-poker! actormap actor-refr)))
 
 
-;; (define while-handling-header
-;;   "While attempting to handle message")
-;; (define before-even-able-to-handle-header
-;;   "Before even being able to handle message")
-;; (define while-handling-listen-header
-;;   "While handling listen request")
+(define while-handling-header
+  "While attempting to handle message")
+(define before-even-able-to-handle-header
+  "Before even being able to handle message")
+(define while-handling-listen-header
+  "While handling listen request")
 
 ;; (define (make-simple-display-error msg)
 ;;   (lambda* (err #:optional [header while-handling-header])
