@@ -956,12 +956,12 @@
         [(handle-message) _handle-message]
         [(handle-listen) _handle-listen]
         [(send-listen) _send-listen]
-        ;; [(on) _on]
+        [(on) _on]
         [(vat-connector) get-vat-connector]
         [(near-refr?) near-refr?]
         [(near-mactor) near-mactor]
         [else (error 'invalid-syscaller-method
-                     "~a" method-id)]))
+                     method-id)]))
     (apply method args))
 
   ;; TODO
