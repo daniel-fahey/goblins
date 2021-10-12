@@ -13,7 +13,7 @@
 ;;; limitations under the License.
 
 ;; STAGE 0: Just actormaps that can be spawned, peeked at.
-;;   Nothing else... no turns, $, <-, on, or even bcom.
+;;   Nothing else... no turns, S, <-, on, or even bcom.
 
 (define-module (goblins stage0)
   #:export ()

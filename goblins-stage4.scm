@@ -56,7 +56,7 @@
             transactormap-merge!
 
             spawn spawn-named
-            $ <-np <-
+            S <-np <-
             on)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
@@ -209,15 +209,15 @@
 ;;;    |      |
 ;;;    |      |    This distinction is important, because Goblins supports
 ;;;    |      |    both asynchronous messages + promises via `<-` and
-;;;    |      |    classic synchronous call-and-return invocations via `$`.
+;;;    |      |    classic synchronous call-and-return invocations via `S`.
 ;;;    |      |    However, while any actor can call any other actor via
-;;;    |      |    <-, only near actors may use $ for synchronous call-retun
+;;;    |      |    <-, only near actors may use S for synchronous call-retun
 ;;;    |      |    invocations.  In the general case, a turn starts by
 ;;;    |      |    delivering to an actor in some vat a message passed with <-,
 ;;;    |      |    but during that turn many other near actors may be called
-;;;    |      |    with $.  For example, this allows for implementing transactional
+;;;    |      |    with S.  For example, this allows for implementing transactional
 ;;;    |      |    actions as transferring money from one account/purse to another
-;;;    |      |    with $ in the same vat very easily, while knowing that if
+;;;    |      |    with S in the same vat very easily, while knowing that if
 ;;;    |      |    something bad happens in this transaction, no actor state
 ;;;    |      |    changes will be committed (though listeners waiting for
 ;;;    |      |    the result of its transaction will be informed of its failure);
@@ -272,7 +272,7 @@
 ;;;    |      |    |         |
 ;;;    |      |    |         |    Anyway, these are the real "capabilities" of Goblins'
 ;;;    |      |    |         |    "object capability system".  Holding onto one gives you
-;;;    |      |    |         |    authority to make invocations with <- or $, and can be
+;;;    |      |    |         |    authority to make invocations with <- or S, and can be
 ;;;    |      |    |         |    passed around to procedure or actor invocations.
 ;;;    |      |    |         |    Effectively the "moral equivalent" of a procedure
 ;;;    |      |    |         |    reference.  If you have it, you can use (and share) it;
@@ -944,7 +944,7 @@
       (error "Sorry, this syscaller is closed for business!"))
     (define method
       (case method-id
-        [($) _$]
+        [(S) _S]
         [(spawn) _spawn]
         [(<-) _<-]
         [(<-np) _<-np]
@@ -984,7 +984,7 @@
     mactor)
 
   ;; call actor's behavior
-  (define (_$ to-refr args)
+  (define (_S to-refr args)
     ;; Restrict to live-refrs which appear to have the same
     ;; vat-connector as us
     (unless (local-refr? to-refr)
@@ -1042,7 +1042,7 @@
       ;; Ah... we're linking to another actor locally, so let's
       ;; just de-symlink and call that instead.
       [(? mactor:local-link?)
-       (_$ (mactor:local-link-point-to mactor)
+       (_S (mactor:local-link-point-to mactor)
            args)]
       ;; Not a callable mactor!
       [_other
@@ -1096,7 +1096,7 @@
          (let send-rest ([waiting-messages orig-waiting-messages])
            (match waiting-messages
              ['() _void]
-             [(list ($ <message> _old-to resolve-me args)
+             [(list (S <message> _old-to resolve-me args)
                     rest-waiting ...)
               ;; preserve FIFO by recursing first
               (send-rest rest-waiting)
@@ -1287,12 +1287,12 @@
            [(or (? mactor:object?)
                 (? mactor:encased?))
             (call-with-resolution
-             (lambda () (_$ to-refr args)))]
+             (lambda () (_S to-refr args)))]
            [(mactor:local-link point-to)
             (cond
              [(near-refr? point-to)
               (call-with-resolution
-               (lambda () (_$ point-to args)))]
+               (lambda () (_S point-to args)))]
              ;; it's not near so we need to pass this along
              [else
               (_<-np point-to (list resolve-me args))
@@ -1580,7 +1580,7 @@
 
 
 
-;; Core API (spawn, $, <-, <-np, on)
+;; Core API (spawn, S, <-, <-np, on)
 ;; =================================
 
 ;; System calls
@@ -1590,9 +1590,9 @@
 (define (spawn-named constructor name . args)
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args name))
-(define ($ refr . args)
+(define (S refr . args)
   (define sys (get-syscaller-or-die))
-  (sys '$ refr args))
+  (sys 'S refr args))
 (define (<- refr . args)
   (define sys (get-syscaller-or-die))
   (sys '<- refr args))
@@ -1767,7 +1767,7 @@
    actormap
    (lambda (sys get-sys-internals)
      (define result-val
-       (sys '$ to-refr args))
+       (sys 'S to-refr args))
      (apply values result-val
             (get-sys-internals)))))  ; actormap new-msgs
 
@@ -1900,7 +1900,7 @@
 ;;;                '======================='
 ;;;  
 ;;;             stack           heap
-;;;              ($)         (actormap)
+;;;              (S)         (actormap)
 ;;;           .-------.----------------------. -.
 ;;;           |       |                      |  |
 ;;;           |       |   .-.                |  |
@@ -1931,7 +1931,7 @@
 ;;; areas of memory).  The left-hand side is the execution of a
 ;;; turn-in-progress... the bottom stubby arrow corresponds to the initial
 ;;; invocation against some actor in the actormap, and stacked on top are
-;;; calls to other actors via immediate call-return behavior using $.
+;;; calls to other actors via immediate call-return behavior using S.
 ;;;
 ;;; Vats come in when we add the bottom half of the diagram: the event
 ;;; loop!  An event loop manages a queue of messages that are to be handled

@@ -15,14 +15,14 @@
 ;; STAGE 1: Add:
 ;;  - mactor:object
 ;;  - minimal syscaller
-;;  - $
+;;  - S
 ;;  - actormap-direct-run!
 
 (define-module (goblins stage1)
   #:export (make-whactormap
             make-actormap
 
-            spawn $
+            spawn S
 
             actormap-direct-run!
 
@@ -182,7 +182,7 @@
       (error "Sorry, this syscaller is closed for business!"))
     (define method
       (case method-id
-        [($) _$]
+        [(S) _S]
         [(spawn) _spawn]
         [(vat-connector) get-vat-connector]
         [(near-refr?) near-refr?]
@@ -211,7 +211,7 @@
     mactor)
 
   ;; call actor's behavior
-  (define (_$ to-refr args)
+  (define (_S to-refr args)
     ;; Restrict to live-refrs which appear to have the same
     ;; vat-connector as us
     (unless (local-refr? to-refr)
@@ -328,6 +328,6 @@
 (define (spawn constructor . args)
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args (procedure-name constructor)))
-(define ($ refr . args)
+(define (S refr . args)
   (define sys (get-syscaller-or-die))
-  (sys '$ refr args))
+  (sys 'S refr args))

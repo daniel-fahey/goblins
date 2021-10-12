@@ -21,7 +21,7 @@
   #:export (make-whactormap
             make-actormap
 
-            spawn $
+            spawn S
 
             actormap-spawn
             actormap-spawn!
@@ -321,7 +321,7 @@
       (error "Sorry, this syscaller is closed for business!"))
     (define method
       (case method-id
-        [($) _$]
+        [(S) _S]
         [(spawn) _spawn]
         ['spawn-mactor spawn-mactor]
         [(vat-connector) get-vat-connector]
@@ -351,7 +351,7 @@
     mactor)
 
   ;; call actor's behavior
-  (define (_$ to-refr args)
+  (define (_S to-refr args)
     ;; Restrict to live-refrs which appear to have the same
     ;; vat-connector as us
     (unless (local-refr? to-refr)
@@ -409,7 +409,7 @@
       ;; ;; Ah... we're linking to another actor locally, so let's
       ;; ;; just de-symlink and call that instead.
       ;; [(? mactor:local-link?)
-      ;;  (keyword-apply _$ kws kw-vals
+      ;;  (keyword-apply _S kws kw-vals
       ;;                 (mactor:local-link-point-to mactor)
       ;;                 args)]
       ;; Not a callable mactor!
@@ -476,9 +476,9 @@
 (define (spawn constructor . args)
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args (procedure-name constructor)))
-(define ($ refr . args)
+(define (S refr . args)
   (define sys (get-syscaller-or-die))
-  (sys '$ refr args))
+  (sys 'S refr args))
 (define (<- refr . args)
   (define sys (get-syscaller-or-die))
   (sys '<- refr args))
@@ -576,7 +576,7 @@
    actormap
    (lambda (sys get-sys-internals)
      (define result-val
-       (sys '$ to-refr args))
+       (sys 'S to-refr args))
      (apply values result-val
             (get-sys-internals)))))  ; actormap new-msgs
 

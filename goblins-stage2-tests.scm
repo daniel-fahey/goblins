@@ -33,7 +33,7 @@
 (define (^gregarious _bcom my-name)
   (lambda (talk-to)
     (format #f "I heard back: ~a"
-            ($ talk-to my-name))))
+            (S talk-to my-name))))
 
 (define greg
   (actormap-spawn! am ^gregarious "Greg"))
@@ -54,9 +54,9 @@
  am
  (lambda ()
    (define cell (spawn ^cell))
-   (test-equal ($ cell) #f)          ; initial val
-   (test-equal ($ cell 'foo) _void)  ; update (no return value)
-   (test-equal ($ cell) 'foo)))      ; new val
+   (test-equal (S cell) #f)          ; initial val
+   (test-equal (S cell 'foo) _void)  ; update (no return value)
+   (test-equal (S cell) 'foo)))      ; new val
 
 ;; Actor updates: update and return value at same time
 (define* (^counter bcom #:optional [n 0])
@@ -67,10 +67,10 @@
  am
  (lambda ()
    (define ctr (spawn ^counter))
-   (test-equal 0 ($ ctr))
-   (test-equal 1 ($ ctr))
-   (test-equal 2 ($ ctr))
-   (test-equal 3 ($ ctr))))
+   (test-equal 0 (S ctr))
+   (test-equal 1 (S ctr))
+   (test-equal 2 (S ctr))
+   (test-equal 3 (S ctr))))
 
 ;; Now for some noncommittal stuff.
 
