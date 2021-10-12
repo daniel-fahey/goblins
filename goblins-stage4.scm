@@ -51,6 +51,8 @@
             actormap-run!
             actormap-run*
 
+            actormap-churn
+
             whactormap?
             transactormap?
             transactormap-merge!
@@ -63,7 +65,8 @@
   #:use-module (srfi srfi-11)
   #:use-module (ice-9 match)
   #:use-module (ice-9 control)
-  #:use-module (ice-9 vlist))
+  #:use-module (ice-9 vlist)
+  #:use-module (ice-9 q))
 
 
 ;;; Utilities (which should be moved to their own modules)
@@ -881,6 +884,11 @@
   (listener listen-request-listener)
   (wants-partial? listen-request-wants-partial?))
 
+(define message-or-request-to
+  (match-lambda
+    [(? message? msg) (message-to msg)]
+    [(? listen-request? lr) (listen-request-to lr)]))
+
 
 
 ;; Re-entry Protection
@@ -1275,10 +1283,11 @@
                   (when resolve-me
                     (_<-np resolve-me (list 'fulfill call-result)))
                   `#(success ,call-result))
-                (with-exception-handler handle-exn
+                #;(with-exception-handler handle-exn
                   do-call
                   #:unwind? #t
-                  #:unwind-for-type #t))]
+                  #:unwind-for-type #t)
+                (do-call))]
              [orig-mactor (actormap-ref-or-die to-refr)])
          (match orig-mactor
            ;; If it's callable, we just use the call behavior, because
@@ -1479,20 +1488,16 @@
          (_<-np listener (list 'fulfill (mactor:remote-link-point-to mactor)))])
       ;; return with same semantics that _handle-message does
       `#(success ,_void))
-    (with-exception-handler handle-exn
+    #;(with-exception-handler handle-exn
       do-call
       #:unwind? #t
-      #:unwind-for-type #t))
+      #:unwind-for-type #t)
+    (do-call))
 
   ;; At THIS stage, fulfilled-handler, broken-handler, finally-handler should
   ;; be actors or #f.  That's not the case in the user-facing
   ;; `on' procedure.
-  (define* (_on on-refr
-                #:optional [fulfilled-handler #f]
-                #:key
-                [broken-handler #f]
-                [finally-handler #f]
-                [promise? #f])
+  (define* (_on on-refr fulfilled-handler broken-handler finally-handler promise?)
     (define-values (return-promise return-p-resolver)
       (if promise?
           (spawn-promise-values)
@@ -1511,7 +1516,7 @@
                  ;; whatever the on-resolution is, which is why we do this goofier
                  ;; roundabout
                  (syscaller 'send-message
-                            '() '() on-resolution
+                            on-resolution
                             ;; Which may be #f!
                             return-p-resolver
                             (list val))
@@ -1535,10 +1540,10 @@
     ;; queue something to happen *once* it resolves.
     (define (^on-listener bcom)
       (match-lambda*
-        [(list 'fulfill val)
+        [('fulfill val)
          (handle-fulfilled val)
          _void]
-        [(list 'break problem)
+        [('break problem)
          (handle-broken problem)
          _void]))
     (define listener
@@ -1626,12 +1631,11 @@
       ;; If it's #f, leave it as #f
       [#f #f]
       ;; Otherwise, this doesn't belong here
-      [_ (error 'invalid-on-handler
-                "Invalid handler for on: ~a" obj)]))
+      [_ (error "Invalid handler for on:" obj)]))
   (sys 'on vow (maybe-actorize fulfilled-handler 'fulfilled-handler)
-       #:catch (maybe-actorize broken-handler 'broken-handler)
-       #:finally (maybe-actorize finally-handler 'finally-handler)
-       #:promise? promise?))
+       (maybe-actorize broken-handler 'broken-handler)
+       (maybe-actorize finally-handler 'finally-handler)
+       promise?))
 
 
 
@@ -1644,11 +1648,11 @@
 
 (define (^resolver bcom promise sealer)
   (match-lambda*
-    [(list 'fulfill val)
+    [('fulfill val)
      (define sys (get-syscaller-or-die))
      (sys 'fulfill-promise promise (sealer val))
      (bcom already-resolved)]
-    [(list 'break problem)
+    [('break problem)
      (define sys (get-syscaller-or-die))
      (sys 'break-promise promise (sealer problem))
      (bcom already-resolved)]))
@@ -1838,7 +1842,7 @@
 (define (make-simple-display-error msg)
   (lambda* (err #:optional [header while-handling-header])
     (format (current-error-port) ";; === ~a: ===\n" header)
-    (format (current-error-port) ";;  ~s" msg)
+    (format (current-error-port) ";;  ~s\n" msg)
     #;((error-display-handler) (exn-message err) err)
     (display "*** TODO: Proper error displaying here ***\n" (current-error-port))))
 
@@ -1882,13 +1886,91 @@
          [($ <listen-request> to listener wants-partial?)
           (sys 'handle-listen to listener wants-partial? display-or-log-error)]))
      (define call-result
-       (with-exception-handler handle-exn
+       #;(with-exception-handler handle-exn
          do-call
          #:unwind? #t
-         #:unwind-for-type #t))
+         #:unwind-for-type #t)
+       (do-call))
      (match (get-sys-internals)
        [(new-actormap new-msgs)
         (values call-result new-actormap new-msgs)]))))
+
+(define (actormap-churn am msg)
+  (define churn-q (make-q))     ; message to churn on here
+  (define send-far-q (make-q))  ; messages we must still send
+  (define this-vat-connector (actormap-vat-connector am))
+  (define first-one? #f)
+  (define first-return-val #f)
+  (define (near-msg? msg)
+    (define to-refr (message-or-request-to msg))
+    (and (local-refr? to-refr)
+         (eq? (local-refr-vat-connector to-refr))))
+  ;; Used for both filling the initial queue and after
+  ;; each turn... also used to queue up the messages to be
+  ;; sent externally
+  (define (q-append! q lst)
+    (match lst
+      ('() 'done)
+      ((item rest ...)
+       (q-push! q item)
+       (q-append! q rest))))
+  ;; Queue messages depending on whether they're for this actormap
+  ;; or if they go somewhere else
+  (define (queue-messages-appropriately! msgs)
+    (match msgs
+      ('() 'done)
+      ((msg next-msgs ...)
+       (if (near-msg? msg)
+           (enq! churn-q msg)
+           (enq! send-far-q msg))
+       (queue-messages-appropriately! next-msgs))))
+  ;; Do one turn, return the transactional actormap
+  (define (turn-one am)
+    (define next-msg (deq! churn-q))
+    (define-values (this-result new-am new-msgs)
+      (actormap-turn-message am next-msg))
+    (when first-one?
+      (set! first-return-val this-result)
+      (set! first-one? #f))
+    (queue-messages-appropriately! new-msgs)
+    new-am)
+  ;; churn, building up a new transactormap
+  (define (churn am)
+    (if (q-empty? churn-q)
+        am
+        (churn (turn-one am))))
+  ;; Put the first message on the queue
+  (enq! churn-q msg)
+  ;; Turn as many times as it takes to run this
+  ;; actormap turn / vat to quiescence
+  (let ((final-am (churn am))
+        (send-far-msgs (car send-far-q)))
+    (values first-return-val final-am send-far-msgs)))
+
+(define (actormap-churn-run actormap thunk)
+  (define-values (actor-refr new-actormap)
+    (actormap-spawn (make-transactormap actormap) (lambda (bcom) thunk)))
+  (define-values (returned-val new-actormap2 new-msgs)
+    (actormap-churn new-actormap (make-message actor-refr #f '())))
+  (values returned-val new-actormap2 new-msgs))
+
+(define (dispatch-message msg)
+  (define to-refr (message-or-request-to msg))
+  (cond
+   ;; send locally
+   [(local-refr? to-refr)
+    (match (local-refr-vat-connector to-refr)
+      [(? procedure? vat-connector)
+       (vat-connector 'handle-message msg)]
+      ;; noplace like nowhere
+      [#f 'no-op])]
+   ;; send remotely
+   [else
+    (let ((captp-connector (remote-refr-captp-connector to-refr)))
+      (captp-connector 'handle-message msg))]))
+
+(define (dispatch-messages msgs)
+  (for-each dispatch-message msgs))
 
 
 
