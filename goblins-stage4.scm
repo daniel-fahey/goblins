@@ -1217,13 +1217,10 @@
 
        ;; Resolve listeners, if appropriate (ie, if not mactor:closer)
        (unless (mactor:unresolved? next-mactor-state)
-         (let lp ([listeners orig-listeners])
-           (match listeners
-             ['() _void]
-             [(listener-info rest-listeners ...)
-              (<-np (listener-info-resolve-me listener-info)
-                    'fulfill resolve-to-val)
-              (lp rest-listeners)]))))))
+         (for-each (lambda (listener-info)
+                     (<-np (listener-info-resolve-me listener-info)
+                           'fulfill resolve-to-val))
+                   orig-listeners)))))
 
   ;; TODO: Add support for broken-because-of-network-partition support
   ;;   even for mactor:remote-link
