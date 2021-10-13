@@ -1264,7 +1264,7 @@
 
        (let ([call-with-resolution
               (lambda (proc)
-                (define (handle-exn err)
+                #;(define (handle-exn err)
                   (when display-or-log-error
                     (display-or-log-error err))
                   ;; We need to revert any messages that were going
@@ -1279,7 +1279,7 @@
                     (proc))
                   (when resolve-me
                     (_<-np resolve-me (list 'fulfill call-result)))
-                  `#(success ,call-result))
+                  call-result)
                 #;(with-exception-handler handle-exn
                   do-call
                   #:unwind? #t
@@ -1302,10 +1302,10 @@
              ;; it's not near so we need to pass this along
              [else
               (_<-np point-to (list resolve-me args))
-              `#(success ,_void)])]
+              _void])]
            [(mactor:broken problem)
             (_<-np resolve-me (list 'break problem))
-            `#(fail ,problem)]
+            _void]
            [(? mactor:remote-link?)
             (let ([point-to (mactor:remote-link-point-to orig-mactor)])
               (call-with-resolution
@@ -1333,7 +1333,7 @@
                  ;; Otherwise, we need to forward this message to the appropriate
                  ;; vat
                  (_send-message point-to resolve-me args)
-                 `#(success ,_void)])]
+                 _void])]
               ;; But if it's a remote promise then we queue it in the waiting
               ;; messages because we prefer to have messages "swim as close
               ;; as possible to the machine barrier where possible", with
@@ -1349,7 +1349,7 @@
                                              point-to history
                                              (cons msg waiting-messages)))
                ;; But we should return that this was deferred
-               '#(deferred ,_void)])]
+               _void])]
            ;; Similar to the above w/ remote promises, except that we really
            ;; just don't know where things go *at all* yet, so no swimming
            ;; occurs.
@@ -1449,7 +1449,7 @@
       [val (<-np listener 'fulfill val)]))
 
   (define (_handle-listen to-refr listener wants-partial? display-or-log-error)
-    (define (handle-exn err)
+    #;(define (handle-exn err)
       (when display-or-log-error
         (display-or-log-error err while-handling-listen-header))
       `#(fail ,err))
@@ -1483,8 +1483,7 @@
         ;; For remote links, we resolve directly to that reference
         [(? mactor:remote-link? mactor)
          (_<-np listener (list 'fulfill (mactor:remote-link-point-to mactor)))])
-      ;; return with same semantics that _handle-message does
-      `#(success ,_void))
+      _void)
     #;(with-exception-handler handle-exn
       do-call
       #:unwind? #t
@@ -1846,18 +1845,11 @@
 (define (make-no-op msg)
   (lambda _ _void))
 
-;; TODO: We might want to return one of the following:
-;;   (values ('call-success val) ('resolve-success val)
-;;           actormap new-msgs)
-;;   (values ('call-fail problem) ('resolve-fail problem)
-;;           actormap new-msgs)
-;;   (values ('call-success val) #f  ; there was nothing to resolve
-;;           actormap new-msgs)
-;; Mix and match the fail/success
 (define* (actormap-turn-message actormap msg
                                 #:key
                                 [make-display-or-log-error make-simple-display-error]
-                                [reckless? #f])
+                                [reckless? #f]
+                                [catch-errors? #t])
   (define display-or-log-error
     (make-display-or-log-error msg))
   ;; TODO: Kuldgily reimplements part of actormap-turn*... maybe
@@ -1877,22 +1869,27 @@
           err before-even-able-to-handle-header))
        `#(fail ,err))
      (define (do-call)
-       (match msg
-         [(? message?)
-          (sys 'handle-message msg display-or-log-error)]
-         [($ <listen-request> to listener wants-partial?)
-          (sys 'handle-listen to listener wants-partial? display-or-log-error)]))
+       (define result
+         (match msg
+           [(? message?)
+            (sys 'handle-message msg display-or-log-error)]
+           [($ <listen-request> to listener wants-partial?)
+            (sys 'handle-listen to listener wants-partial? display-or-log-error)]))
+       `#(ok ,result))
      (define call-result
-       #;(with-exception-handler handle-exn
-         do-call
-         #:unwind? #t
-         #:unwind-for-type #t)
-       (do-call))
+       (if catch-errors?
+           (with-exception-handler handle-exn
+             do-call
+             #:unwind? #t
+             #:unwind-for-type #t)
+           (do-call)))
      (match (get-sys-internals)
        [(new-actormap new-msgs)
         (values call-result new-actormap new-msgs)]))))
 
-(define (actormap-churn am msg)
+(define* (actormap-churn am msg
+                         #:key [catch-errors? #t]
+                         [merge-transactormaps? #f])
   (define churn-q (make-q))     ; message to churn on here
   (define send-far-q (make-q))  ; messages we must still send
   (define this-vat-connector (actormap-vat-connector am))
@@ -1925,12 +1922,35 @@
   (define (turn-one am)
     (define next-msg (deq! churn-q))
     (define-values (this-result new-am new-msgs)
-      (actormap-turn-message am next-msg))
+      (actormap-turn-message am next-msg
+                             #:catch-errors? catch-errors?))
     (when first-one?
       (set! first-return-val this-result)
       (set! first-one? #f))
-    (queue-messages-appropriately! new-msgs)
-    new-am)
+    (match this-result
+      ;; It succeeded?  Great, queue the messages and continue with
+      ;; the new actormap
+      [#('ok _result)
+       (queue-messages-appropriately! new-msgs)
+       ;; TODO: An optimization could be to squish all the way up
+       ;;   until the transactormap *right above* the whactormap.
+       ;;   This would mean that we'd remove the O(n) worst case
+       ;;   traversal to look up actors who haven't changed
+       ;;   while still keeping a *churn* transactional.
+       ;;   This is probably a really good idea but requires adding
+       ;;   support to `transactormap-merge!'
+       ;; Do we merge transactormaps?
+       (if merge-transactormaps?
+           ;; If so we smush and continue as we go with the original
+           ;; actormap...
+           (begin (transactormap-merge! new-am)
+                  am)
+           ;; otherwise, continue with the new transactormap
+           new-am)]
+      ;; Hm, there was an error?  In that case, don't dispatch
+      ;; messages, don't commit or continue with the transactormap
+      [#('fail err)
+       am]))
   ;; churn, building up a new transactormap
   (define (churn am)
     (if (q-empty? churn-q)
@@ -1944,11 +1964,15 @@
         (send-far-msgs (car send-far-q)))
     (values first-return-val final-am send-far-msgs)))
 
-(define (actormap-churn-run actormap thunk)
+(define* (actormap-churn-run actormap thunk
+                             #:key [catch-errors? #t]
+                             [merge-transactormaps? #f])
   (define-values (actor-refr new-actormap)
     (actormap-spawn (make-transactormap actormap) (lambda (bcom) thunk)))
   (define-values (returned-val new-actormap2 new-msgs)
-    (actormap-churn new-actormap (make-message actor-refr #f '())))
+    (actormap-churn new-actormap (make-message actor-refr #f '())
+                    #:catch-errors? catch-errors?
+                    #:merge-transactormaps? merge-transactormaps?))
   (values returned-val new-actormap2 new-msgs))
 
 (define (dispatch-message msg)
