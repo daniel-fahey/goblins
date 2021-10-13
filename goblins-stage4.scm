@@ -1416,7 +1416,7 @@
   ;; _send-message.
   ;;
   ;; It also constructs a promise (including, possibly, a question promise)
-  (define (_<- to-refr . args)
+  (define (_<- to-refr args)
     (match to-refr
       [(? local-refr?)
        (let-values ([(promise resolver)
