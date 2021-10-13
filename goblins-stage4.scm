@@ -813,24 +813,15 @@
     (make-listener-info new-listener wants-partial?))
   (define new-unresolved
     (match (mactor-get-m~unresolved mactor)
-      [(? m~unresolved? m-u)
-       (make-m~unresolved (m~unresolved-eventual m-u)
-                          (cons new-listener-info
-                                (m~unresolved-listeners m-u)))]))
-  ;; TODO: Functional setters sure would make this section read cleaner...
+      [($ <m~unresolved> eventual listeners)
+       (make-m~unresolved eventual (cons new-listener-info listeners))]))
   (match mactor
-    [(? mactor:naive?)
-     (make-mactor:naive new-unresolved
-                        (mactor:naive-waiting-messages mactor))]
-    [(? mactor:question?)
-     (make-mactor:question new-unresolved
-                           (mactor:question-captp-connector mactor)
-                           (mactor:question-question-finder mactor))]
-    [(? mactor:closer?)
-     (make-mactor:closer new-unresolved
-                         (mactor:closer-point-to mactor)
-                         (mactor:closer-history mactor)
-                         (mactor:closer-waiting-messages mactor))]))
+    [($ <mactor:naive> unresolved waiting-messages)
+     (make-mactor:naive new-unresolved waiting-messages)]
+    [($ <mactor:question> unresolved captp-connector question-finder)
+     (make-mactor:question new-unresolved captp-connector question-finder)]
+    [($ <mactor:closer> unresolved point-to history waiting-messages)
+     (make-mactor:closer new-unresolved point-to history waiting-messages)]))
 
 ;; Helper for syscaller's fulfill-promise and break-promise methods
 (define (unseal-mactor-resolution mactor sealed-resolution)
@@ -1105,14 +1096,12 @@
          (let send-rest ([waiting-messages orig-waiting-messages])
            (match waiting-messages
              ['() _void]
-             [(list (? message? msg)
+             [(list ($ <message> _old-to resolve-me args)
                     rest-waiting ...)
               ;; preserve FIFO by recursing first
               (send-rest rest-waiting)
               ;; and then send this message along
-              (_send-message resolve-to-val
-                             (message-resolve-me msg)
-                             (message-args msg))])))
+              (_send-message resolve-to-val resolve-me args)])))
 
        (define new-waiting-messages
          (if (remote-promise-refr? resolve-to-val)
@@ -1258,149 +1247,147 @@
   ;; (As opposed to actormap-turn*, which only supports calling, this also
   ;; handles any toplevel invocation of an actor, probably via message send.)
   (define (_handle-message msg display-or-log-error)
-    (define to-refr (message-to msg))
-    (define resolve-me (message-resolve-me msg))
-    (define args (message-args msg))
+    (match msg
+      [($ <message> to-refr resolve-me args)
+       (unless (near-refr? to-refr)
+         (error 'not-a-near-refr "Not a near refr: ~a" to-refr))
 
-    (unless (near-refr? to-refr)
-      (error 'not-a-near-refr "Not a near refr: ~a" to-refr))
+       ;; Prevent someone trying to throw this vat into an infinite loop
+       (when (eq? to-refr resolve-me)
+         (error 'same-recipient-and-resolver
+                "Recipient and resolver are the same: ~a" to-refr))
 
-    ;; Prevent someone trying to throw this vat into an infinite loop
-    (when (eq? to-refr resolve-me)
-      (error 'same-recipient-and-resolver
-             "Recipient and resolver are the same: ~a" to-refr))
-
-    (let ([call-with-resolution
-           (lambda (proc)
-             (define (handle-exn err)
-               (when display-or-log-error
-                 (display-or-log-error err))
-               ;; We need to revert any messages that were going
-               ;; to send to preserve transactionality
-               (set! new-msgs '())
-               ;; ... but we're still going to send this one
-               (when resolve-me
-                 (_<-np resolve-me (list 'break err)))
-               `#(fail ,err))
-             (define (do-call)
-               (define call-result
-                 (proc))
-               (when resolve-me
-                 (_<-np resolve-me (list 'fulfill call-result)))
-               `#(success ,call-result))
-             (with-exception-handler handle-exn
-               do-call
-               #:unwind? #t
-               #:unwind-for-type #t))]
-          [orig-mactor (actormap-ref-or-die to-refr)])
-      (match orig-mactor
-        ;; If it's callable, we just use the call behavior, because
-        ;; that's effectively the same code we'd be running anyway.
-        ;; However, we do want to handle the resolution.
-        [(or (? mactor:object?)
-             (? mactor:encased?))
-         (call-with-resolution
-          (lambda () (_$ to-refr args)))]
-        [(mactor:local-link point-to)
-         (cond
-          [(near-refr? point-to)
-           (call-with-resolution
-            (lambda () (_$ point-to args)))]
-          ;; it's not near so we need to pass this along
-          [else
-           (_<-np point-to (list resolve-me args))
-           `#(success ,_void)])]
-        [(mactor:broken problem)
-         (_<-np resolve-me (list 'break problem))
-         `#(fail ,problem)]
-        [(? mactor:remote-link?)
-         (let ([point-to (mactor:remote-link-point-to orig-mactor)])
-           (call-with-resolution
-            (lambda ()
-              ;; Pass along the message.
-              ;; Only produce a promise if we have a resolver.
-              ((if resolve-me _<- _<-np) point-to args))))]
-        ;; Messages sent to a promise that is "closer" are a kind of
-        ;; intermediate state; we build a queue.
-        [(mactor:closer resolver-unsealer resolver-tm?
-                        listeners
-                        point-to history
-                        waiting-messages)
-         (match point-to
-           ;; If we're pointing at another near promise then we recurse
-           ;; to _handle-messages with the next promise...
-           [(? local-promise-refr?)
-            ;; Now we need to see if it's in the same vat...
+       (let ([call-with-resolution
+              (lambda (proc)
+                (define (handle-exn err)
+                  (when display-or-log-error
+                    (display-or-log-error err))
+                  ;; We need to revert any messages that were going
+                  ;; to send to preserve transactionality
+                  (set! new-msgs '())
+                  ;; ... but we're still going to send this one
+                  (when resolve-me
+                    (_<-np resolve-me (list 'break err)))
+                  `#(fail ,err))
+                (define (do-call)
+                  (define call-result
+                    (proc))
+                  (when resolve-me
+                    (_<-np resolve-me (list 'fulfill call-result)))
+                  `#(success ,call-result))
+                (with-exception-handler handle-exn
+                  do-call
+                  #:unwind? #t
+                  #:unwind-for-type #t))]
+             [orig-mactor (actormap-ref-or-die to-refr)])
+         (match orig-mactor
+           ;; If it's callable, we just use the call behavior, because
+           ;; that's effectively the same code we'd be running anyway.
+           ;; However, we do want to handle the resolution.
+           [(or (? mactor:object?)
+                (? mactor:encased?))
+            (call-with-resolution
+             (lambda () (_$ to-refr args)))]
+           [(mactor:local-link point-to)
             (cond
              [(near-refr? point-to)
-              ;; (We don't use call-with-resolution because the next one will!)
-              (_handle-message (make-message to-refr resolve-me args)
-                               display-or-log-error)]
+              (call-with-resolution
+               (lambda () (_$ point-to args)))]
+             ;; it's not near so we need to pass this along
              [else
-              ;; Otherwise, we need to forward this message to the appropriate
-              ;; vat
-              (_send-message point-to resolve-me args)
+              (_<-np point-to (list resolve-me args))
               `#(success ,_void)])]
-           ;; But if it's a remote promise then we queue it in the waiting
-           ;; messages because we prefer to have messages "swim as close
-           ;; as possible to the machine barrier where possible", with
-           ;; the exception of questions/answers which always cross over
-           ;; (see mactor:question handling later in this procedure)
-           [(? remote-promise-refr?)
-            ;; Since we're queueing to send the message until it resolves
-            ;; we don't resolve the problem here... hence we don't
-            ;; use call-with-resolution here either.
+           [(mactor:broken problem)
+            (_<-np resolve-me (list 'break problem))
+            `#(fail ,problem)]
+           [(? mactor:remote-link?)
+            (let ([point-to (mactor:remote-link-point-to orig-mactor)])
+              (call-with-resolution
+               (lambda ()
+                 ;; Pass along the message.
+                 ;; Only produce a promise if we have a resolver.
+                 ((if resolve-me _<- _<-np) point-to args))))]
+           ;; Messages sent to a promise that is "closer" are a kind of
+           ;; intermediate state; we build a queue.
+           [(mactor:closer resolver-unsealer resolver-tm?
+                           listeners
+                           point-to history
+                           waiting-messages)
+            (match point-to
+              ;; If we're pointing at another near promise then we recurse
+              ;; to _handle-messages with the next promise...
+              [(? local-promise-refr?)
+               ;; Now we need to see if it's in the same vat...
+               (cond
+                [(near-refr? point-to)
+                 ;; (We don't use call-with-resolution because the next one will!)
+                 (_handle-message (make-message to-refr resolve-me args)
+                                  display-or-log-error)]
+                [else
+                 ;; Otherwise, we need to forward this message to the appropriate
+                 ;; vat
+                 (_send-message point-to resolve-me args)
+                 `#(success ,_void)])]
+              ;; But if it's a remote promise then we queue it in the waiting
+              ;; messages because we prefer to have messages "swim as close
+              ;; as possible to the machine barrier where possible", with
+              ;; the exception of questions/answers which always cross over
+              ;; (see mactor:question handling later in this procedure)
+              [(? remote-promise-refr?)
+               ;; Since we're queueing to send the message until it resolves
+               ;; we don't resolve the problem here... hence we don't
+               ;; use call-with-resolution here either.
+               (actormap-set! actormap to-refr
+                              (mactor:closer resolver-unsealer resolver-tm?
+                                             listeners
+                                             point-to history
+                                             (cons msg waiting-messages)))
+               ;; But we should return that this was deferred
+               '#(deferred ,_void)])]
+           ;; Similar to the above w/ remote promises, except that we really
+           ;; just don't know where things go *at all* yet, so no swimming
+           ;; occurs.
+           [(mactor:naive resolver-unsealer resolver-tm?
+                          listeners waiting-messages)
             (actormap-set! actormap to-refr
-                           (mactor:closer resolver-unsealer resolver-tm?
-                                          listeners
-                                          point-to history
-                                          (cons msg waiting-messages)))
-            ;; But we should return that this was deferred
-            '#(deferred ,_void)])]
-        ;; Similar to the above w/ remote promises, except that we really
-        ;; just don't know where things go *at all* yet, so no swimming
-        ;; occurs.
-        [(mactor:naive resolver-unsealer resolver-tm?
-                       listeners waiting-messages)
-         (actormap-set! actormap to-refr
-                        (mactor:naive resolver-unsealer resolver-tm?
-                                      listeners
-                                      (cons msg waiting-messages)))
-         `#(deferred ,_void)]
-        ;; Questions should forward their messages to the captp thread
-        ;; to deal with using the relevant question-finder.
-        [(? mactor:question?)
-         (call-with-resolution
-          (lambda ()
-            (define to-question-finder
-              (mactor:question-question-finder orig-mactor))
-            (define captp-connector
-              (mactor:question-captp-connector orig-mactor))
-            (cond
-             ;; If we're being asked to resolve something, this is a
-             ;; "followup question"
-             [resolve-me
-              (let*-values ([followup-question-finder
-                             (captp-connector 'new-question-finder)]
-                            [(followup-question-promise followup-question-resolver)
-                             (_spawn-promise-values #:question-finder
-                                                    followup-question-finder
-                                                    #:captp-connector
-                                                    captp-connector)])
-                (captp-connector
-                 'handle-message
-                 (make-questioned (make-message to-question-finder
-                                                followup-question-resolver
-                                                args)
-                                  followup-question-finder))
-                followup-question-promise)]
-             ;; Otherwise, we can just send it without any question and return
-             ;; void
-             [else
-              (captp-connector
-               'handle-message
-               (make-message to-question-finder #f args))
-              _void])))])))
+                           (mactor:naive resolver-unsealer resolver-tm?
+                                         listeners
+                                         (cons msg waiting-messages)))
+            `#(deferred ,_void)]
+           ;; Questions should forward their messages to the captp thread
+           ;; to deal with using the relevant question-finder.
+           [(? mactor:question?)
+            (call-with-resolution
+             (lambda ()
+               (define to-question-finder
+                 (mactor:question-question-finder orig-mactor))
+               (define captp-connector
+                 (mactor:question-captp-connector orig-mactor))
+               (cond
+                ;; If we're being asked to resolve something, this is a
+                ;; "followup question"
+                [resolve-me
+                 (let*-values ([followup-question-finder
+                                (captp-connector 'new-question-finder)]
+                               [(followup-question-promise followup-question-resolver)
+                                (_spawn-promise-values #:question-finder
+                                                       followup-question-finder
+                                                       #:captp-connector
+                                                       captp-connector)])
+                   (captp-connector
+                    'handle-message
+                    (make-questioned (make-message to-question-finder
+                                                   followup-question-resolver
+                                                   args)
+                                     followup-question-finder))
+                   followup-question-promise)]
+                ;; Otherwise, we can just send it without any question and return
+                ;; void
+                [else
+                 (captp-connector
+                  'handle-message
+                  (make-message to-question-finder #f args))
+                 _void])))]))]))
 
   ;; helper to the below two methods
   (define* (_send-message to-refr resolve-me args
@@ -1892,12 +1879,8 @@
        (match msg
          [(? message?)
           (sys 'handle-message msg display-or-log-error)]
-         [(? listen-request? lr)
-          (sys 'handle-listen
-               (listen-request-to lr)
-               (listen-request-listener lr)
-               (listen-request-wants-partial? lr)
-               display-or-log-error)]))
+         [($ <listen-request> to listener wants-partial?)
+          (sys 'handle-listen to listener wants-partial? display-or-log-error)]))
      (define call-result
        (with-exception-handler handle-exn
          do-call
