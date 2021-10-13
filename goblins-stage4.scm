@@ -1896,7 +1896,7 @@
   (define churn-q (make-q))     ; message to churn on here
   (define send-far-q (make-q))  ; messages we must still send
   (define this-vat-connector (actormap-vat-connector am))
-  (define first-one? #f)
+  (define first-one? #t)
   (define first-return-val #f)
   (define (near-msg? msg)
     (define to-refr (message-or-request-to msg))
