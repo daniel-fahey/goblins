@@ -1939,6 +1939,9 @@
        ;;   while still keeping a *churn* transactional.
        ;;   This is probably a really good idea but requires adding
        ;;   support to `transactormap-merge!'
+       ;;   Basically we need a version that just merges
+       ;;   "one level deep", and we can keep building transactormaps
+       ;;   on top of that.
        ;; Do we merge transactormaps?
        (if merge-transactormaps?
            ;; If so we smush and continue as we go with the original
