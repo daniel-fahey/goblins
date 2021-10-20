@@ -1548,6 +1548,8 @@
     (when promise?
       return-promise))
 
+  ;; TODO: We only really seem to need/use new-msgs now, so simplify
+  ;; to just hand that back.
   (define (get-internals)
     (list actormap new-msgs))
 
@@ -1836,11 +1838,14 @@
   "While handling listen request")
 
 (define (make-simple-display-error msg)
-  (lambda* (err #:optional [header while-handling-header])
+  (lambda* (err stack #:optional [header while-handling-header])
+    (newline (current-error-port))
     (format (current-error-port) ";; === ~a: ===\n" header)
-    (format (current-error-port) ";;  ~s\n" msg)
+    (format (current-error-port) ";;  message: ~s\n" msg)
+    (format (current-error-port) ";;  exception: ~s\n" err)
     #;((error-display-handler) (exn-message err) err)
-    (display "*** TODO: Proper error displaying here ***\n" (current-error-port))))
+    (display-backtrace stack (current-error-port))
+    (newline (current-error-port))))
 
 (define (make-no-op msg)
   (lambda _ _void))
@@ -1859,15 +1864,27 @@
        actormap
        (make-transactormap actormap))
    (lambda (sys get-sys-internals)
-     (define (handle-exn err)
+     (define (error-prompt-handler kont err stack-at-exn)
+       ;; Since we threw an exception, we should inform that this
+       ;; failed... if anyone cares
+       (define resolve-me (message-resolve-me msg))
+       (define new-msgs
+         (if resolve-me
+             (list (make-message resolve-me #f (list 'break err)))
+             '()))
        ;; TODO: Maybe make clear that this is even more
        ;;   fundamental error?  Note that the resolver might
        ;;   not even be resolved.  Goofy approach to that
        ;;   for now...
        (when display-or-log-error
          (display-or-log-error
-          err before-even-able-to-handle-header))
-       `#(fail ,err))
+          err stack-at-exn
+          before-even-able-to-handle-header))
+       (values `#(fail ,err) actormap new-msgs))
+     (define (catch-stack-and-abort-to-prompt err)
+       (define stack
+         (make-stack #t catch-stack-and-abort-to-prompt))
+       (abort-to-prompt handle-exn-tag err stack))
      (define (do-call)
        (define result
          (match msg
@@ -1875,17 +1892,23 @@
             (sys 'handle-message msg display-or-log-error)]
            [($ <listen-request> to listener wants-partial?)
             (sys 'handle-listen to listener wants-partial? display-or-log-error)]))
-       `#(ok ,result))
-     (define call-result
-       (if catch-errors?
-           (with-exception-handler handle-exn
-             do-call
-             #:unwind? #t
-             #:unwind-for-type #t)
-           (do-call)))
-     (match (get-sys-internals)
-       [(new-actormap new-msgs)
-        (values call-result new-actormap new-msgs)]))))
+       (match (get-sys-internals)
+         [(new-actormap new-msgs)
+          (values `#(ok ,result) new-actormap new-msgs)]))
+     (define handle-exn-tag (make-prompt-tag 'goblins-turn))
+     (if catch-errors?
+         ;; We're catching errors?  Well, let's capture the stack without
+         ;; unwinding, *then* abort to a prompt where it's safe to process
+         ;; it...
+         (call-with-prompt handle-exn-tag
+           (lambda ()
+             (with-exception-handler catch-stack-and-abort-to-prompt
+               do-call
+               #:unwind? #f
+               #:unwind-for-type #t))
+           error-prompt-handler)
+         ;; No?  Well then, it's much simpler...
+         (do-call)))))
 
 (define* (actormap-churn am msg
                          #:key [catch-errors? #t]
@@ -1927,11 +1950,13 @@
     (when first-one?
       (set! first-return-val this-result)
       (set! first-one? #f))
+    ;; send messages
+    (queue-messages-appropriately! new-msgs)
+    ;; and loop...
     (match this-result
       ;; It succeeded?  Great, queue the messages and continue with
       ;; the new actormap
       [#('ok _result)
-       (queue-messages-appropriately! new-msgs)
        ;; TODO: An optimization could be to squish all the way up
        ;;   until the transactormap *right above* the whactormap.
        ;;   This would mean that we'd remove the O(n) worst case
