@@ -1,4 +1,4 @@
-(define-module (goblins stage1)
+(define-module (pre-goblins stage1-old)
   #:use-module (srfi srfi-9)
   #:use-module (ice-9 match)
   #:use-module (oop goops)

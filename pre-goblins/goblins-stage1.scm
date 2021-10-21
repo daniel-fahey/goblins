@@ -18,7 +18,7 @@
 ;;  - S
 ;;  - actormap-direct-run!
 
-(define-module (goblins stage1)
+(define-module (pre-goblins stage1)
   #:export (make-whactormap
             make-actormap
 

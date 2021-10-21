@@ -17,7 +17,7 @@
 ;;  - actormap-poke!
 ;;  - actormap-peek
 
-(define-module (goblins stage2)
+(define-module (pre-goblins stage2)
   #:export (make-whactormap
             make-actormap
 

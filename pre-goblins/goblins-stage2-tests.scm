@@ -12,11 +12,11 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (goblins tests test-stage1)
-  #:use-module (goblins stage1)
+(define-module (pre-goblins test-stage2)
+  #:use-module (pre-goblins stage2)
   #:use-module (srfi srfi-64))
 
-(test-begin "test-goblins-stage1")
+(test-begin "test-goblins-stage2")>
 
 (define am (make-whactormap))
 
@@ -25,16 +25,10 @@
     (format #f "Hello ~a, my name is ~a!" your-name my-name)))
 
 (define alice
-  (actormap-direct-run!
-   am
-   (lambda ()
-     (spawn ^greeter "Alice"))))
+  (actormap-spawn! am ^greeter "Alice"))
 
 (test-equal "Hello Bob, my name is Alice!"
-  (actormap-direct-run!
-   am
-   (lambda ()
-     (S alice "Bob"))))
+  (actormap-peek am alice "Bob"))
 
 (define (^gregarious _bcom my-name)
   (lambda (talk-to)
@@ -42,17 +36,11 @@
             (S talk-to my-name))))
 
 (define greg
-  (actormap-direct-run!
-   am
-   (lambda ()
-     (spawn ^gregarious "Greg"))))
+  (actormap-spawn! am ^gregarious "Greg"))
 
 ;; Actors which call other actors
 (test-equal "I heard back: Hello Greg, my name is Alice!"
-  (actormap-direct-run!
-   am
-   (lambda ()
-     (S greg alice))))
+  (actormap-peek am greg alice))
 
 ;; Actor updates: update and return value separately
 (define* (^cell bcom #:optional [val #f])
@@ -62,7 +50,7 @@
 
 (define _void (if #f #f))
 
-(actormap-direct-run!
+(actormap-run!
  am
  (lambda ()
    (define cell (spawn ^cell))
@@ -75,7 +63,7 @@
   (lambda ()
     (bcom (^counter bcom (1+ n)) n)))
 
-(actormap-direct-run!
+(actormap-run!
  am
  (lambda ()
    (define ctr (spawn ^counter))
@@ -84,4 +72,33 @@
    (test-equal 2 (S ctr))
    (test-equal 3 (S ctr))))
 
-(test-end "test-goblins-stage1")
+;; Now for some noncommittal stuff.
+
+;; Let's noncommittally spawn our friend here...
+(define-values (greety greety-tm)
+  (actormap-spawn am ^greeter "Greety"))
+;; We should be able to use actormap-peek on the transactormap...
+(test-equal (actormap-peek greety-tm greety "Marge")
+  "Hello Marge, my name is Greety!")
+;; But we shouldn't be able to act on greety against the uncommitted
+;; actormap, because nothing happened there...
+(test-error #t (actormap-peek am greety "Marge"))
+;; But now let's commmit it...
+(transactormap-merge! greety-tm)
+;; And now we should be able to.
+(test-equal (actormap-peek am greety "Marge")
+  "Hello Marge, my name is Greety!")
+
+;; Test that peek and poke work right
+(define a-ctr (actormap-spawn! am ^counter))
+(test-equal (actormap-peek am a-ctr) 0)
+(test-equal (actormap-peek am a-ctr) 0)
+(test-equal (actormap-poke! am a-ctr) 0)
+(test-equal (actormap-poke! am a-ctr) 1)
+(test-equal (actormap-peek am a-ctr) 2)
+(test-equal (actormap-peek am a-ctr) 2)
+(test-equal (actormap-poke! am a-ctr) 2)
+(test-equal (actormap-peek am a-ctr) 3)
+
+
+(test-end "test-goblins-stage2")

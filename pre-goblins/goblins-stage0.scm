@@ -15,7 +15,7 @@
 ;; STAGE 0: Just actormaps that can be spawned, peeked at.
 ;;   Nothing else... no turns, S, <-, on, or even bcom.
 
-(define-module (goblins stage0)
+(define-module (pre-goblins stage0)
   #:export ()
   #:use-module (srfi srfi-9))
 

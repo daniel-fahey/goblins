@@ -12,8 +12,8 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (goblins tests test-stage3)
-  #:use-module (goblins stage3)
+(define-module (pre-goblins test-stage3)
+  #:use-module (pre-goblins stage3)
   #:use-module (srfi srfi-64)
   #:use-module (srfi srfi-11))
 
