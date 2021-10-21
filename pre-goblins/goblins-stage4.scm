@@ -52,6 +52,8 @@
             actormap-run*
 
             actormap-churn
+            actormap-churn-run
+            actormap-churn-run!
 
             whactormap?
             transactormap?
@@ -2016,6 +2018,24 @@
                     #:catch-errors? catch-errors?
                     #:merge-transactormaps? merge-transactormaps?))
   (values returned-val new-actormap2 new-msgs))
+
+;; Also sends out relevant messages, and re-raises exceptions if appropriate
+(define* (actormap-churn-run! actormap thunk
+                              ;; TODO: Maybe we don't even permit this option
+                              ;;   for this version, which is very much so
+                              ;;   "do the common thing" for users
+                              ;;   playing around...
+                              #:key [catch-errors? #t])
+  (define-values (returned-val new-actormap new-msgs)
+    (actormap-churn-run actormap thunk #:catch-errors? catch-errors?))
+  (dispatch-messages new-msgs)
+  (match returned-val
+    [#('ok rval)
+     (transactormap-merge! new-actormap)
+     rval]
+    [#('fail err)
+     ;; re-raise exception
+     (raise-exception err)]))
 
 (define (dispatch-message msg)
   (define to-refr (message-or-request-to msg))
