@@ -1879,7 +1879,12 @@
      (define (error-prompt-handler kont err stack-at-exn)
        ;; Since we threw an exception, we should inform that this
        ;; failed... if anyone cares
-       (define resolve-me (message-resolve-me msg))
+       (define resolve-me
+         (match msg
+           [(? message?)
+            (message-resolve-me msg)]
+           [(? listen-request? lr)
+            (listen-request-listener lr)]))
        (define new-msgs
          (if resolve-me
              (list (make-message resolve-me #f (list 'break err)))
