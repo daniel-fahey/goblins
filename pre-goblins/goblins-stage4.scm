@@ -1949,10 +1949,10 @@
          (do-call)))))
 
 (define* (actormap-churn am msg
-                         #:key [catch-errors? #t]
-                         [merge-transactormaps? #f])
+                         #:key [catch-errors? #t])
   (define churn-q (make-q))     ; message to churn on here
   (define send-far-q (make-q))  ; messages we must still send
+  (define new-am (make-transactormap am))
   (define this-vat-connector (actormap-vat-connector am))
   (define first-one? #t)
   (define first-return-val #f)
@@ -1979,66 +1979,41 @@
            (enq! churn-q msg)
            (enq! send-far-q msg))
        (queue-messages-appropriately! next-msgs))))
-  ;; Do one turn, return the transactional actormap
-  (define (turn-one am)
+  (define (churn!)
     (define next-msg (deq! churn-q))
-    (define-values (this-result new-am new-msgs)
-      (actormap-turn-message am next-msg
+    (define-values (this-result buffer-am new-msgs)
+      (actormap-turn-message new-am next-msg
                              #:catch-errors? catch-errors?))
     (when first-one?
       (set! first-return-val this-result)
       (set! first-one? #f))
-    ;; send messages
+    ;; queue messages...
     (queue-messages-appropriately! new-msgs)
-    ;; and loop...
+    ;; merge if appropriate...
     (match this-result
-      ;; It succeeded?  Great, queue the messages and continue with
-      ;; the new actormap
       [#('ok _result)
-       ;; TODO: An optimization could be to squish all the way up
-       ;;   until the transactormap *right above* the whactormap.
-       ;;   This would mean that we'd remove the O(n) worst case
-       ;;   traversal to look up actors who haven't changed
-       ;;   while still keeping a *churn* transactional.
-       ;;   This is probably a really good idea but requires adding
-       ;;   support to `transactormap-merge!'
-       ;;   Basically we need a version that just merges
-       ;;   "one level deep", and we can keep building transactormaps
-       ;;   on top of that.
-       ;; Do we merge transactormaps?
-       (if merge-transactormaps?
-           ;; If so we smush and continue as we go with the original
-           ;; actormap...
-           (begin (transactormap-merge! new-am)
-                  am)
-           ;; otherwise, continue with the new transactormap
-           new-am)]
-      ;; Hm, there was an error?  In that case, don't dispatch
-      ;; messages, don't commit or continue with the transactormap
-      [#('fail err)
-       am]))
-  ;; churn, building up a new transactormap
-  (define (churn am)
+       (transactormap-buffer-merge! buffer-am)]
+      [#('fail err) #f])
+    ;; and loop!
     (if (q-empty? churn-q)
-        am
-        (churn (turn-one am))))
+        'done
+        (churn!)))
   ;; Put the first message on the queue
   (enq! churn-q msg)
   ;; Turn as many times as it takes to run this
   ;; actormap turn / vat to quiescence
-  (let ((final-am (churn am))
-        (send-far-msgs (car send-far-q)))
-    (values first-return-val final-am send-far-msgs)))
+  (churn!)
+  ;; And now let's return everything...
+  (let ((send-far-msgs (car send-far-q)))
+    (values first-return-val new-am send-far-msgs)))
 
 (define* (actormap-churn-run actormap thunk
-                             #:key [catch-errors? #t]
-                             [merge-transactormaps? #f])
+                             #:key [catch-errors? #t])
   (define-values (actor-refr new-actormap)
     (actormap-spawn (make-transactormap actormap) (lambda (bcom) thunk)))
   (define-values (returned-val new-actormap2 new-msgs)
     (actormap-churn new-actormap (make-message actor-refr #f '())
-                    #:catch-errors? catch-errors?
-                    #:merge-transactormaps? merge-transactormaps?))
+                    #:catch-errors? catch-errors?))
   (values returned-val new-actormap2 new-msgs))
 
 ;; Also sends out relevant messages, and re-raises exceptions if appropriate
