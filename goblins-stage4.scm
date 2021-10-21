@@ -1231,16 +1231,16 @@
       [(? mactor:unresolved? unresolved-mactor)
        (define problem
          (unseal-mactor-resolution unresolved-mactor sealed-problem))
+       (define unresolved-listeners
+         (mactor:unresolved-listeners unresolved-mactor))
        ;; Now we "become" broken with that problem
        (actormap-set! actormap promise-id
                       (make-mactor:broken problem))
        ;; Inform all listeners of the resolution
-       (let lp ([unresolved-listeners (mactor:unresolved-listeners unresolved-mactor)])
-         (match unresolved-listeners
-           [(listener-info rest-listeners ...)
-            (<-np (listener-info-resolve-me listener-info)
-                  'break problem)
-            (lp rest-listeners)]))]
+       (for-each (lambda (listener-info)
+                   (<-np (listener-info-resolve-me listener-info)
+                         'break problem))
+                 unresolved-listeners)]
       [(? mactor:remote-link?)
        (error "TODO: Implement breaking on captp disconnect!")]
       [#f (error "no actor with this id")]
