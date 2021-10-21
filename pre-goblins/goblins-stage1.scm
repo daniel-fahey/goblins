@@ -22,7 +22,7 @@
   #:export (make-whactormap
             make-actormap
 
-            spawn S
+            spawn $
 
             actormap-direct-run!
 
@@ -182,7 +182,7 @@
       (error "Sorry, this syscaller is closed for business!"))
     (define method
       (case method-id
-        [(S) _S]
+        [($) _$]
         [(spawn) _spawn]
         [(vat-connector) get-vat-connector]
         [(near-refr?) near-refr?]
@@ -211,7 +211,7 @@
     mactor)
 
   ;; call actor's behavior
-  (define (_S to-refr args)
+  (define (_$ to-refr args)
     ;; Restrict to live-refrs which appear to have the same
     ;; vat-connector as us
     (unless (local-refr? to-refr)
@@ -328,6 +328,6 @@
 (define (spawn constructor . args)
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args (procedure-name constructor)))
-(define (S refr . args)
+(define ($ refr . args)
   (define sys (get-syscaller-or-die))
-  (sys 'S refr args))
+  (sys '$ refr args))

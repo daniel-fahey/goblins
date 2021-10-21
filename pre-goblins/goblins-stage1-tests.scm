@@ -34,12 +34,12 @@
   (actormap-direct-run!
    am
    (lambda ()
-     (S alice "Bob"))))
+     ($ alice "Bob"))))
 
 (define (^gregarious _bcom my-name)
   (lambda (talk-to)
     (format #f "I heard back: ~a"
-            (S talk-to my-name))))
+            ($ talk-to my-name))))
 
 (define greg
   (actormap-direct-run!
@@ -52,7 +52,7 @@
   (actormap-direct-run!
    am
    (lambda ()
-     (S greg alice))))
+     ($ greg alice))))
 
 ;; Actor updates: update and return value separately
 (define* (^cell bcom #:optional [val #f])
@@ -66,9 +66,9 @@
  am
  (lambda ()
    (define cell (spawn ^cell))
-   (test-equal (S cell) #f)          ; initial val
-   (test-equal (S cell 'foo) _void)  ; update (no return value)
-   (test-equal (S cell) 'foo)))      ; new val
+   (test-equal ($ cell) #f)          ; initial val
+   (test-equal ($ cell 'foo) _void)  ; update (no return value)
+   (test-equal ($ cell) 'foo)))      ; new val
 
 ;; Actor updates: update and return value at same time
 (define* (^counter bcom #:optional [n 0])
@@ -79,9 +79,9 @@
  am
  (lambda ()
    (define ctr (spawn ^counter))
-   (test-equal 0 (S ctr))
-   (test-equal 1 (S ctr))
-   (test-equal 2 (S ctr))
-   (test-equal 3 (S ctr))))
+   (test-equal 0 ($ ctr))
+   (test-equal 1 ($ ctr))
+   (test-equal 2 ($ ctr))
+   (test-equal 3 ($ ctr))))
 
 (test-end "test-goblins-stage1")
