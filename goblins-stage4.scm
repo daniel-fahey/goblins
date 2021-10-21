@@ -1218,8 +1218,8 @@
        ;; Resolve listeners, if appropriate (ie, if not mactor:closer)
        (unless (mactor:unresolved? next-mactor-state)
          (for-each (lambda (listener-info)
-                     (<-np (listener-info-resolve-me listener-info)
-                           'fulfill resolve-to-val))
+                     (_<-np (listener-info-resolve-me listener-info)
+                            (list 'fulfill resolve-to-val)))
                    orig-listeners)))))
 
   ;; TODO: Add support for broken-because-of-network-partition support
@@ -1238,8 +1238,8 @@
                       (make-mactor:broken problem))
        ;; Inform all listeners of the resolution
        (for-each (lambda (listener-info)
-                   (<-np (listener-info-resolve-me listener-info)
-                         'break problem))
+                   (_<-np (listener-info-resolve-me listener-info)
+                          (list 'break problem)))
                  unresolved-listeners)]
       [(? mactor:remote-link?)
        (error "TODO: Implement breaking on captp disconnect!")]
