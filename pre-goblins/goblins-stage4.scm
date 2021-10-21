@@ -55,6 +55,9 @@
             actormap-churn-run
             actormap-churn-run!
 
+            dispatch-message
+            dispatch-messages
+
             whactormap?
             transactormap?
             transactormap-merge!
