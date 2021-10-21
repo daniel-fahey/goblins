@@ -472,7 +472,7 @@
       (cond
        [(eq? parent-mtype whactormap-metatype)
         parent]
-       [(eq? parent-mtype transactormap)
+       [(eq? parent-mtype transactormap-metatype)
         (do-merge! parent)]
        [else
         (error (format #f "Actormap metatype not supported for merging: ~a"
