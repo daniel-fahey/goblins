@@ -58,6 +58,7 @@
             whactormap?
             transactormap?
             transactormap-merge!
+            transactormap-buffer-merge!
 
             spawn spawn-named
             $ <-np <-
@@ -489,6 +490,22 @@
     root-actormap)
   (do-merge! transactormap)
   _void)
+
+(define (transactormap-buffer-merge! transactormap)
+  "Merge TRANSACTORMAP against its parent buffer (also a transactormap)"
+  (define tm-data (actormap-data transactormap))
+  (define parent (transactormap-data-parent tm-data))
+  (define parent-mtype (actormap-metatype parent))
+  (unless (eq? parent-mtype transactormap-metatype)
+    (error "Can only do a buffered merge against another transactormap"))
+  (when (or (transactormap-data-merged? tm-data)
+            (transactormap-data-merged? (actormap-data parent)))
+    (error "Transactormap already merged!"))
+  (hash-for-each
+   (lambda (key val)
+     (transactormap-set! parent key val))
+   (transactormap-data-delta tm-data))
+  (set-transactormap-data-merged?! tm-data #t))
 
 (define transactormap-metatype
   (make-actormap-metatype 'transactormap transactormap-ref transactormap-set!))
