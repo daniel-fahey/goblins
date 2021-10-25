@@ -22,7 +22,7 @@
 ;; TODO: Also we factored out <questioned> into its own thing.  Maybe
 ;;   would be a good idea to mirror that in stage 3..
 
-(define-module (pre-goblins stage4)
+(define-module (pre-goblins goblins-stage4)
   #:export (live-refr?
             local-refr?
             remote-refr?
