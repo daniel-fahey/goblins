@@ -863,10 +863,11 @@
 
 (define (near-refr? obj)
   "Ensures that OBJ is an object reference within the same vat"
-  (and (local-object-refr? obj)
+  (and (local-refr? obj)
        (let ((sys (get-syscaller-or-die)))
          (sys 'near-refr? obj))))
 (define (far-refr? obj)
+  "Ensures that OBJ is a live refr, but is not within this vat"
   (and (live-refr? obj)
        (not (near-refr? obj))))
 
