@@ -1281,7 +1281,7 @@
   ;; This is the bulk of what's called and handled by actormap-turn-message.
   ;; (As opposed to actormap-turn*, which only supports calling, this also
   ;; handles any toplevel invocation of an actor, probably via message send.)
-  (define (_handle-message msg display-or-log-error)
+  (define (_handle-message msg)
     (define to-refr (message-to msg))
     (define resolve-me (message-resolve-me msg))
     (define args (message-args msg))
@@ -1359,8 +1359,7 @@
             (cond
              [(near-refr? point-to)
               ;; (We don't use call-with-resolution because the next one will!)
-              (_handle-message (make-message to-refr resolve-me args)
-                               display-or-log-error)]
+              (_handle-message (make-message to-refr resolve-me args))]
              [else
               ;; Otherwise, we need to forward this message to the appropriate
               ;; vat
@@ -1480,7 +1479,7 @@
          (set! new-msgs (cons listen-req new-msgs)))]
       [val (<-np listener 'fulfill val)]))
 
-  (define (_handle-listen to-refr listener wants-partial? display-or-log-error)
+  (define (_handle-listen to-refr listener wants-partial?)
     #;(define (handle-exn err)
       (when display-or-log-error
         (display-or-log-error err while-handling-listen-header))
@@ -1496,7 +1495,7 @@
                 (mactor:local-link-point-to mactor)))
            (if (near-refr? point-to)
                (_handle-listen (mactor:local-link-point-to mactor)
-                               listener wants-partial? display-or-log-error)
+                               listener wants-partial?)
                (_send-listen point-to listener wants-partial?)))]
         ;; This object is a local promise, so we should handle it.
         [(? mactor:unresolved?)
@@ -1869,26 +1868,23 @@
 (define while-handling-listen-header
   "While handling listen request")
 
-(define (make-simple-display-error msg)
-  (lambda* (err stack #:optional [header while-handling-header])
-    (newline (current-error-port))
-    (format (current-error-port) ";; === ~a: ===\n" header)
-    (format (current-error-port) ";;  message: ~s\n" msg)
-    (format (current-error-port) ";;  exception: ~s\n" err)
-    #;((error-display-handler) (exn-message err) err)
-    (display-backtrace stack (current-error-port))
-    (newline (current-error-port))))
+(define (simple-display-error msg err stack)
+  (newline (current-error-port))
+  (display ";; === Caught error: ===\n" (current-error-port))
+  (format (current-error-port) ";;  message: ~s\n" msg)
+  (format (current-error-port) ";;  exception: ~s\n" err)
+  #;((error-display-handler) (exn-message err) err)
+  (display-backtrace stack (current-error-port))
+  (newline (current-error-port)))
 
 (define (make-no-op msg)
   (lambda _ _void))
 
 (define* (actormap-turn-message actormap msg
                                 #:key
-                                [make-display-or-log-error make-simple-display-error]
+                                [error-handler simple-display-error]
                                 [reckless? #f]
                                 [catch-errors? #t])
-  (define display-or-log-error
-    (make-display-or-log-error msg))
   ;; TODO: Kuldgily reimplements part of actormap-turn*... maybe
   ;; there's some opportunity to combine things, dunno.
   (call-with-fresh-syscaller
@@ -1913,10 +1909,8 @@
        ;;   fundamental error?  Note that the resolver might
        ;;   not even be resolved.  Goofy approach to that
        ;;   for now...
-       (when display-or-log-error
-         (display-or-log-error
-          err stack-at-exn
-          before-even-able-to-handle-header))
+       (when error-handler
+         (error-handler msg err stack-at-exn))
        (values `#(fail ,err) actormap new-msgs))
      (define (catch-stack-and-abort-to-prompt err)
        (define stack
@@ -1926,13 +1920,12 @@
        (define result
          (match msg
            [(? message?)
-            (sys 'handle-message msg display-or-log-error)]
+            (sys 'handle-message msg)]
            [(? listen-request? lr)
             (sys 'handle-listen
                  (listen-request-to lr)
                  (listen-request-listener lr)
-                 (listen-request-wants-partial? lr)
-                 display-or-log-error)]))
+                 (listen-request-wants-partial? lr))]))
        (match (get-sys-internals)
          [(new-actormap new-msgs)
           (values `#(ok ,result) new-actormap new-msgs)]))
