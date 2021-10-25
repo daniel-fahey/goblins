@@ -40,7 +40,6 @@
       (wrap-operation (wait-operation stop?)
                       (lambda (_) (set! keep-going? #f))))
     (while keep-going?
-      (pk 'next-one next-one 'back-queue (car back-queue))
       (perform-operation
        (if next-one
            (choice-operation (deq-op) (enq-op) (stop-op))
