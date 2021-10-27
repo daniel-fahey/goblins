@@ -1132,7 +1132,7 @@
          (let send-rest ([waiting-messages orig-waiting-messages])
            (match waiting-messages
              ['() _void]
-             [(list (? message? msg) rest-waiting ...)
+             [((? message? msg) rest-waiting ...)
               (let ((resolve-me (message-resolve-me msg))
                     (args (message-args msg)))
                 ;; preserve FIFO by recursing first
