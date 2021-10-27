@@ -690,7 +690,7 @@
 ;; handler specifies that this actor would like to "become" a new
 ;; version of itself (get a new handler)
 (define-record-type <mactor:object>
-  (mactor:object behavior become-unsealer become?)
+  (make-mactor:object behavior become-unsealer become?)
   mactor:object?
   (behavior mactor:object-behavior)
   (become-unsealer mactor:object-become-unsealer)
@@ -1065,7 +1065,7 @@
              (error 'become-failure "Tried to become a non-procedure behavior:"
                     new-behavior))
            (actormap-set! actormap to-refr
-                          (mactor:object
+                          (make-mactor:object
                            new-behavior
                            (mactor:object-become-unsealer mactor)
                            (mactor:object-become? mactor))))
@@ -1097,8 +1097,8 @@
        (let ((actor-refr
               (make-local-object-refr debug-name vat-connector)))
          (actormap-set! actormap actor-refr
-                        (mactor:object initial-behavior
-                                       become-unsealer become-sealed?))
+                        (make-mactor:object initial-behavior
+                                            become-unsealer become-sealed?))
          actor-refr)]
       ;; If someone returns another actor, just let that be the actor
       [(? live-refr? pre-existing-refr)
@@ -1325,17 +1325,18 @@
              (? mactor:encased?))
          (call-with-resolution
           (lambda () (_$ to-refr args)))]
-        [(mactor:local-link point-to)
-         (cond
-          [(near-refr? point-to)
-           (call-with-resolution
-            (lambda () (_$ point-to args)))]
-          ;; it's not near so we need to pass this along
-          [else
-           (_<-np point-to (list resolve-me args))
-           _void])]
-        [(mactor:broken problem)
-         (_<-np resolve-me (list 'break problem))
+        [(? mactor:local-link?)
+         (let ((point-to (mactor:local-link-point-to orig-mactor)))
+           (cond
+            [(near-refr? point-to)
+             (call-with-resolution
+              (lambda () (_$ point-to args)))]
+            ;; it's not near so we need to pass this along
+            [else
+             (_<-np point-to (list resolve-me args))
+             _void]))]
+        [(? mactor:broken?)
+         (_<-np resolve-me (list 'break (mactor:broken-problem orig-mactor)))
          _void]
         [(? mactor:remote-link?)
          (let ([point-to (mactor:remote-link-point-to orig-mactor)])
@@ -1346,14 +1347,11 @@
               ((if resolve-me _<- _<-np) point-to args))))]
         ;; Messages sent to a promise that is "closer" are a kind of
         ;; intermediate state; we build a queue.
-        [(mactor:closer resolver-unsealer resolver-tm?
-                        listeners
-                        point-to history
-                        waiting-messages)
-         (match point-to
+        [(? mactor:closer?)
+         (match (mactor:remote-link-point-to orig-mactor)
            ;; If we're pointing at another near promise then we recurse
            ;; to _handle-messages with the next promise...
-           [(? local-promise-refr?)
+           [(? local-promise-refr? point-to)
             ;; Now we need to see if it's in the same vat...
             (cond
              [(near-refr? point-to)
@@ -1369,27 +1367,30 @@
            ;; as possible to the machine barrier where possible", with
            ;; the exception of questions/answers which always cross over
            ;; (see mactor:question handling later in this procedure)
-           [(? remote-promise-refr?)
-            ;; Since we're queueing to send the message until it resolves
-            ;; we don't resolve the problem here... hence we don't
-            ;; use call-with-resolution here either.
-            (actormap-set! actormap to-refr
-                           (mactor:closer resolver-unsealer resolver-tm?
-                                          listeners
-                                          point-to history
-                                          (cons msg waiting-messages)))
+           [(? remote-promise-refr? point-to)
+            (let ((unresolved (mactor:closer-unresolved orig-mactor))
+                  (point-to (mactor:closer-point-to orig-mactor))
+                  (history (mactor:closer-history orig-mactor))
+                  (waiting-messages (mactor:closer-waiting-messages orig-mactor)))
+              ;; Since we're queueing to send the message until it resolves
+              ;; we don't resolve the problem here... hence we don't
+              ;; use call-with-resolution here either.
+              (actormap-set! actormap to-refr
+                             (make-mactor:closer 
+                              unresolved point-to history
+                              (cons msg waiting-messages))))
             ;; But we should return that this was deferred
             _void])]
         ;; Similar to the above w/ remote promises, except that we really
         ;; just don't know where things go *at all* yet, so no swimming
         ;; occurs.
-        [(mactor:naive resolver-unsealer resolver-tm?
-                       listeners waiting-messages)
-         (actormap-set! actormap to-refr
-                        (mactor:naive resolver-unsealer resolver-tm?
-                                      listeners
-                                      (cons msg waiting-messages)))
-         `#(deferred ,_void)]
+        [(? mactor:naive?)
+         (let ((unresolved (mactor-get-m~unresolved orig-mactor))
+               (waiting-messages (mactor:naive-waiting-messages orig-mactor)))
+           (actormap-set! actormap to-refr
+                          (make-mactor:naive unresolved
+                                             (cons msg waiting-messages)))
+           _void)]
         ;; Questions should forward their messages to the captp thread
         ;; to deal with using the relevant question-finder.
         [(? mactor:question?)
@@ -1743,8 +1744,8 @@
      (let ((actor-refr
             (make-local-object-refr debug-name vat-connector)))
        (actormap-set! actormap actor-refr
-                      (mactor:object actor-handler
-                                     become-unseal become?))
+                      (make-mactor:object actor-handler
+                                          become-unseal become?))
        actor-refr)]
     [(? live-refr? pre-existing-refr)
      pre-existing-refr]
@@ -2035,6 +2036,8 @@
    ;; send locally
    [(local-refr? to-refr)
     (match (local-refr-vat-connector to-refr)
+      ;; TODO: When messages aren't going to be possible to deliver,
+      ;; we should alert the waiting-on-message
       [(? procedure? vat-connector)
        (vat-connector 'handle-message msg)]
       ;; noplace like nowhere
