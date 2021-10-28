@@ -17,6 +17,7 @@
   #:use-module (goblins vat)
   #:use-module (goblins ocapn define-recordable)
   #:use-module (goblins ocapn structs-urls)
+  #:use-module (goblins actor-lib methods)
   #:use-module (ice-9 match)
   #:use-module (syrup)
   #:use-module (srfi srfi-9)
@@ -383,30 +384,30 @@
     (make-hasheqv))
 
   (define (increment-spare-imports-count! import-pos)
-    (hash-set! spare-import-counts import-pos
-               (add1 (hash-ref spare-import-counts import-pos 0))))
+    (hashv-set! spare-import-counts import-pos
+                (add1 (hashv-ref spare-import-counts import-pos 0))))
   ;; Go through all the "spare imports" and reset them
   (define (handle-spare-imports!)
     (for ([(import-pos count) (in-hash spare-import-counts)])
          ;; Send a gc-export message for this many
          (send-to-remote (op:gc-export import-pos count))
          ;; Reset these
-         (hash-remove! spare-import-counts import-pos)))
+         (hashv-remove! spare-import-counts import-pos)))
   (define (decrement-exports-count-maybe-remove! export-pos delta)
     (-> integer? integer? any/c)
-    (match (hash-ref export-counts export-pos #f)
+    (match (hashv-ref export-counts export-pos #f)
       [(and (? integer?) (? positive? cur-count))
        (match (- cur-count delta)
          ;; time to remove
          [0
-          (hash-remove! export-counts export-pos)
+          (hashv-remove! export-counts export-pos)
           ;; Remove this export from both
-          (let ([val (hash-ref exports-pos2val export-pos)])
-            (hash-remove! exports-val2pos val)
-            (hash-remove! exports-pos2val export-pos))]
+          (let ([val (hashv-ref exports-pos2val export-pos)])
+            (hashq-remove! exports-val2pos val)
+            (hashv-remove! exports-pos2val export-pos))]
          ;; decremented but still positive
          [(and (? integer?) (? positive? new-count))
-          (hash-set! export-counts export-pos new-count)]
+          (hashv-set! export-counts export-pos new-count)]
          [neg-count
           (error 'exports-gc-error
                  "Tried decrementing export-pos ~a by ~a but that's negative: ~a"
@@ -445,7 +446,7 @@
 
   (define (make-import-will-handler import-pos)
     (lambda _
-      (hash-remove! imports import-pos)
+      (hashv-remove! imports import-pos)
       (<-np-extern internal-handler (cmd-send-gc-export import-pos))))
   (define (install-import-will-handler! refr import-pos)
     (will-register refr-will-executor refr
@@ -459,38 +460,37 @@
     (-> live-refr? any/c)  ; TODO: Maybe de-contract this and manually check for speed
     (cond
      ;; Already have it, no need to increment next-export-pos
-     [(hash-has-key? exports-val2pos refr)
-      (define export-pos
-        (hash-ref exports-val2pos refr))
-      ;; However, we do need to increment our export count
-      (match (hash-ref export-counts export-pos #f)
-        ;; Uh, we screwed up our bookkeeping at some point
-        [#f
-         (error 'no-export-count-wtf
-                "No export count for ~a" export-pos)]
-        [cur-count
-         (hash-set! export-counts export-pos (add1 cur-count))])
-      ;; now finally return the export position
-      export-pos]
+     [(hashv-ref exports-val2pos refr)
+      =>
+      (lambda (export-pos)
+        ;; However, we do need to increment our export count
+        (match (hashv-ref export-counts export-pos #f)
+          ;; Uh, we screwed up our bookkeeping at some point
+          [#f
+           (error 'no-export-count-wtf
+                  "No export count for ~a" export-pos)]
+          [cur-count
+           (hashv-set! export-counts export-pos (add1 cur-count))])
+        ;; now finally return the export position
+        export-pos)]
      ;; Nope, let's export this
      [else
-      ;; get this export-pos and increment next-export-pos
-      (define export-pos
-        next-export-pos)
-      (set! next-export-pos (add1 export-pos))
-      ;; install in both export tables
-      (hash-set! exports-pos2val export-pos
-                 refr)
-      (hash-set! exports-val2pos refr
-                 export-pos)
-      ;; (sanity check:) make sure there's no export count currently
-      (when (hash-has-key? export-counts export-pos)
-        (error 'shouldnt-be-export-count-wtf
-               "Adding a new export but there was already an export count for pos: ~a"
-               export-pos))
-      ;; and set the export count to 1
-      (hash-set! export-counts export-pos 1)
-      export-pos]))
+      (let ((export-pos next-export-pos))
+        ;; get this export-pos and increment next-export-pos
+        (set! next-export-pos (add1 export-pos))
+        ;; install in both export tables
+        (hashv-set! exports-pos2val export-pos
+                    refr)
+        (hashq-set! exports-val2pos refr
+                    export-pos)
+        ;; (sanity check:) make sure there's no export count currently
+        (when (hashv-ref export-counts export-pos)
+          (error 'shouldnt-be-export-count-wtf
+                 "Adding a new export but there was already an export count for pos: ~a"
+                 export-pos))
+        ;; and set the export count to 1
+        (hashv-set! export-counts export-pos 1)
+        export-pos)]))
 
   (define/contract (marshall-local-refr! local-refr)
     (-> local-refr? (or/c desc:import-object
@@ -517,41 +517,44 @@
            (make-remote-promise-refr captp-connector
                                      (pos-seal import-pos))]))
       ;; Install it...
-      (hash-set! imports import-pos (make-weak-box new-refr))
+      (hashv-set! imports import-pos (make-weak-box new-refr))
       ;; set up the will handler...
       (install-import-will-handler! new-refr import-pos)
       ;; and return it.
       new-refr)
     (cond
-     [(hash-has-key? imports import-pos)
-      ;; Oh, we've already got that.  Reference and return it.
-      (match (weak-box-value (hash-ref imports import-pos))
-        ;; Possible race condition: Apparently it was GC'ed
-        ;; mid-operation so now we need to add it back
-        ;; @@: *sweating profusely* but is this all the possible
-        ;;     race conditions???
-        [#f (install-new-import!)]
-        ;; looks like we got the refr, return as-is
-        [refr
-         (increment-spare-imports-count! import-pos)
-         refr])]
+     [(hashv-ref imports import-pos)
+      =>
+      (lambda (import-box)
+        ;; Oh, we've already got that.  Reference and return it.
+        (match (weak-box-value import-box)
+          ;; Possible race condition: Apparently it was GC'ed
+          ;; mid-operation so now we need to add it back
+          ;; @@: *sweating profusely* but is this all the possible
+          ;;     race conditions???
+          [#f (install-new-import!)]
+          ;; looks like we got the refr, return as-is
+          [refr
+           (increment-spare-imports-count! import-pos)
+           refr]))]
      [else
       (install-new-import!)]))
 
   (define/contract (question-finder->question-pos! question-finder)
     (-> question-finder? integer?)
-    (if (hash-has-key? questions question-finder)
-        ;; we already have a question relevant to this question id
-        (hash-ref questions question-finder)
-        ;; new question id...
-        (let ([question-pos next-question-pos])
-          ;; install our question at this question id
-          (hash-set! questions question-finder question-pos)
-          (install-question-will-handler! question-finder question-pos)
-          ;; increment the next-question id
-          (set! next-question-pos (add1 next-question-pos))
-          ;; and return the question-pos we set up
-          question-pos)))
+    (cond
+     ;; we already have a question relevant to this question id
+     ((hashq-ref questions question-finder) => identity)
+     (else
+      ;; new question id...
+      (let ([question-pos next-question-pos])
+        ;; install our question at this question id
+        (hashq-set! questions question-finder question-pos)
+        (install-question-will-handler! question-finder question-pos)
+        ;; increment the next-question id
+        (set! next-question-pos (add1 next-question-pos))
+        ;; and return the question-pos we set up
+        question-pos))))
 
   ;; general argument marshall/unmarshall for import/export
 
@@ -561,6 +564,7 @@
       [(obj ...)
        (map outgoing-pre-marshall! obj)]
       [(? hash?)
+       
        (for/fold ([ht #hash()])
                  ([(key val) obj])
                  (hash-set ht (outgoing-pre-marshall! key)
@@ -608,7 +612,7 @@
       [(or (? desc:import-promise?) (? desc:import-object?))
        (maybe-install-import! obj)]
       [(desc:export pos)
-       (hash-ref exports-pos2val pos)]
+       (hashv-ref exports-pos2val pos)]
       [($ <syrec> 'exn:fail:mystery '())
        (make-mystery-fail)]
       [($ <syrec> 'void '())
@@ -631,14 +635,14 @@
   (define (unmarshall-to-desc to-desc)
     (match to-desc
       [($ desc:export export-pos)
-       (hash-ref exports-pos2val export-pos)]
+       (hashv-ref exports-pos2val export-pos)]
       [($ desc:answer answer-pos)
-       (hash-ref answers answer-pos)]))
+       (hashv-ref answers answer-pos)]))
 
   (define (marshall-to obj)
     (match obj
       [(? question-finder?)
-       (make-desc:answer (hash-ref questions obj))]
+       (make-desc:answer (hashq-ref questions obj))]
       [(? remote-refr?)
        (define refr-captp-connector
          (remote-refr-captp-connector obj))
@@ -652,13 +656,12 @@
   (define (install-answer! answer-pos resolve-me-desc)
     (define resolve-me
       (maybe-install-import! resolve-me-desc))
-    (when (hash-has-key? answers answer-pos)
+    (when (hashv-ref answers answer-pos)
       (error 'already-have-answer
              "~a" answer-pos))
     (match-let (((answer-promise . answer-resolver)
                  (spawn-promise-cons)))
-      (hash-set! answers answer-pos
-                 answer-promise)
+      (hashv-set! answers answer-pos answer-promise)
       (listen answer-promise resolve-me)
       (values answer-promise answer-resolver)))
 
@@ -759,7 +762,7 @@
                #:wants-partial? wants-partial?)
        _void]
       [(op:gc-answer answer-pos)
-       (hash-remove! answers answer-pos)]
+       (hashv-remove! answers answer-pos)]
       [(op:gc-export (? integer? export-pos) (? integer? wire-delta))
        (decrement-exports-count-maybe-remove! export-pos wire-delta)]
       [(op:abort reason)
@@ -844,7 +847,7 @@
                            #:captp-connector
                            captp-connector))
   (define bootstrap-msg
-    (op:bootstrap (hash-ref questions this-question-finder)
+    (op:bootstrap (hashq-ref questions this-question-finder)
                   (outgoing-pre-marshall! remote-bootstrap-resolver)))
   (send-to-remote bootstrap-msg)
   ;;; END REMOTE BOOTSTRAP OPERATION
