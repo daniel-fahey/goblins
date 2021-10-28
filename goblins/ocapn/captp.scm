@@ -587,14 +587,14 @@
         [else
          ($C coordinator 'make-handoff-base-cert obj)])]
       [(? void?)
-       (record* 'void)]
+       (make-syrec* 'void)]
       ;; TODO: Supply more machine-crossing exception types here
       [(? exn:fail?)
-       (record* 'exn:fail:mystery)]
+       (make-syrec* 'exn:fail:mystery)]
       ;; And here's the general-purpose record that users can use
       ;; for whatever purpose is appropriate
       [($ <syrec> record-tag record-args)
-       (record* 'user-record record-tag record-args)]
+       (make-syrec* 'user-record record-tag record-args)]
       [_ obj]))
 
   (define (incoming-post-unmarshall! obj)
@@ -619,7 +619,7 @@
        _void]
       ;; unserialize user-defined records
       [($ <syrec> 'user-record (list record-tag record-args))
-       (record record-tag record-args)]
+       (make-syrec record-tag record-args)]
       [($ <syrec> unknown-record-tag record-args)
        (error 'captp-unknown-record-rag "Unknown record tag: ~a"
               unknown-record-tag)]
