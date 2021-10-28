@@ -2,3 +2,12 @@ This is a port of [[https://gitlab.com/spritely/goblins][Spritely Goblins]] to [
 
 It's very early, so I'd caution against using it quite yet. :)
 
+* A note on licensing
+
+Note that this code is all GPLv3, however it does link to
+guile-gcrypt, which is GPLv3+.  So you could say that in effect, the
+library's terms arereally GPLv3+.
+
+However we might not be linking to such a library forever, and also
+the Racket version is Apache v2, so keeping our code licensed Apache
+v2 enables easier portability between those systems.
