@@ -358,14 +358,14 @@
   (define next-question-pos 0)
   ;; (define next-promise-pos 0)
 
-  (define exports-val2pos (make-hasheq))  ; exports[val]:   chosen by us
-  (define exports-pos2val (make-hasheqv))      ; exports[pos]:   chosen by us
+  (define exports-val2pos (make-hash-table))    ; (eq)  exports[val]:   chosen by us 
+  (define exports-pos2val (make-hash-table))    ; (eqv) exports[pos]:   chosen by us
   ;; TODO: This doesn't make sense if the value isn't wrapped in a weak
   ;;   reference... I think this also needs to go in both directions to work
   ;;   from a GC perspective
-  (define imports (make-hasheqv))               ; imports:        chosen by peer
-  (define questions (make-weak-hasheqv))        ; questions:      chosen by us
-  (define answers (make-hasheqv))               ; answers:        chosen by peer
+  (define imports (make-hasheqv))               ; (eqv) imports:        chosen by peer
+  (define questions (make-weak-hasheqv))        ; (eqv) questions:      chosen by us
+  (define answers (make-hasheqv))               ; (eqv) answers:        chosen by peer
 
   ;; TODO: This should really be some kind of box that the other side
   ;;   can query, right?
@@ -377,11 +377,11 @@
   ;; associated with the reference itself.
   ;; Mapping of slot position -> count
   (define spare-import-counts
-    (make-hasheqv))
+    (make-hash-table))  ; (eqv)
   ;; The inverse: tracking how many export numbers we've given so we can
   ;; know when it hits 0 and is ok to remove
   (define export-counts
-    (make-hasheqv))
+    (make-hash-table))  ; (eqv)
 
   (define (increment-spare-imports-count! import-pos)
     (hashv-set! spare-import-counts import-pos
