@@ -67,7 +67,7 @@
                         (_ #f))
                       (match-lambda
                         (($ name field :::)
-                         (make-syrec (quote name) field :::)))))
+                         (make-syrec* (quote name) field :::)))))
               (define unmarshall
                 (cons (lambda (label)
                         (eq? label (quote name)))
