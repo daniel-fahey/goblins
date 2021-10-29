@@ -19,6 +19,7 @@
   #:use-module (goblins ocapn structs-urls)
   #:use-module (goblins actor-lib methods)
   #:use-module (ice-9 match)
+  #:use-module (ice-9 vlist)
   #:use-module (syrup)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
@@ -221,8 +222,8 @@
 ;; Doesn't verify that it's *valid*, just that it's *signed*
 (define (signed-handoff-give? obj)
   (match obj
-    [($ desc:sig-envelope (? desc:handoff-give? handoff-give-cert)
-                          (? bytevector? sig))
+    [($ <desc:sig-envelope> (? desc:handoff-give? handoff-give-cert)
+                            (? bytevector? sig))
      #t]
     [_ #f]))
 
@@ -230,11 +231,12 @@
 
 (define (signed-handoff-receive? obj)
   (match obj
-    [($ desc:sig-envelope ($ desc:handoff-receive (? bytevector? session)
-                                                  (? bytevector? session-side)
-                                                  integer?
-                                                  (? signed-handoff-give?))
-                          (? bytevector? sig))
+    [($ <desc:sig-envelope> ($ <desc:handoff-receive>
+                               (? bytevector? session)
+                               (? bytevector? session-side)
+                               integer?
+                               (? signed-handoff-give?))
+                            (? bytevector? sig))
      #t]
     [_ #f]))
 
@@ -296,7 +298,7 @@
       [(or (? message?) (? questioned?))
        (<-np-extern internal-handler
                     (cmd-send-message msg))]
-      [($ listen-request to-refr listener wants-partial?)
+      [($ <listen-request> to-refr listener wants-partial?)
        (<-np-extern internal-handler
                     (cmd-send-listen to-refr listener
                                      wants-partial?))])
@@ -459,8 +461,9 @@
   ;; this export id
   ;; TODO: we maybe need to differentiate between local-live-refr and
   ;;   remote-live-proxy-refr (once we set that up)?
-  (define/contract (maybe-install-export! refr)
-    (-> live-refr? any/c)  ; TODO: Maybe de-contract this and manually check for speed
+  (define (maybe-install-export! refr)
+    (unless (live-refr? refr)
+      (error "Not a live refr:" refr))
     (cond
      ;; Already have it, no need to increment next-export-pos
      [(hashq-ref exports-val2pos refr)
@@ -495,9 +498,9 @@
         (hashv-set! export-counts export-pos 1)
         export-pos)]))
 
-  (define/contract (marshall-local-refr! local-refr)
-    (-> local-refr? (or/c desc:import-object
-                          desc:import-promise))
+  (define (marshall-local-refr! local-refr)
+    (unless (local-refr? local-refr)
+      (error "Not a local-refr:" local-refr))
     (define export-pos
       (maybe-install-export! local-refr))
     (match local-refr
@@ -543,8 +546,9 @@
      [else
       (install-new-import!)]))
 
-  (define/contract (question-finder->question-pos! question-finder)
-    (-> question-finder? integer?)
+  (define (question-finder->question-pos! question-finder)
+    (unless (question-finder? question-finder)
+      (error "Not a question finder:" question-finder))
     (cond
      ;; we already have a question relevant to this question id
      ((hashq-ref questions question-finder) => identity)
@@ -566,28 +570,35 @@
     (match obj
       [(obj ...)
        (map outgoing-pre-marshall! obj)]
-      [(? hash?)
-       (for/fold ([ht #hash()])
-                 ([(key val) obj])
-                 (hash-set ht (outgoing-pre-marshall! key)
-                           (outgoing-pre-marshall! val)))]
+      [(? hash-table?)
+       ;; TODO: let's use "ghashes", which hash on eq? for live-refs
+       ;; and on equal? for everything else
+       (hash-fold
+        (lambda (key val prev)
+          (vhash-cons (outgoing-pre-marshall! key)
+                      (outgoing-pre-marshall! val)
+                      prev))
+        vlist-null
+        obj)]
       [(? set?)
-       (for/set ([x obj])
-                (outgoing-pre-marshall! x))]
+       (set-fold
+        (lambda (item this-set)
+          (set-add this-set (outgoing-pre-marshall! item)))
+        (make-set)
+        obj)]
       [(? local-promise?)
        (desc:import-promise (maybe-install-export! obj))]
       [(? local-object?)
        (desc:import-object (maybe-install-export! obj))]
       [(? remote-refr?)
-       (define refr-captp-connector
-         (remote-refr-captp-connector obj))
-       (cond
-        ;; from this captp
-        [(eq? refr-captp-connector captp-connector)
-         (desc:export (pos-unseal (remote-refr-sealed-pos obj)))]
-        ;; elsewhere, let the coordinator do it
-        [else
-         ($C coordinator 'make-handoff-base-cert obj)])]
+       (let ((refr-captp-connector (remote-refr-captp-connector obj)))
+         (cond
+          ;; from this captp
+          [(eq? refr-captp-connector captp-connector)
+           (desc:export (pos-unseal (remote-refr-sealed-pos obj)))]
+          ;; elsewhere, let the coordinator do it
+          [else
+           ($C coordinator 'make-handoff-base-cert obj)]))]
       [(? void?)
        (make-syrec* 'void)]
       ;; TODO: Supply more machine-crossing exception types here
@@ -603,14 +614,20 @@
     (match obj
       [(obj ...)
        (map incoming-post-unmarshall! obj)]
-      [(? hash?)
-       (for/fold ([ht #hash()])
-                 ([(key val) obj])
-                 (hash-set ht (incoming-post-unmarshall! key)
-                           (incoming-post-unmarshall! val)))]
+      [(? hash-table?)
+       (hash-fold
+        (lambda (key val prev)
+          (vhash-cons (incoming-post-unmarshall! key)
+                      (incoming-post-unmarshall! val)
+                      prev))
+        vlist-null
+        obj)]
       [(? set?)
-       (for/set ([x obj])
-                (incoming-post-unmarshall! x))]
+       (set-fold
+        (lambda (item this-set)
+          (set-add this-set (incoming-post-unmarshall! item)))
+        (make-set)
+        obj)]
       [(or (? desc:import-promise?) (? desc:import-object?))
        (maybe-install-import! obj)]
       [(desc:export pos)
@@ -629,16 +646,14 @@
        ;; We need to send this message to the coordinator, which will
        ;; work with the machine to (hopefully) get it to the right
        ;; destination
-       (define handoff-vow
-         ($C coordinator 'start-retrieve-handoff sig-envelope-and-handoff))
-       handoff-vow]
+       ($C coordinator 'start-retrieve-handoff sig-envelope-and-handoff)]
       [_ obj]))
 
   (define (unmarshall-to-desc to-desc)
     (match to-desc
-      [($ desc:export export-pos)
+      [($ <desc:export> export-pos)
        (hashv-ref exports-pos2val export-pos)]
-      [($ desc:answer answer-pos)
+      [($ <desc:answer> answer-pos)
        (hashv-ref answers answer-pos)]))
 
   (define (marshall-to obj)
@@ -646,14 +661,14 @@
       [(? question-finder?)
        (make-desc:answer (hashq-ref questions obj))]
       [(? remote-refr?)
-       (define refr-captp-connector
-         (remote-refr-captp-connector obj))
-       (cond
-        ;; from this captp
-        [(eq? refr-captp-connector captp-connector)
-         (desc:export (pos-unseal (remote-refr-sealed-pos obj)))]
-        [else
-         (error 'captp-to-wrong-machine)])]))
+       (let ((refr-captp-connector
+              (remote-refr-captp-connector obj)))
+         (cond
+          ;; from this captp
+          [(eq? refr-captp-connector captp-connector)
+           (desc:export (pos-unseal (remote-refr-sealed-pos obj)))]
+          [else
+           (error 'captp-to-wrong-machine)]))]))
 
   (define (install-answer! answer-pos resolve-me-desc)
     (define resolve-me
@@ -695,142 +710,143 @@
   ;; error occurs
   ;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  (define ((^captp-incoming-handler bcom) msg)
-    (unless running?
-      (error 'captp-breakage "Captp session is no longer running but got ~a"
-             msg))
-    (match msg
-      [($ op:bootstrap (? integer? answer-pos) resolve-me-desc)
-       (let-values (((_answer-promise answer-resolver)
-                     (install-answer! answer-pos resolve-me-desc)))
-         ;; And since we're bootstrapping, we resolve it immediately
-         ($C answer-resolver 'fulfill bootstrap-obj)
-         _void)]
-      ;; TODO: Handle case where the target doesn't exist?
-      ;;   Or maybe just generally handle unmarshalling errors :P
-      [($ op:deliver-only to-desc method
-                        args-marshalled
-                        kw-args-marshalled)
-       ;; TODO: support distinction between method sends and procedure sends
-       (define args
-         (incoming-post-unmarshall! args-marshalled))
-       (define kw-args
-         (incoming-post-unmarshall! kw-args-marshalled))
-       (define target (unmarshall-to-desc to-desc))
-       (define-values (kws kw-vals)
-         (kws-hasheq->kws-lists kw-args))
-       (keyword-apply <-np kws kw-vals
-                      target args)
-       _void]
-      [(op:deliver to-desc method
-                   args-marshalled
-                   kw-args-marshalled
-                   answer-pos
-                   resolve-me-desc)
-       (define-values (_answer-promise answer-resolver)
-         (install-answer! answer-pos resolve-me-desc))
+  (define (^captp-incoming-handler bcom)
+    (lambda (msg)
+      (unless running?
+        (error 'captp-breakage "Captp session is no longer running but got ~a"
+               msg))
+      (match msg
+        [($ <op:bootstrap> (? integer? answer-pos) resolve-me-desc)
+         (let-values (((_answer-promise answer-resolver)
+                       (install-answer! answer-pos resolve-me-desc)))
+           ;; And since we're bootstrapping, we resolve it immediately
+           ($C answer-resolver 'fulfill bootstrap-obj)
+           _void)]
+        ;; TODO: Handle case where the target doesn't exist?
+        ;;   Or maybe just generally handle unmarshalling errors :P
+        [($ <op:deliver-only> to-desc method
+                              args-marshalled
+                              kw-args-marshalled)
+         (let*-values (((args)
+                        (incoming-post-unmarshall! args-marshalled))
+                       ((kw-args)
+                        (incoming-post-unmarshall! kw-args-marshalled))
+                       ((target) (unmarshall-to-desc to-desc))
+                       ((kws kw-vals)
+                        (kws-hasheq->kws-lists kw-args)))
+           ;; TODO: support distinction between method sends and procedure sends
+           (keyword-apply <-np kws kw-vals
+                          target args)
+           _void)]
+        [($ <op:deliver> to-desc method
+                         args-marshalled
+                         kw-args-marshalled
+                         answer-pos
+                         resolve-me-desc)
+         (let-values (((_answer-promise answer-resolver)
+                       (install-answer! answer-pos resolve-me-desc)))
+           ;; TODO: support distinction between method sends and procedure sends
+           (define args
+             (incoming-post-unmarshall! args-marshalled))
+           (define kw-args
+             (incoming-post-unmarshall! kw-args-marshalled))
+           (define target (unmarshall-to-desc to-desc))
+           (define-values (kws kw-vals)
+             (kws-hasheq->kws-lists kw-args))
+           (define sent-promise
+             (keyword-apply <- kws kw-vals target args))
+           ($C answer-resolver 'fulfill sent-promise)
+           _void)]
 
-       ;; TODO: support distinction between method sends and procedure sends
-       (define args
-         (incoming-post-unmarshall! args-marshalled))
-       (define kw-args
-         (incoming-post-unmarshall! kw-args-marshalled))
-       (define target (unmarshall-to-desc to-desc))
-       (define-values (kws kw-vals)
-         (kws-hasheq->kws-lists kw-args))
-       (define sent-promise
-         (keyword-apply <- kws kw-vals target args))
-       ($C answer-resolver 'fulfill sent-promise)
-       _void]
+        ;; TODO: Here's where we have to record that a listening interest
+        ;; has occured, assuming we do the "automatically notify on session
+        ;; severance" thing?
+        ;;
+        ;; Which means we'll also have to track incoming resolutions to
+        ;; this promise somehow...?
+        ;;
+        ;; Actually the easiest thing to do here would be to create our own
+        ;; promise-resolver pair, right here, at the captp perimeter, which
+        ;; pipelines the result.
+        [($ <op:listen> (? desc:export? to-desc)
+                        (? desc:import? listener-desc)
+                        (? boolean? wants-partial?))
+         (let ((to-refr
+                (unmarshall-to-desc to-desc))
+               (listener
+                (incoming-post-unmarshall! listener-desc)))
+           (listen to-refr listener
+                   #:wants-partial? wants-partial?)
+           _void)]
+        [($ <op:gc-answer> answer-pos)
+         (hashv-remove! answers answer-pos)]
+        [($ <op:gc-export> (? integer? export-pos) (? integer? wire-delta))
+         (decrement-exports-count-maybe-remove! export-pos wire-delta)]
+        [($ <op:abort> reason)
+         (tear-it-down 'abort reason)]
+        [($ <internal-shutdown> reason)
+         (tear-it-down 'internal-shutdown reason)]
+        [other-message
+         (error 'invalid-message "~a" other-message)])))
 
-      ;; TODO: Here's where we have to record that a listening interest
-      ;; has occured, assuming we do the "automatically notify on session
-      ;; severance" thing?
-      ;;
-      ;; Which means we'll also have to track incoming resolutions to
-      ;; this promise somehow...?
-      ;;
-      ;; Actually the easiest thing to do here would be to create our own
-      ;; promise-resolver pair, right here, at the captp perimeter, which
-      ;; pipelines the result.
-      [(op:listen (? desc:export? to-desc)
-                  (? desc:import? listener-desc)
-                  (? boolean? wants-partial?))
-       (define to-refr
-         (unmarshall-to-desc to-desc))
-       (define listener
-         (incoming-post-unmarshall! listener-desc))
-       (listen to-refr listener
-               #:wants-partial? wants-partial?)
-       _void]
-      [(op:gc-answer answer-pos)
-       (hashv-remove! answers answer-pos)]
-      [(op:gc-export (? integer? export-pos) (? integer? wire-delta))
-       (decrement-exports-count-maybe-remove! export-pos wire-delta)]
-      [(op:abort reason)
-       (tear-it-down 'abort reason)]
-      [(internal-shutdown reason)
-       (tear-it-down 'internal-shutdown reason)]
-      [other-message
-       (error 'invalid-message "~a" other-message)]))
-
-  (define ((^internal-handler bcom) cmd)
-    (define (running-handle-cmd cmd)
-      (match cmd
-        [($ cmd-send-message msg)
-         (define-values (real-msg answer-pos)
-           (match msg
-             [(? message?)
-              (values msg #f)]
-             [(questioned msg answer-this-question)
-              (values msg (question-finder->question-pos! answer-this-question))]))
-         (match-define (message to resolve-me kws kw-vals args)
-                       real-msg)
-         (define deliver-msg
-           (if resolve-me
-               (op:deliver (marshall-to to)
-                           #;(desc:import (maybe-install-export! to))
-                           #f ;; TODO: support methods
-                           ;; TODO: correctly marshall everything here
-                           (outgoing-pre-marshall! args)
-                           (outgoing-pre-marshall!
-                            (kws-lists->kws-hasheq kws kw-vals))
-                           answer-pos
-                           (marshall-local-refr! resolve-me))
-               (op:deliver-only (marshall-to to)
-                                #f ;; TODO: support methods
-                                (outgoing-pre-marshall! args)
-                                (outgoing-pre-marshall!
-                                 (kws-lists->kws-hasheq kws kw-vals)))))
-         (send-to-remote deliver-msg)]
-        [($ cmd-send-listen (? remote-refr? to-refr) (? local-refr? listener-refr)
-                            (? boolean? wants-partial?))
-         (define listen-msg
-           (op:listen (marshall-to to-refr)
-                      (outgoing-pre-marshall! listener-refr)
-                      wants-partial?))
-         (send-to-remote listen-msg)]
-        [($ cmd-send-gc-answer (? integer? answer-pos))
-         (send-to-remote (op:gc-answer answer-pos))]
-        [($ cmd-send-gc-export (? integer? export-pos))
-         (send-to-remote (op:gc-export export-pos 1))]))
-    (define (broken-handle-cmd cmd)
-      (match cmd
-        [($ cmd-send-message msg)
-         (match-define (message to resolve-me kws kw-vals args)
-                       msg)
-         (when resolve-me
-           (<-np resolve-me 'break (captp-session-severed)))]
-        [($ cmd-send-listen (? remote-refr? to-refr) (? local-refr? listener-refr)
-                          (? boolean? wants-partial?))
-         (<-np listener-refr 'break (captp-session-severed))]
-        [($ cmd-send-gc-answer (? integer? answer-pos))
-         'no-op]
-        [($ cmd-send-gc-export (? integer? export-pos))
-         'no-op]))
-    (if running?
-        (running-handle-cmd cmd)
-        (broken-handle-cmd cmd)))
+  (define (^internal-handler bcom)
+    (lambda (cmd)
+      (define (running-handle-cmd cmd)
+        (match cmd
+          [($ <cmd-send-message> msg)
+           (define-values (real-msg answer-pos)
+             (match msg
+               [(? message?)
+                (values msg #f)]
+               [($ questioned msg answer-this-question)
+                (values msg (question-finder->question-pos! answer-this-question))]))
+           (match-define ($ <message> to resolve-me args)
+                         real-msg)
+           (define deliver-msg
+             (if resolve-me
+                 (op:deliver (marshall-to to)
+                             #;(desc:import (maybe-install-export! to))
+                             #f ;; TODO: support methods
+                             ;; TODO: correctly marshall everything here
+                             (outgoing-pre-marshall! args)
+                             (outgoing-pre-marshall!
+                              (kws-lists->kws-hasheq kws kw-vals))
+                             answer-pos
+                             (marshall-local-refr! resolve-me))
+                 (op:deliver-only (marshall-to to)
+                                  #f ;; TODO: support methods
+                                  (outgoing-pre-marshall! args)
+                                  (outgoing-pre-marshall!
+                                   (kws-lists->kws-hasheq kws kw-vals)))))
+           (send-to-remote deliver-msg)]
+          [($ <cmd-send-listen> (? remote-refr? to-refr) (? local-refr? listener-refr)
+                                (? boolean? wants-partial?))
+           (define listen-msg
+             (op:listen (marshall-to to-refr)
+                        (outgoing-pre-marshall! listener-refr)
+                        wants-partial?))
+           (send-to-remote listen-msg)]
+          [($ <cmd-send-gc-answer> (? integer? answer-pos))
+           (send-to-remote (op:gc-answer answer-pos))]
+          [($ <cmd-send-gc-export> (? integer? export-pos))
+           (send-to-remote (op:gc-export export-pos 1))]))
+      (define (broken-handle-cmd cmd)
+        (match cmd
+          [($ <cmd-send-message> msg)
+           (match-define ($ <message> to resolve-me args)
+                         msg)
+           (when resolve-me
+             (<-np resolve-me 'break (captp-session-severed)))]
+          [($ <cmd-send-listen> (? remote-refr? to-refr) (? local-refr? listener-refr)
+                                (? boolean? wants-partial?))
+           (<-np listener-refr 'break (captp-session-severed))]
+          [($ <cmd-send-gc-answer> (? integer? answer-pos))
+           'no-op]
+          [($ <cmd-send-gc-export> (? integer? export-pos))
+           'no-op]))
+      (if running?
+          (running-handle-cmd cmd)
+          (broken-handle-cmd cmd))))
 
   (define captp-incoming-handler
     (spawn ^captp-incoming-handler))

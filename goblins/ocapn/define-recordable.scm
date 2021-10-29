@@ -45,7 +45,9 @@
     (syntax-case x ()
       ((_ name (field ...))
        (and (identifier? #'name) (and-map identifier? #'(field ...)))
-       (with-syntax ((cstr (id-append #'name #'make- #'name))
+       (with-syntax ((cstr #'name)
+                     ;; (cstr (id-append #'name #'make- #'name))
+                     (record-name (id-append #'< #'name #'>))
                      (pred (id-append #'name #'name #'?))
                      (marshall (id-append #'name #'marshall:: #'name))
                      (unmarshall (id-append #'name #'unmarshall:: #'name))
@@ -55,7 +57,7 @@
          (with-ellipsis
           :::
           #'(begin
-              (define-record-type name
+              (define-record-type record-name
                 (cstr field :::)
                 pred
                 (field getter)
