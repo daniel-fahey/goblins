@@ -61,6 +61,9 @@
             $ <-np <-
             on
 
+            spawn-promise-cons
+            spawn-promise-values
+
             ;; TODO: separate this out!
             <message>
             make-message message?
