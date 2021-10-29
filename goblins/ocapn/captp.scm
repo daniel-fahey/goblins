@@ -18,6 +18,7 @@
   #:use-module (goblins ocapn define-recordable)
   #:use-module (goblins ocapn structs-urls)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins utils simple-dispatcher)
   #:use-module (ice-9 match)
   #:use-module (ice-9 vlist)
   #:use-module (syrup)
@@ -670,7 +671,7 @@
   (define (marshall-to obj)
     (match obj
       [(? question-finder?)
-       (make-desc:answer (hashq-ref questions obj))]
+       (desc:answer (hashq-ref questions obj))]
       [(? remote-refr?)
        (let ((refr-captp-connector
               (remote-refr-captp-connector obj)))
@@ -877,7 +878,7 @@
   ;; BEGIN REMOTE BOOTSTRAP OPERATION
   ;; ================================
   (define this-question-finder
-    (question-finder))
+    (make-question-finder))
   ;; called for its effect of installing the question
   (question-finder->question-pos! this-question-finder)
   (let-values (((remote-bootstrap-vow remote-bootstrap-resolver)
