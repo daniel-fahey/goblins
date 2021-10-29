@@ -79,7 +79,14 @@
             listen-request-to listen-request-listener
             listen-request-wants-partial?
 
-            message-who-wants-response)
+            message-who-wants-response
+
+            ;; TODO: These really should be moved into a more private
+            ;; location...!  Few things will need, or should have, this
+            make-remote-object-refr
+            make-remote-promise-refr
+            remote-refr-captp-connector
+            )
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (srfi srfi-11)
