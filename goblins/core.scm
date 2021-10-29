@@ -59,7 +59,24 @@
 
             spawn spawn-named
             $ <-np <-
-            on)
+            on
+
+            ;; TODO: separate this out!
+            <message>
+            make-message message?
+            message-to message-resolve-me
+            message-args
+
+            <questioned>
+            questioned?
+            questioned-message questioned-answer-this-question
+
+            <listen-request>
+            make-listen-request listen-request?
+            listen-request-to listen-request-listener
+            listen-request-wants-partial?
+
+            message-who-wants-response)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (srfi srfi-11)
@@ -917,6 +934,14 @@
     [(? message? msg) (message-to msg)]
     [(? listen-request? lr) (listen-request-to lr)]))
 
+(define message-who-wants-response
+  (match-lambda
+    [(? message? msg)
+     (message-resolve-me msg)]
+    [(? listen-request? lr)
+     (listen-request-listener lr)]
+    [(? questioned? qm)
+     (message-who-wants-response (questioned-message qm))]))
 
 
 ;; Re-entry Protection
@@ -1896,11 +1921,7 @@
        ;; Since we threw an exception, we should inform that this
        ;; failed... if anyone cares
        (define resolve-me
-         (match msg
-           [(? message?)
-            (message-resolve-me msg)]
-           [(? listen-request? lr)
-            (listen-request-listener lr)]))
+         (message-who-wants-response msg))
        (define new-msgs
          (if resolve-me
              (list (make-message resolve-me #f (list 'break err)))
