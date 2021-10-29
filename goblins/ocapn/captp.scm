@@ -22,6 +22,7 @@
   #:use-module (ice-9 vlist)
   #:use-module (syrup)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-9)
   #:use-module (rnrs bytevectors)
   #:use-module (goblins ocapn crypto-funcs)
@@ -32,6 +33,7 @@
 (define add1 1+)
 ;; Old hack to get the "unspecified/undefined type"
 (define _void (if #f #f))
+(define (void? x) (eq? x _void))
 
 ;; This should be better documented, and will when it becomes more of
 ;; a "standardized protocol" as opposed to a "bespoke implementation".
@@ -811,32 +813,32 @@
                 (values msg #f)]
                [($ questioned msg answer-this-question)
                 (values msg (question-finder->question-pos! answer-this-question))]))
-           (match-define ($ <message> to resolve-me args)
-                         real-msg)
-           (define deliver-msg
-             (if resolve-me
-                 (op:deliver (marshall-to to)
-                             #;(desc:import (maybe-install-export! to))
-                             #f ;; TODO: support methods
-                             ;; TODO: correctly marshall everything here
-                             (outgoing-pre-marshall! args)
-                             (outgoing-pre-marshall!
-                              (kws-lists->kws-hasheq kws kw-vals))
-                             answer-pos
-                             (marshall-local-refr! resolve-me))
-                 (op:deliver-only (marshall-to to)
-                                  #f ;; TODO: support methods
-                                  (outgoing-pre-marshall! args)
-                                  (outgoing-pre-marshall!
-                                   (kws-lists->kws-hasheq kws kw-vals)))))
-           (send-to-remote deliver-msg)]
+           (match-let ((($ <message> to resolve-me args)
+                        real-msg))
+             (define deliver-msg
+               (if resolve-me
+                   (op:deliver (marshall-to to)
+                               #;(desc:import (maybe-install-export! to))
+                               #f ;; TODO: support methods
+                               ;; TODO: correctly marshall everything here
+                               (outgoing-pre-marshall! args)
+                               (outgoing-pre-marshall!
+                                (kws-lists->kws-hasheq kws kw-vals))
+                               answer-pos
+                               (marshall-local-refr! resolve-me))
+                   (op:deliver-only (marshall-to to)
+                                    #f ;; TODO: support methods
+                                    (outgoing-pre-marshall! args)
+                                    (outgoing-pre-marshall!
+                                     (kws-lists->kws-hasheq kws kw-vals)))))
+             (send-to-remote deliver-msg))]
           [($ <cmd-send-listen> (? remote-refr? to-refr) (? local-refr? listener-refr)
                                 (? boolean? wants-partial?))
-           (define listen-msg
-             (op:listen (marshall-to to-refr)
-                        (outgoing-pre-marshall! listener-refr)
-                        wants-partial?))
-           (send-to-remote listen-msg)]
+           (let ((listen-msg
+                  (op:listen (marshall-to to-refr)
+                             (outgoing-pre-marshall! listener-refr)
+                             wants-partial?)))
+             (send-to-remote listen-msg))]
           [($ <cmd-send-gc-answer> (? integer? answer-pos))
            (send-to-remote (op:gc-answer answer-pos))]
           [($ <cmd-send-gc-export> (? integer? export-pos))
@@ -844,10 +846,16 @@
       (define (broken-handle-cmd cmd)
         (match cmd
           [($ <cmd-send-message> msg)
-           (match-define ($ <message> to resolve-me args)
-                         msg)
-           (when resolve-me
-             (<-np resolve-me 'break (captp-session-severed)))]
+           (define resolve-me
+             (match msg
+               ((? message?)
+                (message-resolve-me msg))
+               
+               ))
+           (match-let ((($ <message> to resolve-me args)
+                        msg))
+             (when resolve-me
+               (<-np resolve-me 'break (captp-session-severed))))]
           [($ <cmd-send-listen> (? remote-refr? to-refr) (? local-refr? listener-refr)
                                 (? boolean? wants-partial?))
            (<-np listener-refr 'break (captp-session-severed))]
