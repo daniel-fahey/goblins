@@ -20,6 +20,7 @@
   #:use-module (goblins actor-lib methods)
   #:use-module (ice-9 match)
   #:use-module (syrup)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (rnrs bytevectors)
   #:use-module (goblins ocapn crypto-funcs)
@@ -363,8 +364,8 @@
   ;; TODO: This doesn't make sense if the value isn't wrapped in a weak
   ;;   reference... I think this also needs to go in both directions to work
   ;;   from a GC perspective
-  (define imports (make-hasheqv))               ; (eqv) imports:        chosen by peer
-  (define questions (make-weak-hasheqv))        ; (eqv) questions:      chosen by us
+  (define imports (make-hash-table))            ; (eqv) imports:        chosen by peer
+  (define questions (make-weak-key-hash-table)) ; (eq)  questions:      chosen by us
   (define answers (make-hasheqv))               ; (eqv) answers:        chosen by peer
 
   ;; TODO: This should really be some kind of box that the other side
@@ -388,11 +389,13 @@
                 (add1 (hashv-ref spare-import-counts import-pos 0))))
   ;; Go through all the "spare imports" and reset them
   (define (handle-spare-imports!)
-    (for ([(import-pos count) (in-hash spare-import-counts)])
-         ;; Send a gc-export message for this many
-         (send-to-remote (op:gc-export import-pos count))
-         ;; Reset these
-         (hashv-remove! spare-import-counts import-pos)))
+    (hash-for-each
+     (lambda (import-pos count)
+       ;; Send a gc-export message for this many
+       (send-to-remote (op:gc-export import-pos count))
+       ;; Reset these
+       (hashv-remove! spare-import-counts import-pos))
+     spare-import-counts))
   (define (decrement-exports-count-maybe-remove! export-pos delta)
     (-> integer? integer? any/c)
     (match (hashv-ref export-counts export-pos #f)
@@ -460,7 +463,7 @@
     (-> live-refr? any/c)  ; TODO: Maybe de-contract this and manually check for speed
     (cond
      ;; Already have it, no need to increment next-export-pos
-     [(hashv-ref exports-val2pos refr)
+     [(hashq-ref exports-val2pos refr)
       =>
       (lambda (export-pos)
         ;; However, we do need to increment our export count
@@ -564,7 +567,6 @@
       [(obj ...)
        (map outgoing-pre-marshall! obj)]
       [(? hash?)
-       
        (for/fold ([ht #hash()])
                  ([(key val) obj])
                  (hash-set ht (outgoing-pre-marshall! key)
