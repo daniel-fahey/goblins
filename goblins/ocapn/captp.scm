@@ -422,40 +422,40 @@
               "Tried to decrement the exports count for position ~a but its value was ~a"
               export-pos other-val)]))
 
-  ;; Now make the will executor and boot its corresponding thread
-  ;; for cooperative GC.
-  (define refr-will-executor
-    (make-will-executor))
+  ;; ;; Now make the will executor and boot its corresponding thread
+  ;; ;; for cooperative GC.
+  ;; (define refr-will-executor
+  ;;   (make-will-executor))
 
-  ;; TODO: Should we move this out from a thread and put it in the
-  ;;   main loop and run it after every loop with will-try-execute?
-  ;;   That could reduce the chance of some race conditions, though
-  ;;   I'm not sure it's strictly necessary.
-  (syscaller-free-thread
-   (lambda ()
-     (let lp ()
-       (will-execute refr-will-executor)
-       (lp))))
+  ;; ;; TODO: Should we move this out from a thread and put it in the
+  ;; ;;   main loop and run it after every loop with will-try-execute?
+  ;; ;;   That could reduce the chance of some race conditions, though
+  ;; ;;   I'm not sure it's strictly necessary.
+  ;; (syscaller-free-thread
+  ;;  (lambda ()
+  ;;    (let lp ()
+  ;;      (will-execute refr-will-executor)
+  ;;      (lp))))
 
-  (define (make-question-will-handler question-pos)
-    (lambda _
-      ;; There's (I think?) a possible race condition here if we were to
-      ;; use send-to-remote from right here, so we have the main thread
-      ;; send it via the internal-ch
-      ;; TODO: Oh fuck I broke that in commit 7f575d0d didn't I
-      ;;   ... so that's why we didn't want to use a vat for this???
-      (<-np-extern internal-handler (cmd-send-gc-answer question-pos))))
-  (define (install-question-will-handler! question-finder question-pos)
-    (will-register refr-will-executor question-finder
-                   (make-question-will-handler question-pos)))
+  ;; (define (make-question-will-handler question-pos)
+  ;;   (lambda _
+  ;;     ;; There's (I think?) a possible race condition here if we were to
+  ;;     ;; use send-to-remote from right here, so we have the main thread
+  ;;     ;; send it via the internal-ch
+  ;;     ;; TODO: Oh fuck I broke that in commit 7f575d0d didn't I
+  ;;     ;;   ... so that's why we didn't want to use a vat for this???
+  ;;     (<-np-extern internal-handler (cmd-send-gc-answer question-pos))))
+  ;; (define (install-question-will-handler! question-finder question-pos)
+  ;;   (will-register refr-will-executor question-finder
+  ;;                  (make-question-will-handler question-pos)))
 
-  (define (make-import-will-handler import-pos)
-    (lambda _
-      (hashv-remove! imports import-pos)
-      (<-np-extern internal-handler (cmd-send-gc-export import-pos))))
-  (define (install-import-will-handler! refr import-pos)
-    (will-register refr-will-executor refr
-                   (make-import-will-handler import-pos)))
+  ;; (define (make-import-will-handler import-pos)
+  ;;   (lambda _
+  ;;     (hashv-remove! imports import-pos)
+  ;;     (<-np-extern internal-handler (cmd-send-gc-export import-pos))))
+  ;; (define (install-import-will-handler! refr import-pos)
+  ;;   (will-register refr-will-executor refr
+  ;;                  (make-import-will-handler import-pos)))
 
   ;; Possibly install an export for this local refr, and return
   ;; this export id
@@ -525,7 +525,8 @@
       ;; Install it...
       (hashv-set! imports import-pos (make-weak-box new-refr))
       ;; set up the will handler...
-      (install-import-will-handler! new-refr import-pos)
+      ;; TODO: Port to Guile version of this
+      ;; (install-import-will-handler! new-refr import-pos)
       ;; and return it.
       new-refr)
     (cond
@@ -557,7 +558,8 @@
       (let ([question-pos next-question-pos])
         ;; install our question at this question id
         (hashq-set! questions question-finder question-pos)
-        (install-question-will-handler! question-finder question-pos)
+        ;; TODO: Port over to guile GC
+        ;; (install-question-will-handler! question-finder question-pos)
         ;; increment the next-question id
         (set! next-question-pos (add1 next-question-pos))
         ;; and return the question-pos we set up
