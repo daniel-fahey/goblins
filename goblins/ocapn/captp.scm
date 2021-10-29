@@ -704,14 +704,16 @@
     (set! questions #f)
     (set! answers #f)
     (set! running? #f)
-    (for ([interested ($C interested-in-sever 'data)])
-         (<-np interested 'fulfill (list 'severed shutdown-type
-                                         reason)))
+    (for-each
+     (lambda (interested)
+       (<-np interested 'fulfill (list 'severed shutdown-type
+                                       reason)))
+     ($C interested-in-sever 'data))
     (set! interested-in-sever #f))
 
   (define (abort-because reason)
     (send-to-remote (op:abort reason))
-    (tear-it-down))
+    (tear-it-down 'aborted reason))
 
   ;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ;; TODO TODO TODO: EACH of these needs to call (handle-spare-imports!)
