@@ -27,6 +27,12 @@
   #:use-module (goblins ocapn crypto-funcs)
   )
 
+(define local-promise? local-promise-refr?)
+(define local-object? local-object-refr?)
+(define add1 1+)
+;; Old hack to get the "unspecified/undefined type"
+(define _void (if #f #f))
+
 ;; This should be better documented, and will when it becomes more of
 ;; a "standardized protocol" as opposed to a "bespoke implementation".
 ;;
@@ -307,8 +313,8 @@
   (define (_partition-unsealer-tm-cons)
     (cons partition-unseal partition-tm?))
 
-  (define (_listen-request to-refr listen-refr
-                           #:wants-partial? [wants-partial? #f])
+  (define* (_listen-request to-refr listen-refr
+                            #:key [wants-partial? #f])
     (<-np-extern internal-handler
                  (cmd-send-listen to-refr listen-refr
                                   wants-partial?)))
@@ -399,7 +405,8 @@
        (hashv-remove! spare-import-counts import-pos))
      spare-import-counts))
   (define (decrement-exports-count-maybe-remove! export-pos delta)
-    (-> integer? integer? any/c)
+    (unless (and (integer? export-pos) (integer? delta))
+      (error "Incorrect argument type"))  ; kluge, let's get proper contracts
     (match (hashv-ref export-counts export-pos #f)
       [(and (? integer?) (? positive? cur-count))
        (match (- cur-count delta)
@@ -506,7 +513,7 @@
     (match local-refr
       [(? local-object?)
        (desc:import-object export-pos)]
-      [(? local-promise?)
+      [(? local-promise-refr?)
        (desc:import-promise export-pos)]))
 
   (define (maybe-install-import! import-desc)
@@ -745,8 +752,9 @@
                          kw-args-marshalled
                          answer-pos
                          resolve-me-desc)
-         (let-values (((_answer-promise answer-resolver)
-                       (install-answer! answer-pos resolve-me-desc)))
+         (define (do-it)
+           (define-values (_answer-promise answer-resolver)
+             (install-answer! answer-pos resolve-me-desc))
            ;; TODO: support distinction between method sends and procedure sends
            (define args
              (incoming-post-unmarshall! args-marshalled))
@@ -758,7 +766,8 @@
            (define sent-promise
              (keyword-apply <- kws kw-vals target args))
            ($C answer-resolver 'fulfill sent-promise)
-           _void)]
+           _void)
+         (do-it)]
 
         ;; TODO: Here's where we have to record that a listening interest
         ;; has occured, assuming we do the "automatically notify on session
@@ -855,22 +864,21 @@
   (define internal-handler
     (spawn ^internal-handler))
 
-  ;;; BEGIN REMOTE BOOTSTRAP OPERATION
-  ;;; ================================
+  ;; BEGIN REMOTE BOOTSTRAP OPERATION
+  ;; ================================
   (define this-question-finder
     (question-finder))
   ;; called for its effect of installing the question
   (question-finder->question-pos! this-question-finder)
-  (define-values (remote-bootstrap-vow remote-bootstrap-resolver)
-    (_spawn-promise-values #:question-finder
-                           this-question-finder
-                           #:captp-connector
-                           captp-connector))
-  (define bootstrap-msg
-    (op:bootstrap (hashq-ref questions this-question-finder)
-                  (outgoing-pre-marshall! remote-bootstrap-resolver)))
-  (send-to-remote bootstrap-msg)
-  ;;; END REMOTE BOOTSTRAP OPERATION
-  ;;; ==============================
-
-  (values captp-incoming-handler remote-bootstrap-vow))
+  (let-values (((remote-bootstrap-vow remote-bootstrap-resolver)
+                (_spawn-promise-values #:question-finder
+                                       this-question-finder
+                                       #:captp-connector
+                                       captp-connector))
+               ((bootstrap-msg)
+                (op:bootstrap (hashq-ref questions this-question-finder)
+                              (outgoing-pre-marshall! remote-bootstrap-resolver))))
+    (send-to-remote bootstrap-msg)
+    ;; END REMOTE BOOTSTRAP OPERATION
+    ;; ==============================
+    (values captp-incoming-handler remote-bootstrap-vow)))

@@ -47,7 +47,9 @@
        (and (identifier? #'name) (and-map identifier? #'(field ...)))
        (with-syntax ((cstr #'name)
                      ;; (cstr (id-append #'name #'make- #'name))
-                     (record-name (id-append #'< #'name #'>))
+                     (record-name
+                      (datum->syntax #'name
+                                     (symbol-append '< (syntax->datum #'name) '>)))
                      (pred (id-append #'name #'name #'?))
                      (marshall (id-append #'name #'marshall:: #'name))
                      (unmarshall (id-append #'name #'unmarshall:: #'name))
