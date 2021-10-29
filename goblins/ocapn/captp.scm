@@ -377,7 +377,7 @@
   ;;   from a GC perspective
   (define imports (make-hash-table))            ; (eqv) imports:        chosen by peer
   (define questions (make-weak-key-hash-table)) ; (eq)  questions:      chosen by us
-  (define answers (make-hasheqv))               ; (eqv) answers:        chosen by peer
+  (define answers (make-hash-table))            ; (eqv) answers:        chosen by peer
 
   ;; TODO: This should really be some kind of box that the other side
   ;;   can query, right?
