@@ -16,7 +16,13 @@
   #:use-module (rnrs bytevectors)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
-  #:export (bytes-append))
+  #:use-module (ice-9 iconv)
+  #:export (bytes-append
+            bytes<?
+            string->bytes/latin-1
+            string->bytes/utf-8
+            bytes->string/utf-8
+            bytes))
 
 (define (bytes-append . bvs)
   (define new-bv-len
@@ -38,3 +44,41 @@
            next-bvs)]
       ['() 'done]))
   new-bv)
+
+(define (bytes<? bstr1 bstr2)
+  (define bstr1-len
+    (bytevector-length bstr1))
+  (define bstr2-len
+    (bytevector-length bstr2))
+  (let lp ([pos 0])
+    (cond
+     ;; we've reached the end of both and they're the same bytestring
+     ;; but this isn't <=?
+     [(and (eqv? bstr1-len pos)
+           (eqv? bstr2-len pos))
+      #f]
+     ;; we've reached the end of bstr1 but not bstr2, so yes it's less
+     [(eqv? bstr1-len pos)
+      #t]
+     ;; we've reached the end of bstr2 but not bstr1, so no
+     [(eqv? bstr2-len pos)
+      #f]
+     ;; ok, time to compare bytes
+     [else
+      (let ([bstr1-byte (bytevector-u8-ref bstr1 pos)]
+            [bstr2-byte (bytevector-u8-ref bstr2 pos)])
+        (if (eqv? bstr1-byte bstr2-byte)
+            ;; they're the same, so loop
+            (lp (1+ pos))
+            ;; otherwise, just compare nubmers
+            (< bstr1-byte bstr2-byte)))])))
+
+(define (string->bytes/latin-1 str)
+  (string->bytevector str "ISO-8859-1"))
+(define (string->bytes/utf-8 str)
+  (string->bytevector str "UTF-8"))
+(define (bytes->string/utf-8 bstr)
+  (bytevector->string bstr "UTF-8"))
+
+;; alias for simplicity
+(define bytes string->bytes/latin-1)
