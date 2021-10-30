@@ -21,6 +21,7 @@
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils simple-dispatcher)
   #:use-module (goblins utils simple-sealers)
+  #:use-module (goblins utils weak-box)
   #:use-module (ice-9 match)
   #:use-module (ice-9 vlist)
   #:use-module (syrup)
@@ -31,6 +32,8 @@
   #:use-module (goblins ocapn crypto-funcs)
   )
 
+;;; Some crap to make this work in the port from Racket->Guile
+
 (define local-promise? local-promise-refr?)
 (define local-object? local-object-refr?)
 (define add1 1+)
@@ -40,6 +43,7 @@
 
 (define _spawn-promise-values
   (@@ (goblins core) _spawn-promise-values))
+
 
 ;; This should be better documented, and will when it becomes more of
 ;; a "standardized protocol" as opposed to a "bespoke implementation".
