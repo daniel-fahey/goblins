@@ -20,6 +20,7 @@
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils simple-dispatcher)
+  #:use-module (goblins utils simple-sealers)
   #:use-module (ice-9 match)
   #:use-module (ice-9 vlist)
   #:use-module (syrup)
