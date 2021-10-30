@@ -17,6 +17,7 @@
   #:use-module (goblins vat)
   #:use-module (goblins ocapn define-recordable)
   #:use-module (goblins ocapn structs-urls)
+  #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils simple-dispatcher)
   #:use-module (ice-9 match)
