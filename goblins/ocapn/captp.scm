@@ -751,11 +751,10 @@
                        ((kw-args)
                         (incoming-post-unmarshall! kw-args-marshalled))
                        ((target) (unmarshall-to-desc to-desc))
-                       ((kws kw-vals)
-                        (kws-hasheq->kws-lists kw-args)))
+                       ((kwarg-list)
+                        (kws-hasheq->kws-list kw-args)))
            ;; TODO: support distinction between method sends and procedure sends
-           (keyword-apply <-np kws kw-vals
-                          target args)
+           (apply <-np target (append args kwarg-list)args)
            _void)]
         [($ <op:deliver> to-desc method
                          args-marshalled
@@ -771,10 +770,10 @@
            (define kw-args
              (incoming-post-unmarshall! kw-args-marshalled))
            (define target (unmarshall-to-desc to-desc))
-           (define-values (kws kw-vals)
-             (kws-hasheq->kws-lists kw-args))
+           (define kwarg-list
+             (kws-hasheq->kws-list kw-args))
            (define sent-promise
-             (keyword-apply <- kws kw-vals target args))
+             (apply <- target (append args kwarg-list)))
            ($C answer-resolver 'fulfill sent-promise)
            _void)
          (do-it)]
