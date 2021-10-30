@@ -822,7 +822,7 @@
              (match msg
                [(? message?)
                 (values msg #f)]
-               [($ questioned msg answer-this-question)
+               [($ <questioned> msg answer-this-question)
                 (values msg (question-finder->question-pos! answer-this-question))]))
            (match-let ((($ <message> to resolve-me args)
                         real-msg))
