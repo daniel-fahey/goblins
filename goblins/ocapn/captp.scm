@@ -795,8 +795,8 @@
                 (unmarshall-to-desc to-desc))
                (listener
                 (incoming-post-unmarshall! listener-desc)))
-           (listen to-refr listener
-                   #:wants-partial? wants-partial?)
+           (listen-to to-refr listener
+                      #:wants-partial? wants-partial?)
            _void)]
         [($ <op:gc-answer> answer-pos)
          (hashv-remove! answers answer-pos)]
