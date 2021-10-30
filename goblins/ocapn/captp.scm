@@ -44,7 +44,9 @@
 
 (define _spawn-promise-values
   (@@ (goblins core) _spawn-promise-values))
-
+(define-syntax-rule (assert-type expr pred)
+  (unless (pred expr)
+    (error (format #f "wrong type for ~s, expected ~s" 'expr 'pred))))
 
 ;; This should be better documented, and will when it becomes more of
 ;; a "standardized protocol" as opposed to a "bespoke implementation".
@@ -416,8 +418,8 @@
        (hashv-remove! spare-import-counts import-pos))
      spare-import-counts))
   (define (decrement-exports-count-maybe-remove! export-pos delta)
-    (unless (and (integer? export-pos) (integer? delta))
-      (error "Incorrect argument type"))  ; kluge, let's get proper contracts
+    (assert-type export-pos integer?)
+    (assert-type delta integer?)
     (match (hashv-ref export-counts export-pos #f)
       [(and (? integer?) (? positive? cur-count))
        (match (- cur-count delta)
@@ -480,8 +482,7 @@
   ;; TODO: we maybe need to differentiate between local-live-refr and
   ;;   remote-live-proxy-refr (once we set that up)?
   (define (maybe-install-export! refr)
-    (unless (live-refr? refr)
-      (error "Not a live refr:" refr))
+    (assert-type refr live-refr?)
     (cond
      ;; Already have it, no need to increment next-export-pos
      [(hashq-ref exports-val2pos refr)
@@ -517,15 +518,13 @@
         export-pos)]))
 
   (define (marshall-local-refr! local-refr)
-    (unless (local-refr? local-refr)
-      (error "Not a local-refr:" local-refr))
-    (define export-pos
-      (maybe-install-export! local-refr))
-    (match local-refr
-      [(? local-object?)
-       (desc:import-object export-pos)]
-      [(? local-promise-refr?)
-       (desc:import-promise export-pos)]))
+    (assert-type local-refr local-refr?)
+    (let ((export-pos (maybe-install-export! local-refr)))
+      (match local-refr
+        [(? local-object?)
+         (desc:import-object export-pos)]
+        [(? local-promise-refr?)
+         (desc:import-promise export-pos)])))
 
   (define (maybe-install-import! import-desc)
     (define import-pos
@@ -566,8 +565,7 @@
       (install-new-import!)]))
 
   (define (question-finder->question-pos! question-finder)
-    (unless (question-finder? question-finder)
-      (error "Not a question finder:" question-finder))
+    (assert-type question-finder question-finder?)
     (cond
      ;; we already have a question relevant to this question id
      ((hashq-ref questions question-finder) => identity)
@@ -887,3 +885,239 @@
   ;; END REMOTE BOOTSTRAP OPERATION
   ;; ==============================
   (values captp-incoming-handler remote-bootstrap-vow))
+
+
+(define* (^coordinator bcom router our-location
+                       intra-machine-warden intra-machine-incanter
+                       #:key [handoff-privkey
+                              'TODO-crypto
+                              #;(generate-private-key eddsa
+                              '((curve ed25519)))
+                              ]
+                       ;; #:local-machine-location [local-machine-location #f]
+                       )
+  ;; counters used to increment how many handoff requests have been
+  ;; made in this session to prevent replay attacks.
+  ;; every time a *request* is made, this should be incremented.
+  (define our-handoff-count 0)
+  ;; TODO TODO TODO: We need to make use of this and also check the
+  ;;   session listed on the receive certificate to prevent a replay
+  ;;   attack
+  (define remote-handoff-count 0)
+
+  (define handoff-pubkey
+    #;(pk-key->public-only-key handoff-privkey)
+    'TODO-crypto)
+
+  (define (get-handoff-pubkey)
+    #;(pk-key->datum handoff-pubkey 'rkt-public)
+    'TODO-crypto)
+
+  ;; TODO: maybe the hashing isn't necessary
+  (define our-side-name
+    (sha256d (syrup-encode (get-handoff-pubkey))))
+
+  (define our-location-sig
+    'TODO-crypto
+    #;(pk-sign handoff-privkey
+    (syrup-encode (record* 'my-location our-location)
+    #:marshallers marshallers)))
+
+  (define core-beh
+    (methods
+     [(get-suite) 'prot0]
+     [get-handoff-pubkey get-handoff-pubkey]
+     ;; TODO: Horrible, we need to protect against this
+     [(get-handoff-privkey) handoff-privkey]
+     [(get-location-sig) our-location-sig]))
+
+  (define pre-init-beh
+    (extend-methods
+     [(install-remote-key remote-encoded-key
+                          remote-handoff-key
+                          remote-location)
+      (bcom (ready-beh remote-encoded-key
+                       remote-handoff-key
+                       remote-location)
+            'OK)]
+     core-beh))
+
+  (define (ready-beh remote-encoded-key
+                     remote-key
+                     remote-location
+                     ;; remote-machine-location     ;; auughhhhhh
+                     )
+    (define remote-side-name
+      (sha256d (syrup-encode remote-encoded-key)))
+    (when (equal? remote-side-name our-side-name)
+      (error "Both sides can't share the same name / signing key!"))
+
+    ;; Both sides should converge on the same session name if all goes well
+    ;; because both sides should have sorted by bytes
+    (define session-name
+      (sha256d (apply bytes-append
+                      (string->bytevector "prot0" 'iso-8859-1)
+                      (sort (list remote-side-name our-side-name)
+                            bytes<?))))
+
+    ;; NOTE: Every session requires that both ends generate brand
+    ;; new keypairs.
+    ;; Thus we could probably have a unique derived key per session
+    ;; directly from the secret derivation with no additional step?
+    ;; But I'm unsure about this.  It may be good hygiene if we
+    ;; use a shared keypair to derive a CEK (Content Encryption Key)
+    ;; anyway...
+    #;(define shared-secret ...)
+
+    (define (make-handoff-base-cert exported-remote-refr)
+      ;; TODO: Bail out early if we've already disconnected
+      (define exported-captp-connector
+        (remote-refr-captp-connector exported-remote-refr))
+      (define exported-connector-obj
+        (exported-captp-connector 'connector-obj))
+      (define recipient-key remote-encoded-key)
+      (define exporter-location
+        ($C intra-machine-incanter
+            exported-connector-obj 'get-remote-location))
+      (define gifter-and-exporter-session
+        ($C intra-machine-incanter exported-connector-obj
+            'get-session-name))
+      (define gifter-side
+        ($C intra-machine-incanter exported-connector-obj
+            'get-our-side-name))
+      (define gift-id (crypto-random-bytes 32))
+
+      (define handoff-give
+        (desc:handoff-give recipient-key
+                           exporter-location gifter-and-exporter-session
+                           gifter-side
+                           gift-id))
+      (define handoff-give-sig
+        (pk-sign ($C intra-machine-incanter
+                     exported-connector-obj 'get-handoff-privkey)
+                 (syrup-encode handoff-give
+                               #:marshallers marshallers)))
+
+      (define exporter-session-bootstrap
+        ($C intra-machine-incanter
+            exported-connector-obj 'get-remote-bootstrap))
+
+      (unless (exported-captp-connector 'same-connection? exported-remote-refr)
+        (error "Tried to deposit a gift not at the remote location"))
+
+      ;; Now we send a message to the exporter saying we'd like to deposit
+      ;; this gift
+      (<-np exporter-session-bootstrap 'deposit-gift
+            gift-id exported-remote-refr)
+
+      (desc:sig-envelope handoff-give handoff-give-sig))
+
+    (define (start-retrieve-handoff signed-handoff-give)
+      (assert-type start-retrieve-handoff signed-handoff-give?)
+      (let ((exporter-location
+             (desc:handoff-give-exporter-location
+              (desc:sig-envelope-signed signed-handoff-give))))
+        (cond
+         ;; Oh, this is us.  Well, we don't need to open a new session
+         ;; for that, though we do need to coordinate with whatever
+         ;; session is in question
+         [($C router 'self-location? exporter-location)
+          ;; In order for this to happen, we have to be getting a
+          ;; handoff with ourselves as the gifter!  Yikes!  Well,
+          ;; this can happen accidentally if A and B have two simultaneous
+          ;; sessions open with each other.
+          ;;
+          ;; Note that this might be caused by the crossed hellos problem
+          ;; (or simply that even from the outgoing connection side, we
+          ;; don't bother to deduplicate while attempting a connection...
+          ;; oops)
+          ;;
+          ;; TODO: Fix crossed hellos problem
+          ;; TODO: Fix simultaneous outgoing connections problem, which
+          ;;   is related, but easier to fix.  To do so we just need to
+          ;;   recognize that we're "in the middle of" establishing a
+          ;;   connection and buffer multiple waiting connection attempts
+          ;;   together.  It would be okay for them to all fail together
+          ;;   if something goes wrong.  We can delay thinking about whether
+          ;;   or not to supply a re-connect until later.
+          (error "Handoff points at ourselves... crossed hellos or adjacent problem?")]
+         ;; Oh, this is someone else.
+         ;; Well, we're going to need to make a receive certificate
+         ;; and work with the router to pass it along
+         [else
+          (let* ((handoff-receive
+                  (desc:handoff-receive session-name our-side-name
+                                        our-handoff-count signed-handoff-give))
+                 (handoff-receive-sig
+                  (pk-sign handoff-privkey
+                           (syrup-encode handoff-receive
+                                         #:marshallers marshallers)))
+                 (signed-handoff-receive
+                  (desc:sig-envelope handoff-receive
+                                     handoff-receive-sig)))
+            ;; maybe a cell would be better, dunno
+            (set! our-handoff-count (add1 our-handoff-count))
+            (<- router 'send-handoff-receive signed-handoff-receive))])))
+
+    (define (give-handoff-legit? signed-handoff-give)
+      (assert-type signed-handoff-give signed-handoff-give?)
+      (match-let* (((desc:sig-envelope (? desc:handoff-give? handoff-give)
+                                       give-sig)
+                    signed-handoff-give)
+                   ((desc:handoff-give _give-recipient-encoded-key
+                                       give-exporter-location
+                                       give-session
+                                       give-gifter-side
+                                       _give-gift-id)
+                    handoff-give)
+                   (encoded-handoff-give
+                    (syrup-encode handoff-give
+                                  #:marshallers marshallers)))
+        (and (equal? session-name give-session)
+             (equal? give-gifter-side remote-side-name)
+             ;; I'm not sure if this one is critical.
+             ;; Should consider the attack scenarios again.
+             ;; Probably doesn't hurt; maybe can just leave it until
+             ;; we find a reason not to.
+             ($C router 'self-location? give-exporter-location)
+             (pk-verify remote-key encoded-handoff-give
+                        give-sig))))
+
+    (define (full-handoff-legit? signed-handoff-receive)
+      (assert-type signed-handoff-receive signed-handoff-receive?)
+      (match-let* (((desc:sig-envelope (and handoff-receive
+                                            (desc:handoff-receive
+                                             ;; TODO: verify these three where appropriate
+                                             ;; (probably not in this session, which is
+                                             ;; with the gifter, but with the receiver)
+                                             (? bytes? _handoff-session)
+                                             (? bytes? _handoff-session-side)
+                                             (? integer? _this-handoff-count)
+                                             signed-handoff-give))
+                                       (? bytes? receive-sig))
+                    signed-handoff-receive)
+                   (encoded-handoff-receive
+                    (syrup-encode handoff-receive
+                                  #:marshallers marshallers))
+                   (give-recipient-encoded-key
+                    (desc:handoff-give-recipient-key
+                     (desc:sig-envelope-signed signed-handoff-give)))
+                   (give-recipient-key
+                    (datum->pk-key give-recipient-encoded-key 'rkt-public)))
+        (and (give-handoff-legit? signed-handoff-give)
+             (pk-verify give-recipient-key encoded-handoff-receive
+                        receive-sig))))
+
+    (extend-methods
+     [(get-remote-side-name) remote-side-name]
+     [(get-remote-location) remote-location]
+     [(get-session-name) session-name]
+     [(get-our-side-name) our-side-name]
+     ;; handoff stuff
+     [make-handoff-base-cert make-handoff-base-cert]
+     [start-retrieve-handoff start-retrieve-handoff]
+     [full-handoff-legit? full-handoff-legit?]
+     [give-handoff-legit? give-handoff-legit?]
+     core-beh))
+
+  pre-init-beh)
