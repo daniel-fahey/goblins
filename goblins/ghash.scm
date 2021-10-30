@@ -14,9 +14,10 @@
 
 ;; An immutable hashtable with specific set/ref conventions.  Refrs
 ;; are hashed by eq?, everything else is hashed by equal?.
-
-;; Really presently built on top of vhashes.  Might be built on top
-;; of something else, like fashes, in the future.
+;;
+;; TODO: Really presently built on top of vhashes.  Might be built on
+;; top of something else, like fashes, in the future.  Especially since
+;; vhashes are not thread safe...
 
 
 (define-module (goblins ghash)
