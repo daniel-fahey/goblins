@@ -696,7 +696,7 @@
     (match-let (((answer-promise . answer-resolver)
                  (spawn-promise-cons)))
       (hashv-set! answers answer-pos answer-promise)
-      (listen answer-promise resolve-me)
+      (listen-to answer-promise resolve-me)
       (values answer-promise answer-resolver)))
 
   ;; Resolvers that are interested in when this poops out
