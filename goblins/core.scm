@@ -61,6 +61,8 @@
             $ <-np <-
             on
 
+            <-np-extern
+
             spawn-promise-cons
             spawn-promise-values
 
@@ -1668,6 +1670,18 @@
 (define (<-np refr . args)
   (define sys (get-syscaller-or-die))
   (sys '<-np refr args))
+
+(define (<-np-extern to-refr . args)
+  (define msg (make-message to-refr #f args))
+  (match to-refr
+    [(? local-refr?)
+     (let ((vat-connector (local-refr-vat-connector to-refr)))
+       (unless vat-connector
+         (error "Can't use <-np-extern on local-refr with no vat-connector"))
+       (vat-connector 'handle-message msg))]
+    [(? remote-refr?)
+     (let ((captp-connector (remote-refr-captp-connector to-refr)))
+       (captp-connector 'handle-message msg))]))
 
 (define* (on vow #:optional (fulfilled-handler #f)
              #:key
