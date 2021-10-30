@@ -86,7 +86,7 @@
             make-remote-object-refr
             make-remote-promise-refr
             remote-refr-captp-connector
-            )
+            remote-refr-sealed-pos)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (srfi srfi-11)
