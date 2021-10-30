@@ -23,6 +23,7 @@
   #:use-module (goblins utils simple-dispatcher)
   #:use-module (goblins utils simple-sealers)
   #:use-module (goblins utils weak-box)
+  #:use-module (goblins utils bytes-stuff)
   #:use-module (ice-9 match)
   #:use-module (ice-9 vlist)
   #:use-module (syrup)
@@ -30,6 +31,7 @@
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-9)
   #:use-module (rnrs bytevectors)
+  #:use-module (rnrs io ports)
   #:use-module (goblins ocapn crypto-funcs)
   )
 
@@ -956,7 +958,7 @@
     ;; because both sides should have sorted by bytes
     (define session-name
       (sha256d (apply bytes-append
-                      (string->bytevector "prot0" 'iso-8859-1)
+                      (bytes "prot0")
                       (sort (list remote-side-name our-side-name)
                             bytes<?))))
 
@@ -1090,11 +1092,11 @@
                                              ;; TODO: verify these three where appropriate
                                              ;; (probably not in this session, which is
                                              ;; with the gifter, but with the receiver)
-                                             (? bytes? _handoff-session)
-                                             (? bytes? _handoff-session-side)
+                                             (? bytevector? _handoff-session)
+                                             (? bytevector? _handoff-session-side)
                                              (? integer? _this-handoff-count)
                                              signed-handoff-give))
-                                       (? bytes? receive-sig))
+                                       (? bytevector? receive-sig))
                     signed-handoff-receive)
                    (encoded-handoff-receive
                     (syrup-encode handoff-receive
