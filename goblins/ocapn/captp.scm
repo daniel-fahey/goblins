@@ -621,7 +621,8 @@
       [(? void?)
        (make-syrec* 'void)]
       ;; TODO: Supply more machine-crossing exception types here
-      [(? exn:fail?)
+      ;; TODO: Add guile equivalents of exceptions
+      #;[(? exn:fail?)
        (make-syrec* 'exn:fail:mystery)]
       ;; And here's the general-purpose record that users can use
       ;; for whatever purpose is appropriate
@@ -651,7 +652,8 @@
        (maybe-install-import! obj)]
       [(desc:export pos)
        (hashv-ref exports-pos2val pos)]
-      [($ <syrec> 'exn:fail:mystery '())
+      ;; TODO: Make guile equivalents of these exceptions
+      #;[($ <syrec> 'exn:fail:mystery '())
        (make-mystery-fail)]
       [($ <syrec> 'void '())
        _void]
