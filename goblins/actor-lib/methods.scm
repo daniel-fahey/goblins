@@ -24,7 +24,7 @@
                      fallback)
   (let ((these-methods
          (let* ((method-name
-                 (lambda (method-args ...)
+                 (lambda* (method-args ...)
                    body ...))
                 ...
                 (all-methods (list (cons 'method-name method-name) ...))
