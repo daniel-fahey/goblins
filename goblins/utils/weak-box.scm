@@ -16,7 +16,7 @@
   #:use-module (ice-9 weak-vector)
   #:use-module (srfi srfi-9)
   #:export (make-weak-box
-            weak-box-ref
+            weak-box-value
             weak-box?))
 
 (define-record-type <weak-box>
@@ -27,5 +27,5 @@
 (define (make-weak-box val)
   (make-weak-vector 1 val))
 
-(define (weak-box-ref weak-box)
+(define (weak-box-value weak-box)
   (weak-vector-ref (weak-box-wvec weak-box) 0))
