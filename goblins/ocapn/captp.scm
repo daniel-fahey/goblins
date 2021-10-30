@@ -19,6 +19,7 @@
   #:use-module (goblins ocapn structs-urls)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib ward)
   #:use-module (goblins utils simple-dispatcher)
   #:use-module (goblins utils simple-sealers)
   #:use-module (goblins utils weak-box)
