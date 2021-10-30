@@ -82,15 +82,13 @@
    method
    ;; Either arguments to the method or to the procedure, depending
    ;; on whether method exists
-   args
-   kw-args))
+   args))
 
 ;; Queue a delivery of verb(args..) to recip, binding answer/rdr to the outcome.
 (define-recordable op:deliver
   (to-desc
    method
    args
-   kw-args
    answer-pos
    resolve-me-desc))  ; a resolver, probably an import (though it could be a handoff)
 
@@ -747,22 +745,14 @@
            _void)]
         ;; TODO: Handle case where the target doesn't exist?
         ;;   Or maybe just generally handle unmarshalling errors :P
-        [($ <op:deliver-only> to-desc method
-                              args-marshalled
-                              kw-args-marshalled)
+        [($ <op:deliver-only> to-desc method args-marshalled)
          (let*-values (((args)
                         (incoming-post-unmarshall! args-marshalled))
-                       ((kw-args)
-                        (incoming-post-unmarshall! kw-args-marshalled))
-                       ((target) (unmarshall-to-desc to-desc))
-                       ((kwarg-list)
-                        (kws-hasheq->kws-list kw-args)))
-           ;; TODO: support distinction between method sends and procedure sends
-           (apply <-np target (append args kwarg-list)args)
+                       ((target) (unmarshall-to-desc to-desc)))
+           (apply <-np target args)
            _void)]
         [($ <op:deliver> to-desc method
                          args-marshalled
-                         kw-args-marshalled
                          answer-pos
                          resolve-me-desc)
          (define (do-it)
@@ -771,13 +761,9 @@
            ;; TODO: support distinction between method sends and procedure sends
            (define args
              (incoming-post-unmarshall! args-marshalled))
-           (define kw-args
-             (incoming-post-unmarshall! kw-args-marshalled))
            (define target (unmarshall-to-desc to-desc))
-           (define kwarg-list
-             (kws-hasheq->kws-list kw-args))
            (define sent-promise
-             (apply <- target (append args kwarg-list)))
+             (apply <- target args))
            ($C answer-resolver 'fulfill sent-promise)
            _void)
          (do-it)]
@@ -833,15 +819,11 @@
                                #f ;; TODO: support methods
                                ;; TODO: correctly marshall everything here
                                (outgoing-pre-marshall! args)
-                               (outgoing-pre-marshall!
-                                (kws-lists->kws-hasheq kws kw-vals))
                                answer-pos
                                (marshall-local-refr! resolve-me))
                    (op:deliver-only (marshall-to to)
                                     #f ;; TODO: support methods
-                                    (outgoing-pre-marshall! args)
-                                    (outgoing-pre-marshall!
-                                     (kws-lists->kws-hasheq kws kw-vals)))))
+                                    (outgoing-pre-marshall! args))))
              (send-to-remote deliver-msg))]
           [($ <cmd-send-listen> (? remote-refr? to-refr) (? local-refr? listener-refr)
                                 (? boolean? wants-partial?))
