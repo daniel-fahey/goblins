@@ -62,6 +62,7 @@
             on
 
             <-np-extern
+            listen-to
 
             spawn-promise-cons
             spawn-promise-values
@@ -1682,6 +1683,11 @@
     [(? remote-refr?)
      (let ((captp-connector (remote-refr-captp-connector to-refr)))
        (captp-connector 'handle-message msg))]))
+
+;; Listen to a promise
+(define* (listen-to to-refr listener #:key [wants-partial? #f])
+  (define sys (get-syscaller-or-die))
+  (sys 'send-listen to-refr listener wants-partial?))
 
 (define* (on vow #:optional (fulfilled-handler #f)
              #:key
