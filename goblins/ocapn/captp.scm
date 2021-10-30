@@ -38,6 +38,9 @@
 (define _void (if #f #f))
 (define (void? x) (eq? x _void))
 
+(define _spawn-promise-values
+  (@@ (goblins core) _spawn-promise-values))
+
 ;; This should be better documented, and will when it becomes more of
 ;; a "standardized protocol" as opposed to a "bespoke implementation".
 ;;
