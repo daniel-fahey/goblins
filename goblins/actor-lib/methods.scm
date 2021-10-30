@@ -56,4 +56,5 @@
               ((? procedure?) extends)
               ;; but wrap actors in procedure that calls them
               ((? live-refr?)
-               (extend-actor extends)))))
+               (extend-actor extends))
+              (#f no-such-method))))
