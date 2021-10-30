@@ -12,6 +12,9 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
+;; Is this an acceptable way to define a weak box?
+;; ... hell if I know, but probably?
+
 (define-module (goblins utils weak-box)
   #:use-module (ice-9 weak-vector)
   #:use-module (srfi srfi-9)
