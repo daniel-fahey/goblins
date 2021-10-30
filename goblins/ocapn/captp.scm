@@ -888,16 +888,17 @@
   (define this-question-finder
     (make-question-finder))
   ;; called for its effect of installing the question
-  (question-finder->question-pos! this-question-finder)
-  (let-values (((remote-bootstrap-vow remote-bootstrap-resolver)
-                (_spawn-promise-values #:question-finder
-                                       this-question-finder
-                                       #:captp-connector
-                                       captp-connector))
-               ((bootstrap-msg)
-                (op:bootstrap (hashq-ref questions this-question-finder)
-                              (outgoing-pre-marshall! remote-bootstrap-resolver))))
-    (send-to-remote bootstrap-msg)
-    ;; END REMOTE BOOTSTRAP OPERATION
-    ;; ==============================
-    (values captp-incoming-handler remote-bootstrap-vow)))
+  (define _qp
+    (question-finder->question-pos! this-question-finder))
+  (define-values (remote-bootstrap-vow remote-bootstrap-resolver)
+    (_spawn-promise-values #:question-finder
+                           this-question-finder
+                           #:captp-connector
+                           captp-connector))
+  (define (bootstrap-msg)
+    (op:bootstrap (hashq-ref questions this-question-finder)
+                  (outgoing-pre-marshall! remote-bootstrap-resolver)))
+  (send-to-remote bootstrap-msg)
+  ;; END REMOTE BOOTSTRAP OPERATION
+  ;; ==============================
+  (values captp-incoming-handler remote-bootstrap-vow))
