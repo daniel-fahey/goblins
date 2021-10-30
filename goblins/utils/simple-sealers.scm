@@ -12,7 +12,7 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (goblins simple-sealers)
+(define-module (goblins utils simple-sealers)
   #:export (make-sealer-triplet)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu))
