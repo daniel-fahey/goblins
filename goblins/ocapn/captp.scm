@@ -21,6 +21,7 @@
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib ward)
+  #:use-module (goblins utils assert-type)
   #:use-module (goblins utils simple-dispatcher)
   #:use-module (goblins utils simple-sealers)
   #:use-module (goblins utils weak-box)
@@ -46,9 +47,7 @@
 
 (define _spawn-promise-values
   (@@ (goblins core) _spawn-promise-values))
-(define-syntax-rule (assert-type expr pred)
-  (unless (pred expr)
-    (error (format #f "wrong type for ~s, expected ~s" 'expr 'pred))))
+
 
 ;; This should be better documented, and will when it becomes more of
 ;; a "standardized protocol" as opposed to a "bespoke implementation".
