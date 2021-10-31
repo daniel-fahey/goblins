@@ -15,9 +15,10 @@
 (define-module (goblins actor-lib common)
   #:use-module (srfi srfi-1)
   #:use-module (ice-9 vlist)
+  #:use-module (goblins ghash)
   #:use-module (goblins actor-lib methods)
-  #:export (^seteq)
-  )
+  #:export (^seteq
+            ^ghash))
 
 ;; And the rest, eventually...
 (define (^seteq bcom . initial)
@@ -37,3 +38,19 @@
                     (cons k lst))
                   vlist-null
                   vh)])))
+
+(define* (^ghash bcom #:optional [ht ghash-null])
+  (methods
+   [ref
+    (case-lambda
+      [(key)
+       (ghash-ref ht key)]
+      [(key dflt)
+       (ghash-ref ht key dflt)])]
+   [(set key val)
+    (bcom (^ghash bcom (ghash-set ht key val)))]
+   [(has-key? key)
+    (ghash-has-key? ht key)]
+   [(remove key)
+    (bcom (^ghash bcom (ghash-remove ht key)))]
+   [(data) ht]))
