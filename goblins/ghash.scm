@@ -36,6 +36,7 @@
 
             ghash-fold
             ghash-fold-right
+            ghash-for-each
 
             hash-table->ghash))
 
@@ -94,6 +95,13 @@
 (define (ghash-fold-right proc init ghash)
   (vhash-fold-right proc init (ghash-vhash ghash)))
 
+(define (ghash-for-each proc ghash)
+  (vhash-fold
+   (lambda (k v _p)
+     (proc k v))
+   #f
+   (ghash-vhash ghash)))
+
 (define (hash-table->ghash table)
   (_make-ghash
    (hash-fold
@@ -101,3 +109,4 @@
       (_vh-set vh key val))
     vlist-null
     table)))
+
