@@ -20,6 +20,7 @@
   #:use-module (goblins ocapn structs-urls)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib swappable)
   #:use-module (goblins actor-lib ward)
   #:use-module (goblins utils assert-type)
   #:use-module (goblins utils simple-dispatcher)
