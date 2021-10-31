@@ -15,6 +15,7 @@
 (define-module (goblins ocapn captp)
   #:use-module ((goblins core) #:renamer (lambda (x) (if (eq? x '$) '$C x)))
   #:use-module (goblins vat)
+  #:use-module (goblins ghash)
   #:use-module (goblins ocapn define-recordable)
   #:use-module (goblins ocapn structs-urls)
   #:use-module (goblins actor-lib common)
@@ -1122,3 +1123,367 @@
      core-beh))
 
   pre-init-beh)
+
+(define-record-type <giftmeta>
+  (make-giftmeta gift destroy-on-fetch)
+  giftmeta?
+  (gift giftmeta-gift)
+  (destroy-on-fetch giftmeta-destroy-on-fetch))
+
+(define-record-type <sessionmeta>
+  (make-sessionmeta location
+                    local-bootstrap-obj remote-bootstrap-obj
+                    coordinator session-name)
+  sessionmeta?
+  (location sessionmeta-location)
+  (local-bootstrap-obj sessionmeta-local-bootstrap-obj)
+  (remote-bootstrap-obj sessionmeta-remote-bootstrap-obj)
+  (coordinator sessionmeta-coordinator)
+  (session-name sessionmeta-session-name))
+
+(define* (spawn-mycapn netlayers
+                       #:key [custom-bootstrap #f])
+  (define netlayer-map
+    (spawn ^ghash
+           (fold
+            (lambda (netlayer netmap)
+              (ghash-set netmap ($C netlayer 'netlayer-name)
+                         netlayer))
+            ghash-null
+            netlayers)))
+
+  (define (^mycapn bcom)
+    ;; For sturdyrefs
+    ;; TODO: Eventually... well this whole sturdyref nonsense we want
+    ;; to make more configureable
+    (define-values (registry locator)
+      (spawn-nonce-registry-locator-values))
+
+    ;; Warden and incanter for collaborating parties in this
+    ;; particular machine
+    (define-values (intra-machine-warden intra-machine-incanter)
+      (spawn-warding-pair))
+    (define locations->open-session-names
+      (spawn ^ghash))
+    (define open-session-names->sessionmeta
+      (spawn ^ghash))
+
+    (define (^connection-establisher bcom netlayer netlayer-name)
+      (lambda (ip op incoming?)
+        ($C self 'new-connection netlayer netlayer-name ip op)))
+
+    (define* (^bootstrap bcom coordinator #:key [extends #f])
+      (define session-name ($C coordinator 'get-session-name))
+      (define gifts
+        (spawn ^ghash))
+      (define waiting-gifts
+        (spawn ^ghash))
+
+      (define (valid-gift-id? x)
+        (or (integer? x)
+            (bytevector? x)
+            (string? x)))
+      ;; In the case of depositing, we're putting a gift at gift-id and an
+      ;; 
+      (define (deposit-gift gift-id obj
+                            ;; #:manual-drop? [manual-drop? #f]
+                            )
+        (assert-type gift-id valid-gift-id?)
+        (assert-type obj local-refr?)
+        (when ($C waiting-gifts 'has-key? gift-id)
+          (match ($C waiting-gifts 'ref gift-id)
+            [(_gift-promise gift-resolver)
+             ($C gift-resolver 'fulfill obj)
+             ($C waiting-gifts 'remove gift-id)]))
+        ($C gifts 'set gift-id (giftmeta obj #t)))
+
+      (define (withdraw-gift signed-handoff-receive)
+        (assert-type signed-handoff-receive signed-handoff-receive?)
+        (match-let* ((handoff-receive
+                      (desc:sig-envelope-signed signed-handoff-receive))
+                     (handoff-give
+                      (desc:sig-envelope-signed
+                       (desc:handoff-receive-signed-give handoff-receive)))
+                     (session-id
+                      (desc:handoff-give-session handoff-give))
+                     (($ <sessionmeta> cert-session-location
+                                       cert-session-local-bootstrap-obj
+                                       cert-session-remote-bootstrap-obj
+                                       cert-session-coordinator
+                                       cert-session-session-name)
+                      (if ($C open-session-names->sessionmeta 'has-key? session-id)
+                          ($C open-session-names->sessionmeta 'ref session-id)
+                          (begin
+                            (error 'no-open-session "No open session with key ~s"
+                                   session-id)))))
+          ;; TODO: count stuff here too, but needs to be in this session
+          (unless ($C cert-session-coordinator 'full-handoff-legit? signed-handoff-receive)
+            (error 'invalid-handoff-cert
+                   "Handoff cert invalid for session: ~s"
+                   signed-handoff-receive))
+
+          ;; If we made it this far, it's ok... so time to get that referenced
+          ;; object!
+          ($C intra-machine-incanter cert-session-local-bootstrap-obj
+              'pull-out-gift
+              (desc:handoff-give-gift-id handoff-give))))
+
+      (define main-beh
+        (extend-methods
+         [deposit-gift deposit-gift]
+         [withdraw-gift withdraw-gift]
+         [(fetch swiss-num)
+          ($C locator 'fetch swiss-num)]
+         extends))
+
+      (define cross-gift-beh
+        (methods
+         [(pull-out-gift id)
+          (cond
+           [($C gifts 'has-key? id)
+            (match-let ((($ <giftmeta> gift destroy-on-fetch?)
+                         ($C gifts 'ref id)))
+              (when destroy-on-fetch?
+                ($C gifts 'remove id))
+              gift)]
+           ;; queue it
+           [else
+            (if ($C waiting-gifts 'has-key?)
+                (match ($C waiting-gifts 'ref id)
+                  [(gift-promise _gift-resolver)
+                   gift-promise])
+                (let-values ([(gift-promise gift-resolver)
+                              (spawn-promise-values)])
+                  ($C waiting-gifts 'set id (list gift-promise gift-resolver))
+                  gift-promise))])]))
+
+      (ward intra-machine-warden cross-gift-beh #:extends main-beh))
+
+    #;(define (^bootstrap bcom coordinator #:extends [extends #f])
+    (define session-name ($C coordinator 'get-session-name))
+    (methods
+    #:extends extends
+    [(deposit-gift gift-id obj)
+    (pk 'deposit-gift gift-id obj)
+    'TODO]
+    [(withdraw-gift signed-handoff-receive)
+    (pk 'retrieve-gift signed-handoff-receive)
+    'TODO]))
+
+    ;; TODO: Rename this to connect-to-machine I guess?
+    (define (retrieve-or-setup-session-vow remote-machine-loc)
+      (if ($C locations->open-session-names 'has-key? remote-machine-loc)
+          ;; found an open session for this location
+          (let ([session-name ($C locations->open-session-names
+                                  'ref remote-machine-loc)])
+            (sessionmeta-remote-bootstrap-obj
+             ($C open-session-names->sessionmeta 'ref session-name)))
+          ;; Guess we'll make a new one
+          (let ([netlayer (get-netlayer-for-location remote-machine-loc)])
+            ($C netlayer 'connect-to remote-machine-loc))))
+
+    (define (get-netlayer-for-location loc)
+      (define transport-tag (ocapn-machine-transport loc))
+      (unless ($C netlayer-map 'has-key? transport-tag)
+        (error 'unsupported-transport
+               "NETLAYER not supported for this machine: ~a" transport-tag))
+      ($C netlayer-map 'ref transport-tag))
+
+    (define (self-location? loc)
+      (define netlayer (get-netlayer-for-location loc))
+      ($C netlayer 'self-location? loc))
+
+    ;; Sturdyref stuff, to be refactored
+    ;; TODO: expiry/revocation/unregistry
+    (define (register obj netlayer-name)
+      (assert-type obj live-refr?)
+      (assert-type netlayer-name symbol?)
+      (unless ($C netlayer-map 'has-key? netlayer-name)
+        (error 'unsupported-transport
+               "NETLAYER not supported for this machine: ~a" netlayer-name))
+      (let* ((netlayer ($C netlayer-map 'ref netlayer-name))
+             (machine-loc ($C netlayer 'our-location))
+             (nonce ($C registry 'register obj)))
+        (ocapn-sturdyref machine-loc nonce)))
+    (define (enliven sturdyref)
+      (assert-type sturdyref ocapn-sturdyref?)
+      (let ((sref-loc (ocapn-sturdyref-machine sturdyref))
+            (sref-swiss-num (ocapn-sturdyref-swiss-num sturdyref)))
+        ;; Is it local?
+        (if (self-location? sref-loc)
+            ($C locator 'fetch sref-swiss-num)
+            (<- (retrieve-or-setup-session-vow sref-loc) 'fetch
+                sref-swiss-num))))
+
+    ;; Here's why all netlayers currently are in the same vat as the
+    ;; router, at least currently... to make sure that they're all set up
+    ;; before we continue further.
+    ;;
+    ;; This could be done via some promise-chaining stuff but it's probably
+    ;; best as-is.
+    (ghash-for-each
+     (lambda (netlayer-name netlayer)
+       ($C netlayer 'setup (spawn ^connection-establisher netlayer netlayer-name)))
+     ($C netlayer-map 'data))
+
+    (methods
+     [(send-handoff-receive signed-handoff-receive)
+      (define handoff-give
+        (desc:sig-envelope-signed
+         (desc:handoff-receive-signed-give
+          (desc:sig-envelope-signed
+           signed-handoff-receive))))
+      (define exporter-location
+        (desc:handoff-give-exporter-location handoff-give))
+      ;; "Returning home" should be handled in start-retrieve-handoff
+      (when (self-location? exporter-location)
+        (error "self-handoff-receive called with self-location"))
+      (define session-bootstrap-vow
+        (retrieve-or-setup-session-vow exporter-location))
+      (<- session-bootstrap-vow 'withdraw-gift signed-handoff-receive)]
+
+     ;; TODO: we should also allow some way to shut things down here or
+     ;; somewhere...
+     ;; TODO: Should this still be an exposed method?  Maybe it's something only
+     ;; the ^connection-establisher should call...
+     [(new-connection netlayer netlayer-name network-in-port network-out-port)
+      (define captp-outgoing-ch
+        (make-async-channel))
+      (define (send-to-remote msg)
+        (async-channel-put captp-outgoing-ch msg))
+      (define our-location
+        ($C netlayer 'our-location))
+      (define coordinator
+        (spawn ^coordinator self our-location
+               intra-machine-warden intra-machine-incanter))
+      (define handoff-pubkey
+        ($C coordinator 'get-handoff-pubkey))
+      (define our-location-sig
+        ($C coordinator 'get-location-sig))
+
+      ;; We don't actually have a bootstrap vow until setup completion, so
+      ;; we'll have to return a vow to a vow
+      (define-values (meta-bootstrap-vow meta-bootstrap-resolver)
+        (spawn-promise-values))
+
+      ;; Complete the initialization step against the remote machine.
+      ;; Basically this allows the coordinator to know of what remote
+      ;; key will be used in this session.
+      (define (^setup-completer bcom)
+        (match-lambda
+          ;; TODO: Shouldn't the netlayer actually interpret this message
+          ;;   before it gets here?  Ie, at this stage, we're already
+          ;;   "confident" this is from the right location
+          [($ <mtp:op:start-session> (and remote-encoded-pubkey
+                                          ('eddsa 'public 'ed25519 _))
+                                     (? ocapn-machine? claimed-remote-location)
+                                     remote-location-sig)
+           (define remote-handoff-pubkey
+             (datum->pk-key remote-encoded-pubkey 'rkt-public))
+           ;; TODO: I guess we didn't know by the time this was opened
+           ;;   what the remote location was going to be... that's part of the reason
+           ;;   for the start-session message...
+           ;;   So, remove this if we can.  Or realistically, move this whole part
+           ;;   to the NETLAYER code.
+           #;(unless (same-machine-location? claimed-remote-location remote-location)
+           (error (format "Supplied location mismatch. Claimed: ~s Expected: ~s"
+           claimed-remote-location remote-location)))
+           (unless (pk-verify remote-handoff-pubkey
+                              (syrup-encode (record* 'my-location claimed-remote-location)
+                                            #:marshallers marshallers)
+                              remote-location-sig)
+             (error "Location not signed by handoff key"))
+
+           ;; TODO: Now we need to do the dial back and verify that
+           ;; the location is where it says it is!
+
+           ;; Now that we've verified:
+
+           (define remote-location claimed-remote-location)
+
+           ;; Now use it to finish initializing the coordinator
+           ($C coordinator 'install-remote-key
+               remote-encoded-pubkey
+               remote-handoff-pubkey
+               remote-location)
+
+           (define local-bootstrap-obj
+             (if custom-bootstrap
+                 (custom-bootstrap ^bootstrap coordinator)
+                 (spawn ^bootstrap coordinator)))
+
+           ;; and finally we can actually kick off setting up the rest
+           ;; of the connection
+           (define-values (captp-incoming-handler remote-bootstrap-vow)
+             (setup-captp-conn send-to-remote coordinator
+                               local-bootstrap-obj
+                               intra-machine-warden intra-machine-incanter))
+           ;; Fulfill the meta-bootstrap-promise with the promise that
+           ;; setup-captp-conn gave us
+           ($C meta-bootstrap-resolver 'fulfill remote-bootstrap-vow)
+           ;; And set things up so that the incoming-forwarder now goes
+           ;; to the captp-incoming-handler
+           (incoming-swap captp-incoming-handler)
+           
+           ;; TODO: Deal with duplicate sessions and also "crossed connections"
+
+           ;; And now install in the open sessions in the directory
+           (define session-name
+             ($C coordinator 'get-session-name))
+           ($C locations->open-session-names 'set remote-location session-name)
+           ($C open-session-names->sessionmeta 'set
+               session-name
+               (sessionmeta remote-location
+                            local-bootstrap-obj remote-bootstrap-vow
+                            coordinator session-name))
+           _void]))
+
+      (define-values (incoming-forwarder incoming-swap)
+        (swappable (spawn ^setup-completer)))
+
+      ;; Now spawn threads that read/write to these ports
+      (syscaller-free-thread
+       (lambda ()
+         (let lp ()
+           (match (syrup-read network-in-port #:unmarshallers unmarshallers)
+             [(? eof-object?)
+              ;; (displayln "Shutting down captp session...")
+              (<-np-extern incoming-forwarder
+                           (internal-shutdown 'disconnected))]
+             [msg
+              (<-np-extern incoming-forwarder msg)
+              (lp)]))))
+
+      (syscaller-free-thread
+       (lambda ()
+         (let lp ()
+           (define msg
+             (async-channel-get captp-outgoing-ch))
+           (syrup-write msg network-out-port #:marshallers marshallers)
+           ;; TODO: *should* we be flushing output each time we've written out
+           ;; a message?  It seems like "yes" but I'm a bit unsure
+           (flush-output network-out-port)
+           (lp))))
+
+      ;; Now we'll need to send our side of the start-session and get the
+      ;; other side... which will be handled by the ^setup-completer above
+      (send-to-remote (mtp:op:start-session handoff-pubkey
+                                            our-location
+                                            our-location-sig))
+      
+      ;; Return the meta-bootstrap-vow, which will be completed as above
+      meta-bootstrap-vow]
+
+     [self-location? self-location?]
+     ;; ... is that it?
+     [connect-to-machine retrieve-or-setup-session-vow]
+
+     [(install-netlayer netlayer)
+      (define netlayer-name ($C netlayer 'netlayer-name))
+      (when ($C netlayer-map 'hash-has-key? netlayer-name)
+        (error (format #f "Already has netlayer key ~a" netlayer-name)))
+      ($C netlayer-map 'set netlayer-name netlayer)]
+     [register register]
+     [enliven enliven]))
+  (define self (spawn ^mycapn))
+  self)
