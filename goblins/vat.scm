@@ -21,7 +21,8 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 atomic)
   #:export (spawn-vat-fiber
-            spawn-vat))
+            spawn-vat
+            syscaller-free-fiber))
 
 ;; TODO: An explicit 'halt message isn't as ideal as vats which auto-gc.
 ;; But that is probably possible... we could possibly set up a fializer
@@ -101,3 +102,7 @@ over some of the communication aspects of controlling the vat."
        (put-message control-ch 'halt))))
   vat-controller)
 
+(define (syscaller-free-fiber thunk)
+  (syscaller-free
+   (lambda ()
+     (spawn-fiber thunk))))

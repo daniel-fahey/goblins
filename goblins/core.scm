@@ -84,6 +84,8 @@
 
             message-who-wants-response
 
+            syscaller-free-thread
+
             ;; TODO: These really should be moved into a more private
             ;; location...!  Few things will need, or should have, this
             make-remote-object-refr
@@ -2101,6 +2103,10 @@
 
 (define (dispatch-messages msgs)
   (for-each dispatch-message msgs))
+
+(define (syscaller-free-thread proc)
+  (parameterize ([current-syscaller #f])
+    (thread proc)))
 
 
 
