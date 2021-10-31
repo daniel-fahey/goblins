@@ -88,6 +88,7 @@
             ;; location...!  Few things will need, or should have, this
             make-remote-object-refr
             make-remote-promise-refr
+            local-object-refr-debug-name
             remote-refr-captp-connector
             remote-refr-sealed-pos)
   #:use-module (srfi srfi-9)
