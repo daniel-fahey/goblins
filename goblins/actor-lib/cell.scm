@@ -17,7 +17,8 @@
   #:export (^cell
             spawn-cell
             cell->read-only
-            cell->write-only))
+            cell->write-only
+            define-cell))
 
 ;;; Cells
 ;;; =====
@@ -49,11 +50,10 @@
   (spawn ^wo-cell))
 
 (define-syntax define-cell
-  (lambda (stx)
-    (syntax-rules ()
-      [(_ id)
-       (define id
-         (spawn (procedure-rename ^cell 'id)))]
-      [(_ id val)
-       (define id
-         (spawn (procedure-rename ^cell 'id) val))])))
+  (syntax-rules ()
+    [(_ id)
+     (define id
+       (spawn-named ^cell 'id))]
+    [(_ id val)
+     (define id
+       (spawn-named ^cell 'id val))]))
