@@ -33,6 +33,7 @@
             ghash-remove
             ghash-null
             ghash-length
+            ghash-has-key?
 
             ghash-fold
             ghash-fold-right
@@ -78,6 +79,16 @@
   (match (assoc key vh)
     ((_k . val) val)
     (#f dflt)))
+
+(define (ghash-has-key? ghash key)
+  (define vh (ghash-vhash ghash))
+  (define assoc
+    (if (live-refr? key)
+        vhash-assq
+        vhash-assoc))
+  (match (assoc key vh)
+    ((_k . val) #t)
+    (#f #f)))
 
 (define (ghash-remove ghash key)
   (define vh (ghash-vhash ghash))
