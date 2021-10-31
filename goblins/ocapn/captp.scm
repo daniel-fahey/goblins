@@ -20,6 +20,7 @@
   #:use-module (goblins ocapn structs-urls)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib nonce-registry)
   #:use-module (goblins actor-lib swappable)
   #:use-module (goblins actor-lib ward)
   #:use-module (goblins utils assert-type)
@@ -1157,7 +1158,7 @@
     ;; TODO: Eventually... well this whole sturdyref nonsense we want
     ;; to make more configureable
     (define-values (registry locator)
-      (spawn-nonce-registry-locator-values))
+      (spawn-nonce-registry-locator-pair))
 
     ;; Warden and incanter for collaborating parties in this
     ;; particular machine
