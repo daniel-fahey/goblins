@@ -1443,8 +1443,8 @@
       (define-values (incoming-forwarder incoming-swap)
         (swappable (spawn ^setup-completer)))
 
-      ;; Now spawn threads that read/write to these ports
-      (syscaller-free-thread
+      ;; Now spawn fibers that read/write to these ports
+      (syscaller-free-fiber
        (lambda ()
          (let lp ()
            (match (syrup-read network-in-port #:unmarshallers unmarshallers)
@@ -1456,11 +1456,11 @@
               (<-np-extern incoming-forwarder msg)
               (lp)]))))
 
-      (syscaller-free-thread
+      (syscaller-free-fiber
        (lambda ()
          (let lp ()
            (define msg
-             (async-channel-get captp-outgoing-ch))
+             (get-message captp-outgoing-ch))
            (syrup-write msg network-out-port #:marshallers marshallers)
            ;; TODO: *should* we be flushing output each time we've written out
            ;; a message?  It seems like "yes" but I'm a bit unsure
