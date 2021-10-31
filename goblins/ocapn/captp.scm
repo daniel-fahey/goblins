@@ -1195,7 +1195,7 @@
             [(_gift-promise gift-resolver)
              ($C gift-resolver 'fulfill obj)
              ($C waiting-gifts 'remove gift-id)]))
-        ($C gifts 'set gift-id (giftmeta obj #t)))
+        ($C gifts 'set gift-id (make-giftmeta obj #t)))
 
       (define (withdraw-gift signed-handoff-receive)
         (assert-type signed-handoff-receive signed-handoff-receive?)
@@ -1389,7 +1389,8 @@
            (error (format "Supplied location mismatch. Claimed: ~s Expected: ~s"
            claimed-remote-location remote-location)))
            (unless (pk-verify remote-handoff-pubkey
-                              (syrup-encode (record* 'my-location claimed-remote-location)
+                              (syrup-encode (make-syrec* 'my-location
+                                                         claimed-remote-location)
                                             #:marshallers marshallers)
                               remote-location-sig)
              (error "Location not signed by handoff key"))
@@ -1433,9 +1434,9 @@
            ($C locations->open-session-names 'set remote-location session-name)
            ($C open-session-names->sessionmeta 'set
                session-name
-               (sessionmeta remote-location
-                            local-bootstrap-obj remote-bootstrap-vow
-                            coordinator session-name))
+               (make-sessionmeta remote-location
+                                 local-bootstrap-obj remote-bootstrap-vow
+                                 coordinator session-name))
            _void]))
 
       (define-values (incoming-forwarder incoming-swap)
@@ -1462,7 +1463,7 @@
            (syrup-write msg network-out-port #:marshallers marshallers)
            ;; TODO: *should* we be flushing output each time we've written out
            ;; a message?  It seems like "yes" but I'm a bit unsure
-           (flush-output network-out-port)
+           (force-output network-out-port)
            (lp))))
 
       ;; Now we'll need to send our side of the start-session and get the
