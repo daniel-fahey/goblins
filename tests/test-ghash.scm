@@ -69,5 +69,8 @@
 ;; make sure refrs hash with eq?
 (test-eq (ghash-ref gh4 alice) "alice")
 (test-eq (ghash-ref gh4 bob) "bob")
+(define carol (actormap-spawn! am ^friendo))
+(define gh5 (ghash-set gh4 carol "carol"))
+(test-eq (ghash-ref gh5 carol) "carol")
 
 (test-end "test-ghash")
