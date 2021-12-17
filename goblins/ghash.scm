@@ -61,7 +61,7 @@
 
 (define (_vh-set vh key val)
   (define conser
-    (if (live-refr? key)
+    (if (or (live-refr? key) (symbol? key))
         vhash-consq
         vhash-cons))
   (conser key val vh))
@@ -73,7 +73,7 @@
 (define* (ghash-ref ghash key #:optional [dflt #f])
   (define vh (ghash-vhash ghash))
   (define assoc
-    (if (live-refr? key)
+    (if (or (live-refr? key) (symbol? key))
         vhash-assq
         vhash-assoc))
   (match (assoc key vh)

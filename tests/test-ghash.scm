@@ -67,10 +67,12 @@
 (define bob (actormap-spawn! am ^friendo))
 (define gh4 (make-ghash alice "alice" bob "bob"))
 ;; make sure refrs hash with eq?
-(test-eq (ghash-ref gh4 alice) "alice")
-(test-eq (ghash-ref gh4 bob) "bob")
+(test-equal (ghash-ref gh4 alice) "alice")
+(test-equal (ghash-ref gh4 bob) "bob")
 (define carol (actormap-spawn! am ^friendo))
 (define gh5 (ghash-set gh4 carol "carol"))
-(test-eq (ghash-ref gh5 carol) "carol")
+(test-equal (ghash-ref gh5 carol) "carol")
+(define gh6 (ghash-set gh5 'meep "meep"))
+(test-equal (ghash-ref gh6 'meep) "meep")
 
 (test-end "test-ghash")
