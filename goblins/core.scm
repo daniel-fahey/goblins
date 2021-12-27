@@ -971,35 +971,40 @@
 ;; that ourselves, and it's kind of a mess.  No idea what the performance
 ;; implications are.
 
-(define %re-entry-protect (make-parameter #f))
+;; Note that we've commented this all out in the meanwhile.
+;; Instead we are taking two opposing perspectives: the Racket world takes
+;; the MarkM "very cautious about coroutines" perspective and the Guile world
+;; makes no protections against re-entrancy...
 
-(define (_re-protec proc)
-  (define result
-    ;; protect against re-entrancy attacks
-    ;; (... but also "protects" against live debugging, unfortunately)
-    (with-continuation-barrier
-     (lambda ()
-       (with-exception-handler
-           (lambda (exn)
-             (list 'error exn))
-         (lambda ()
-           ;; actors are only permitted one value from their
-           ;; continuation
-           (define result
-             (proc))
-           (list 'success result))
-         #:unwind? #t
-         #:unwind-for-type #t))))
-  (match result
-    [('success result)
-     result]
-    [('error err)
-     (raise-exception err)]))
-
-(define (with-re-entry-protection proc)
-  (if (%re-entry-protect)
-      (_re-protec proc)
-      (proc)))
+;; (define %re-entry-protect (make-parameter #f))
+;;
+;; (define (_re-protec proc)
+;;   (define result
+;;     ;; protect against re-entrancy attacks
+;;     ;; (... but also "protects" against live debugging, unfortunately)
+;;     (with-continuation-barrier
+;;      (lambda ()
+;;        (with-exception-handler
+;;            (lambda (exn)
+;;              (list 'error exn))
+;;          (lambda ()
+;;            ;; actors are only permitted one value from their
+;;            ;; continuation
+;;            (define result
+;;              (proc))
+;;            (list 'success result))
+;;          #:unwind? #t
+;;          #:unwind-for-type #t))))
+;;   (match result
+;;     [('success result)
+;;      result]
+;;     [('error err)
+;;      (raise-exception err)]))
+;;
+;; (define (with-re-entry-protection proc)
+;;   (if (%re-entry-protect)
+;;       (_re-protec proc)
+;;       (proc)))
 
 
 
