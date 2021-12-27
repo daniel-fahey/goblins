@@ -62,4 +62,29 @@
 (test-assert caught-error?)
 (test-assert (not flipped-forbidden?))
 
+;; Ensure that synchronous calls to actors who await don't suspend parent
+(let* ((post-synchronous-call-flipped? #f)
+       (alice-hears #f)
+       (returned-val
+        (actormap-churn-run!
+         (make-actormap)
+         (lambda ()
+           (define (^greeter _bcom my-name)
+             (lambda (your-name)
+               (format #f "Hello ~a, my name is ~a!" your-name my-name)))
+           (define (^calls-greeter _bcom my-name)
+             (lambda (greeter)
+               (set! alice-hears
+                     (format #f "I heard back: ~a\n"
+                             (<<- greeter my-name)))))
+           (define bob (spawn ^greeter "Bob"))
+           (define alice (spawn ^calls-greeter "Alice"))
+           (test-equal ($ alice bob) '*awaited*)
+           (set! post-synchronous-call-flipped? #t)
+           'what-we-return)
+         #:catch-errors? #t)))
+  (test-equal alice-hears "I heard back: Hello Alice, my name is Bob!\n")
+  (test-assert post-synchronous-call-flipped?)
+  (test-equal returned-val 'what-we-return))
+
 (test-begin "test-await")
