@@ -64,6 +64,9 @@
             <-np-extern
             listen-to
 
+            await await*
+            <<-
+
             spawn-promise-cons
             spawn-promise-values
 
@@ -1089,14 +1092,56 @@
               (mactor:object-become? mactor))
              (become-unsealer
               (mactor:object-become-unsealer mactor)))
+         (define (_do-actor-call)
+           (apply actor-behavior args))
+         (define (_handle-await k fulfill-proc)
+           (define-values (waiting-promise waiting-resolver)
+             (_spawn-promise-values))
+           ;; Let the fulfill-proc set up how we resolve this
+           ;; (see the `await' procedure for an example)
+           (fulfill-proc waiting-resolver)
+           ;; We wait on the coroutine to see if it succeds or not,
+           ;; and re-awaken to the continuation set up by `await*'
+           ;; which will act appropriately depending on whether
+           ;; we tell it this succeeds or fails.
+           ;; Note that the `bcom' relevant to this actor will no longer
+           ;; work as a form of "become"... a feature, actually!
+           ;;
+           ;; A strange thing happens here if we try to add
+           ;; `#:promise? #t' to the set of argujments with this `on'.
+           ;; The whole thing... halts?  Why?  It's presumably due to
+           ;; promise pipelining, but it's unclear to me what exactly
+           ;; that would be.  However, it could be that this is really
+           ;; the right thing to do because promise chains for an
+           ;; infinite loop could themselves become infinite.  So
+           ;; maybe this is a feature.
+           ;; TODO: But it would be good to figure out why that froze
+           ;; up in non-looping scenarios!
+           (on waiting-promise
+               (lambda (val)
+                 (call-with-prompt *actor-await-prompt*
+                   (lambda ()
+                     (k 'resume val))
+                   _handle-await))
+               #:catch
+               (lambda (err)
+                 (call-with-prompt *actor-await-prompt*
+                   (lambda ()
+                     (k 'error err))
+                   _handle-await)))
+           ;; Since we do not allow for "returning useful values" in
+           ;; case of coroutines, we simply return the symbol `*awaited*',
+           ;; which might help with indicating what happened debugging-wise.
+           ;; The alternative would be to return void/unspecified.
+           '*awaited*)
+
          ;; I guess watching for this guarantees that an immediate call
          ;; against a local actor will not be tail recursive.
          ;; TODO: We need to document that.
          (define-values (new-behavior return-val)
            (let ([returned
-                  (with-re-entry-protection
-                   (lambda ()
-                     (apply actor-behavior args)))])
+                  (call-with-prompt *actor-await-prompt*
+                    _do-actor-call _handle-await)])
              (if (become? returned)
                  ;; The unsealer unseals both the behavior and return-value anyway
                  (become-unsealer returned)
@@ -1728,6 +1773,34 @@
        (maybe-actorize broken-handler 'broken-handler)
        (maybe-actorize finally-handler 'finally-handler)
        promise?))
+
+
+
+;; Coroutine support
+;; =================
+
+(define *actor-await-prompt* (make-prompt-tag 'await-prompt))
+
+(define (await* fulfill-proc)
+  (define-values (resume-flag val-or-err)
+    (abort-to-prompt *actor-await-prompt* fulfill-proc))
+  (match resume-flag
+    ['resume
+     ;; it's a value, so let's return it
+     val-or-err]
+    ['error
+     ;; it's an error, so let's raise it
+     (throw 'unresumable-coroutine
+            "Won't resume coroutine; got an *error* as a reply"
+            #:error val-or-err)]))
+
+(define (await vow)
+  (define (fulfill-await resolver)
+    (<-np resolver 'fulfill vow))
+  (await* fulfill-await))
+
+(define (<<- actor . args)
+  (await (apply <- actor args)))
 
 
 
