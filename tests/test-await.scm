@@ -87,4 +87,4 @@
   (test-assert post-synchronous-call-flipped?)
   (test-equal returned-val 'what-we-return))
 
-(test-begin "test-await")
+(test-end "test-await")
