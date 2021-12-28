@@ -2099,14 +2099,16 @@
        (q-append! q rest))))
   ;; Queue messages depending on whether they're for this actormap
   ;; or if they go somewhere else
+  ;; TODO: We could probably be faster about this with an append or...
+  ;; something.
   (define (queue-messages-appropriately! msgs)
     (match msgs
       ('() 'done)
       ((msg next-msgs ...)
+       (queue-messages-appropriately! next-msgs)
        (if (near-msg? msg)
            (enq! churn-q msg)
-           (enq! send-far-q msg))
-       (queue-messages-appropriately! next-msgs))))
+           (enq! send-far-q msg)))))
   (define (churn!)
     (define next-msg (deq! churn-q))
     (define-values (this-result buffer-am new-msgs)
