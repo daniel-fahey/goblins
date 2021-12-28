@@ -102,7 +102,8 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 control)
   #:use-module (ice-9 vlist)
-  #:use-module (ice-9 q))
+  #:use-module (ice-9 q)
+  #:use-module (ice-9 suspendable-ports))
 
 
 ;;; Utilities (which should be moved to their own modules)
@@ -1802,7 +1803,6 @@
 (define (<<- actor . args)
   (await (apply <- actor args)))
 
-
 
 ;; Spawning promises
 ;; =================
@@ -2020,7 +2020,9 @@
                                 #:key
                                 [error-handler simple-display-error]
                                 [reckless? #f]
-                                [catch-errors? #t])
+                                [catch-errors? #t]
+                                ;; Either #f or a cons cell of reader/writer procs
+                                [waiters #f])
   ;; TODO: Kuldgily reimplements part of actormap-turn*... maybe
   ;; there's some opportunity to combine things, dunno.
   (call-with-fresh-syscaller
@@ -2048,16 +2050,25 @@
        (define stack
          (make-stack #t catch-stack-and-abort-to-prompt))
        (abort-to-prompt handle-exn-tag err stack))
+     (define (maybe-with-waiters proc)
+       (match waiters
+         [#f (proc)]
+         [(read-waiter . write-waiter)
+          (parameterize ((current-read-waiter read-waiter)
+                         (current-write-waiter write-waiter))
+            (proc))]))
      (define (do-call)
        (define result
-         (match msg
-           [(? message?)
-            (sys 'handle-message msg)]
-           [(? listen-request? lr)
-            (sys 'handle-listen
-                 (listen-request-to lr)
-                 (listen-request-listener lr)
-                 (listen-request-wants-partial? lr))]))
+         (maybe-with-waiters
+          (lambda ()
+            (match msg
+              [(? message?)
+               (sys 'handle-message msg)]
+              [(? listen-request? lr)
+               (sys 'handle-listen
+                    (listen-request-to lr)
+                    (listen-request-listener lr)
+                    (listen-request-wants-partial? lr))]))))
        (match (get-sys-internals)
          [(new-actormap new-msgs)
           (values `#(ok ,result) new-actormap new-msgs)]))
@@ -2077,7 +2088,8 @@
          (do-call)))))
 
 (define* (actormap-churn am msg
-                         #:key [catch-errors? #t])
+                         #:key [catch-errors? #t]
+                         [waiters #f])
   (define churn-q (make-q))     ; message to churn on here
   (define send-far-q (make-q))  ; messages we must still send
   (define new-am (make-transactormap am))
@@ -2113,7 +2125,8 @@
     (define next-msg (deq! churn-q))
     (define-values (this-result buffer-am new-msgs)
       (actormap-turn-message new-am next-msg
-                             #:catch-errors? catch-errors?))
+                             #:catch-errors? catch-errors?
+                             #:waiters waiters))
     (when first-one?
       (set! first-return-val this-result)
       (set! first-one? #f))
@@ -2138,12 +2151,14 @@
     (values first-return-val new-am send-far-msgs)))
 
 (define* (actormap-churn-run actormap thunk
-                             #:key [catch-errors? #t])
+                             #:key [catch-errors? #t]
+                             [waiters #f])
   (define-values (actor-refr new-actormap)
     (actormap-spawn (make-transactormap actormap) (lambda (bcom) thunk)))
   (define-values (returned-val new-actormap2 new-msgs)
     (actormap-churn new-actormap (make-message actor-refr #f '())
-                    #:catch-errors? catch-errors?))
+                    #:catch-errors? catch-errors?
+                    #:waiters waiters))
   (values returned-val new-actormap2 new-msgs))
 
 ;; Also sends out relevant messages, and re-raises exceptions if appropriate
@@ -2152,9 +2167,12 @@
                               ;;   for this version, which is very much so
                               ;;   "do the common thing" for users
                               ;;   playing around...
-                              #:key [catch-errors? #t])
+                              #:key [catch-errors? #t]
+                              [waiters #f])
   (define-values (returned-val new-actormap new-msgs)
-    (actormap-churn-run actormap thunk #:catch-errors? catch-errors?))
+    (actormap-churn-run actormap thunk
+                        #:catch-errors? catch-errors?
+                        #:waiters waiters))
   (dispatch-messages new-msgs)
   (match returned-val
     [#('ok rval)
