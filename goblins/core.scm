@@ -1095,7 +1095,7 @@
               (mactor:object-become-unsealer mactor)))
          (define (_do-actor-call)
            (apply actor-behavior args))
-         (define (_handle-await k fulfill-proc)
+         (define (_handle-await k fulfill-proc promise?)
            (define-values (waiting-promise waiting-resolver)
              (_spawn-promise-values))
            ;; Let the fulfill-proc set up how we resolve this
@@ -1108,33 +1108,31 @@
            ;; Note that the `bcom' relevant to this actor will no longer
            ;; work as a form of "become"... a feature, actually!
            ;;
-           ;; A strange thing happens here if we try to add
-           ;; `#:promise? #t' to the set of argujments with this `on'.
-           ;; The whole thing... halts?  Why?  It's presumably due to
-           ;; promise pipelining, but it's unclear to me what exactly
-           ;; that would be.  However, it could be that this is really
+           ;; However, it could be that this is really
            ;; the right thing to do because promise chains for an
            ;; infinite loop could themselves become infinite.  So
            ;; maybe this is a feature.
-           ;; TODO: But it would be good to figure out why that froze
-           ;; up in non-looping scenarios!
-           (on waiting-promise
-               (lambda (val)
-                 (call-with-prompt *actor-await-prompt*
-                   (lambda ()
-                     (k 'resume val))
-                   _handle-await))
-               #:catch
-               (lambda (err)
-                 (call-with-prompt *actor-await-prompt*
-                   (lambda ()
-                     (k 'error err))
-                   _handle-await)))
+           (define maybe-on-vow
+             (on waiting-promise
+                 (lambda (val)
+                   (call-with-prompt *actor-await-prompt*
+                     (lambda ()
+                       (k 'resume val))
+                     _handle-await))
+                 #:catch
+                 (lambda (err)
+                   (call-with-prompt *actor-await-prompt*
+                     (lambda ()
+                       (k 'error err))
+                     _handle-await))
+                 #:promise? promise?))
            ;; Since we do not allow for "returning useful values" in
-           ;; case of coroutines, we simply return the symbol `*awaited*',
-           ;; which might help with indicating what happened debugging-wise.
-           ;; The alternative would be to return void/unspecified.
-           '*awaited*)
+           ;; case of coroutines, we default to returning the symbol `*awaited*'.
+           ;; However, users can specifically select for a promise to be returned
+           ;; by passing in #:promise? #t.
+           (if promise?
+               maybe-on-vow 
+               '*awaited*))
 
          ;; I guess watching for this guarantees that an immediate call
          ;; against a local actor will not be tail recursive.
@@ -1782,9 +1780,13 @@
 
 (define *actor-await-prompt* (make-prompt-tag 'await-prompt))
 
-(define (await* fulfill-proc)
+;; We default to `promise? #f' to avoid accidental infinite promise
+;; chains for things that might otherwise loop... is this the right
+;; thing to do?
+(define* (await* fulfill-proc
+                 #:key [promise? #f])
   (define-values (resume-flag val-or-err)
-    (abort-to-prompt *actor-await-prompt* fulfill-proc))
+    (abort-to-prompt *actor-await-prompt* fulfill-proc promise?))
   (match resume-flag
     ['resume
      ;; it's a value, so let's return it
@@ -1795,10 +1797,12 @@
             "Won't resume coroutine; got an *error* as a reply"
             #:error val-or-err)]))
 
-(define (await vow)
+(define* (await vow
+                #:key
+                [promise? #f])
   (define (fulfill-await resolver)
     (<-np resolver 'fulfill vow))
-  (await* fulfill-await))
+  (await* fulfill-await #:promise? promise?))
 
 (define (<<- actor . args)
   (await (apply <- actor args)))
