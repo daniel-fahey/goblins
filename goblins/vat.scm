@@ -83,6 +83,28 @@
 ;;; and vat-id methods, though it's not unlikely this module will get
 ;;; out of date... oops)
 
+(define fibers-wait-for-readable
+  (@@ (fibers) wait-for-readable))
+
+(define fibers-wait-for-writable
+  (@@ (fibers) wait-for-writable))
+
+(define (fibrous-read-waiter port)
+  (define (fibrous-fulfill-await resolver)
+    (spawn-fiber
+     (lambda ()
+       (define result (fibers-wait-for-readable port))
+       (<-np-extern resolver 'fulfill result))))
+  (await* fibrous-fulfill-await))
+
+(define (fibrous-write-waiter port)
+  (define (fibrous-fulfill-await resolver)
+    (spawn-fiber
+     (lambda ()
+       (define result (fibers-wait-for-writable port))
+       (<-np-extern resolver 'fulfill result))))
+  (await* fibrous-fulfill-await))
+
 
 ;; TODO: An explicit 'halt message isn't as ideal as vats which auto-gc.
 ;; But that is probably possible... we could possibly set up a fializer
@@ -91,7 +113,7 @@
 ;; TODO: Hm, that might not work for vats which do IO, I suppose.
 ;; At least, not without great care.
 
-(define (spawn-vat-fiber)
+(define* (spawn-vat-fiber #:key [fibrous-io? #t])
   "Spawns a fiber for this vat and returns a channel by which
 you can speak to the vat."
   (define running? (make-atomic-box #t))
@@ -112,6 +134,9 @@ you can speak to the vat."
          (put-message enq-ch msg)))))
   (define actormap (make-actormap #:vat-connector vat-connector))
   (define vat-control-ch (make-channel))
+  (define waiters
+    (and fibrous-io?
+         (cons fibrous-read-waiter fibrous-write-waiter)))
   (define (vat-loop)
     ;; Control: operations on the vat from someone who spawned it
     (define handle-vat-control
@@ -120,18 +145,19 @@ you can speak to the vat."
          (atomic-box-set! running? #f))
         (('run thunk return-ch)
          (define-values (returned new-actormap new-msgs)
-           (actormap-churn-run actormap thunk))
+           (actormap-churn-run actormap thunk
+                               #:waiters waiters))
          (dispatch-messages new-msgs)
          (match returned
            [#('ok rval)
             (transactormap-merge! new-actormap)]
            [_ #f])
-         (put-message return-ch returned))
-        ))
+         (put-message return-ch returned))))
     ;; Connect: operations on the vat from the outside
     (define (handle-incoming-message msg)
       (define-values (returned new-actormap new-msgs)
-        (actormap-churn actormap msg))
+        (actormap-churn actormap msg
+                        #:waiters waiters))
       (dispatch-messages new-msgs)
       (match returned
         [#('ok rval)
@@ -146,10 +172,10 @@ you can speak to the vat."
   (spawn-fiber vat-loop)
   vat-control-ch)
 
-(define (spawn-vat)
+(define* (spawn-vat #:key [fibrous-io? #t])
   "Like spawn-vat-fiber except returns a convenient procedure which abstracts
 over some of the communication aspects of controlling the vat."
-  (define control-ch (spawn-vat-fiber))
+  (define control-ch (spawn-vat-fiber #:fibrous-io? fibrous-io?))
   (define vat-controller
     (match-lambda*
       (('run thunk)
@@ -166,3 +192,41 @@ over some of the communication aspects of controlling the vat."
   (syscaller-free
    (lambda ()
      (spawn-fiber thunk))))
+
+(define (spawn-fibrous-vow proc)
+  (define-values (promise resolver)
+    (spawn-promise-values))
+  (spawn-fiber
+   (lambda ()
+     ;; TODO: Add error handling
+     (define result ((pk 'time-to-run proc)))
+     (pk 'were-back-up)
+     (<-np-extern resolver 'fulfill result)))
+  promise)
+
+(define-syntax-rule (fibrous body ...)
+  (spawn-fibrous-vow (lambda () body ...)))
+
+;; An example to test against, wip
+#;(run-fibers
+ (lambda ()
+   (define a-vat (spawn-vat))
+   (a-vat 'run
+          (lambda ()
+            (define peeker
+              (spawn (lambda _ (lambda (msg) (pk 'msg msg)))))
+            (define (^sleppy _bcom my-name)
+              (lambda (sleep-for)
+                (pk 'sleepin my-name)
+                (await (fibrous (sleep sleep-for)
+                                'done))
+                (pk 'im-up-im-up my-name)))
+            (define sleppy-sam
+              (spawn ^sleppy 'sam))
+            (define sleppy-sarah
+              (spawn ^sleppy 'sarah))
+            (<-np peeker 'hi)
+            (<-np peeker 'there)
+            (<-np sleppy-sam 1)
+            (<-np sleppy-sarah .5))))
+ #:drain? #t)
