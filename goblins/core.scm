@@ -1850,7 +1850,7 @@
 ;; We don't want to expose the keyword arguments of the parent
 ;; procedure to just everyone, hence this indirection
 (define (spawn-promise-values)
-  (spawn-promise-values))
+  (_spawn-promise-values))
 
 ;; Convenient, sometimes
 (define (spawn-promise-cons)
