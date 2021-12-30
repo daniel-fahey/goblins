@@ -757,7 +757,10 @@
            _void)]
         [($ <op:deliver> to-desc method
                          args-marshalled
-                         answer-pos
+                         ;; answer-pos is either an integer (promise pipelining)
+                         ;; or #f (no pipelining)
+                         (and (or (? integer?) #f)
+                              answer-pos)
                          resolve-me-desc)
          (define (do-it)
            (define-values (_answer-promise answer-resolver)
@@ -767,7 +770,26 @@
            (define target (unmarshall-to-desc to-desc))
            (define sent-promise
              (apply <- target args))
-           ($C answer-resolver 'fulfill sent-promise)
+           ;; We're either resolving the to the answer promise we create
+           ;; or we're resolving to the actual object described by resolve-me-desc
+           ;;
+           ;; The former case is an indirection because messages pipelined
+           ;; to a to-be-answered object are simply sent to a local promise
+           ;; which will eventually resolve to the answer.
+           ;;
+           ;; It's possible that something more efficient could be done
+           ;; than throwing in an intermediate promise pair that we inform the
+           ;; other side of; maybe re-evaluate when we handle
+           ;; automatic-severance-on-session-disconnect.
+           (cond
+            [answer-pos
+             (let-values (((_answer-promise answer-resolver)
+                           (install-answer! answer-pos resolve-me-desc)))
+               ($C answer-resolver 'fulfill sent-promise))]
+            [else
+             (let ((to-resolve
+                    (maybe-install-import! resolve-me-desc)))
+               (<-np to-resolve 'fulfill sent-promise))])
            _void)
          (do-it)]
 
