@@ -349,19 +349,19 @@
        [(get-our-side-name)
         ($C coordinator 'get-our-side-name)]))
     (define main-beh
-      (let* ((noop-beh
-              (lambda () 'no-op))
-             (^cancel-sever-notification
-              (lambda (bcom)
-                (lambda ()
-                  ($C interested-in-sever 'remove sever-resolver)
-                  (bcom noop-beh)))))
-        (methods
-         [(resolve-on-sever sever-resolver)
+      (methods
+       [(resolve-on-sever sever-resolver)
+        (let* ((noop-beh
+                (lambda () 'no-op))
+               (^cancel-sever-notification
+                (lambda (bcom)
+                  (lambda ()
+                    ($C interested-in-sever 'remove sever-resolver)
+                    (bcom noop-beh)))))
           ($C interested-in-sever 'add sever-resolver)
-          (spawn ^cancel-sever-notification)]
-         [(cancel-sever-interest sever-resolver)
-          ($C interested-in-sever 'remove sever-resolver)])))
+          (spawn ^cancel-sever-notification))]
+       [(cancel-sever-interest sever-resolver)
+        ($C interested-in-sever 'remove sever-resolver)]))
     (ward intra-machine-warden intra-machine-beh
           #:extends main-beh))
   (define connector-obj (spawn ^connector-obj))
