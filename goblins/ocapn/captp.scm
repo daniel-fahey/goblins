@@ -16,8 +16,10 @@
   #:use-module ((goblins core) #:renamer (lambda (x) (if (eq? x '$) '$C x)))
   #:use-module (goblins vat)
   #:use-module (goblins ghash)
+  #:use-module (goblins inbox)
   #:use-module (goblins ocapn define-recordable)
   #:use-module (goblins ocapn structs-urls)
+  #:use-module (goblins ocapn crypto-stubs)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib nonce-registry)
@@ -31,12 +33,13 @@
   #:use-module (goblins utils crypto-stuff)
   #:use-module (ice-9 match)
   #:use-module (ice-9 vlist)
-  #:use-module (syrup)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-9)
   #:use-module (rnrs bytevectors)
-  #:use-module (rnrs io ports))
+  #:use-module (rnrs io ports)
+  #:use-module (syrup)
+  #:use-module (fibers channels))
 
 ;;; Some crap to make this work in the port from Racket->Guile
 
@@ -1368,10 +1371,10 @@
      ;; TODO: Should this still be an exposed method?  Maybe it's something only
      ;; the ^connection-establisher should call...
      [(new-connection netlayer netlayer-name network-in-port network-out-port)
-      (define captp-outgoing-ch
-        (make-async-channel))
+      (define-values (captp-outgoing-enq-ch captp-outgoing-deq-ch captp-outgoing-stop?)
+        (spawn-delivery-agent))
       (define (send-to-remote msg)
-        (async-channel-put captp-outgoing-ch msg))
+        (put-message captp-outgoing-enq-ch msg))
       (define our-location
         ($C netlayer 'our-location))
       (define coordinator
@@ -1480,7 +1483,7 @@
        (lambda ()
          (let lp ()
            (define msg
-             (get-message captp-outgoing-ch))
+             (get-message captp-outgoing-deq-ch))
            (syrup-write msg network-out-port #:marshallers marshallers)
            ;; TODO: *should* we be flushing output each time we've written out
            ;; a message?  It seems like "yes" but I'm a bit unsure
