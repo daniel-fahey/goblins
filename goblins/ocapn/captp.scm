@@ -1248,7 +1248,7 @@
               gift)]
            ;; queue it
            [else
-            (if ($C waiting-gifts 'has-key?)
+            (if ($C waiting-gifts 'has-key? id)
                 (match ($C waiting-gifts 'ref id)
                   [(gift-promise _gift-resolver)
                    gift-promise])
