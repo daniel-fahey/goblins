@@ -762,7 +762,6 @@
          (define (do-it)
            (define-values (_answer-promise answer-resolver)
              (install-answer! answer-pos resolve-me-desc))
-           ;; TODO: support distinction between method sends and procedure sends
            (define args
              (incoming-post-unmarshall! args-marshalled))
            (define target (unmarshall-to-desc to-desc))
