@@ -1485,6 +1485,9 @@
         (error (format #f "Already has netlayer key ~a" netlayer-name)))
       ($C netlayer-map 'set netlayer-name netlayer)]
      [register register]
-     [enliven enliven]))
+     [enliven enliven]
+     ;; Get the nonce registry used for sturdyrefs to be able to tweak
+     ;; it directly.
+     [(get-registry) registry]))
   (define self (spawn ^mycapn))
   self)
