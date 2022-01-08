@@ -199,8 +199,7 @@ over some of the communication aspects of controlling the vat."
   (spawn-fiber
    (lambda ()
      ;; TODO: Add error handling
-     (define result ((pk 'time-to-run proc)))
-     (pk 'were-back-up)
+     (define result (proc))
      (<-np-extern resolver 'fulfill result)))
   promise)
 
