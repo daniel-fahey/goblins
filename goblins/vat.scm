@@ -22,7 +22,10 @@
   #:use-module (ice-9 atomic)
   #:export (spawn-vat-fiber
             spawn-vat
-            syscaller-free-fiber))
+            syscaller-free-fiber
+
+            spawn-fibrous-vow
+            fibrous))
 
 ;; Vats
 ;; ----
