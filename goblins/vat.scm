@@ -155,7 +155,12 @@ you can speak to the vat."
            [#('ok rval)
             (transactormap-merge! new-actormap)]
            [_ #f])
-         (put-message return-ch returned))))
+         ;; we have the put-message be run in its own fiber so that if
+         ;; the other side isn't listening for it anymore, the vat
+         ;; itself doesn't end up blocked
+         (spawn-fiber
+          (lambda ()
+            (put-message return-ch returned))))))
     ;; Connect: operations on the vat from the outside
     (define (handle-incoming-message msg)
       (define-values (returned new-actormap new-msgs)
