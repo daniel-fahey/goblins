@@ -1,0 +1,26 @@
+(hall-description
+  (name "goblins")
+  (prefix "guile")
+  (version "0.1")
+  (author "Christine Lemmer-Webber")
+  (copyright (2022))
+  (synopsis "")
+  (description "")
+  (home-page "")
+  (license gpl3+)
+  (dependencies `())
+  (files (libraries
+           ((scheme-file "goblins")
+            (directory "goblins" ())))
+         (tests ((directory "tests" ())))
+         (programs ((directory "scripts" ())))
+         (documentation
+           ((org-file "README")
+            (symlink "README" "README.org")
+            (text-file "HACKING")
+            (text-file "COPYING")
+            (directory "doc" ((texi-file "goblins")))))
+         (infrastructure
+           ((scheme-file "guix")
+            (text-file ".gitignore")
+            (scheme-file "hall")))))
