@@ -23,13 +23,29 @@
   #:use-module (fibers)
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
-  #:use-module (fibers nameset))
+  #:use-module (fibers nameset)
+  #:export (spawn-vat*))
+
+(define (spawn-vat*)
+  (let* ((result-ch (make-channel))
+         (vat-halt? (make-condition))
+         (repl-thread
+          (call-with-new-thread
+           (lambda ()
+             (run-fibers
+              (lambda ()
+                (define a-vat (spawn-vat))
+                (put-message result-ch a-vat)
+                (wait vat-halt?))))))
+         (repl-vat  ; vat controller procedure
+          (get-message result-ch)))
+    repl-vat))
 
 (define current-repl-vat (make-parameter #f))
 
 (define (ensure-current-repl-vat)
   (or (current-repl-vat)
-      (current-repl-vat
+      (current-repl-vat (spawn-vat*)
        (let* ((result-ch (make-channel))
               (vat-halt? (make-condition))
               (repl-thread
