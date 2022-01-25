@@ -1193,8 +1193,9 @@
       (spawn ^ghash))
 
     (define (^connection-establisher bcom netlayer netlayer-name)
-      (lambda (ip op incoming?)
-        ($C self 'new-connection netlayer netlayer-name ip op)))
+      (lambda (read-message write-message incoming?)
+        ($C self 'new-connection netlayer netlayer-name
+            read-message write-message)))
 
     (define* (^bootstrap bcom coordinator #:key [extends #f])
       (define session-name ($C coordinator 'get-session-name))
@@ -1370,7 +1371,7 @@
      ;; somewhere...
      ;; TODO: Should this still be an exposed method?  Maybe it's something only
      ;; the ^connection-establisher should call...
-     [(new-connection netlayer netlayer-name network-in-port network-out-port)
+     [(new-connection netlayer netlayer-name read-message write-message)
       (define-values (captp-outgoing-enq-ch captp-outgoing-deq-ch captp-outgoing-stop?)
         (spawn-delivery-agent))
       (define (send-to-remote msg)
@@ -1470,7 +1471,7 @@
       (syscaller-free-fiber
        (lambda ()
          (let lp ()
-           (match (syrup-read network-in-port #:unmarshallers unmarshallers)
+           (match (read-message unmarshallers)
              [(? eof-object?)
               ;; (displayln "Shutting down captp session...")
               (<-np-extern incoming-forwarder
@@ -1484,10 +1485,11 @@
          (let lp ()
            (define msg
              (get-message captp-outgoing-deq-ch))
-           (syrup-write msg network-out-port #:marshallers marshallers)
-           ;; TODO: *should* we be flushing output each time we've written out
-           ;; a message?  It seems like "yes" but I'm a bit unsure
-           (force-output network-out-port)
+           (write-message msg marshallers)
+           ;; (syrup-write msg network-out-port #:marshallers marshallers)
+           ;; ;; TODO: *should* we be flushing output each time we've written out
+           ;; ;; a message?  It seems like "yes" but I'm a bit unsure
+           ;; (force-output network-out-port)
            (lp))))
 
       ;; Now we'll need to send our side of the start-session and get the
