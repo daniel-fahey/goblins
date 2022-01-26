@@ -12,8 +12,8 @@
 
 (package
   (name "guile-goblins")
-  (version "0.1")
-  (source "./guile-goblins-0.1.tar.gz")
+  (version "0.1-pre")
+  (source "./guile-goblins-0.1-pre.tar.gz")
   (build-system gnu-build-system)
   (arguments `())
   (native-inputs
@@ -23,8 +23,12 @@
       ("texinfo" ,texinfo)))
   (inputs `(("guile" ,guile-3.0)))
   (propagated-inputs `())
-  (synopsis "")
-  (description "")
-  (home-page "")
-  (license license:gpl3+))
+  (synopsis
+    "A transactional, distributed object programming environment")
+  (description
+    "Spritely Goblins is a transactional, distributed object programming
+environment following object capability principles.  This is the guile version
+of the library!")
+  (home-page "https://spritelyproject.org/")
+  (license license:license:asl2.0))
 

@@ -1,13 +1,15 @@
 (hall-description
   (name "goblins")
   (prefix "guile")
-  (version "0.1")
+  (version "0.1-pre")
   (author "Christine Lemmer-Webber")
   (copyright (2022))
-  (synopsis "")
-  (description "")
-  (home-page "")
-  (license gpl3+)
+  (synopsis "A transactional, distributed object programming environment")
+  (description "Spritely Goblins is a transactional, distributed object programming
+environment following object capability principles.  This is the guile version
+of the library!")
+  (home-page "https://spritelyproject.org/")
+  (license license:asl2.0)
   (dependencies `())
   (files (libraries
            ((scheme-file "goblins")
