@@ -9,7 +9,7 @@
 environment following object capability principles.  This is the guile version
 of the library!")
   (home-page "https://spritelyproject.org/")
-  (license license:asl2.0)
+  (license asl2.0)
   (dependencies `())
   (files (libraries
            ((scheme-file "goblins")

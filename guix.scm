@@ -30,5 +30,5 @@
 environment following object capability principles.  This is the guile version
 of the library!")
   (home-page "https://spritelyproject.org/")
-  (license license:license:asl2.0))
+  (license license:asl2.0))
 
