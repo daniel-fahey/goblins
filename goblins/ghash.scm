@@ -83,7 +83,7 @@
 (define (ghash-has-key? ghash key)
   (define vh (ghash-vhash ghash))
   (define assoc
-    (if (live-refr? key)
+    (if (or (live-refr? key) (symbol? key))
         vhash-assq
         vhash-assoc))
   (match (assoc key vh)
@@ -93,7 +93,7 @@
 (define (ghash-remove ghash key)
   (define vh (ghash-vhash ghash))
   (define del
-    (if (live-refr? key)
+    (if (or (live-refr? key) (symbol? key))
         vhash-delq
         vhash-delete))
   (_make-ghash (del key vh)))
