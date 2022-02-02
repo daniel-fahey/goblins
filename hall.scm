@@ -17,7 +17,8 @@ of the library!")
            ((scheme-file "goblins")
             (directory
               "goblins"
-              ((directory
+              ((directory "contrib" ((scheme-file "syrup")))
+               (directory
                  "ocapn"
                  ((scheme-file "crypto-stubs")
                   (scheme-file "define-recordable")

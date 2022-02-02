@@ -31,6 +31,7 @@
   #:use-module (goblins utils weak-box)
   #:use-module (goblins utils bytes-stuff)
   #:use-module (goblins utils crypto-stuff)
+  #:use-module (goblins contrib syrup)
   #:use-module (ice-9 match)
   #:use-module (ice-9 vlist)
   #:use-module (srfi srfi-1)
@@ -38,7 +39,6 @@
   #:use-module (srfi srfi-9)
   #:use-module (rnrs bytevectors)
   #:use-module (rnrs io ports)
-  #:use-module (syrup)
   #:use-module (fibers channels))
 
 ;;; Some crap to make this work in the port from Racket->Guile

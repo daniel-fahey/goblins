@@ -28,7 +28,7 @@
 ;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
 (define-module (goblins ocapn define-recordable)
-  #:use-module (syrup)
+  #:use-module (goblins contrib syrup)
   #:use-module (srfi srfi-9)
   #:use-module (ice-9 match)
   #:export (define-recordable))
