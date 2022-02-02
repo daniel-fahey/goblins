@@ -1,5 +1,6 @@
 (define-module (tests test-inbox)
   #:use-module (fibers)
+  #:use-module (fibers channels)
   #:use-module (ice-9 match)
   #:use-module (ice-9 q)
   #:use-module (srfi srfi-64)
