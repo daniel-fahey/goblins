@@ -1,1 +1,17 @@
+*.go
 *.log
+/Makefile
+/Makefile.am
+/Makefile.in
+/aclocal.m4
+/autom4te.cache/
+/build-aux/
+/config.status
+/configure
+/configure.ac
+/doc/.dirstamp
+/doc/guile-goblins.info
+/doc/stamp-vti
+/doc/version.texi
+/pre-inst-env
+/pre-inst-env.in
