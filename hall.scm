@@ -12,7 +12,9 @@ environment following object capability principles.  This is the guile version
 of the library!")
   (home-page "https://spritelyproject.org/")
   (license asl2.0)
-  (dependencies `())
+  (dependencies
+   `(("guile-hall" ,guile-hall)
+     ("guile-fibers" (fibers) ,guile-fibers)))
   (files (libraries
            ((scheme-file "goblins")
             (directory
@@ -64,7 +66,7 @@ of the library!")
          (documentation
            ((org-file "README")
             (symlink "README" "README.org")
-            (text-file "HACKING")
+            (symlink "HACKING" "README.org")
             (symlink "COPYING" "LICENSE.txt")
             (directory "doc" ((texi-file "goblins")))
             (text-file "AUTHORS")))
