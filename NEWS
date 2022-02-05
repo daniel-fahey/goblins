@@ -1,0 +1,22 @@
+#+TITLE: Guile Goblins NEWS – history of user-visible changes
+
+* Releases
+** v0.6
+
+This is the first release of Spritely Goblins on Guile.
+There's not much to say in terms of "differences" from the previous
+version of this package, since this is the first release.  Relative
+to the [[https://docs.racket-lang.org/goblins/index.html][Racket version]], this library is at a fairly early stage.
+
+That said, much of the functionality is here: actors/objects,
+synchronous and transactional invocation via =$=, asynchronous
+message passage via =<-=, promise pipelining, etc etc.
+
+The main things that are missing are:
+
+ - Easier ways to start up a vat for a more serious program (not just
+   experimenting at the REPL)
+ - A more fleshed out actor-lib
+ - Most significantly, a working version of CapTP.
+
+More soon.
