@@ -22,7 +22,9 @@
       ("pkg-config" ,pkg-config)
       ("texinfo" ,texinfo)))
   (inputs `(("guile" ,guile-3.0)))
-  (propagated-inputs `())
+  (propagated-inputs
+    `(("guile-hall" ,guile-hall)
+      ("guile-fibers" ,guile-fibers)))
   (synopsis
     "A transactional, distributed object programming environment")
   (description
