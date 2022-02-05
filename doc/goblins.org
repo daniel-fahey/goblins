@@ -1,0 +1,131 @@
+#+TITLE: Spritely Goblins
+
+This is the manual for [[https://spritelyproject.org/#goblins][Spritely Goblins]].  It is released under the
+[[https://www.apache.org/licenses/LICENSE-2.0][Apache v2 license]], just like Goblins itself.
+
+* What is Goblins?
+
+[[https://spritelyproject.org/#goblins][Spritely Goblins]] is a distributed object programming environment.
+It provides:
+
+ - An asynchronous programming environment,
+ - A quasi-functional distributed object[fn:on-actors-and-objects]
+   system which is fully transactional (bad things can happen and
+   relevant parties can be notified, but modified state will roll
+   back, preventing the system from becoming corrupted)
+
+Coming soon to the Guile version (and already semi-present in the
+Racket version):
+
+ - A distributed object-capability-based object programming system
+ - Peer to peer networking abstraction layers 
+ - Time travel debugging
+ - Process persistence which preserves the security properties
+   of the running system
+
+Its design is inspired by the [[http://www.erights.org/][E programming language]] and by the
+observation that [[http://mumble.net/~jar/pubs/secureos/secureos.html][lambda is already the ultimate security mechanism]]
+(ie, normal argument-passing in programs, if taken seriously/purely,
+is already all the security system we need).
+
+Spritely is a wider project to advance decentralized networking
+infrastructure, particularly as it pertains to social networks.
+Goblins is the heart of the system, on which other layers are built.
+At the time of writing, two key versions of Goblins are supported, the
+[[https://docs.racket-lang.org/goblins/index.html][Racket version of Goblins]], and the [[https://www.gnu.org/software/guile/][Guile]] version.
+This manual is for the Guile edition of Spritely Goblins.
+
+This manual is also very, very incomplete in this early release.
+Please see the [[https://docs.racket-lang.org/goblins/][manual for the Racket version of Goblins]] manual,
+most of which applies to the Guile version too.
+
+[fn:on-actors-and-objects] Goblins uses the term "object" and "actor"
+somewhat interchangably, even though in some ways these terms have
+become vague.  There are, in particular,
+[[http://mumble.net/~jar/articles/oo.html][many meanings for the word "object"]]; for us, object really means an
+encapsulation of behavior and state.  (In Goblins, state is typically
+built out of behavior, not the other way around.)
+Goblins also follows the [[https://en.wikipedia.org/wiki/Actor_model#Fundamental_concepts][classic actor]] model mostly, in that
+in response to a message, an "actor" can:
+(a) send a finite number of messages to other actors;
+(b) create a finite number of new actors; or
+(c) designate the behavior to be used for the next message it receives.
+However, Goblins supports both synchronous call-return invocation of
+actors within the same event loop via =$= and asynchronous message
+sends via =<-=.  Arguably the true "classic actor" model only supports
+the latter.
+
+* Getting started
+
+** A pre-taste of Goblins
+
+This section is meant to give you an idea on what programming in
+Goblins is like, rather than actually having you walk through code.
+
+Goblins is a 
+
+
+TODO: Examples written in Wisp go here.  Then we reveal s-expression
+version.
+
+** Installing Goblins
+
+You'll need to install =guile-goblins=.  Blah blah, use [[https://guix.gnu.org/][Guix]] or use
+your standard GNU/Linux distro or even better yet run Guix as your
+standard distro.
+
+Blah blah blah, we also have tarballs, blah blah, usual
+=./configure && make && sudo make install= stuff goes here.
+
+** Hacking environment
+
+TODO: Emacs emacs emacs probably, but also spacemacs mousemacs
+or someone get Guile support in Visual Studio Code or somethin'
+
+* Tutorial
+
+TODO: we should port the [[https://docs.racket-lang.org/goblins/index.html][Goblins on Racket tutorial]] but simplify it
+(introduce actormaps much later, use =(goblins vrun)= to simplify
+REPL experimentation, etc).
+
+* API
+
+TODO
+
+** Objects and behavior
+
+TODO
+
+*** Spawning objects
+
+# TODO
+
+*** Synchronous calls
+
+# TODO
+
+*** Asynchronous message passing
+
+# TODO
+
+# ** Vats: Communicating event loops
+# ** Actormaps: Low level transactional heaps
+# ** CapTP: Distributed programming
+# ** Aurie: Persistence
+# ** actor-lib: A standard library of sorts
+
+# * Debugging
+
+# More on debugging coming soon.
+
+# * Design and philosophy
+
+# ** Why Scheme?  Why Guile?
+
+# ** History
+
+# ** The future: hopes, dreams, and hard work
+
+# ** License choice
+
+# ** Spritely and user freedom

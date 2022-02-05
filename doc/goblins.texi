@@ -1,61 +1,187 @@
-
-\input texinfo
-@c -*-texinfo-*-
-
+\input texinfo    @c -*- texinfo -*-
 @c %**start of header
-@setfilename guile-goblins.info
+@setfilename goblins.info
+@settitle Spritely Goblins
 @documentencoding UTF-8
-@settitle Guile Goblins Reference Manual
+@documentlanguage en
 @c %**end of header
 
-@include version.texi
-
-@copying
-Copyright @copyright{} 2022 Christine Lemmer-Webber
-
-Permission is granted to copy, distribute and/or modify this document
-under the terms of the GNU Free Documentation License, Version 1.3 or
-any later version published by the Free Software Foundation; with no
-Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts.  A
-copy of the license is included in the section entitled ``GNU Free
-Documentation License''.
-@end copying
-
-@dircategory The Algorithmic Language Scheme
-@direntry
-* Guile Goblins: (guile-goblins).   
-@end direntry
-
+@finalout
 @titlepage
-@title The Guile Goblins Manual
+@title Spritely Goblins
 @author Christine Lemmer-Webber
-
-@page
-@vskip 0pt plus 1filll
-Edition @value{EDITION} @*
-@value{UPDATED} @*
-
-@insertcopying
 @end titlepage
 
 @contents
 
-@c *********************************************************************
+@ifnottex
 @node Top
-@top Guile Goblins
+@top Spritely Goblins
 
-This document describes Guile Goblins version @value{VERSION}.
+This is the manual for @uref{https://spritelyproject.org/#goblins, Spritely Goblins}.  It is released under the
+@uref{https://www.apache.org/licenses/LICENSE-2.0, Apache v2 license}, just like Goblins itself.
+@end ifnottex
 
 @menu
-* Introduction::                Why Guile Goblins?
+* What is Goblins?::
+* Getting started::
+* Tutorial::
+* API::
+
+@detailmenu
+--- The Detailed Node Listing ---
+
+Getting started
+
+* A pre-taste of Goblins::
+* Installing Goblins::
+* Hacking environment::
+
+API
+
+* Objects and behavior::
+
+Objects and behavior
+
+* Spawning objects::
+* Synchronous calls::
+* Asynchronous message passing::
+
+@end detailmenu
 @end menu
 
-@c *********************************************************************
-@node Introduction
-@chapter Introduction
+@node What is Goblins?
+@chapter What is Goblins?
 
-INTRODUCTION HERE
+@uref{https://spritelyproject.org/#goblins, Spritely Goblins} is a distributed object programming environment.
+It provides:
 
-This documentation is a stub.
+@itemize
+@item
+An asynchronous programming environment,
+@item
+A quasi-functional distributed object@footnote{Goblins uses the term "object" and "actor"
+somewhat interchangably, even though in some ways these terms have
+become vague.  There are, in particular,
+@uref{http://mumble.net/~jar/articles/oo.html, many meanings for the word "object"}; for us, object really means an
+encapsulation of behavior and state.  (In Goblins, state is typically
+built out of behavior, not the other way around.)
+Goblins also follows the @uref{https://en.wikipedia.org/wiki/Actor_model#Fundamental_concepts, classic actor} model mostly, in that
+in response to a message, an "actor" can:
+(a) send a finite number of messages to other actors;
+(b) create a finite number of new actors; or
+(c) designate the behavior to be used for the next message it receives.
+However, Goblins supports both synchronous call-return invocation of
+actors within the same event loop via @samp{$} and asynchronous message
+sends via @samp{<-}.  Arguably the true "classic actor" model only supports
+the latter.}
+system which is fully transactional (bad things can happen and
+relevant parties can be notified, but modified state will roll
+back, preventing the system from becoming corrupted)
+@end itemize
+
+Coming soon to the Guile version (and already semi-present in the
+Racket version):
+
+@itemize
+@item
+A distributed object-capability-based object programming system
+@item
+Peer to peer networking abstraction layers 
+@item
+Time travel debugging
+@item
+Process persistence which preserves the security properties
+of the running system
+@end itemize
+
+Its design is inspired by the @uref{http://www.erights.org/, E programming language} and by the
+observation that @uref{http://mumble.net/~jar/pubs/secureos/secureos.html, lambda is already the ultimate security mechanism}
+(ie, normal argument-passing in programs, if taken seriously/purely,
+is already all the security system we need).
+
+Spritely is a wider project to advance decentralized networking
+infrastructure, particularly as it pertains to social networks.
+Goblins is the heart of the system, on which other layers are built.
+At the time of writing, two key versions of Goblins are supported, the
+@uref{https://docs.racket-lang.org/goblins/index.html, Racket version of Goblins}, and the @uref{https://www.gnu.org/software/guile/, Guile} version.
+This manual is for the Guile edition of Spritely Goblins.
+
+This manual is also very, very incomplete in this early release.
+Please see the @uref{https://docs.racket-lang.org/goblins/, manual for the Racket version of Goblins} manual,
+most of which applies to the Guile version too.
+
+@node Getting started
+@chapter Getting started
+
+@menu
+* A pre-taste of Goblins::
+* Installing Goblins::
+* Hacking environment::
+@end menu
+
+@node A pre-taste of Goblins
+@section A pre-taste of Goblins
+
+This section is meant to give you an idea on what programming in
+Goblins is like, rather than actually having you walk through code.
+
+Goblins is a 
+
+
+TODO: Examples written in Wisp go here.  Then we reveal s-expression
+version.
+
+@node Installing Goblins
+@section Installing Goblins
+
+You'll need to install @samp{guile-goblins}.  Blah blah, use @uref{https://guix.gnu.org/, Guix} or use
+your standard GNU/Linux distro or even better yet run Guix as your
+standard distro.
+
+Blah blah blah, we also have tarballs, blah blah, usual
+@samp{./configure && make && sudo make install} stuff goes here.
+
+@node Hacking environment
+@section Hacking environment
+
+TODO: Emacs emacs emacs probably, but also spacemacs mousemacs
+or someone get Guile support in Visual Studio Code or somethin'
+
+@node Tutorial
+@chapter Tutorial
+
+TODO: we should port the @uref{https://docs.racket-lang.org/goblins/index.html, Goblins on Racket tutorial} but simplify it
+(introduce actormaps much later, use @samp{(goblins vrun)} to simplify
+REPL experimentation, etc).
+
+@node API
+@chapter API
+
+TODO
+
+@menu
+* Objects and behavior::
+@end menu
+
+@node Objects and behavior
+@section Objects and behavior
+
+TODO
+
+@menu
+* Spawning objects::
+* Synchronous calls::
+* Asynchronous message passing::
+@end menu
+
+@node Spawning objects
+@subsection Spawning objects
+
+@node Synchronous calls
+@subsection Synchronous calls
+
+@node Asynchronous message passing
+@subsection Asynchronous message passing
 
 @bye
