@@ -62,13 +62,18 @@ of the library!")
                     (scheme-file "test-ghash")
                     (scheme-file "test-await")
                     (scheme-file "test-core")))))
-         (programs ((directory "scripts" ())))
+         (programs ())
          (documentation
            ((org-file "README")
             (symlink "README" "README.org")
             (symlink "HACKING" "README.org")
             (symlink "COPYING" "LICENSE.txt")
-            (directory "doc" ((texi-file "goblins")))
-            (text-file "AUTHORS")))
+            (directory
+              "doc"
+              ((org-file "goblins") (texi-file "goblins")))
+            (text-file "AUTHORS")
+            (text-file "NEWS")
+            (text-file "AUTHORS")
+            (text-file "ChangeLog")))
          (infrastructure
            ((scheme-file "guix") (scheme-file "hall")))))
