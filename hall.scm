@@ -1,7 +1,7 @@
 (hall-description
   (name "goblins")
   (prefix "guile")
-  (version "0.1-pre")
+  (version "0.6-pre")
   (author "Christine Lemmer-Webber")
   (copyright (2022))
   (synopsis

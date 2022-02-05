@@ -12,8 +12,8 @@
 
 (package
   (name "guile-goblins")
-  (version "0.1-pre")
-  (source "./guile-goblins-0.1-pre.tar.gz")
+  (version "0.6-pre")
+  (source "./guile-goblins-0.6-pre.tar.gz")
   (build-system gnu-build-system)
   (arguments `())
   (native-inputs
