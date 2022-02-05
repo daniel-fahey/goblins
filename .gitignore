@@ -16,3 +16,4 @@
 /pre-inst-env
 /pre-inst-env.in
 *.trs
+/doc/*.info
