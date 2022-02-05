@@ -17,3 +17,4 @@
 /pre-inst-env.in
 *.trs
 /doc/*.info
+/INSTALL
