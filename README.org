@@ -11,3 +11,35 @@ library's terms arereally GPLv3+.
 However we might not be linking to such a library forever, and also
 the Racket version is Apache v2, so keeping our code licensed Apache
 v2 enables easier portability between those systems.
+
+* Getting Goblins
+
+Hopefully get it from your distro.  It might be under the =guile-goblins=
+package.  We should be appearing in [[https://guix.gnu.org/][Guix]] soon, at least.
+
+* Contributing
+
+By far the easiest way to hack on goblins is to develop using [[https://guix.gnu.org/][Guix]].
+
+First check out Goblins:
+
+#+BEGIN_SRC bash
+  cd /my/projects/dir/
+  git clone https://gitlab.com/spritely/guile-goblins.git
+  cd guile-goblins
+#+END_SRC
+
+Now we can use =guix shell= to make a useful environment for us to
+hack in, then run the autotools stuff.
+
+#+BEGIN_SRC bash
+  guix shell
+  # In the new shell, run:
+  hall dist -x && ./bootstrap.sh && ./configure && make check
+#+END_SRC
+
+If the tests pass, you're ready to go!  You can now hack this
+project's files to your heart's content, whilst testing them from your
+`guix shell'.
+
+See the manual for more details on hacking Goblins.
