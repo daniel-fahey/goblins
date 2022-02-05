@@ -19,8 +19,7 @@ of the library!")
            ((scheme-file "goblins")
             (directory
               "goblins"
-              ((directory "contrib" ((scheme-file "syrup")))
-               (directory
+              ((directory
                  "ocapn"
                  ((scheme-file "crypto-stubs")
                   (scheme-file "define-recordable")
@@ -34,6 +33,7 @@ of the library!")
                   (scheme-file "weak-box")
                   (scheme-file "assert-type")
                   (scheme-file "simple-dispatcher")))
+               (directory "contrib" ((scheme-file "syrup")))
                (directory
                  "actor-lib"
                  ((scheme-file "methods")
