@@ -28,7 +28,9 @@
   (build-system gnu-build-system)
   (arguments `())
   (native-inputs
-    `(("guile-hall" ,guile-hall)
+    `(;; just for environments for local hacking
+      ("guile-hall" ,guile-hall)
+      ;; these are actually native-inputs for this package :P
       ("autoconf" ,autoconf)
       ("automake" ,automake)
       ("pkg-config" ,pkg-config)
