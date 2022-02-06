@@ -45,21 +45,9 @@
 
 (define (ensure-current-repl-vat)
   (or (current-repl-vat)
-      (current-repl-vat (spawn-vat*)
-       (let* ((result-ch (make-channel))
-              (vat-halt? (make-condition))
-              (repl-thread
-               (call-with-new-thread
-                (lambda ()
-                  (run-fibers
-                   (lambda ()
-                     (define a-vat (spawn-vat))
-                     (put-message result-ch a-vat)
-                     (wait vat-halt?))))))
-              (repl-vat  ; vat controller procedure
-               (get-message result-ch)))
-         (current-repl-vat repl-vat)
-         repl-vat))))
+      (let ((new-vat (spawn-vat*)))
+        (current-repl-vat new-vat)
+        new-vat)))
 
 (define-syntax-rule (vr body ...)
   ((ensure-current-repl-vat) 'run (lambda () body ...)))
@@ -108,29 +96,7 @@ to implement that."
     (lambda l
       (for-each (lambda (v)
                   (repl-print repl v))
-                l)))
-  #;(call-with-values
-      (lambda ()
-        (% (let ((thunk
-                  (abort-on-error "compiling expression"
-                                  (repl-prepare-eval-thunk
-                                   repl
-                                   (abort-on-error "parsing expression"
-                                                   (repl-parse repl
-                                                               (vr-form-transform exp)))))))
-             (run-hook before-eval-hook exp)
-             (call-with-error-handling
-              (lambda ()
-                (with-stack-and-prompt thunk))
-              #:on-error (repl-option-ref repl 'on-error)))
-           (lambda (k) (values)))
-        (repl-eval repl  exp))
-    (lambda l
-      (for-each (lambda (v)
-                  (repl-print repl v))
-                l)))
-
-  )
+                l))))
 
 
 
