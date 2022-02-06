@@ -15,6 +15,7 @@
   (guix build-system gnu)
   (gnu packages)
   (gnu packages autotools)
+  (gnu packages gnupg)
   (gnu packages guile)
   (gnu packages guile-xyz)
   (gnu packages pkg-config)
@@ -34,7 +35,8 @@
   (inputs `(("guile" ,guile-3.0)))
   (propagated-inputs
     `(("guile-hall" ,guile-hall)
-      ("guile-fibers" ,guile-fibers)))
+      ("guile-fibers" ,guile-fibers)
+      ("guile-gcrypt" ,guile-gcrypt)))
   (synopsis
     "A transactional, distributed object programming environment")
   (description

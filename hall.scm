@@ -24,7 +24,8 @@ of the library!")
   (license asl2.0)
   (dependencies
    `(("guile-hall" ,guile-hall)
-     ("guile-fibers" (fibers) ,guile-fibers)))
+     ("guile-fibers" (fibers) ,guile-fibers)
+     ("guile-gcrypt" (gcrypt hash) ,guile-gcrypt)))
   (files (libraries
            ((scheme-file "goblins")
             (directory
