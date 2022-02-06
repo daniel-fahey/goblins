@@ -28,14 +28,14 @@
   (build-system gnu-build-system)
   (arguments `())
   (native-inputs
-    `(("autoconf" ,autoconf)
+    `(("guile-hall" ,guile-hall)
+      ("autoconf" ,autoconf)
       ("automake" ,automake)
       ("pkg-config" ,pkg-config)
       ("texinfo" ,texinfo)))
   (inputs `(("guile" ,guile-3.0)))
   (propagated-inputs
-    `(("guile-hall" ,guile-hall)
-      ("guile-fibers" ,guile-fibers)
+    `(("guile-fibers" ,guile-fibers)
       ("guile-gcrypt" ,guile-gcrypt)))
   (synopsis
     "A transactional, distributed object programming environment")
