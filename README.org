@@ -1,6 +1,7 @@
 This is a port of [[https://gitlab.com/spritely/goblins][Spritely Goblins]] to [[https://www.gnu.org/software/guile/][Guile]].
 
-It's very early, so I'd caution against using it quite yet. :)
+It's very early, so I'd caution against using it for anything
+"production-facing" quite yet. :)
 
 * A note on licensing
 
