@@ -80,16 +80,7 @@
       (abort))))
 
 ;; and this munged from that
-(define-meta-command ((vr goblins) repl exp)
-  "vr EXP [sched]
-Evaluate EXP within a vat churn.
-
-Returning the result of the initial message.
-Waits until a new turn is available; if the vat is busy, will block
-until it is available.
-
-Doesn't enter a prompt like you might want on exceptions, though we would love
-to implement that."
+(define-inlinable (vrun-meta-command repl exp)
   (call-with-values
       (lambda ()
         (repl-eval repl (vr-form-transform exp)))
@@ -98,16 +89,26 @@ to implement that."
                   (repl-print repl v))
                 l))))
 
+(define-meta-command ((vat-run goblins) repl exp)
+  "vat-run EXP [sched]
+Evaluate EXP within a vat churn.
 
+Returns the result of the initial message.
+Waits until a new turn is available; if the vat is busy, will block
+until it is available.
 
-;; (define-syntax vr-form-transform
-;;   (lambda (form)
-;;     (syntax-case form (define define-values)
-;;       ((define id exp)
-;;        #'(define id
-;;            (repl-vat 'run (lambda () exp))))
-;;       ((define-values (ids ...) exp)
-;;        #'(define-values (ids ...)
-;;            (repl-vat 'run (lambda () exp))))
-;;       (
-;;        #'(repl-vat 'run (lambda () exp))))))
+Doesn't enter a prompt like you might want on exceptions, though we would love
+to implement that.
+
+(Aliases: ,vrun ,vr)"
+  (vrun-meta-command repl exp))
+
+(define-meta-command ((vrun goblins) repl exp)
+  "vrun EXP [sched]
+Same thing as ,vat-run except with fewer characters."
+  (vrun-meta-command repl exp))
+
+(define-meta-command ((vr goblins) repl exp)
+  "vr EXP [sched]
+Same thing as ,vat-run except with fewer characters."
+  (vrun-meta-command repl exp))
