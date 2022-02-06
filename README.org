@@ -79,3 +79,16 @@ Simply run:
 #+END_SRC
 
 Follow the instructions at the top, which should look something like:
+
+#+BEGIN_SRC text
+  ***********************************************
+  ** Setting up Guile to listen on a socket... **
+  **                                           **
+  ** Connect in emacs via:                     **
+  **   M-x geiser-connect-local <RET>          **
+  **       guile <RET>                         **
+  **       /tmp/guile-goblins.sock <RET>       **
+  ***********************************************
+#+END_SRC
+
+Sounds like good advice!  Give that a try!
