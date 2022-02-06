@@ -7,16 +7,6 @@ capability security principles.  See [[https://gitlab.com/spritely/guile-goblins
 It's very early, so I'd caution against using it for anything
 "production-facing" quite yet. :)
 
-* A note on licensing
-
-Note that this code is all [[file:./LICENSE.txt][Apache v2]], however it does link to
-[[https://notabug.org/cwebber/guile-gcrypt][guile-gcrypt]], which is GPLv3+.  So you could say that in effect, the
-library's terms arereally GPLv3+.
-
-However we might not be linking to such a library forever, and also
-the [[https://docs.racket-lang.org/goblins/index.html][Racket version]] is Apache v2, so keeping our code licensed Apache
-v2 enables easier portability between those systems.
-
 * Getting Goblins
 
 Hopefully get it from your distro.  It might be under the =guile-goblins=
@@ -96,3 +86,19 @@ Follow the instructions at the top, which should look something like:
 #+END_SRC
 
 Sounds like good advice!  Give that a try!
+
+* A note on licensing
+
+Note that this code is all [[file:./LICENSE.txt][Apache v2]], however it does link to
+[[https://notabug.org/cwebber/guile-gcrypt][guile-gcrypt]], which is GPLv3+.  So you could say that in effect, the
+library's terms are really GPLv3+.
+
+However we might not be linking to such a library forever, and also
+the [[https://docs.racket-lang.org/goblins/index.html][Racket version]] is Apache v2, so keeping our code licensed Apache
+v2 enables easier portability between those systems.
+
+Note that this is not anti-copyleft positioning; copyleft is a viable
+strategy for preserving user freedom.  In the case of Spritely, we are
+aiming for a wide adoption of ideas and protocols, so it's a /different/
+strategic choice.
+
