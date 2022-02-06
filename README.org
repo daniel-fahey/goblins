@@ -5,7 +5,7 @@ It's very early, so I'd caution against using it for anything
 
 * A note on licensing
 
-Note that this code is all GPLv3, however it does link to
+Note that this code is all [[file:./LICENSE.txt][Apache v2]], however it does link to
 [[https://notabug.org/cwebber/guile-gcrypt][guile-gcrypt]], which is GPLv3+.  So you could say that in effect, the
 library's terms arereally GPLv3+.
 
