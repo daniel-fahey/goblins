@@ -5,11 +5,11 @@ It's very early, so I'd caution against using it quite yet. :)
 * A note on licensing
 
 Note that this code is all GPLv3, however it does link to
-guile-gcrypt, which is GPLv3+.  So you could say that in effect, the
+[[https://notabug.org/cwebber/guile-gcrypt][guile-gcrypt]], which is GPLv3+.  So you could say that in effect, the
 library's terms arereally GPLv3+.
 
 However we might not be linking to such a library forever, and also
-the Racket version is Apache v2, so keeping our code licensed Apache
+the [[https://docs.racket-lang.org/goblins/index.html][Racket version]] is Apache v2, so keeping our code licensed Apache
 v2 enables easier portability between those systems.
 
 * Getting Goblins
@@ -19,11 +19,13 @@ package.  We should be appearing in [[https://guix.gnu.org/][Guix]] soon, at lea
 
 * Contributing
 
+** Checking out and building Goblins
+
 By far the easiest way to hack on goblins is to develop using [[https://guix.gnu.org/][Guix]].
 
 First check out Goblins:
 
-#+BEGIN_SRC bash
+#+BEGIN_SRC sh
   cd /my/projects/dir/
   git clone https://gitlab.com/spritely/guile-goblins.git
   cd guile-goblins
@@ -32,9 +34,9 @@ First check out Goblins:
 Now we can use =guix shell= to make a useful environment for us to
 hack in, then run the autotools stuff.
 
-#+BEGIN_SRC bash
-  guix shell
-  # In the new shell, run:
+#+BEGIN_SRC sh
+  guix environment -l guix.scm
+  # In the guix environment, run:
   hall dist -x && ./bootstrap.sh && ./configure && make check
 #+END_SRC
 
@@ -42,4 +44,37 @@ If the tests pass, you're ready to go!  You can now hack this
 project's files to your heart's content, whilst testing them from your
 `guix shell'.
 
-See the manual for more details on hacking Goblins.
+** Setup for hacking on Goblins
+
+*** Editor setup
+
+You're going to want/need:
+
+ - [[https://www.gnu.org/software/emacs/][GNU Emacs]]
+ - [[https://www.nongnu.org/geiser/][Geiser]], for hacking on Guile
+
+Then, at minimum, you'll want to put in your .emacs:
+
+#+BEGIN_SRC emacs-lisp
+(show-paren-mode 1)  ; Match parentheses
+#+END_SRC
+
+However you probably also want some combination of:
+
+ - [[https://github.com/Fuco1/smartparens][smartparens]] (or [[https://www.emacswiki.org/emacs/ParEdit][paredit]], which is much more strict... use
+   smartparens if uncertain)
+ - [[https://github.com/Fanael/rainbow-delimiters][rainbow-delimeters]]
+ - [[https://www.emacswiki.org/emacs/HighlightParentheses][highlight-parentheses]]
+
+Now you'll have a nice hacking setup!  Be sure to read the Geiser
+manual.
+
+*** Running Guile with the path setup right
+
+Simply run:
+
+#+BEGIN_SRC sh
+  ./live-guile.sh
+#+END_SRC
+
+Follow the instructions at the top, which should look something like:
