@@ -2158,7 +2158,7 @@
                              #:key [catch-errors? #t]
                              [waiters #f])
   (define-values (actor-refr new-actormap)
-    (actormap-spawn (make-transactormap actormap) (lambda (bcom) thunk)))
+    (actormap-spawn (make-transactormap actormap) (lambda (_bcom) thunk)))
   (define-values (returned-val new-actormap2 new-msgs)
     (actormap-churn new-actormap (make-message actor-refr #f '())
                     #:catch-errors? catch-errors?
