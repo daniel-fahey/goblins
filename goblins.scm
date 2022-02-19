@@ -15,8 +15,7 @@
 (define-module (goblins)
   #:use-module (goblins core)
   #:use-module (goblins vrun)
-  #:re-export (;; Stuff from core
-               live-refr?
+  #:re-export (live-refr?
                local-refr?
                remote-refr?
                local-object-refr?
@@ -27,43 +26,49 @@
                near-refr?
                far-refr?
 
-               ;; make-actormap
-               ;; make-transactormap
-               ;; make-whactormap
+               make-actormap
+               make-transactormap
+               make-whactormap
 
-               ;; actormap-spawn
-               ;; actormap-spawn!
-               ;; ;; actormap-spawn-mactor!
+               actormap-spawn
+               actormap-spawn!
+               ;; actormap-spawn-mactor!
 
-               ;; actormap-turn*
-               ;; actormap-turn
+               actormap-turn*
+               actormap-turn
 
-               ;; actormap-turn-message
+               actormap-turn-message
 
-               ;; actormap-peek
-               ;; actormap-poke!
-               ;; actormap-reckless-poke!
+               actormap-peek
+               actormap-poke!
+               actormap-reckless-poke!
 
-               ;; actormap-run
-               ;; actormap-run!
-               ;; actormap-run*
+               actormap-run
+               actormap-run!
+               actormap-run*
 
-               ;; actormap-churn
-               ;; actormap-churn-run
-               ;; actormap-churn-run!
+               actormap-churn
+               actormap-churn-run
+               actormap-churn-run!
 
-               ;; dispatch-message
-               ;; dispatch-messages
+               dispatch-message
+               dispatch-messages
 
-               ;; whactormap?
-               ;; transactormap?
-               ;; transactormap-merge!
-               ;; transactormap-buffer-merge!
+               whactormap?
+               transactormap?
+               transactormap-merge!
+               transactormap-buffer-merge!
 
                spawn spawn-named
-               $ <-np <-
+               $
+               <-np <-
                on
 
-               ;; and then... vats stuff goes here?
+               <-np-extern
+               listen-to
 
-               ))
+               await await*
+               <<-
+
+               spawn-promise-cons
+               spawn-promise-values))
