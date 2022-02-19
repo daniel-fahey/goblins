@@ -1711,7 +1711,7 @@
 (define (spawn constructor . args)
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args (procedure-name constructor)))
-(define (spawn-named constructor name . args)
+(define (spawn-named name constructor . args)
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args name))
 (define ($ refr . args)
