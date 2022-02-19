@@ -2173,15 +2173,17 @@
                               ;;   playing around...
                               #:key [catch-errors? #t]
                               [waiters #f])
+  (define (churn-run-values->list . args)
+    (call-with-values thunk list))
   (define-values (returned-val new-actormap new-msgs)
-    (actormap-churn-run actormap thunk
+    (actormap-churn-run actormap churn-run-values->list
                         #:catch-errors? catch-errors?
                         #:waiters waiters))
   (dispatch-messages new-msgs)
   (match returned-val
-    [#('ok rval)
+    [#('ok rval-lst)
      (transactormap-merge! new-actormap)
-     rval]
+     (apply values rval-lst)]
     [#('fail err)
      ;; re-raise exception
      (raise-exception err)]))
