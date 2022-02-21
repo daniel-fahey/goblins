@@ -90,7 +90,7 @@
                 l))))
 
 (define-meta-command ((vat-run goblins) repl exp)
-  "vat-run EXP [sched]
+  "vat-run EXP
 Evaluate EXP within a vat churn.
 
 Returns the result of the initial message.
@@ -104,11 +104,11 @@ to implement that.
   (vrun-meta-command repl exp))
 
 (define-meta-command ((vrun goblins) repl exp)
-  "vrun EXP [sched]
+  "vrun EXP
 Same thing as ,vat-run except with fewer characters."
   (vrun-meta-command repl exp))
 
 (define-meta-command ((vr goblins) repl exp)
-  "vr EXP [sched]
+  "vr EXP
 Same thing as ,vat-run except with fewer characters."
   (vrun-meta-command repl exp))
