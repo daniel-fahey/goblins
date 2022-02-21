@@ -9,6 +9,7 @@
 ;; into your own project.
 
 (use-modules
+  (guix gexp)
   (guix packages)
   ((guix licenses) #:prefix license:)
   (guix download)
@@ -19,32 +20,53 @@
   (gnu packages guile)
   (gnu packages guile-xyz)
   (gnu packages pkg-config)
-  (gnu packages texinfo))
+  (gnu packages texinfo)
+  (srfi srfi-1))
+
+(define (keep-file? file stat)
+  (not (any (lambda (my-string)
+              (string-contains file my-string))
+            (list ".git" ".dir-locals.el" "guix.scm"))))
 
 (package
   (name "guile-goblins")
   (version "0.6-pre")
-  (source "./guile-goblins-0.6-pre.tar.gz")
+  (source (local-file (dirname (current-filename))
+                      #:recursive? #t
+                      #:select? keep-file?))
   (build-system gnu-build-system)
-  (arguments `())
+  (arguments
+   (list
+     #:make-flags
+     #~(list "GUILE_AUTO_COMPILE=0")
+     #:phases
+     #~(modify-phases %standard-phases
+         (add-before 'bootstrap 'run-hall-dist
+           (lambda _
+             ;; hall looks for ~/.hall
+             (setenv "HOME" (mkdtemp "/tmp/home.XXXXXX"))
+             ;; Make sure there's nothing left behind but don't fail if
+             ;; the source directory is already clean:
+             (system* "hall" "clean" "--execute")
+             (invoke "hall" "distribute" "--execute")
+             ;; Clean up after ourselves:
+             (unsetenv "HOME"))))))
   (native-inputs
-    `(;; just for environments for local hacking
-      ("guile-hall" ,guile-hall)
-      ;; these are actually native-inputs for this package :P
-      ("autoconf" ,autoconf)
-      ("automake" ,automake)
-      ("pkg-config" ,pkg-config)
-      ("texinfo" ,texinfo)))
-  (inputs `(("guile" ,guile-3.0)))
+   (list
+     ;; just for environments for local hacking
+     guile-hall
+     ;; these are actually native-inputs for this package :P
+     autoconf
+     automake
+     pkg-config
+     texinfo))
+  (inputs (list guile-3.0))
   (propagated-inputs
-    `(("guile-fibers" ,guile-fibers)
-      ("guile-gcrypt" ,guile-gcrypt)))
-  (synopsis
-    "A transactional, distributed object programming environment")
+   (list guile-fibers guile-gcrypt))
+  (synopsis "Transactional, distributed object programming environment")
   (description
-    "Spritely Goblins is a transactional, distributed object programming
+   "Spritely Goblins is a transactional, distributed object programming
 environment following object capability principles.  This is the guile version
 of the library!")
   (home-page "https://spritelyproject.org/")
   (license license:asl2.0))
-
