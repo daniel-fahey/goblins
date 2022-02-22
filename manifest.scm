@@ -7,6 +7,7 @@
 
 (packages->manifest
  (cons*
+  emacs emacs-geiser ; For hacking on goblins inside the development environment
   guile-hall
   (filter-map
    (match-lambda
