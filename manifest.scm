@@ -1,5 +1,7 @@
 (use-modules (guix packages)
              (gnu packages guile-xyz)
+             (gnu packages emacs)
+             (gnu packages emacs-xyz)
              (ice-9 match)
              (srfi srfi-1))
 
