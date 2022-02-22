@@ -28,6 +28,8 @@
               (string-contains file my-string))
             (list ".git" ".dir-locals.el" "guix.scm"))))
 
+;; Note: We're assuming the source has already been bootstrapped using
+;; `hall dist -x'.
 (package
   (name "guile-goblins")
   (version "0.6-pre")
@@ -38,24 +40,9 @@
   (arguments
    (list
      #:make-flags
-     #~(list "GUILE_AUTO_COMPILE=0")
-     #:phases
-     #~(modify-phases %standard-phases
-         (add-before 'bootstrap 'run-hall-dist
-           (lambda _
-             ;; hall looks for ~/.hall
-             (setenv "HOME" (mkdtemp "/tmp/home.XXXXXX"))
-             ;; Make sure there's nothing left behind but don't fail if
-             ;; the source directory is already clean:
-             (system* "hall" "clean" "--execute")
-             (invoke "hall" "distribute" "--execute")
-             ;; Clean up after ourselves:
-             (unsetenv "HOME"))))))
+     #~(list "GUILE_AUTO_COMPILE=0")))
   (native-inputs
    (list
-     ;; just for environments for local hacking
-     guile-hall
-     ;; these are actually native-inputs for this package :P
      autoconf
      automake
      pkg-config
