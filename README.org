@@ -30,6 +30,8 @@ Now we can use =guix shell= to make a useful environment for us to
 hack in, then run the autotools stuff.
 
 #+BEGIN_SRC sh
+  # You can also run this with --pure if it accidentally finds
+  # your system guile
   guix environment -l guix.scm
   # In the guix environment, run:
   hall dist -x && ./bootstrap.sh && ./configure && make check
@@ -37,7 +39,7 @@ hack in, then run the autotools stuff.
 
 If the tests pass, you're ready to go!  You can now hack this
 project's files to your heart's content, whilst testing them from your
-`guix shell'.
+=guix environment=.
 
 ** Setup for hacking on Goblins
 
