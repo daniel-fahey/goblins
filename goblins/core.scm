@@ -2165,6 +2165,11 @@
                     #:waiters waiters))
   (values returned-val new-actormap2 new-msgs))
 
+(define-record-type <multival-return-kluge>
+  (make-multival-return-kluge vals)
+  multival-return-kluge?
+  (vals multival-return-kluge-vals))
+
 ;; Also sends out relevant messages, and re-raises exceptions if appropriate
 (define* (actormap-churn-run! actormap thunk
                               ;; TODO: Maybe we don't even permit this option
@@ -2174,16 +2179,22 @@
                               #:key [catch-errors? #t]
                               [waiters #f])
   (define (churn-run-values->list . args)
-    (call-with-values thunk list))
+    (call-with-values thunk
+      (lambda rvals
+        (make-multival-return-kluge rvals))))
   (define-values (returned-val new-actormap new-msgs)
     (actormap-churn-run actormap churn-run-values->list
                         #:catch-errors? catch-errors?
                         #:waiters waiters))
   (dispatch-messages new-msgs)
   (match returned-val
-    [#('ok rval-lst)
+    ;; kluge to handle the coroutine case
+    [#('ok (? multival-return-kluge? mrk))
      (transactormap-merge! new-actormap)
-     (apply values rval-lst)]
+     (apply values (multival-return-kluge-vals mrk))]
+    [#('ok rval)
+     (transactormap-merge! new-actormap)
+     rval]
     [#('fail err)
      ;; re-raise exception
      (raise-exception err)]))
