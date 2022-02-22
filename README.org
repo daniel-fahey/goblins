@@ -30,7 +30,7 @@ Now we can use =guix shell= to make a useful environment for us to
 hack in, then run the autotools stuff.
 
 #+BEGIN_SRC sh
-  guix environment -l guix.scm
+  guix shell -m manifest.scm
   # In the guix environment, run:
   hall dist -x && ./bootstrap.sh && ./configure && make check
 #+END_SRC
@@ -105,4 +105,3 @@ Note that this is not anti-copyleft positioning; copyleft is a viable
 strategy for preserving user freedom.  In the case of Spritely, we are
 aiming for a wide adoption of ideas and protocols, so it's a /different/
 strategic choice.
-

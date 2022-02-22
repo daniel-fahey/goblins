@@ -13,7 +13,7 @@ echo "**       /tmp/guile-goblins.sock <RET>       **"
 echo "***********************************************"
 echo ""
 
-guix environment -l guix.scm -- ./pre-inst-env guile --listen=/tmp/guile-goblins.sock
+guix shell -m manifest.scm -- ./pre-inst-env guile --listen=/tmp/guile-goblins.sock
 
 # clean up, be nice
 rm /tmp/guile-goblins.sock
