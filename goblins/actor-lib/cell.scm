@@ -53,7 +53,7 @@
   (syntax-rules ()
     [(_ id)
      (define id
-       (spawn-named ^cell 'id))]
+       (spawn-named 'id ^cell))]
     [(_ id val)
      (define id
-       (spawn-named ^cell 'id val))]))
+       (spawn-named 'id ^cell val))]))

@@ -33,7 +33,7 @@
       (apply $ ($ target) args)))
 
   (define proxy
-    (spawn-named ^proxy proxy-name))
+    (spawn-named proxy-name ^proxy))
 
   (define (swap new-target)
     (assert-type new-target local-refr?)

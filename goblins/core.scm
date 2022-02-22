@@ -1760,10 +1760,10 @@
               (lambda _
                 (error "Already ran for automatically generated listener"))))
          (spawn-named
+          proc-name
           (lambda (bcom)
             (lambda args
-              (bcom already-ran (apply obj args))))
-          proc-name))]
+              (bcom already-ran (apply obj args))))))]
       ;; If it's #f, leave it as #f
       [#f #f]
       ;; Otherwise, this doesn't belong here
