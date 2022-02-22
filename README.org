@@ -32,7 +32,7 @@ hack in, then run the autotools stuff.
 #+BEGIN_SRC sh
   guix shell -m manifest.scm
   # In the guix environment, run:
-  hall dist -x && ./bootstrap.sh && ./configure && make check
+  ./bootstrap.sh && ./configure && make check
 #+END_SRC
 
 If the tests pass, you're ready to go!  You can now hack this
