@@ -473,11 +473,11 @@
 
 (define (transactormap-ref transactormap key)
   (define tm-data (actormap-data transactormap))
-  (when (transactormap-data-merged? tm-data)
-    (error "Can't use transactormap-ref on merged transactormap"))
   (define tm-delta
     (transactormap-data-delta tm-data))
   (define tm-val (hashq-ref tm-delta key #f))
+  (when (transactormap-data-merged? tm-data)
+    (error "Can't use transactormap-ref on merged transactormap"))
   (if tm-val
       ;; we got it, it's in our delta
       tm-val
@@ -486,9 +486,9 @@
         (actormap-ref parent key))))
 
 (define (transactormap-set! transactormap key val)
+  (define tm-delta (transactormap-data-delta (actormap-data transactormap)))
   (when (transactormap-merged? transactormap)
     (error "Can't use transactormap-set! on merged transactormap"))
-  (define tm-delta (transactormap-data-delta (actormap-data transactormap)))
   (hashq-set! tm-delta key val)
   _void)
 
@@ -1026,8 +1026,6 @@
   (define closed? #f)
 
   (define (this-syscaller method-id . args)
-    (when closed?
-      (error "Sorry, this syscaller is closed for business!"))
     (define method
       (case method-id
         [($) _$]
@@ -1084,6 +1082,9 @@
 
     (define mactor
       (actormap-ref-or-die to-refr))
+
+    (when closed?
+      (error "Sorry, this syscaller is closed for business!"))
 
     (match mactor
       [(? mactor:object?)
