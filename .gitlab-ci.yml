@@ -1,0 +1,17 @@
+image: metacall/guix
+
+default:
+  before_script:
+    - echo "(list (channel (name 'guix) (url \"https://git.savannah.gnu.org/git/guix.git\") (branch \"master\")))" >> /tmp/current-channel.scm
+    - guix pull --channels=/tmp/current-channel.scm
+
+stages:
+  - test
+
+unit-tests:
+  stage: test
+  script:
+    - guix shell -m manifest.scm -- sh ./bootstrap.sh
+    - guix shell -m manifest.scm -- ./configure
+    - guix shell -m manifest.scm -- make
+    - guix shell -m manifest.scm -- make check
