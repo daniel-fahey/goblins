@@ -16,11 +16,14 @@
   #:use-module (goblins core)
   #:use-module (goblins inbox)
   #:use-module (fibers)
+  #:use-module (fibers conditions)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
   #:use-module (ice-9 match)
   #:use-module (ice-9 atomic)
+  #:use-module (ice-9 threads)
   #:export (spawn-vat-fiber
+            spawn-vat-proc
             spawn-vat
             syscaller-free-fiber
 
@@ -180,7 +183,7 @@ you can speak to the vat."
   (spawn-fiber vat-loop)
   vat-control-ch)
 
-(define* (spawn-vat #:key [fibrous-io? #t])
+(define* (spawn-vat-proc #:key [fibrous-io? #t])
   "Like spawn-vat-fiber except returns a convenient procedure which abstracts
 over some of the communication aspects of controlling the vat."
   (define control-ch (spawn-vat-fiber #:fibrous-io? fibrous-io?))
@@ -213,6 +216,21 @@ over some of the communication aspects of controlling the vat."
 
 (define-syntax-rule (fibrous body ...)
   (spawn-fibrous-vow (lambda () body ...)))
+
+(define (spawn-vat)
+  (let* ((result-ch (make-channel))
+         (vat-halt? (make-condition))
+         (repl-thread
+          (call-with-new-thread
+           (lambda ()
+             (run-fibers
+              (lambda ()
+                (define a-vat (spawn-vat-proc))
+                (put-message result-ch a-vat)
+                (wait vat-halt?))))))
+         (repl-vat  ; vat controller procedure
+          (get-message result-ch)))
+    repl-vat))
 
 ;; An example to test against, wip
 #;(run-fibers
