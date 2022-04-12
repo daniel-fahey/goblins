@@ -232,6 +232,20 @@ over some of the communication aspects of controlling the vat."
           (get-message result-ch)))
     repl-vat))
 
+(define-syntax define-vat-run
+  (syntax-rules ()
+    ((define-vat-run vat-run-id vat)
+     (begin
+       (define this-vat vat)
+       (define-syntax vat-run-id
+         (syntax-rules ::: ()
+                       ((_ body :::)
+                        (this-vat 'run
+                                  (lambda ()
+                                    body :::)))))))
+    ((define-vat-run vat-run-id)
+     (define-vat-run vat-run-id (spawn-vat)))))
+
 ;; An example to test against, wip
 #;(run-fibers
  (lambda ()
