@@ -91,6 +91,22 @@ Follow the instructions at the top, which should look something like:
 
 Sounds like good advice!  Give that a try!
 
+
+** Running test coverage
+
+You should check any changes you make are tested. To help with this
+there is a coverage tool you can run. You can run it by:
+
+#+BEGIN_SRC sh
+guile -L `pwd` coverage.scm
+#+END_SRC
+
+This will generate a lcov.info file which you can then generate a
+coverage report using the `genhtml` command from the lcov tools (you
+may wish to look into the -o option as it generates lots of
+files). The coverage currently includes certain guile modules which
+you can ignore.
+
 * A note on licensing
 
 Note that this code is all [[file:./LICENSE.txt][Apache v2]], however it does link to

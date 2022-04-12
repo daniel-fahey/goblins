@@ -9,6 +9,7 @@
 ;; into your own project.
 
 (use-modules (guix packages)
+	     (gnu packages code)
              (gnu packages guile-xyz)
              (gnu packages emacs)
              (gnu packages emacs-xyz)
@@ -20,6 +21,7 @@
 (packages->manifest
  (cons*
   guile-hall
+  lcov
   (filter-map
    (match-lambda
      ((_ (? package? package) output) (list package output))
