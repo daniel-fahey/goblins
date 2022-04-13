@@ -98,14 +98,23 @@ You should check any changes you make are tested. To help with this
 there is a coverage tool you can run. You can run it by:
 
 #+BEGIN_SRC sh
-guile -L `pwd` coverage.scm
+guile -L `pwd` --debug coverage.scm
 #+END_SRC
+
+NB: if you do not specify the --debug flag, no coverage data will be
+generated.
 
 This will generate a lcov.info file which you can then generate a
 coverage report using the `genhtml` command from the lcov tools (you
 may wish to look into the -o option as it generates lots of
 files). The coverage currently includes certain guile modules which
-you can ignore.
+you can ignore. E.g.
+
+#+BEGIN_SRC sh
+  mkdir /tmp/goblins-coverage
+  genhtml -o /tmp/goblins-coverage/ lcov.info
+  # There should now exist /tmp/goblins-coverage/index.html
+#+END_SRC
 
 * A note on licensing
 

@@ -12,15 +12,14 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-
 (use-modules (system vm coverage)
              (system vm vm)
 	     (srfi srfi-64)
 	     (ice-9 ftw)
 	     (ice-9 match))
 
-;; Gets all the scheme files in the directory
 (define (get-scm-files dir)
+  "Recursively finds all the .scm files in a given directory"
   (define (find-files path found)
     (match found
       ((name stat)
@@ -43,16 +42,14 @@
     (find-files "" (file-system-tree dir)))))
 
 (define (run-coverage)
-  (call-with-values
-      (lambda _
-	(with-code-coverage
-	 (lambda _
-	   (test-with-runner
-	       (test-runner-simple)
-	     (map load-from-path (get-scm-files "tests"))))))
-    (lambda (data result)
-      (display data)
-      (let ((port (open-output-file "lcov.info")))
-	(coverage-data->lcov data port)))))
+  "Run coverage check and write the result out into the lcov.info file"
+  (define-values (data result)
+    (with-code-coverage
+     (lambda _
+       (test-with-runner
+	   (test-runner-simple)
+	 (map load-from-path (get-scm-files "tests"))))))
 
+  (let ((port (open-output-file "lcov.info")))
+    (coverage-data->lcov data port)))
 (run-coverage)
