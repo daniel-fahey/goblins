@@ -28,7 +28,9 @@
             syscaller-free-fiber
 
             spawn-fibrous-vow
-            fibrous))
+            fibrous
+
+            define-vat-run))
 
 ;; Vats
 ;; ----
