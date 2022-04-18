@@ -57,36 +57,172 @@ the latter.
 
 * Getting started
 
-** A pre-taste of Goblins
-
-This section is meant to give you an idea on what programming in
-Goblins is like, rather than actually having you walk through code.
-
-Goblins is a 
-
-
-TODO: Examples written in Wisp go here.  Then we reveal s-expression
-version.
-
 ** Installing Goblins
 
-You'll need to install =guile-goblins=.  Blah blah, use [[https://guix.gnu.org/][Guix]] or use
-your standard GNU/Linux distro or even better yet run Guix as your
-standard distro.
+You'll need to install =guile-goblins=.  Either use [[https://guix.gnu.org/][Guix]] or use your
+standard GNU/Linux distro's package for =guile-goblins= (if it exists)
+or even better yet run Guix as your standard distro.
 
-Blah blah blah, we also have tarballs, blah blah, usual
-=./configure && make && sudo make install= stuff goes here.
+See the =HACKING= and =README= files with git checkouts / release
+tarballs otherwise to install.
 
-** Hacking environment
+** Setup for hacking on Goblins
 
-TODO: Emacs emacs emacs probably, but also spacemacs mousemacs
-or someone get Guile support in Visual Studio Code or somethin'
+You're going to want/need:
+
+ - [[https://www.gnu.org/software/emacs/][GNU Emacs]]
+ - [[https://www.nongnu.org/geiser/][Geiser]], for hacking on Guile
+
+Then, at minimum, you'll want to put in your .emacs:
+
+#+BEGIN_SRC emacs-lisp
+(show-paren-mode 1)  ; Match parentheses
+#+END_SRC
+
+However you probably also want some combination of:
+
+ - [[https://github.com/Fuco1/smartparens][smartparens]] (or [[https://www.emacswiki.org/emacs/ParEdit][paredit]], which is much more strict... use
+   smartparens if uncertain)
+ - [[https://github.com/Fanael/rainbow-delimiters][rainbow-delimeters]]
+ - [[https://www.emacswiki.org/emacs/HighlightParentheses][highlight-parentheses]]
+
+Now you'll have a nice hacking setup!  Be sure to read the Geiser
+manual.
 
 * Tutorial
 
 TODO: we should port the [[https://docs.racket-lang.org/goblins/index.html][Goblins on Racket tutorial]] but simplify it
 (introduce actormaps much later, use =(goblins vrun)= to simplify
 REPL experimentation, etc).
+
+** A few goblin'y friends
+
+First, let's import Goblins:
+
+#+BEGIN_SRC scheme
+  (use-modules (goblins))
+#+END_SRC
+
+Now let us implement a friend who will greet us:
+
+#+BEGIN_SRC scheme
+(define (^greeter _bcom our-name)  ; constructor (outer procedure)
+  (lambda (your-name)              ; behavior    (inner procedure)
+    (format #f "Hello ~a, my name is ~a!"
+            your-name our-name)))
+#+END_SRC
+
+Objects/actors are instantiated with =spawn= and can be synchronously
+invoked with =$= or asynchronously invoked with =<-=.
+But in order in order to use all these, we need an event loop which
+contains objects for us to =spawn= and which can handle messages sent
+to those objects.
+
+Every Goblins actor / object has to live in a vat somewhere.
+So, let's make a vat for our new friend:
+
+#+BEGIN_SRC scheme
+  > (define-values (a-vat a-ctrl)
+      (spawn-vat))
+  ;; This will make interacting with the vat a bit easier
+  > (define-vat-run a-run a-vat)
+#+END_SRC
+
+ - vat dispatcher with methods (like in racket)
+ - *just* return the run method equivalent
+ - return two values (run method equivalent, halt)
+
+#+BEGIN_SRC scheme
+  > (a-run
+      (define alice (spawn ^greeter "Alice"))
+      ($ alice "Bob"))
+#+END_SRC
+
+EXPLAIN
+
+#+BEGIN_SRC scheme
+(define* (^cell bcom #:optional [val #f])
+  (case-lambda
+    (()         ; get
+     val)
+    ((new-val)  ; set
+     (bcom (^cell bcom new-val)))))
+#+END_SRC
+
+#+BEGIN_SRC scheme
+(use-modules (goblins actor-lib methods))
+
+(define* (^mcell bcom #:optional [val #f])
+  (methods
+   ((get)
+    val)
+   ((set new-val)
+    (bcom (^mcell bcom new-val)))))
+#+END_SRC
+
+Methods aren't particularly magical:
+
+#+BEGIN_SRC scheme
+> (methods ...)
+#+END_SRC
+
+
+#+BEGIN_SRC scheme
+(define (^cgreeter _bcom our-name)
+  (define times-called
+    (spawn ^mcell 0))
+  (methods
+   ((get-times-called)
+    ($ times-called 'get))
+   ((greet your-name)
+    ;; increase the number of times called
+    ($ times-called.set
+       (+ 1 ($ times-called 'get)))
+    (format #f "[~a] Hello ~a, my name is ~a!"
+            ($ times-called 'get)
+            your-name our-name))))
+#+END_SRC
+
+#+BEGIN_SRC scheme
+(define (^borked-cgreeter _bcom our-name)
+  (define times-called
+    (spawn ^mcell 0))
+  (methods
+   ((get-times-called)
+    ($ times-called 'get))
+   ((greet your-name)
+    (pk 'before-incr ($ times-called 'get))
+    ;; increase the number of times called
+    ($ times-called 'set
+       (+ 1 ($ times-called 'get)))
+    (pk 'after-incr ($ times-called 'get))
+    (error "Yikes")
+    (format #f "[~a] Hello ~a, my name is ~a!"
+            ($ times-called 'get)
+            your-name our-name))))
+#+END_SRC
+
+#+BEGIN_SRC wisp
+  ;; unwisp and wrap in b-vat
+  REPL> on (<- call-me 'greet)
+  _____   lambda (got-back)
+  _____     format #t "Heard back: ~a\n"
+  _____            . got-back
+  ;; Prints out, at some point in the future:
+  ;;   "Heard back: [3] Hello Lear, my name is Julius!"
+#+END_SRC
+
+[fn:hard-hats] The =^= character is conventionally prefixed on Goblins
+constructors and is called a /hard hat/, referring to the kind used by
+construction workers.
+
+** OCapN, my CapN!
+
+TODO
+
+** Promise pipelining
+
+TODO
 
 * API
 
