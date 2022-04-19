@@ -45,6 +45,11 @@
   (define (^ticker bcom current-ticked)
     (methods
      [to-tick to-tick]
+     [(get-ticked)
+      (map (match-lambda
+             (#(refr ticky)
+              refr))
+           current-ticked)]
 
      ;; This wonky looking procedure actually does the ticking.
      ;; We apply any arguments given to the tick method to all
