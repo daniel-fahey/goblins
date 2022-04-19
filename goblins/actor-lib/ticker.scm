@@ -86,7 +86,7 @@
      ;; Used for collision detection, etc.
      ;; Similar to the above but with a bit of extra overhead to build up
      ;; a value
-     [(foldr proc init #:key (include-new? #f))
+     [(foldr proc init #:key (include-new? #t))
       ;; Update set of tickers with any that have been
       ;; added since when we last ran
       (define updated-ticked
