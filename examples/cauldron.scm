@@ -191,7 +191,9 @@
        (lambda (bubble)
          (match ($ bubble 'posinfo)
            ((x y bubble-shape)
-            (addch %stdscr (color %GREEN-N (bold bubble-shape))))))
+            (addch %stdscr (color %GREEN-N (bold bubble-shape))
+                   #:x x
+                   #:y y))))
        ($ ticker 'get-ticked))
       (refresh bubble-scr)
       ))))
