@@ -79,22 +79,40 @@
                         (if ($ ticked-ticky 'dead?)
                             ;; well it wasn't dead before, but it is now
                             (lp tick-rest)
-                            ;; ok it's dead now too
+                            ;; not dead, so let's add it
                             (cons this-ticked
                                   (lp tick-rest)))))])])))
         (bcom (^ticker bcom next-tickers)))]
      ;; Used for collision detection, etc.
-     ;; Note that this does NOT end up including any updates that have
-     ;; come in within the interim, but arguably should, and also should
-     ;; probably remove dead things too.  In other words, we should
-     ;; probably merge some of this behavior with the previous method!
-     [(foldr proc init)
-      (fold-right (match-lambda*
-                    [(#(refr ticky) prev)
-                     ;; skip if dead (probably from a previous foldr)
-                     (if ($ ticky 'dead?)
-                         prev
-                         (proc refr prev))])
-                  init current-ticked)]))
+     ;; Similar to the above but with a bit of extra overhead to build up
+     ;; a value
+     [(foldr proc init #:key (include-new? #f))
+      ;; Update set of tickers with any that have been
+      ;; added since when we last ran
+      (define updated-ticked
+        (if include-new?
+            (append ($ new-ticked) current-ticked)
+            current-ticked))
+
+      (define fold-result
+        (fold-right (match-lambda*
+                      [(#(refr ticky) prev)
+                       (proc refr prev)])
+                    init current-ticked))
+
+      ;; filter out the tickers who are dead
+      (define next-tickers
+        (filter (match-lambda
+                  (#(refr ticky)
+                   (not ($ ticky 'dead?))))
+                updated-ticked))
+
+      ;; reset new-ticked
+      (when include-new?
+        ($ new-ticked '()))
+
+      ;; return result and become ticker with set of new tickers
+      (bcom (^ticker bcom next-tickers)
+            fold-result)]))  ; return fold result
 
   (spawn ^ticker '()))
