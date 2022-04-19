@@ -52,12 +52,10 @@
 (define-values (cauldron-width cauldron-height)
   (string-width-height cauldron-drawing))
 
-(define (make-string-drawing-screen str startx starty)
+(define (write-string-drawing str startx starty)
   (define-values (str-width str-height)
     (string-width-height str))
   (define str-len (string-length str))
-  (define scr
-    (newwin str-height str-width starty startx))
 
   (let lp ((pos 0)
            (row 0)
@@ -76,12 +74,11 @@
                row
                (1+ col)))
           (char
-           (addch scr (color %YELLOW-N (bold char))
-                  #:x col #:y row)
+           (addch %stdscr (color %YELLOW-N (bold char))
+                  #:x (+ startx col) #:y (+ starty row))
            (lp (1+ pos)
                row
-               (1+ col))))))
-  scr)
+               (1+ col)))))))
 
 (use-modules (goblins actor-lib methods))
 
@@ -181,11 +178,7 @@
                       (1- bubble-cooldown)))))
      ((render)
       ;; draw ourselves
-      (define cauldron-scr 
-        (make-string-drawing-screen cauldron-drawing 0 bubble-max-height))
-      (define bubble-scr
-        (newwin bubble-max-height cauldron-width 0 0))
-      (refresh cauldron-scr)
+      (write-string-drawing cauldron-drawing 0 bubble-max-height)
       ;; draw bubbles
       (for-each
        (lambda (bubble)
@@ -193,10 +186,8 @@
            ((x y bubble-shape)
             (addch %stdscr (color %GREEN-N (bold bubble-shape))
                    #:x x
-                   #:y y))))
-       ($ ticker 'get-ticked))
-      (refresh bubble-scr)
-      ))))
+                   #:y (- bubble-max-height y)))))
+       ($ ticker 'get-ticked))))))
 
 (define %am (make-actormap))
 
@@ -223,7 +214,7 @@
   'TODO)
 
 (define (render)
-  ;; (erase %stdscr)
+  (erase %stdscr)
   ($ cauldron 'render))
 
 (define (do-update)
