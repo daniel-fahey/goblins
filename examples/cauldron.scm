@@ -13,6 +13,7 @@
 (raw!)                   ; don't buffer input
 ; (keypad! %stdscr #t)     ; enable <f1>, arrow keys, etc
 (start-color!)           ; turn on colors
+(curs-set 0)             ; hide cursor
 
 ;; Here's the design:
 ;;  - Wait for either:
