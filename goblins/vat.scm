@@ -218,7 +218,7 @@ over some of the communication aspects of controlling the vat."
 (define (spawn-vat)
   (let* ((result-ch (make-channel))
          (vat-halt? (make-condition))
-         (repl-thread
+         (vat-thread
           (call-with-new-thread
            (lambda ()
              (run-fibers
@@ -226,9 +226,9 @@ over some of the communication aspects of controlling the vat."
                 (define a-vat (spawn-vat-proc))
                 (put-message result-ch a-vat)
                 (wait vat-halt?))))))
-         (repl-vat  ; vat controller procedure
+         (new-vat  ; vat controller procedure
           (get-message result-ch)))
-    repl-vat))
+    new-vat))
 
 (define-syntax define-vat-run
   (syntax-rules ()
