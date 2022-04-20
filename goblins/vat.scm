@@ -28,7 +28,9 @@
             syscaller-free-fiber
 
             spawn-fibrous-vow
-            fibrous))
+            fibrous
+
+            define-vat-run))
 
 ;; Vats
 ;; ----
@@ -187,17 +189,13 @@ you can speak to the vat."
   "Like spawn-vat-fiber except returns a convenient procedure which abstracts
 over some of the communication aspects of controlling the vat."
   (define control-ch (spawn-vat-fiber #:fibrous-io? fibrous-io?))
-  (define vat-controller
-    (match-lambda*
-      (('run thunk)
-       (define return-ch (make-channel))
-       (put-message control-ch (list 'run thunk return-ch))
-       (match (get-message return-ch)
-         (#('ok val) val)
-         (#('fail err) (raise-exception err))))
-      (('halt)
-       (put-message control-ch 'halt))))
-  vat-controller)
+  (define (vat-runner thunk)
+    (define return-ch (make-channel))
+    (put-message control-ch (list 'run thunk return-ch))
+    (match (get-message return-ch)
+      (#('ok val) val)
+      (#('fail err) (raise-exception err))))
+  vat-runner)
 
 (define (syscaller-free-fiber thunk)
   (syscaller-free
@@ -231,6 +229,19 @@ over some of the communication aspects of controlling the vat."
          (repl-vat  ; vat controller procedure
           (get-message result-ch)))
     repl-vat))
+
+(define-syntax define-vat-run
+  (syntax-rules ()
+    ((define-vat-run vat-run-id vat)
+     (begin
+       (define this-vat vat)
+       (define-syntax vat-run-id
+         (syntax-rules ::: ()
+                       ((_ body :::)
+                        (this-vat (lambda ()
+                                    body :::)))))))
+    ((define-vat-run vat-run-id)
+     (define-vat-run vat-run-id (spawn-vat)))))
 
 ;; An example to test against, wip
 #;(run-fibers

@@ -14,7 +14,7 @@
 
 (define-module (goblins)
   #:use-module (goblins core)
-  #:use-module (goblins vrun)
+  #:use-module (goblins vat)
   #:re-export (live-refr?
                local-refr?
                remote-refr?
@@ -71,4 +71,7 @@
                <<-
 
                spawn-promise-cons
-               spawn-promise-values))
+               spawn-promise-values
+
+               spawn-vat
+               define-vat-run))
