@@ -346,7 +346,7 @@ The procedure to listen to promises in Goblins is called
      (on (<- call-me 'greet)
       (lambda (got-back)
         (format #t "Heard back: ~a\n"
-                . got-back))))
+                got-back))))
   ; Prints out, at some point in the future:
   ;   "Heard back: [3] Hello Lear, my name is Julius!"
 #+END_SRC
