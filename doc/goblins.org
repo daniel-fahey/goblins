@@ -266,7 +266,7 @@ Here is the definition of a "counting greeter" we call =^cgreeter=:
     ($ times-called 'get))
    ((greet your-name)
     ;; increase the number of times called
-    ($ times-called.set
+    ($ times-called 'set
        (+ 1 ($ times-called 'get)))
     (format #f "[~a] Hello ~a, my name is ~a!"
             ($ times-called 'get)
