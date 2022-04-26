@@ -186,10 +186,10 @@ Taking things out and putting them back in is easy:
 #+BEGIN_SRC scheme
   > (define chest
       (a-run (spawn ^cell "sword")))
-  > (a-run ($ chest 'get))
+  > (a-run ($ chest))
   ; => "sword"
-  > (a-run ($ chest 'set "gold"))
-  > (a-run ($ chest 'get))
+  > (a-run ($ chest "gold"))
+  > (a-run ($ chest))
   ; => "gold" 
 #+END_SRC
 
