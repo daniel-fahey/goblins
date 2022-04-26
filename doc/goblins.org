@@ -95,7 +95,7 @@ TODO: we should port the [[https://docs.racket-lang.org/goblins/index.html][Gobl
 (introduce actormaps much later, use =(goblins vrun)= to simplify
 REPL experimentation, etc).
 
-** A few goblin'y friends
+** A simple greeter
 
 First, let's import Goblins:
 
@@ -103,42 +103,66 @@ First, let's import Goblins:
   (use-modules (goblins))
 #+END_SRC
 
-Now let us implement a friend who will greet us:
-
-#+BEGIN_SRC scheme
-(define (^greeter _bcom our-name)  ; constructor (outer procedure)
-  (lambda (your-name)              ; behavior    (inner procedure)
-    (format #f "Hello ~a, my name is ~a!"
-            your-name our-name)))
-#+END_SRC
-
-Objects/actors are instantiated with =spawn= and can be synchronously
-invoked with =$= or asynchronously invoked with =<-=.
-But in order in order to use all these, we need an event loop which
-contains objects for us to =spawn= and which can handle messages sent
-to those objects.
-
 Every Goblins actor / object has to live in a vat somewhere.
-So, let's make a vat for our new friend:
+So, let's make a vat to play around with:
 
 #+BEGIN_SRC scheme
-  > (define-values (a-vat a-ctrl)
+  > (define a-vat
       (spawn-vat))
   ;; This will make interacting with the vat a bit easier
   > (define-vat-run a-run a-vat)
 #+END_SRC
 
- - vat dispatcher with methods (like in racket)
- - *just* return the run method equivalent
- - return two values (run method equivalent, halt)
+Objects/actors are instantiated with =spawn= and can be synchronously
+invoked with =$= or asynchronously invoked with =<-=.
+All of these operations need to operate within a Goblins-aware context,
+and so =a-run= "bootstraps" some code within the vat.
+
+Now let us implement a friend who will greet us:
 
 #+BEGIN_SRC scheme
-  > (a-run
-      (define alice (spawn ^greeter "Alice"))
-      ($ alice "Bob"))
+(define (^greeter bcom our-name)   ; constructor (outer procedure)
+  (lambda (your-name)              ; behavior    (inner procedure)
+    (format #f "Hello ~a, my name is ~a!"
+            your-name our-name)))
 #+END_SRC
 
-EXPLAIN
+Let's give it a try by instantiating an instance of =^greeter= using
+=spawn= and assign her to the variable =alice=:
+
+#+BEGIN_SRC scheme
+ > (define alice
+     (a-run (spawn ^greeter "Alice")))
+#+END_SRC
+
+The first argument to =spawn= is the constructor we will use to make
+our Goblins object, in this case =^greeter=.
+The remaining arguments will be passed to the constructor,
+along with an implicit argument which can be used to change object
+behavior called =bcom= (pronounced "become").
+Thus ="Alice"= maps to =our-name=.
+
+We can invoke =alice= by using =$= for a synchronous call-return
+operation:
+
+#+BEGIN_SRC scheme
+ > (a-run ($ alice "Alfred"))
+ ; => "Hello Alfred, my name is Alice!"
+#+END_SRC
+
+The first argument to =$= is the object to be invoked, the remaining
+arguments are passed to the "behavior" of the object.
+Thus =your-name= in =^greeter='s behavior procedure is bound to
+="Bob"=.
+The behavior procedure thus proceeds with formatting and returning the
+greeting string.
+
+** State as updating behavior
+
+Let's introduce a simple cell which stores a value.
+This cell will have two methods:
+='get= retrieves the current value, and ='set= replaces
+the current value with a new value.
 
 #+BEGIN_SRC scheme
 (define* (^cell bcom #:optional [val #f])
@@ -148,6 +172,37 @@ EXPLAIN
     ((new-val)  ; set
      (bcom (^cell bcom new-val)))))
 #+END_SRC
+
+=case-lambda= allows for dispatching depending on the number of
+arguments, so here we're choosing that if no arguments are provided,
+our cell shares the current value, and if one argument is provided,
+the cell updates itself to become a cell storing the new value.
+
+Let's try it.
+Cells hold values, and so do treasure chests, so let's make
+a treasure chest flavored cell.
+Taking things out and putting them back in is easy:
+
+#+BEGIN_SRC scheme
+  > (define chest
+      (a-run (spawn ^cell "sword")))
+  > (a-run ($ chest 'get))
+  ; => "sword"
+  > (a-run ($ chest 'set "gold"))
+  > (a-run ($ chest 'get))
+  ; => "gold" 
+#+END_SRC
+
+Now we can see what =bcom= is: a capability specific to this object
+instance which allows it to change its behavior!
+(For this reason, =bcom= is pronounced "become"!)
+
+** Methods aren't essential, but they are useful
+
+The most common way to select different sub-behaviors isn't by the
+number of arguments though.
+It's much more common to have "methods" that are selected by name.
+We can use the =methods= macro to do just that:
 
 #+BEGIN_SRC scheme
 (use-modules (goblins actor-lib methods))
@@ -160,12 +215,47 @@ EXPLAIN
     (bcom (^mcell bcom new-val)))))
 #+END_SRC
 
-Methods aren't particularly magical:
+The use of =^mcell= is similar, but now we pass in a first argument
+as a symbol selecting the method, and the rest of the arguments are
+passed to the object:
 
 #+BEGIN_SRC scheme
-> (methods ...)
+  > (define jar
+      (a-run (spawn ^mcell "cookies")))
+  > (a-run ($ jar 'get))
+  ; => "cookies"
+  > (a-run ($ jar 'set "crumbs"))  
+  > (a-run ($ jar 'get))
+  ; => "crumbs"
 #+END_SRC
 
+Methods aren't particularly magical... the =methods= macro just
+returns a procedure which is convenient to use for procedure dispatch:
+
+#+BEGIN_SRC scheme
+  > (define foo-or-bar
+      (methods
+       ((foo)
+        'called-foo)
+       ((bar arg)
+        (list 'called-bar-with arg))))
+  > (foo-or-bar 'foo)
+  ; => called-foo
+  > (foo-or-bar 'bar "meep")
+  ; => (called-bar-with "meep")
+#+END_SRC
+
+So really, =methods= just makes a particularly useful kind of
+behavior procedure for us, one which takes a first argument for
+the method name, grabs the rest of the arguments, and then applies
+them to the relevant method.
+
+** Objects which contain objects
+
+Objects can also contain and define other object references, including
+in their outer constructor procedure.
+
+Here is the definition of a "counting greeter" we call =^cgreeter=:
 
 #+BEGIN_SRC scheme
 (define (^cgreeter _bcom our-name)
@@ -183,38 +273,300 @@ Methods aren't particularly magical:
             your-name our-name))))
 #+END_SRC
 
+As we can see near the top, =times-called= is instantiated as an
+=^cell= like the one we defined earlier.
+The current value of this cell is returned by =get-times-called=
+and is updated every time the =greet= method is called:
+
 #+BEGIN_SRC scheme
-(define (^borked-cgreeter _bcom our-name)
-  (define times-called
-    (spawn ^mcell 0))
-  (methods
-   ((get-times-called)
-    ($ times-called 'get))
-   ((greet your-name)
-    (pk 'before-incr ($ times-called 'get))
-    ;; increase the number of times called
-    ($ times-called 'set
-       (+ 1 ($ times-called 'get)))
-    (pk 'after-incr ($ times-called 'get))
-    (error "Yikes")
-    (format #f "[~a] Hello ~a, my name is ~a!"
-            ($ times-called 'get)
-            your-name our-name))))
+  > (define julius
+      (a-run (spawn ^cgreeter "Julius")))
+  > (a-run ($ julius 'get-times-called))
+  ; => 0
+  > (a-run ($ julius 'greet "Gaius"))
+  ; => "[1] Hello Gaius, my name is Julius!"
+  > (a-run ($ julius 'greet "Brutus"))
+  ; => "[2] Hello Brutus, my name is Julius!"
+  > (a-run ($ julius 'get-times-called))
+  ; => 2
 #+END_SRC
+
+*** Asynchronous message passing
+
+We have shown that the behavior of objects may be invoked
+synchronously with =$=.
+However, this only works if two objects are both defined on the same
+machine on the network and the same event loop within that machine.
+
+To demonstrate this, let's create a new vat, =b-vat= (as well as a
+=b-run= to make REPL examples a bit easier to demonstrate):
+
+#+BEGIN_SRC scheme
+  > (define b-vat
+      (spawn-vat))
+  > (define-vat-run b-run b-vat)
+#+END_SRC
+
+Now, recall our friend =alice= who we defined on vat A.
+The following works just fine:
+
+#+BEGIN_SRC scheme
+ > (a-run ($ alice "Alfred"))
+ ; => "Hello Alfred, my name is Alice!"
+#+END_SRC
+
+But since Alice works on A, we cannot synchronously invoke her with
+=$= on vat B:
+
+#+BEGIN_SRC scheme
+> (b-run ($ alice "Bob"))
+;; === Caught error: ===
+;;  message: #<<message> to: #<local-object> resolve-me: #f args: ()>
+;;  exception: ... "Not in the same vat: ~a" #<local-object ^greeter>) ...
+#+END_SRC
+
+
+This is where =<-= comes in.
+In contrast to =$=, =<-= can be used against objects which live
+anywhere, even on remote machines.
+However, unlike invocation with =$=, we do not get back an
+immediate result, we get a promise:
+
+#+BEGIN_SRC scheme
+> (a-run (<- julius 'greet "Lear"))
+; => #<promise>
+#+END_SRC
+
+This promise must be listened to.
+The procedure to listen to promises in Goblins is called
+=on=:
+
+#+BEGIN_SRC scheme
+  > (a-run
+     (on (<- call-me 'greet)
+      (lambda (got-back)
+        (format #t "Heard back: ~a\n"
+                . got-back))))
+  ; Prints out, at some point in the future:
+  ;   "Heard back: [3] Hello Lear, my name is Julius!"
+#+END_SRC
+
+Not all communication goes as planned, especially in a distributed
+system.
+=on= also supports the keyword arguments of =#:catch= and =#:finally=,
+which both accept a procedure defining handling errors in the former case
+and code which will run regardless of successful resolution or failure
+in the latter case:
+
+#+BEGIN_SRC scheme
+  > (define (^broken-bob _bcom)
+      (lambda ()
+        (error "Yikes, I broke!")))
+  > (define broken-bob
+      (spawn ^broken-bob))
+  > (on (<- broken-bob)
+      (lambda (what-did-bob-say)
+        (format #t "Bob says: ~a\n" what-did-bob-say))
+      #:catch
+      (lambda (err)
+        (format #t "Got an error: ~a\n" err))
+      #:finally
+      (lambda ()
+        (display "Whew, it's over!\n")))
+#+END_SRC
+
+# *TODO:* This is the worst looking example in the entire paper.  Wisp
+# could learn a thing or two from Wraith and treat keywords as always
+# /not/ being parenthesized subexpressions.  (Even Wisp's primary author
+# agreed that this was one area Wraith improved over Wisp.)  We might
+# want to make our own variant of Wisp for this document before the
+# final version.
+
+*** Transactions make errors survivable
+
+Mistakes happen, and when they do, we'd like damage to be minimal.
+But with many moving parts, accomplishing this can be difficult.
+
+However, Goblins makes our life easier.
+To see how, let's intentionally insert a couple of print debugging
+lines (with =pk=, which is pronounced and means "peek")
+and then an error:
+
+#+BEGIN_SRC scheme
+  (define (^borked-cgreeter _bcom our-name)
+    (define times-called
+      (spawn ^cell 0))
+    (methods
+      ((get-times-called)
+       ($ times-called 'get))
+      ((greet your-name)
+       (pk 'before-incr : $ times-called 'get)
+       ;; increase the number of times called
+       ($ times-called 'set
+          (+ 1 ($ times-called 'get)))
+       (pk 'after-incr : $ times-called 'get)
+       (error "Yikes")
+       (format #f "[~a] Hello ~a, my name is ~a!"
+               ($ times-called 'get)
+               your-name our-name))))
+#+END_SRC
+
+Now let's spawn this friend and invoke it:
+
+#+BEGIN_SRC scheme
+  > (define horatio
+      (spawn ^borked-cgreeter "Horatio"))
+  > ($ horatio 'get-times-called)
+  ; => 0
+  > ($ horatio 'greet "Hamlet")
+  ; pk debug: (before-incr 0)
+  ; pk debug: (after-incr 1)
+  ; ice-9/boot-9.scm:1685:16: In procedure raise-exception:
+  ;   Yikes
+  ; Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
+#+END_SRC
+
+Whoops!  Looks like something went wrong!
+We can see from the =pk= debugging that the =times-called= cell should
+be incremented to 1.
+And yet...
+
+#+BEGIN_SRC scheme
+> ($ horatio 'get-times-called)
+; => 0
+#+END_SRC
+
+We will cover this in greater detail later, but the core idea here
+is that synchronous operations run with =$= are all done together
+as one transaction.
+If an unhandled error occurs, any state changes resulting from
+synchronous operations within that transaction will simply not
+be committed.
+This is useful, because it means most otherwise difficult cleanup
+steps are handled automatically.
+
+*** Promise pipelining
+
+#+BEGIN_QUOTE
+  "Machines grow faster and memories grow larger.
+  But the speed of light is constant and New York is not getting any
+  closer to Tokyo."
+
+   --- Mark S. Miller,
+       [[http://www.erights.org/talks/thesis/][Robust Composition: Towards a Unified Approach to Access Control and Concurrency Control]]
+#+END_QUOTE
+
+Promise pipelining provides two different features at once:
+
+ - A convenient developer interface for describing a series of
+   asynchronous actions, allowing for invoking the objects which
+   promises will point to before they are even resolved (sometimes
+   before the objects even exist!)
+ - A network abstraction that eliminates many round trips
+
+Consider the following car factory, which makes cars carrying
+the company name of the factory:
+
+#+BEGIN_SRC scheme
+  ;; Create a "car factory", which makes cars branded with
+  ;; company-name.
+  define (^car-factory bcom company-name)
+    ;; The constructor for cars we will create.
+    define (^car bcom model color)
+      methods                      ; methods for the ^car
+        (drive)                    ; drive the car
+          format "*Vroom vroom!*  You drive your ~a ~a ~a!"
+                 . color company-name model
+    ;; methods for the ^car-factory instance
+    methods                        ; methods for the ^car-factory
+      (make-car model color)       ; create a car
+        spawn ^car model color
+#+END_SRC
+
+Here is an instance of this car factory, which we will call
+=fork-motors=:
 
 #+BEGIN_SRC wisp
-  ;; unwisp and wrap in b-vat
-  REPL> on (<- call-me 'greet)
-  _____   lambda (got-back)
-  _____     format #t "Heard back: ~a\n"
-  _____            . got-back
-  ;; Prints out, at some point in the future:
-  ;;   "Heard back: [3] Hello Lear, my name is Julius!"
+  ;; Interaction on machine A
+  REPL> define fork-motors
+  _____   spawn ^car-factory "Fork"
 #+END_SRC
 
-[fn:hard-hats] The =^= character is conventionally prefixed on Goblins
-constructors and is called a /hard hat/, referring to the kind used by
-construction workers.
+Since asynchronous message passing with =<-= works across machines,
+it does not matter whether interacitons with =fork-motors are local
+or via objects communicating over the network.
+We will treat =fork-motors= as living on machine A, and so the
+following interactions will happen with invocations originating from
+machine B.
+
+Let's send a message to =fork-motors= invoking the ='make-car= method,
+receiving back a promise for the car which will be made, which we
+shall name =car-vow= (=-vow= being the conventional suffix given
+for promises in Goblins):
+
+#+BEGIN_SRC wisp
+  ;; Interaction on machine B, communicating with fork-motors on A
+  REPL> define car-vow
+  _____   <- fork-motors 'make-car "Explorist" "blue"
+#+END_SRC
+
+
+So we have a /promise/ to a future car reference, but not the
+reference itself.
+We would like to drive the car as soon as it rolls off the lot of the
+factory, which of course involves sending a message to the car.
+
+Without promise pipelining, making use of the tools we have already
+shown (and following the pattern most other distributed programming
+systems use), we would end up with something like:
+
+#+BEGIN_SRC wisp
+  ;; Interaction on machine B, communicating with A
+  REPL> on car-vow                  ; B->A: first resolve the car-vow
+  _____   lambda (our-car)          ; A->B: car-vow resolved as our-car
+  _____     on (<- our-car 'drive)  ; B->A: now we can message our-car
+  _____       lambda (val)          ; A->B: result of that message
+  _____         format #f "Heard: ~a\n" val
+#+END_SRC
+
+With promise pipelining, we can simply message the promise of the car
+directly.
+The first benefit can be observed from code compactness, in that
+we do not need to do an =on= of =car-vow= to later message =our-car=,
+we can simply message =car-vow= directly:
+
+#+BEGIN_SRC wisp
+  ;; Interaction on machine B, communicating with A
+  REPL> on (<- car-vow 'drive)     ; B->A: send message to future car
+  _____   lambda (val)             ; A->B: result of that message
+  _____     format #f "Heard: ~a\n" val
+#+END_SRC
+
+While clearly a considerable programming convenience, the other
+advantage of promise pipelining is a reduction of round-trips, whether
+between our event-loop /vats/ or across machines on the network.
+
+This can be understood by looking at the comments to the right of the
+two above code interactions.  The message flow in the first case looks
+like:
+
+: B => A => B => A => B
+
+The message flow in the second case looks like:
+
+: B => A => B
+
+In other words, machine B can say to machine A: "Make me a car,
+and as soon as that car is ready, I want to drive it!"
+
+With this in mind, the promise behind Mark Miller's quote at the
+beginning of this section is clear.[fn:thanks-to-e]
+If two objects are on opposite ends of the planet, round trips
+are unavoidably expensive.
+Promise pipelining both allows us to make plans as programmers
+and allows for Goblins to optimize carrying out those steps as
+bulk operations over the network.
+
 
 ** OCapN, my CapN!
 
