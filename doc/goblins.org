@@ -325,7 +325,6 @@ But since Alice works on A, we cannot synchronously invoke her with
 ;;  exception: ... "Not in the same vat: ~a" #<local-object ^greeter>) ...
 #+END_SRC
 
-
 This is where =<-= comes in.
 In contrast to =$=, =<-= can be used against objects which live
 anywhere, even on remote machines.
@@ -333,7 +332,7 @@ However, unlike invocation with =$=, we do not get back an
 immediate result, we get a promise:
 
 #+BEGIN_SRC scheme
-> (a-run (<- julius 'greet "Lear"))
+> (b-run (<- alice "Bob"))
 ; => #<promise>
 #+END_SRC
 
@@ -343,12 +342,12 @@ The procedure to listen to promises in Goblins is called
 
 #+BEGIN_SRC scheme
   > (a-run
-     (on (<- call-me 'greet)
+     (on (<- alice "Bob")
       (lambda (got-back)
         (format #t "Heard back: ~a\n"
                 got-back))))
   ; Prints out, at some point in the future:
-  ;   "Heard back: [3] Hello Lear, my name is Julius!"
+  ;   "Heard back: [3] Hello Bob, my name is Alice!"
 #+END_SRC
 
 Not all communication goes as planned, especially in a distributed
@@ -359,28 +358,22 @@ and code which will run regardless of successful resolution or failure
 in the latter case:
 
 #+BEGIN_SRC scheme
-  > (define (^broken-bob _bcom)
+  > (define (^broken-ben _bcom)
       (lambda ()
         (error "Yikes, I broke!")))
-  > (define broken-bob
-      (spawn ^broken-bob))
-  > (on (<- broken-bob)
-      (lambda (what-did-bob-say)
-        (format #t "Bob says: ~a\n" what-did-bob-say))
-      #:catch
-      (lambda (err)
-        (format #t "Got an error: ~a\n" err))
-      #:finally
-      (lambda ()
-        (display "Whew, it's over!\n")))
+  > (define broken-ben
+      (b-run (spawn ^broken-ben)))
+  > (a-run
+     (on (<- broken-ben)
+         (lambda (what-did-ben-say)
+           (format #t "Ben says: ~a\n" what-did-ben-say))
+         #:catch
+         (lambda (err)
+           (format #t "Got an error: ~a\n" err))
+         #:finally
+         (lambda ()
+           (display "Whew, it's over!\n")))
 #+END_SRC
-
-# *TODO:* This is the worst looking example in the entire paper.  Wisp
-# could learn a thing or two from Wraith and treat keywords as always
-# /not/ being parenthesized subexpressions.  (Even Wisp's primary author
-# agreed that this was one area Wraith improved over Wisp.)  We might
-# want to make our own variant of Wisp for this document before the
-# final version.
 
 *** Transactions make errors survivable
 
@@ -415,10 +408,10 @@ Now let's spawn this friend and invoke it:
 
 #+BEGIN_SRC scheme
   > (define horatio
-      (spawn ^borked-cgreeter "Horatio"))
-  > ($ horatio 'get-times-called)
+      (a-run (spawn ^borked-cgreeter "Horatio")))
+  > (a-run ($ horatio 'get-times-called))
   ; => 0
-  > ($ horatio 'greet "Hamlet")
+  > (a-run ($ horatio 'greet "Hamlet"))
   ; pk debug: (before-incr 0)
   ; pk debug: (after-incr 1)
   ; ice-9/boot-9.scm:1685:16: In procedure raise-exception:
@@ -432,7 +425,7 @@ be incremented to 1.
 And yet...
 
 #+BEGIN_SRC scheme
-> ($ horatio 'get-times-called)
+> (a-run ($ horatio 'get-times-called))
 ; => 0
 #+END_SRC
 
