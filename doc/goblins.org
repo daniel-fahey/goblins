@@ -560,6 +560,14 @@ Promise pipelining both allows us to make plans as programmers
 and allows for Goblins to optimize carrying out those steps as
 bulk operations over the network.
 
+[fn:thanks-to-e] Like so many examples in this document, the designs
+of promise pipelining and the explanation of its value come from the E
+programming language, the many contributors to its design, and Mark
+S. Miller's extraordinary work documenting that work and its history.
+If you find this section interesting, both the the [[http://www.erights.org/elib/distrib/pipeline.html][Promise Pipelining]]
+page from [[http://erights.org][erights.org]] and sections 2.5 and 16.2 of
+[[http://www.erights.org/talks/thesis/markm-thesis.pdf][Mark Miller's dissertation]].
+
 ** OCapN, my CapN!
 
 TODO
