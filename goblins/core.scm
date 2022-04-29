@@ -2108,7 +2108,8 @@
   (define (near-msg? msg)
     (define to-refr (message-or-request-to msg))
     (and (local-refr? to-refr)
-         (eq? (local-refr-vat-connector to-refr))))
+         (eq? (local-refr-vat-connector to-refr)
+              this-vat-connector)))
   ;; Used for both filling the initial queue and after
   ;; each turn... also used to queue up the messages to be
   ;; sent externally
