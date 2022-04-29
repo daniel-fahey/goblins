@@ -404,10 +404,10 @@
   (data actormap-data)
   (vat-connector actormap-vat-connector))
 
-(set-record-type-printer!
- <actormap>
- (lambda (am port)
-   (format port "#<actormap ~a>" (actormap-metatype-name (actormap-metatype am)))))
+;; (set-record-type-printer!
+;;  <actormap>
+;;  (lambda (am port)
+;;    (format port "#<actormap ~a>" (actormap-metatype-name (actormap-metatype am)))))
 
 (define-record-type <actormap-metatype>
   (make-actormap-metatype name ref-proc set!-proc)
