@@ -47,6 +47,7 @@ of the library!")
                (directory
                  "actor-lib"
                  ((scheme-file "methods")
+                  (scheme-file "ticker")
                   (scheme-file "nonce-registry")
                   (scheme-file "cell")
                   (scheme-file "common")
@@ -64,7 +65,8 @@ of the library!")
                       ((scheme-file "test-bytes-stuff")))
                     (directory
                       "actor-lib"
-                      ((scheme-file "test-ward")
+                      ((scheme-file "test-ticker")
+                       (scheme-file "test-ward")
                        (scheme-file "test-common")
                        (scheme-file "test-swappable")
                        (scheme-file "test-cell")))
