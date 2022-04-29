@@ -33,9 +33,19 @@ This is the manual for @uref{https://spritelyproject.org/#goblins, Spritely Gobl
 
 Getting started
 
-* A pre-taste of Goblins::
 * Installing Goblins::
-* Hacking environment::
+* Setup for hacking on Goblins::
+
+Tutorial
+
+* A simple greeter::
+* State as updating behavior::
+* Methods aren't essential, but they are useful: Methods aren't essential but they are useful. 
+* Objects which contain objects::
+* Asynchronous message passing::
+* Transactions make errors survivable::
+* Promise pipelining::
+* OCapN, my CapN@!: OCapN my CapN@!. 
 
 API
 
@@ -45,7 +55,7 @@ Objects and behavior
 
 * Spawning objects::
 * Synchronous calls::
-* Asynchronous message passing::
+* Asynchronous message passing: Asynchronous message passing (1). 
 
 @end detailmenu
 @end menu
@@ -115,38 +125,52 @@ most of which applies to the Guile version too.
 @chapter Getting started
 
 @menu
-* A pre-taste of Goblins::
 * Installing Goblins::
-* Hacking environment::
+* Setup for hacking on Goblins::
 @end menu
-
-@node A pre-taste of Goblins
-@section A pre-taste of Goblins
-
-This section is meant to give you an idea on what programming in
-Goblins is like, rather than actually having you walk through code.
-
-Goblins is a 
-
-
-TODO: Examples written in Wisp go here.  Then we reveal s-expression
-version.
 
 @node Installing Goblins
 @section Installing Goblins
 
-You'll need to install @samp{guile-goblins}.  Blah blah, use @uref{https://guix.gnu.org/, Guix} or use
-your standard GNU/Linux distro or even better yet run Guix as your
-standard distro.
+You'll need to install @samp{guile-goblins}.  Either use @uref{https://guix.gnu.org/, Guix} or use your
+standard GNU/Linux distro's package for @samp{guile-goblins} (if it exists)
+or even better yet run Guix as your standard distro.
 
-Blah blah blah, we also have tarballs, blah blah, usual
-@samp{./configure && make && sudo make install} stuff goes here.
+See the @samp{HACKING} and @samp{README} files with git checkouts / release
+tarballs otherwise to install.
 
-@node Hacking environment
-@section Hacking environment
+@node Setup for hacking on Goblins
+@section Setup for hacking on Goblins
 
-TODO: Emacs emacs emacs probably, but also spacemacs mousemacs
-or someone get Guile support in Visual Studio Code or somethin'
+You're going to want/need:
+
+@itemize
+@item
+@uref{https://www.gnu.org/software/emacs/, GNU Emacs}
+@item
+@uref{https://www.nongnu.org/geiser/, Geiser}, for hacking on Guile
+@end itemize
+
+Then, at minimum, you'll want to put in your .emacs:
+
+@lisp
+(show-paren-mode 1)  ; Match parentheses
+@end lisp
+
+However you probably also want some combination of:
+
+@itemize
+@item
+@uref{https://github.com/Fuco1/smartparens, smartparens} (or @uref{https://www.emacswiki.org/emacs/ParEdit, paredit}, which is much more strict@dots{} use
+smartparens if uncertain)
+@item
+@uref{https://github.com/Fanael/rainbow-delimiters, rainbow-delimeters}
+@item
+@uref{https://www.emacswiki.org/emacs/HighlightParentheses, highlight-parentheses}
+@end itemize
+
+Now you'll have a nice hacking setup!  Be sure to read the Geiser
+manual.
 
 @node Tutorial
 @chapter Tutorial
@@ -154,6 +178,511 @@ or someone get Guile support in Visual Studio Code or somethin'
 TODO: we should port the @uref{https://docs.racket-lang.org/goblins/index.html, Goblins on Racket tutorial} but simplify it
 (introduce actormaps much later, use @samp{(goblins vrun)} to simplify
 REPL experimentation, etc).
+
+@menu
+* A simple greeter::
+* State as updating behavior::
+* Methods aren't essential, but they are useful: Methods aren't essential but they are useful. 
+* Objects which contain objects::
+* Asynchronous message passing::
+* Transactions make errors survivable::
+* Promise pipelining::
+* OCapN, my CapN@!: OCapN my CapN@!. 
+@end menu
+
+@node A simple greeter
+@section A simple greeter
+
+First, let's import Goblins:
+
+@example
+(use-modules (goblins))
+@end example
+
+Every Goblins actor / object has to live in a vat somewhere.
+So, let's make a vat to play around with:
+
+@example
+> (define a-vat
+    (spawn-vat))
+;; This will make interacting with the vat a bit easier
+> (define-vat-run a-run a-vat)
+@end example
+
+Objects/actors are instantiated with @samp{spawn} and can be synchronously
+invoked with @samp{$} or asynchronously invoked with @samp{<-}.
+All of these operations need to operate within a Goblins-aware context,
+and so @samp{a-run} "bootstraps" some code within the vat.
+
+Now let us implement a friend who will greet us:
+
+@example
+(define (^greeter bcom our-name)   ; constructor (outer procedure)
+  (lambda (your-name)              ; behavior    (inner procedure)
+    (format #f "Hello ~a, my name is ~a!"
+            your-name our-name)))
+@end example
+
+Let's give it a try by instantiating an instance of @samp{^greeter} using
+@samp{spawn} and assign her to the variable @samp{alice}:
+
+@example
+> (define alice
+    (a-run (spawn ^greeter "Alice")))
+@end example
+
+The first argument to @samp{spawn} is the constructor we will use to make
+our Goblins object, in this case @samp{^greeter}.
+The remaining arguments will be passed to the constructor,
+along with an implicit argument which can be used to change object
+behavior called @samp{bcom} (pronounced "become").
+Thus @samp{"Alice"} maps to @samp{our-name}.
+
+We can invoke @samp{alice} by using @samp{$} for a synchronous call-return
+operation:
+
+@example
+> (a-run ($ alice "Alfred"))
+; => "Hello Alfred, my name is Alice!"
+@end example
+
+The first argument to @samp{$} is the object to be invoked, the remaining
+arguments are passed to the "behavior" of the object.
+Thus @samp{your-name} in @samp{^greeter}'s behavior procedure is bound to
+@samp{"Bob"}.
+The behavior procedure thus proceeds with formatting and returning the
+greeting string.
+
+@node State as updating behavior
+@section State as updating behavior
+
+Let's introduce a simple cell which stores a value.
+This cell will have two methods:
+@samp{'get} retrieves the current value, and @samp{'set} replaces
+the current value with a new value.
+
+@example
+(define* (^cell bcom #:optional [val #f])
+  (case-lambda
+    (()         ; get
+     val)
+    ((new-val)  ; set
+     (bcom (^cell bcom new-val)))))
+@end example
+
+@samp{case-lambda} allows for dispatching depending on the number of
+arguments, so here we're choosing that if no arguments are provided,
+our cell shares the current value, and if one argument is provided,
+the cell updates itself to become a cell storing the new value.
+
+Let's try it.
+Cells hold values, and so do treasure chests, so let's make
+a treasure chest flavored cell.
+Taking things out and putting them back in is easy:
+
+@example
+> (define chest
+    (a-run (spawn ^cell "sword")))
+> (a-run ($ chest))
+; => "sword"
+> (a-run ($ chest "gold"))
+> (a-run ($ chest))
+; => "gold" 
+@end example
+
+Now we can see what @samp{bcom} is: a capability specific to this object
+instance which allows it to change its behavior!
+(For this reason, @samp{bcom} is pronounced "become"!)
+
+@node Methods aren't essential but they are useful
+@section Methods aren't essential, but they are useful
+
+The most common way to select different sub-behaviors isn't by the
+number of arguments though.
+It's much more common to have "methods" that are selected by name.
+We can use the @samp{methods} macro to do just that:
+
+@example
+(use-modules (goblins actor-lib methods))
+
+(define* (^mcell bcom #:optional [val #f])
+  (methods
+   ((get)
+    val)
+   ((set new-val)
+    (bcom (^mcell bcom new-val)))))
+@end example
+
+The use of @samp{^mcell} is similar, but now we pass in a first argument
+as a symbol selecting the method, and the rest of the arguments are
+passed to the object:
+
+@example
+> (define jar
+    (a-run (spawn ^mcell "cookies")))
+> (a-run ($ jar 'get))
+; => "cookies"
+> (a-run ($ jar 'set "crumbs"))  
+> (a-run ($ jar 'get))
+; => "crumbs"
+@end example
+
+Methods aren't particularly magical@dots{} the @samp{methods} macro just
+returns a procedure which is convenient to use for procedure dispatch:
+
+@example
+> (define foo-or-bar
+    (methods
+     ((foo)
+      'called-foo)
+     ((bar arg)
+      (list 'called-bar-with arg))))
+> (foo-or-bar 'foo)
+; => called-foo
+> (foo-or-bar 'bar "meep")
+; => (called-bar-with "meep")
+@end example
+
+So really, @samp{methods} just makes a particularly useful kind of
+behavior procedure for us, one which takes a first argument for
+the method name, grabs the rest of the arguments, and then applies
+them to the relevant method.
+
+@node Objects which contain objects
+@section Objects which contain objects
+
+Objects can also contain and define other object references, including
+in their outer constructor procedure.
+
+Here is the definition of a "counting greeter" we call @samp{^cgreeter}:
+
+@example
+(define (^cgreeter _bcom our-name)
+  (define times-called
+    (spawn ^mcell 0))
+  (methods
+   ((get-times-called)
+    ($ times-called 'get))
+   ((greet your-name)
+    ;; increase the number of times called
+    ($ times-called 'set
+       (+ 1 ($ times-called 'get)))
+    (format #f "[~a] Hello ~a, my name is ~a!"
+            ($ times-called 'get)
+            your-name our-name))))
+@end example
+
+As we can see near the top, @samp{times-called} is instantiated as an
+@samp{^cell} like the one we defined earlier.
+The current value of this cell is returned by @samp{get-times-called}
+and is updated every time the @samp{greet} method is called:
+
+@example
+> (define julius
+    (a-run (spawn ^cgreeter "Julius")))
+> (a-run ($ julius 'get-times-called))
+; => 0
+> (a-run ($ julius 'greet "Gaius"))
+; => "[1] Hello Gaius, my name is Julius!"
+> (a-run ($ julius 'greet "Brutus"))
+; => "[2] Hello Brutus, my name is Julius!"
+> (a-run ($ julius 'get-times-called))
+; => 2
+@end example
+
+@node Asynchronous message passing
+@section Asynchronous message passing
+
+We have shown that the behavior of objects may be invoked
+synchronously with @samp{$}.
+However, this only works if two objects are both defined on the same
+machine on the network and the same event loop within that machine.
+
+To demonstrate this, let's create a new vat, @samp{b-vat} (as well as a
+@samp{b-run} to make REPL examples a bit easier to demonstrate):
+
+@example
+> (define b-vat
+    (spawn-vat))
+> (define-vat-run b-run b-vat)
+@end example
+
+Now, recall our friend @samp{alice} who we defined on vat A@.
+The following works just fine:
+
+@example
+> (a-run ($ alice "Alfred"))
+; => "Hello Alfred, my name is Alice!"
+@end example
+
+But since Alice works on A, we cannot synchronously invoke her with
+@samp{$} on vat B:
+
+@example
+> (b-run ($ alice "Bob"))
+;; === Caught error: ===
+;;  message: #<<message> to: #<local-object> resolve-me: #f args: ()>
+;;  exception: ... "Not in the same vat: ~a" #<local-object ^greeter>) ...
+@end example
+
+This is where @samp{<-} comes in.
+In contrast to @samp{$}, @samp{<-} can be used against objects which live
+anywhere, even on remote machines.
+However, unlike invocation with @samp{$}, we do not get back an
+immediate result, we get a promise:
+
+@example
+> (b-run (<- alice "Bob"))
+; => #<promise>
+@end example
+
+This promise must be listened to.
+The procedure to listen to promises in Goblins is called
+@samp{on}:
+
+@example
+> (b-run
+   (on (<- alice "Bob")
+     (lambda (got-back)
+       (format #t "Heard back: ~a\n"
+               got-back))))
+; Prints out, at some point in the future:
+;   "Heard back: [3] Hello Bob, my name is Alice!"
+@end example
+
+Not all communication goes as planned, especially in a distributed
+system.
+@samp{on} also supports the keyword arguments of @samp{#:catch} and @samp{#:finally},
+which both accept a procedure defining handling errors in the former case
+and code which will run regardless of successful resolution or failure
+in the latter case:
+
+@example
+> (define (^broken-ben _bcom)
+    (lambda ()
+      (error "Yikes, I broke!")))
+> (define broken-ben
+    (b-run (spawn ^broken-ben)))
+> (a-run
+   (on (<- broken-ben)
+       (lambda (what-did-ben-say)
+         (format #t "Ben says: ~a\n" what-did-ben-say))
+       #:catch
+       (lambda (err)
+         (format #t "Got an error: ~a\n" err))
+       #:finally
+       (lambda ()
+         (display "Whew, it's over!\n")))
+@end example
+
+@node Transactions make errors survivable
+@section Transactions make errors survivable
+
+Mistakes happen, and when they do, we'd like damage to be minimal.
+But with many moving parts, accomplishing this can be difficult.
+
+However, Goblins makes our life easier.
+To see how, let's intentionally insert a couple of print debugging
+lines (with @samp{pk}, which is pronounced and means "peek")
+and then an error:
+
+@example
+(define (^borked-cgreeter _bcom our-name)
+  (define times-called
+    (spawn ^cell 0))
+  (methods
+    ((get-times-called)
+     ($ times-called 'get))
+    ((greet your-name)
+     (pk 'before-incr : $ times-called 'get)
+     ;; increase the number of times called
+     ($ times-called 'set
+        (+ 1 ($ times-called 'get)))
+     (pk 'after-incr : $ times-called 'get)
+     (error "Yikes")
+     (format #f "[~a] Hello ~a, my name is ~a!"
+             ($ times-called 'get)
+             your-name our-name))))
+@end example
+
+Now let's spawn this friend and invoke it:
+
+@example
+> (define horatio
+    (a-run (spawn ^borked-cgreeter "Horatio")))
+> (a-run ($ horatio 'get-times-called))
+; => 0
+> (a-run ($ horatio 'greet "Hamlet"))
+; pk debug: (before-incr 0)
+; pk debug: (after-incr 1)
+; ice-9/boot-9.scm:1685:16: In procedure raise-exception:
+;   Yikes
+; Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
+@end example
+
+Whoops!  Looks like something went wrong!
+We can see from the @samp{pk} debugging that the @samp{times-called} cell should
+be incremented to 1.
+And yet@dots{}
+
+@example
+> (a-run ($ horatio 'get-times-called))
+; => 0
+@end example
+
+We will cover this in greater detail later, but the core idea here
+is that synchronous operations run with @samp{$} are all done together
+as one transaction.
+If an unhandled error occurs, any state changes resulting from
+synchronous operations within that transaction will simply not
+be committed.
+This is useful, because it means most otherwise difficult cleanup
+steps are handled automatically.
+
+@node Promise pipelining
+@section Promise pipelining
+
+@quotation
+"Machines grow faster and memories grow larger.
+But the speed of light is constant and New York is not getting any
+closer to Tokyo."
+
+--- Mark S@. Miller,
+    @uref{http://www.erights.org/talks/thesis/, Robust Composition: Towards a Unified Approach to Access Control and Concurrency Control}
+
+@end quotation
+
+Promise pipelining provides two different features at once:
+
+@itemize
+@item
+A convenient developer interface for describing a series of
+asynchronous actions, allowing for invoking the objects which
+promises will point to before they are even resolved (sometimes
+before the objects even exist!)
+@item
+A network abstraction that eliminates many round trips
+@end itemize
+
+Consider the following car factory, which makes cars carrying
+the company name of the factory:
+
+@example
+;; Create a "car factory", which makes cars branded with
+;; company-name.
+(define (^car-factory bcom company-name)
+  ;; The constructor for cars we will create.
+  (define (^car bcom model color)
+    (methods                      ; methods for the ^car
+     ((drive)                    ; drive the car
+      (format "*Vroom vroom!*  You drive your ~a ~a ~a!"
+              color company-name model))))
+  ;; methods for the ^car-factory instance
+  (methods                        ; methods for the ^car-factory
+   ((make-car model color)       ; create a car
+    (spawn ^car model color))))
+@end example
+
+Here is an instance of this car factory, which we will call
+@samp{fork-motors}:
+
+@example
+;; Interaction on machine A
+> (define fork-motors
+    (spawn ^car-factory "Fork"))
+@end example
+
+Since asynchronous message passing with @samp{<-} works across machines,
+it does not matter whether interacitons with =fork-motors are local
+or via objects communicating over the network.
+We will treat @samp{fork-motors} as living on machine A, and so the
+following interactions will happen with invocations originating from
+machine B@.
+
+Let's send a message to @samp{fork-motors} invoking the @samp{'make-car} method,
+receiving back a promise for the car which will be made, which we
+shall name @samp{car-vow} (@samp{-vow} being the conventional suffix given
+for promises in Goblins):
+
+@example
+;; Interaction on machine B, communicating with fork-motors on A
+> (define car-vow
+    (<- fork-motors 'make-car "Explorist" "blue"))
+@end example
+
+
+So we have a @emph{promise} to a future car reference, but not the
+reference itself.
+We would like to drive the car as soon as it rolls off the lot of the
+factory, which of course involves sending a message to the car.
+
+Without promise pipelining, making use of the tools we have already
+shown (and following the pattern most other distributed programming
+systems use), we would end up with something like:
+
+@example
+;; Interaction on machine B, communicating with A
+> (on car-vow                    ; B->A: first resolve the car-vow
+      (lambda (our-car)          ; A->B: car-vow resolved as our-car
+        (on (<- our-car 'drive)  ; B->A: now we can message our-car
+            (lambda (val)        ; A->B: result of that message
+              (format #f "Heard: ~a\n" val)))))
+@end example
+
+With promise pipelining, we can simply message the promise of the car
+directly.
+The first benefit can be observed from code compactness, in that
+we do not need to do an @samp{on} of @samp{car-vow} to later message @samp{our-car},
+we can simply message @samp{car-vow} directly:
+
+@example
+;; Interaction on machine B, communicating with A
+> (on (<- car-vow 'drive)     ; B->A: send message to future car
+    (lambda (val)             ; A->B: result of that message
+      (format #f "Heard: ~a\n" val)))
+@end example
+
+While clearly a considerable programming convenience, the other
+advantage of promise pipelining is a reduction of round-trips, whether
+between our event-loop @emph{vats} or across machines on the network.
+
+This can be understood by looking at the comments to the right of the
+two above code interactions.  The message flow in the first case looks
+like:
+
+@example
+B => A => B => A => B
+@end example
+
+
+The message flow in the second case looks like:
+
+@example
+B => A => B
+@end example
+
+
+In other words, machine B can say to machine A: "Make me a car,
+and as soon as that car is ready, I want to drive it!"
+
+With this in mind, the promise behind Mark Miller's quote at the
+beginning of this section is clear.@footnote{Like so many examples in this document, the designs
+of promise pipelining and the explanation of its value come from the E
+programming language, the many contributors to its design, and Mark
+S@. Miller's extraordinary work documenting that work and its history.
+If you find this section interesting, both the the @uref{http://www.erights.org/elib/distrib/pipeline.html, Promise Pipelining}
+page from @uref{http://erights.org, erights.org} and sections 2.5 and 16.2 of
+@uref{http://www.erights.org/talks/thesis/markm-thesis.pdf, Mark Miller's dissertation}.}
+If two objects are on opposite ends of the planet, round trips
+are unavoidably expensive.
+Promise pipelining both allows us to make plans as programmers
+and allows for Goblins to optimize carrying out those steps as
+bulk operations over the network.
+
+@node OCapN my CapN@!
+@section OCapN, my CapN@!
+
+TODO
 
 @node API
 @chapter API
@@ -172,7 +701,7 @@ TODO
 @menu
 * Spawning objects::
 * Synchronous calls::
-* Asynchronous message passing::
+* Asynchronous message passing: Asynchronous message passing (1). 
 @end menu
 
 @node Spawning objects
@@ -181,7 +710,7 @@ TODO
 @node Synchronous calls
 @subsection Synchronous calls
 
-@node Asynchronous message passing
+@node Asynchronous message passing (1)
 @subsection Asynchronous message passing
 
 @bye
