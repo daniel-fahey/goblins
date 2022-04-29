@@ -2094,10 +2094,14 @@
 
 (define* (actormap-churn am msg
                          #:key [catch-errors? #t]
-                         [waiters #f])
+                         [waiters #f]
+                         [make-transactormap? #t])
   (define churn-q (make-q))     ; message to churn on here
   (define send-far-q (make-q))  ; messages we must still send
-  (define new-am (make-transactormap am))
+  (define new-am
+    (if make-transactormap?
+        (make-transactormap am)
+        am))
   (define this-vat-connector (actormap-vat-connector am))
   (define first-one? #t)
   (define first-return-val #f)
@@ -2160,11 +2164,12 @@
                              [waiters #f])
   (define-values (actor-refr new-actormap)
     (actormap-spawn actormap (lambda (_bcom) thunk)))
-  (define-values (returned-val new-actormap2 new-msgs)
+  (define-values (returned-val _nam new-msgs)
     (actormap-churn new-actormap (make-message actor-refr #f '())
                     #:catch-errors? catch-errors?
-                    #:waiters waiters))
-  (values returned-val new-actormap2 new-msgs))
+                    #:waiters waiters
+                    #:make-transactormap? #f))  ; reuses new-actormap
+  (values returned-val new-actormap new-msgs))
 
 (define-record-type <multival-return-kluge>
   (make-multival-return-kluge vals)
