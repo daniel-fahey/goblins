@@ -189,12 +189,16 @@ you can speak to the vat."
   "Like spawn-vat-fiber except returns a convenient procedure which abstracts
 over some of the communication aspects of controlling the vat."
   (define control-ch (spawn-vat-fiber #:fibrous-io? fibrous-io?))
-  (define (vat-runner thunk)
-    (define return-ch (make-channel))
-    (put-message control-ch (list 'run thunk return-ch))
-    (match (get-message return-ch)
-      (#('ok val) val)
-      (#('fail err) (raise-exception err))))
+  (define vat-runner
+    (match-lambda*
+      ((or ((? procedure? thunk)) ('run (? procedure? thunk)))
+       (define return-ch (make-channel))
+       (put-message control-ch (list 'run thunk return-ch))
+       (match (get-message return-ch)
+         (#('ok val) val)
+         (#('fail err) (raise-exception err))))
+      (('halt)
+       (put-message control-ch 'halt))))
   vat-runner)
 
 (define (syscaller-free-fiber thunk)
