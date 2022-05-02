@@ -38,5 +38,34 @@
  (actormap-peek am (actormap-spawn! am ^cell 'hello))
  'hello)
 
+(define ro-a-cell
+  (actormap-run!
+   am
+   (lambda ()
+     (cell->read-only a-cell))))
+(test-eq
+    "Read from a read-only cell"
+  (actormap-peek am ro-a-cell)
+  'foo)
+(test-error
+ "Cannot write to a read-only cell"
+ #t
+ (actormap-poke! am ro-a-cell 'foobar))
+
+(define wo-a-cell
+  (actormap-run!
+   am
+   (lambda ()
+     (cell->write-only a-cell))))
+(actormap-poke! am wo-a-cell 'baz)
+(test-eq
+    "Can write to a write-only cell"
+  'baz
+  (actormap-peek am a-cell))
+(test-error
+ "Cannot read from a write-only cell"
+ #t
+ (actormap-peek am wo-a-cell))
+
 (test-end "test-cell")
 
