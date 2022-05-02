@@ -15,7 +15,6 @@
 (define-module (goblins actor-lib cell)
   #:use-module (goblins core)
   #:export (^cell
-            spawn-cell
             cell->read-only
             cell->write-only
             define-cell))
@@ -35,9 +34,6 @@
     ;; with this new value
     [(new-val)
      (bcom (^cell bcom new-val))]))
-
-(define* (spawn-cell #:optional [val #f])
-  (spawn ^cell val))
 
 (define (cell->read-only cell)
   (define (^ro-cell bcom)

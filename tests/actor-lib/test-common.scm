@@ -28,6 +28,10 @@
 (test-equal #t (actormap-peek am s 'member? 'd))
 (actormap-poke! am s 'remove 'c)
 (test-equal #f (actormap-peek am s 'member? 'c))
+(test-equal
+    "Getting the list of a ^seteq instance"
+  (list 'd 'b 'a)
+  (actormap-peek am s 'as-list))
 
 (test-end "test-common")
 

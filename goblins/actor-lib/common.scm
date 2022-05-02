@@ -36,7 +36,7 @@
      [(as-list)
       (vhash-fold (lambda (k v lst)
                     (cons k lst))
-                  vlist-null
+                  (list)
                   vh)])))
 
 (define* (^ghash bcom #:optional [ht ghash-null])
