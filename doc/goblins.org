@@ -393,11 +393,11 @@ and then an error:
       ((get-times-called)
        ($ times-called 'get))
       ((greet your-name)
-       (pk 'before-incr : $ times-called 'get)
+       (pk 'before-incr ($ times-called 'get))
        ;; increase the number of times called
        ($ times-called 'set
           (+ 1 ($ times-called 'get)))
-       (pk 'after-incr : $ times-called 'get)
+       (pk 'after-incr ($ times-called 'get))
        (error "Yikes")
        (format #f "[~a] Hello ~a, my name is ~a!"
                ($ times-called 'get)
@@ -468,7 +468,7 @@ the company name of the factory:
     (define (^car bcom model color)
       (methods                      ; methods for the ^car
        ((drive)                    ; drive the car
-        (format "*Vroom vroom!*  You drive your ~a ~a ~a!"
+        (format #t "*Vroom vroom!*  You drive your ~a ~a ~a!"
                 color company-name model))))
     ;; methods for the ^car-factory instance
     (methods                        ; methods for the ^car-factory
@@ -482,7 +482,8 @@ Here is an instance of this car factory, which we will call
 #+BEGIN_SRC scheme
   ;; Interaction on machine A
   > (define fork-motors
-      (spawn ^car-factory "Fork"))
+      (a-run
+       (spawn ^car-factory "Fork")))
 #+END_SRC
 
 Since asynchronous message passing with =<-= works across machines,
@@ -500,7 +501,8 @@ for promises in Goblins):
 #+BEGIN_SRC scheme
   ;; Interaction on machine B, communicating with fork-motors on A
   > (define car-vow
-      (<- fork-motors 'make-car "Explorist" "blue"))
+      (b-run
+       (<- fork-motors 'make-car "Explorist" "blue")))
 #+END_SRC
 
 
@@ -515,11 +517,12 @@ systems use), we would end up with something like:
 
 #+BEGIN_SRC scheme
   ;; Interaction on machine B, communicating with A
-  > (on car-vow                    ; B->A: first resolve the car-vow
-        (lambda (our-car)          ; A->B: car-vow resolved as our-car
-          (on (<- our-car 'drive)  ; B->A: now we can message our-car
-              (lambda (val)        ; A->B: result of that message
-                (format #f "Heard: ~a\n" val)))))
+  > (b-run
+     (on car-vow                    ; B->A: first resolve the car-vow
+         (lambda (our-car)          ; A->B: car-vow resolved as our-car
+           (on (<- our-car 'drive)  ; B->A: now we can message our-car
+               (lambda (val)        ; A->B: result of that message
+                 (format #f "Heard: ~a\n" val))))))
 #+END_SRC
 
 With promise pipelining, we can simply message the promise of the car
@@ -530,9 +533,10 @@ we can simply message =car-vow= directly:
 
 #+BEGIN_SRC scheme
   ;; Interaction on machine B, communicating with A
-  > (on (<- car-vow 'drive)     ; B->A: send message to future car
-      (lambda (val)             ; A->B: result of that message
-        (format #f "Heard: ~a\n" val)))
+  > (b-run
+     (on (<- car-vow 'drive)     ; B->A: send message to future car
+         (lambda (val)             ; A->B: result of that message
+           (format #f "Heard: ~a\n" val))))
 #+END_SRC
 
 While clearly a considerable programming convenience, the other
