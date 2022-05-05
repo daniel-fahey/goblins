@@ -14,6 +14,7 @@
 
 (define-module (tests actor-lib test-common)
   #:use-module (goblins core)
+  #:use-module (goblins ghash)
   #:use-module (goblins actor-lib common)
   #:use-module (srfi srfi-64))
 
@@ -32,6 +33,39 @@
     "Getting the list of a ^seteq instance"
   (list 'd 'b 'a)
   (actormap-peek am s 'as-list))
+(define ghash (actormap-spawn! am ^ghash))
+(test-equal
+    "Check key that doesn't exist provides #f when lacking a default"
+  #f
+  (actormap-peek am ghash 'ref 'foobar))
+(test-equal
+    "Check key that doesn't exist provides default when given one"
+  'my-default
+  (actormap-peek am ghash 'ref 'foobar 'my-default))
+(actormap-poke! am ghash 'set 'my-key 'my-value)
+(test-equal
+    "Check can get a value from the ghash when one exists"
+  'my-value
+  (actormap-peek am ghash 'ref 'my-key))
+(test-assert
+    "has-key? method returns true when a key exists"
+  (actormap-peek am ghash 'has-key? 'my-key))
+(test-assert
+    "hash-key? method returns false when a key doesn't exist"
+  (not (actormap-peek am ghash 'has-key? 'not-my-key)))
+(actormap-poke! am ghash 'set 'foobar 'baz)
+(test-assert
+    "Check data method returns a hash with all the values in"
+  (let ((data (actormap-peek am ghash 'data)))
+    (and (ghash? data)
+	 (eq? (ghash-ref data 'my-key) 'my-value)
+	 (eq? (ghash-ref data 'foobar) 'baz)
+	 (eq? (ghash-length data) 2))))
+
+(actormap-poke! am ghash 'remove 'my-key)
+(test-assert
+    "Check removing a key means it's no longer in the ghash (relies on has-key? method)"
+  (not (actormap-peek am ghash 'has-key? 'my-key)))
 
 (test-end "test-common")
 
