@@ -127,7 +127,7 @@
 you can speak to the vat."
   (define running? (make-atomic-box #t))
   (define-values (enq-ch deq-ch stop?)
-    (spawn-delivery-agent scheduler))
+    (spawn-delivery-agent #:scheduler scheduler))
   ;; TODO: Maybe the vat connectors can just be channels sometimes?
   ;; That would simplify this dramatically.  In fact if 'handle-message
   ;; remains the only message, it could just be the enq-ch?
