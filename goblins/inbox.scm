@@ -1,4 +1,4 @@
-;;; Copyright 2021 Christine Lemmer-Webber
+;;; Copyright 2021-2022 Christine Lemmer-Webber
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -23,13 +23,13 @@
   ;; #:use-module (ice-9 atomic)
   #:export (spawn-delivery-agent))
 
-(define (spawn-delivery-agent)
+(define* (spawn-delivery-agent #:key scheduler)
   (define enq-ch (make-channel))
   (define deq-ch (make-channel))
   (define stop? (make-condition))
   (define back-queue (make-q))
   (define next-one #f)
-  (define (start-vat-loop)
+  (define (start-inbox-loop)
     (define keep-going? #t)
     ;; Incoming
     (define (enq-op)
@@ -58,7 +58,7 @@
            (choice-operation (deq-op) (enq-op) (stop-op))
            (choice-operation (enq-op) (stop-op))))))
   ;; boot it up!
-  (spawn-fiber start-vat-loop)
+  (spawn-fiber start-inbox-loop scheduler)
   ;; return inbox enqueue/dequeue channels, as well as stop operation
   (values enq-ch deq-ch stop?))
 
