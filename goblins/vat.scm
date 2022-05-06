@@ -1,4 +1,4 @@
-;;; Copyright 2021 Christine Lemmer-Webber
+;;; Copyright 2021-2022 Christine Lemmer-Webber
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -15,10 +15,12 @@
 (define-module (goblins vat)
   #:use-module (goblins core)
   #:use-module (goblins inbox)
+  #:use-module (goblins default-vat-scheduler)
   #:use-module (fibers)
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
+  #:use-module (fibers internal)
   #:use-module (ice-9 match)
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 threads)
@@ -117,16 +119,15 @@
 ;; TODO: An explicit 'halt message isn't as ideal as vats which auto-gc.
 ;; But that is probably possible... we could possibly set up a fializer
 ;; that is attached to the vat-control-ch and vat-connector of this vat.
-;; Once that is gc'ed, it can trigger halting...
-;; TODO: Hm, that might not work for vats which do IO, I suppose.
-;; At least, not without great care.
 
-(define* (spawn-vat-fiber #:key [fibrous-io? #t])
+(define* (spawn-vat-fiber #:key (control-ch (make-channel))
+                          (fibrous-io? #f)
+                          (scheduler (default-vat-scheduler)))
   "Spawns a fiber for this vat and returns a channel by which
 you can speak to the vat."
   (define running? (make-atomic-box #t))
   (define-values (enq-ch deq-ch stop?)
-    (spawn-delivery-agent))
+    (spawn-delivery-agent scheduler))
   ;; TODO: Maybe the vat connectors can just be channels sometimes?
   ;; That would simplify this dramatically.  In fact if 'handle-message
   ;; remains the only message, it could just be the enq-ch?
@@ -141,7 +142,6 @@ you can speak to the vat."
        (when (atomic-box-ref running?)
          (put-message enq-ch msg)))))
   (define actormap (make-actormap #:vat-connector vat-connector))
-  (define vat-control-ch (make-channel))
   (define waiters
     (and fibrous-io?
          (cons fibrous-read-waiter fibrous-write-waiter)))
@@ -165,7 +165,8 @@ you can speak to the vat."
          ;; itself doesn't end up blocked
          (spawn-fiber
           (lambda ()
-            (put-message return-ch returned))))))
+            (put-message return-ch returned))
+          scheduler))))
     ;; Connect: operations on the vat from the outside
     (define (handle-incoming-message msg)
       (define-values (returned new-actormap new-msgs)
@@ -178,17 +179,18 @@ you can speak to the vat."
         [_ #f]))
     (while (atomic-box-ref running?)
       (perform-operation
-       (choice-operation (wrap-operation (get-operation vat-control-ch)
+       (choice-operation (wrap-operation (get-operation control-ch)
                                          handle-vat-control)
                          (wrap-operation (get-operation deq-ch)
                                          handle-incoming-message)))))
-  (spawn-fiber vat-loop)
-  vat-control-ch)
+  (spawn-fiber vat-loop scheduler)
+  running?)
 
-(define* (spawn-vat-proc #:key [fibrous-io? #t])
+(define* (spawn-vat-proc #:key (control-ch (make-channel)) (fibrous-io? #f))
   "Like spawn-vat-fiber except returns a convenient procedure which abstracts
 over some of the communication aspects of controlling the vat."
-  (define control-ch (spawn-vat-fiber #:fibrous-io? fibrous-io?))
+  (define running?
+    (spawn-vat-fiber #:control-ch control-ch #:fibrous-io? fibrous-io?))
   (define vat-runner
     (match-lambda*
       ((or ((? procedure? thunk)) ('run (? procedure? thunk)))
