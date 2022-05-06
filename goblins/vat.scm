@@ -13,6 +13,7 @@
 ;;; limitations under the License.
 
 (define-module (goblins vat)
+  #:use-module (goblins base-io-ports)
   #:use-module (goblins core)
   #:use-module (goblins inbox)
   #:use-module (goblins default-vat-scheduler)
@@ -32,7 +33,11 @@
             spawn-fibrous-vow
             fibrous
 
-            define-vat-run))
+            define-vat-run
+
+            ;; and here's a hack, but maybe someone wants
+            ;; to start with it and tweak it
+            port-redirect-dynamic-wrap))
 
 ;; Vats
 ;; ----
@@ -115,16 +120,40 @@
        (<-np-extern resolver 'fulfill result))))
   (await* fibrous-fulfill-await))
 
+;; The purpose of this is to prevent issues where a user hacking
+;; with Geiser's buffer evaluation commands (eg C-x C-e)
+;; launches a vat, and things weirdly break... because geiser
+;; sets redirects output so that it can capture it to display to the
+;; user when hacking that way, but those ports are closed at the
+;; end of the evaulation.  But since the vat would run in its own
+;; fiber/thread, any attempts to write to output/error ports would
+;; throw an exception.  This redirects them "back".
+(define (port-redirect-dynamic-wrap proc)
+  (parameterize ((current-output-port %base-output-port)
+                 (current-error-port %base-error-port))
+    (proc)))
 
 ;; TODO: An explicit 'halt message isn't as ideal as vats which auto-gc.
 ;; But that is probably possible... we could possibly set up a fializer
 ;; that is attached to the vat-control-ch and vat-connector of this vat.
-
 (define* (spawn-vat-fiber #:key (control-ch (make-channel))
                           (fibrous-io? #f)
-                          (scheduler (default-vat-scheduler)))
+                          (scheduler (default-vat-scheduler))
+                          (dynamic-wrap port-redirect-dynamic-wrap))
   "Spawns a fiber for this vat and returns a channel by which
-you can speak to the vat."
+you can speak to the vat.
+
+Keywords:
+ - control-ch: A control channel by which we will speak to this vat
+ - fibrous-io?: (DEPRECATED, to be removed soon) whether or not actors
+   suspend to their actor prompt and return a promise when they would
+   have blocked
+ - scheduler: The Fibers scheduler this vat and its delivery
+   agent (for handling incoming messages) will run on
+ - dynamic-wrap: Dynamically wrap the launch of the vat, allowing to
+   set parameters, etc.  By default redirects current-output-port and
+   current-error-port back to their defaults to prevent Geiser evaluation
+   screwing up things up."
   (define running? (make-atomic-box #t))
   (define-values (enq-ch deq-ch stop?)
     (spawn-delivery-agent #:scheduler scheduler))
@@ -183,10 +212,17 @@ you can speak to the vat."
                                          handle-vat-control)
                          (wrap-operation (get-operation deq-ch)
                                          handle-incoming-message)))))
-  (spawn-fiber vat-loop scheduler)
+  ;; Wrap vat spawning in "ambient advice", allowing an opportunity
+  ;; to set up parameters, etc
+  (define _dynamic-wrap
+    (or dynamic-wrap (lambda (proc) (proc))))
+  (_dynamic-wrap (lambda () (spawn-fiber vat-loop scheduler)))
   running?)
 
-(define* (spawn-vat-proc #:key (control-ch (make-channel)) (fibrous-io? #f))
+(define* (spawn-vat-proc #:key
+                         (control-ch (make-channel))
+                         (fibrous-io? #f)
+                         (dynamic-wrap port-redirect-dynamic-wrap))
   "Like spawn-vat-fiber except returns a convenient procedure which abstracts
 over some of the communication aspects of controlling the vat."
   (define running?
