@@ -404,10 +404,10 @@
   (data actormap-data)
   (vat-connector actormap-vat-connector))
 
-(set-record-type-printer!
- <actormap>
- (lambda (am port)
-   (format port "#<actormap ~a>" (actormap-metatype-name (actormap-metatype am)))))
+;; (set-record-type-printer!
+;;  <actormap>
+;;  (lambda (am port)
+;;    (format port "#<actormap ~a>" (actormap-metatype-name (actormap-metatype am)))))
 
 (define-record-type <actormap-metatype>
   (make-actormap-metatype name ref-proc set!-proc)
@@ -2094,17 +2094,22 @@
 
 (define* (actormap-churn am msg
                          #:key [catch-errors? #t]
-                         [waiters #f])
+                         [waiters #f]
+                         [make-transactormap? #t])
   (define churn-q (make-q))     ; message to churn on here
   (define send-far-q (make-q))  ; messages we must still send
-  (define new-am (make-transactormap am))
+  (define new-am
+    (if make-transactormap?
+        (make-transactormap am)
+        am))
   (define this-vat-connector (actormap-vat-connector am))
   (define first-one? #t)
   (define first-return-val #f)
   (define (near-msg? msg)
     (define to-refr (message-or-request-to msg))
     (and (local-refr? to-refr)
-         (eq? (local-refr-vat-connector to-refr))))
+         (eq? (local-refr-vat-connector to-refr)
+              this-vat-connector)))
   ;; Used for both filling the initial queue and after
   ;; each turn... also used to queue up the messages to be
   ;; sent externally
@@ -2159,12 +2164,13 @@
                              #:key [catch-errors? #t]
                              [waiters #f])
   (define-values (actor-refr new-actormap)
-    (actormap-spawn (make-transactormap actormap) (lambda (_bcom) thunk)))
-  (define-values (returned-val new-actormap2 new-msgs)
+    (actormap-spawn actormap (lambda (_bcom) thunk)))
+  (define-values (returned-val _nam new-msgs)
     (actormap-churn new-actormap (make-message actor-refr #f '())
                     #:catch-errors? catch-errors?
-                    #:waiters waiters))
-  (values returned-val new-actormap2 new-msgs))
+                    #:waiters waiters
+                    #:make-transactormap? #f))  ; reuses new-actormap
+  (values returned-val new-actormap new-msgs))
 
 (define-record-type <multival-return-kluge>
   (make-multival-return-kluge vals)
