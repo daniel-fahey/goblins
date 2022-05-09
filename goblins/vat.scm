@@ -93,35 +93,12 @@
 ;;; and vat-id methods, though it's not unlikely this module will get
 ;;; out of date... oops)
 
-(define fibers-wait-for-readable
-  (@@ (fibers) wait-for-readable))
-
-(define fibers-wait-for-writable
-  (@@ (fibers) wait-for-writable))
-
-(define (fibrous-read-waiter port)
-  (define (fibrous-fulfill-await resolver)
-    (spawn-fiber
-     (lambda ()
-       (define result (fibers-wait-for-readable port))
-       (<-np-extern resolver 'fulfill result))))
-  (await* fibrous-fulfill-await))
-
-(define (fibrous-write-waiter port)
-  (define (fibrous-fulfill-await resolver)
-    (spawn-fiber
-     (lambda ()
-       (define result (fibers-wait-for-writable port))
-       (<-np-extern resolver 'fulfill result))))
-  (await* fibrous-fulfill-await))
-
 
 ;; TODO: An explicit 'halt message isn't as ideal as vats which auto-gc.
 ;; But that is probably possible... we could possibly set up a fializer
 ;; that is attached to the vat-control-ch and vat-connector of this vat.
 
 (define* (spawn-vat-fiber #:key (control-ch (make-channel))
-                          (fibrous-io? #f)
                           (scheduler (default-vat-scheduler)))
   "Spawns a fiber for this vat and returns a channel by which
 you can speak to the vat."
@@ -142,9 +119,6 @@ you can speak to the vat."
        (when (atomic-box-ref running?)
          (put-message enq-ch msg)))))
   (define actormap (make-actormap #:vat-connector vat-connector))
-  (define waiters
-    (and fibrous-io?
-         (cons fibrous-read-waiter fibrous-write-waiter)))
   (define (vat-loop)
     ;; Control: operations on the vat from someone who spawned it
     (define handle-vat-control
@@ -153,8 +127,7 @@ you can speak to the vat."
          (atomic-box-set! running? #f))
         (('run thunk return-ch)
          (define-values (returned new-actormap new-msgs)
-           (actormap-churn-run actormap thunk
-                               #:waiters waiters))
+           (actormap-churn-run actormap thunk))
          (dispatch-messages new-msgs)
          (match returned
            [#('ok rval)
@@ -170,8 +143,7 @@ you can speak to the vat."
     ;; Connect: operations on the vat from the outside
     (define (handle-incoming-message msg)
       (define-values (returned new-actormap new-msgs)
-        (actormap-churn actormap msg
-                        #:waiters waiters))
+        (actormap-churn actormap msg))
       (dispatch-messages new-msgs)
       (match returned
         [#('ok rval)
@@ -186,11 +158,11 @@ you can speak to the vat."
   (spawn-fiber vat-loop scheduler)
   running?)
 
-(define* (spawn-vat-proc #:key (control-ch (make-channel)) (fibrous-io? #f))
+(define* (spawn-vat-proc #:key (control-ch (make-channel)))
   "Like spawn-vat-fiber except returns a convenient procedure which abstracts
 over some of the communication aspects of controlling the vat."
   (define running?
-    (spawn-vat-fiber #:control-ch control-ch #:fibrous-io? fibrous-io?))
+    (spawn-vat-fiber #:control-ch control-ch))
   (define vat-runner
     (match-lambda*
       ((or ((? procedure? thunk)) ('run (? procedure? thunk)))
