@@ -42,7 +42,6 @@ project's files to your heart's content, whilst testing them from your
 (You can also run =guix environment= with =--pure= if it accidentally
 finds your system guile.)
 
-
 ** Setup for hacking on Goblins
 
 *** Editor setup
@@ -90,6 +89,32 @@ Follow the instructions at the top, which should look something like:
 #+END_SRC
 
 Sounds like good advice!  Give that a try!
+
+
+*** TEMPORARY: Live hacking "fix"
+
+The traditional way to hack Guile is to use Geiser, both evaluating
+from some =foo.scm= file/buffer with more "permanent" code via, for
+example, the =C-x C-e= / =C-x C-b= / =C-x C-k= commands to evaluate an
+expression, evaluate a whole buffer, or compile a buffer's content,
+and switching back and forth between that and the (usually called
+=*Geiser Guile REPL*=) experimental-hacking-and-debugging REPL.
+
+This works with Goblins, but Geiser does some things to temporarily
+redirect output/error ports when doing the file/buffer oriented
+evaluation, and unfortunately this results in Goblins vats potentially
+breaking due to spawning a separate thread which inherit these
+temporarily redirected ports, which then are closed when the
+evaluation succeeds.  We have a long-term plan to deal with this, but
+in the meanwhile, whenever you start a Guile / Geiser hacking session,
+first execute:
+
+#+BEGIN_SRC scheme
+  > (use-modules (goblins))
+#+END_SRC
+
+... from the =*Geiser Guile REPL*=.  Otherwise vats may mysteriously
+"hang".  We know this is an annoyance!  It'll be fixed soon!
 
 
 ** Running test coverage
