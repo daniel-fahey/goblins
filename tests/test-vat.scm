@@ -121,20 +121,25 @@
 
 (define (make-car vat factory method-name)
   (let ((result #f)
-	(is-borked? #f))
+	(is-borked? 'unknown))
     (vat
      (lambda ()
        (define car-vow
-	 (on (<- factory method-name)
-	     (lambda (car)
-	       car)
-	     #:catch
-	     (lambda (some-error)
-	       (set! is-borked? #t))
-	     #:promise? #t))
+         (<- factory method-name))
+       ;; mark whether or not the car ends up as borked or not
+       (on car-vow
+	   (lambda (car)
+	     (set! is-borked? #f))
+	   #:catch
+	   (lambda (some-error)
+	     (set! is-borked? #t)))
+       ;; try promise pipelining with the esult
        (on (<- car-vow)
 	   (lambda (car-says)
-	     (set! result car-says)))))
+	     (set! result (vector 'ok car-says)))
+           #:catch
+           (lambda (some-error)
+             (set! result (vector 'err some-error))))))
     (usleep 500)
     (values result is-borked?)))
 
@@ -145,23 +150,30 @@
 	     (make-car a-vat borked-factory 'make-car)))
   (test-assert
       "Sanity check to make sure broked-car factory normally works"
-    (and (string=? result "Vroom vroom")
-	 (not is-borked?))))
+    (and (not is-borked?)
+         (match result
+           (#('ok "Vroom vroom")
+            #t)
+           (_ #f)))))
 
 ;; Now check the error.
 (let-values (((result is-borked?)
 	      (make-car a-vat borked-factory 'make-error)))
   (test-assert
       "Check promise pipeling breaks on error on the same vat"
-    (and (not result)
-	 is-borked?)))
+    (and is-borked?
+         (match result
+           (#('err _err) #t)
+           (_ #f)))))
 
 ;; Now check that errors work across vats
 (let-values (((result is-borked?)
 	      (make-car b-vat borked-factory 'make-error)))
   (test-assert
       "Check promise pipeling breaks on error between vats"
-    (and (not result)
-	 is-borked?)))
+    (and is-borked?
+         (match result
+           (#('err _err) #t)
+           (_ #f)))))
 
 (test-end "test-vat")
