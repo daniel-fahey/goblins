@@ -119,7 +119,7 @@
     ('make-car (spawn ^car))
     ('make-error (error "Oops! no vrooming here :("))))
 
-(define (make-car vat factory method-name)
+(define (try-car-pipeline vat factory method-name)
   (let ((result #f)
 	(is-borked? 'unknown))
     (vat
@@ -147,7 +147,7 @@
 
 ;; Check the initial working car.
 (let-values (((result is-borked?)
-	     (make-car a-vat borked-factory 'make-car)))
+	     (try-car-pipeline a-vat borked-factory 'make-car)))
   (test-assert
       "Sanity check to make sure broked-car factory normally works"
     (and (not is-borked?)
@@ -158,7 +158,7 @@
 
 ;; Now check the error.
 (let-values (((result is-borked?)
-	      (make-car a-vat borked-factory 'make-error)))
+	      (try-car-pipeline a-vat borked-factory 'make-error)))
   (test-assert
       "Check promise pipeling breaks on error on the same vat"
     (and is-borked?
@@ -168,7 +168,7 @@
 
 ;; Now check that errors work across vats
 (let-values (((result is-borked?)
-	      (make-car b-vat borked-factory 'make-error)))
+	      (try-car-pipeline b-vat borked-factory 'make-error)))
   (test-assert
       "Check promise pipeling breaks on error between vats"
     (and is-borked?
