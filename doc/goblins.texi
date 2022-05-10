@@ -35,6 +35,7 @@ Getting started
 
 * Installing Goblins::
 * Setup for hacking on Goblins::
+* TEMPORARY Live hacking "fix"::
 
 Tutorial
 
@@ -127,6 +128,7 @@ most of which applies to the Guile version too.
 @menu
 * Installing Goblins::
 * Setup for hacking on Goblins::
+* TEMPORARY Live hacking "fix"::
 @end menu
 
 @node Installing Goblins
@@ -172,6 +174,32 @@ smartparens if uncertain)
 Now you'll have a nice hacking setup!  Be sure to read the Geiser
 manual.
 
+@node TEMPORARY Live hacking "fix"
+@section TEMPORARY: Live hacking "fix"
+
+The traditional way to hack Guile is to use Geiser, both evaluating
+from some @samp{foo.scm} file/buffer with more "permanent" code via, for
+example, the @samp{C-x C-e} / @samp{C-x C-b} / @samp{C-x C-k} commands to evaluate an
+expression, evaluate a whole buffer, or compile a buffer's content,
+and switching back and forth between that and the (usually called
+@samp{*Geiser Guile REPL*}) experimental-hacking-and-debugging REPL@.
+
+This works with Goblins, but Geiser does some things to temporarily
+redirect output/error ports when doing the file/buffer oriented
+evaluation, and unfortunately this results in Goblins vats potentially
+breaking due to spawning a separate thread which inherit these
+temporarily redirected ports, which then are closed when the
+evaluation succeeds.  We have a long-term plan to deal with this, but
+in the meanwhile, whenever you start a Guile / Geiser hacking session,
+first execute:
+
+@example
+> (use-modules (goblins))
+@end example
+
+@dots{} from the @samp{*Geiser Guile REPL*}.  Otherwise vats may mysteriously
+"hang".  We know this is an annoyance!  It'll be fixed soon!
+
 @node Tutorial
 @chapter Tutorial
 
@@ -196,8 +224,10 @@ REPL experimentation, etc).
 First, let's import Goblins:
 
 @example
-(use-modules (goblins))
+> (use-modules (goblins))
 @end example
+
+(@strong{NOTE}: See @ref{TEMPORARY Live hacking "fix"} if you haven't.)
 
 Every Goblins actor / object has to live in a vat somewhere.
 So, let's make a vat to play around with:
@@ -494,11 +524,11 @@ and then an error:
     ((get-times-called)
      ($ times-called 'get))
     ((greet your-name)
-     (pk 'before-incr : $ times-called 'get)
+     (pk 'before-incr ($ times-called 'get))
      ;; increase the number of times called
      ($ times-called 'set
         (+ 1 ($ times-called 'get)))
-     (pk 'after-incr : $ times-called 'get)
+     (pk 'after-incr ($ times-called 'get))
      (error "Yikes")
      (format #f "[~a] Hello ~a, my name is ~a!"
              ($ times-called 'get)
@@ -575,7 +605,7 @@ the company name of the factory:
   (define (^car bcom model color)
     (methods                      ; methods for the ^car
      ((drive)                    ; drive the car
-      (format "*Vroom vroom!*  You drive your ~a ~a ~a!"
+      (format #t "*Vroom vroom!*  You drive your ~a ~a ~a!"
               color company-name model))))
   ;; methods for the ^car-factory instance
   (methods                        ; methods for the ^car-factory
@@ -589,7 +619,8 @@ Here is an instance of this car factory, which we will call
 @example
 ;; Interaction on machine A
 > (define fork-motors
-    (spawn ^car-factory "Fork"))
+    (a-run
+     (spawn ^car-factory "Fork")))
 @end example
 
 Since asynchronous message passing with @samp{<-} works across machines,
@@ -607,7 +638,8 @@ for promises in Goblins):
 @example
 ;; Interaction on machine B, communicating with fork-motors on A
 > (define car-vow
-    (<- fork-motors 'make-car "Explorist" "blue"))
+    (b-run
+     (<- fork-motors 'make-car "Explorist" "blue")))
 @end example
 
 
@@ -622,11 +654,12 @@ systems use), we would end up with something like:
 
 @example
 ;; Interaction on machine B, communicating with A
-> (on car-vow                    ; B->A: first resolve the car-vow
-      (lambda (our-car)          ; A->B: car-vow resolved as our-car
-        (on (<- our-car 'drive)  ; B->A: now we can message our-car
-            (lambda (val)        ; A->B: result of that message
-              (format #f "Heard: ~a\n" val)))))
+> (b-run
+   (on car-vow                    ; B->A: first resolve the car-vow
+       (lambda (our-car)          ; A->B: car-vow resolved as our-car
+         (on (<- our-car 'drive)  ; B->A: now we can message our-car
+             (lambda (val)        ; A->B: result of that message
+               (format #f "Heard: ~a\n" val))))))
 @end example
 
 With promise pipelining, we can simply message the promise of the car
@@ -637,9 +670,10 @@ we can simply message @samp{car-vow} directly:
 
 @example
 ;; Interaction on machine B, communicating with A
-> (on (<- car-vow 'drive)     ; B->A: send message to future car
-    (lambda (val)             ; A->B: result of that message
-      (format #f "Heard: ~a\n" val)))
+> (b-run
+   (on (<- car-vow 'drive)     ; B->A: send message to future car
+       (lambda (val)             ; A->B: result of that message
+         (format #f "Heard: ~a\n" val))))
 @end example
 
 While clearly a considerable programming convenience, the other
