@@ -55,8 +55,10 @@ of the library!")
                   (scheme-file "swappable")))
                (scheme-file "ghash")
                (scheme-file "vat")
+               (scheme-file "default-vat-scheduler")
                (scheme-file "vrun")
                (scheme-file "core")
+               (scheme-file "base-io-ports")
                (scheme-file "inbox")))))
          (tests ((directory
                    "tests"

@@ -89,6 +89,32 @@ However you probably also want some combination of:
 Now you'll have a nice hacking setup!  Be sure to read the Geiser
 manual.
 
+** TEMPORARY: Live hacking "fix"
+
+The traditional way to hack Guile is to use Geiser, both evaluating
+from some =foo.scm= file/buffer with more "permanent" code via, for
+example, the =C-x C-e= / =C-x C-b= / =C-x C-k= commands to evaluate an
+expression, evaluate a whole buffer, or compile a buffer's content,
+and switching back and forth between that and the (usually called
+=*Geiser Guile REPL*=) experimental-hacking-and-debugging REPL.
+
+This works with Goblins, but Geiser does some things to temporarily
+redirect output/error ports when doing the file/buffer oriented
+evaluation, and unfortunately this results in Goblins vats potentially
+breaking due to spawning a separate thread which inherit these
+temporarily redirected ports, which then are closed when the
+evaluation succeeds.  We have a long-term plan to deal with this, but
+in the meanwhile, whenever you start a Guile / Geiser hacking session,
+first execute:
+
+#+BEGIN_SRC scheme
+  > (use-modules (goblins))
+#+END_SRC
+
+... from the =*Geiser Guile REPL*=.  Otherwise vats may mysteriously
+"hang".  We know this is an annoyance!  It'll be fixed soon!
+
+
 * Tutorial
 
 TODO: we should port the [[https://docs.racket-lang.org/goblins/index.html][Goblins on Racket tutorial]] but simplify it
@@ -100,8 +126,10 @@ REPL experimentation, etc).
 First, let's import Goblins:
 
 #+BEGIN_SRC scheme
-  (use-modules (goblins))
+  > (use-modules (goblins))
 #+END_SRC
+
+(*NOTE*: See [[*TEMPORARY: Live hacking "fix"][TEMPORARY: Live hacking "fix"]] if you haven't.)
 
 Every Goblins actor / object has to live in a vat somewhere.
 So, let's make a vat to play around with:
