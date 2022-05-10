@@ -182,5 +182,35 @@
   (test-equal "Pipelining works in simplest near case"
     on-result '(heard-back "*Vroom vroom!*  You drive your blue Fork Explorist!")))
 
+(define (^lessgood-car-factory bcom company-name)
+  (define (^car bcom model color)
+    (lambda ()
+      (format #f "*Vroom vroom!*  You drive your ~a ~a ~a!"
+              color company-name model)))
+  (define (make-car model color)
+    (error "Your car exploded on the factory floor!  Ooops!")
+    (spawn ^car model color))
+  make-car)
+
+(let ((on-result #f))
+  (actormap-churn-run!
+   am
+   (lambda ()
+     (define fork-motors
+       (spawn ^lessgood-car-factory "Forked"))
+     (define car-vow
+       (<- fork-motors "Exploder" "red"))
+     (define drive-noise-vow
+       (<- car-vow))
+     (on drive-noise-vow
+         (lambda (heard)
+           (set! on-result `(heard-back ,heard)))
+         #:catch
+         (lambda (err)
+           (set! on-result `(err ,err))))))
+  (test-assert "Pipelining errors are contagious"
+    (match on-result
+      (('err _err) #t)
+      (_ #f))))
 
 (test-end "test-goblins-core")
