@@ -213,4 +213,24 @@
       (('err _err) #t)
       (_ #f))))
 
+;; And here's the other variant of promise pipelining breakage
+(let ([what-i-got #f])
+  (actormap-churn-run!
+   am (lambda ()
+        (define fatal-foo
+          (spawn
+           (lambda _
+             (lambda _
+               (error "I am error")))))
+        (on (<- (<- (spawn (lambda _ (lambda _ fatal-foo)))))
+            (lambda (v)
+              (set! what-i-got `(yeah ,v)))
+            #:catch
+            (lambda (e)
+              (set! what-i-got `(oh-no ,e))))))
+  (test-equal
+   "Promise pipelining broken promise contagion, other version"
+   (car what-i-got)
+   'oh-no))
+
 (test-end "test-goblins-core")
