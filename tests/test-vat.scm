@@ -149,7 +149,17 @@
 (let-values (((result is-borked?)
 	     (try-car-pipeline a-vat borked-factory 'make-car)))
   (test-assert
-      "Sanity check to make sure broked-car factory normally works"
+      "Sanity check to make sure factory normally works"
+    (and (not is-borked?)
+         (match result
+           (#('ok "Vroom vroom")
+            #t)
+           (_ #f)))))
+
+(let-values (((result is-borked?)
+	      (try-car-pipeline b-vat borked-factory 'make-car)))
+  (test-assert
+      "Sanity check to make sure factory normally works across vats"
     (and (not is-borked?)
          (match result
            (#('ok "Vroom vroom")
