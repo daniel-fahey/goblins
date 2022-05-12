@@ -208,7 +208,7 @@
          #:catch
          (lambda (err)
            (set! on-result `(err ,err))))))
-  (test-assert "Pipelining errors are contagious"
+  (test-assert "Errors propagate through a promise pipeline"
     (match on-result
       (('err _err) #t)
       (_ #f))))
@@ -229,7 +229,7 @@
             (lambda (e)
               (set! what-i-got `(oh-no ,e))))))
   (test-equal
-   "Promise pipelining broken promise contagion, other version"
+   "Errors propagate through a promise pipeline, other version"
    (car what-i-got)
    'oh-no))
 
