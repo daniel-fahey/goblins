@@ -39,7 +39,7 @@
 (test-eq (run a-vat $ a-counter) 2)
 (test-eq (run a-vat $ a-counter) 3)
 (run a-vat <-np a-counter)
-(usleep 1)
+(usleep 500)
 (test-eq (run a-vat $ a-counter) 5)
 
 (define (^counter-poker _bcom counter)
