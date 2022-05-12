@@ -39,7 +39,7 @@
 (test-eq (run a-vat $ a-counter) 2)
 (test-eq (run a-vat $ a-counter) 3)
 (run a-vat <-np a-counter)
-(usleep 500)
+(usleep 50000)
 (test-eq (run a-vat $ a-counter) 5)
 
 (define (^counter-poker _bcom counter)
@@ -49,16 +49,16 @@
   (run a-vat spawn ^counter-poker a-counter))
 (test-eq (run a-vat $ a-counter) 6)
 (run a-vat $ counter-poker)
-(usleep 500)
+(usleep 50000)
 (test-eq (run a-vat $ a-counter) 8)
 (run a-vat $ counter-poker)
-(usleep 500)
+(usleep 50000)
 (test-eq (run a-vat $ a-counter) 10)
 
 ;; Inter-vat communication
 (define b-vat (spawn-vat))
 (run b-vat <- a-counter)
-(usleep 500)
+(usleep 50000)
 (test-eq (run a-vat $ a-counter) 12)
 
 ;; Check inter-vat promise resolution
@@ -68,7 +68,7 @@
      (on (<- my-friend)
 	 (lambda (response)
 	   (set! set-this (format #f "I got: ~a" response))))))
-  (usleep 500)
+  (usleep 50000)
   (test-equal
       "Check promise resolution using on between vats"
     set-this
@@ -89,7 +89,7 @@
      (on (<- car-vow)
 	 (lambda (car-says)
 	   (set! car-result-here car-says)))))
-  (usleep 500)
+  (usleep 50000)
   (test-equal
       "Check basic promise pipelining on the same vat works"
     car-result-here
@@ -103,7 +103,7 @@
      (on (<- car-vow)
 	 (lambda (car-says)
 	   (set! car-result-here car-says)))))
-  (usleep 500)
+  (usleep 50000)
   (test-equal
       "Check that basic promise pipeling works between vats"
     car-result-here
@@ -140,7 +140,7 @@
            #:catch
            (lambda (some-error)
              (set! result (vector 'err some-error))))))
-    (usleep 500)
+    (usleep 50000)
     (values result is-borked?)))
 
 (define borked-factory (run a-vat spawn ^borked-factory))
