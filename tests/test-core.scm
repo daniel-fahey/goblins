@@ -217,12 +217,19 @@
 (let ([what-i-got #f])
   (actormap-churn-run!
    am (lambda ()
-        (define fatal-foo
-          (spawn
-           (lambda _
-             (lambda _
-               (error "I am error")))))
-        (on (<- (<- (spawn (lambda _ (lambda _ fatal-foo)))))
+        (define (^broken-actor _bcom)
+          (lambda _
+            (error "I am error")))
+        (define (^returns-actor _bcom return-me)
+          (lambda ()
+            return-me))
+        (define broken-actor
+          (spawn ^broken-actor))
+        (define returns-broken-actor
+          (spawn ^returns-actor broken-actor))
+        (define broken-actor-vow
+          (<- returns-broken-actor))
+        (on (<- broken-actor-vow)
             (lambda (v)
               (set! what-i-got `(yeah ,v)))
             #:catch
