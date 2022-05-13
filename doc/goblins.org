@@ -773,42 +773,174 @@ TODO
 
 * API
 
-TODO
+** Objects
 
-** Objects and behavior
-
-TODO
+Objects are the core of Goblins.
+In general, you'll need to be within an ambient "Goblins Context" (TM)
+in order to start programming against them, see [[*Vats][Vats]] for most event
+loop type programming, or [[*Actormaps][Actormaps]] if you want to play with more low-level
+control over transactional operations.
+(However, most users will just use vats.)
 
 *** Spawning objects
 
-# TODO
+Objects can be spawned with the =spawn= operator:
 
-*** Synchronous calls
+#+BEGIN_SRC scheme
+  (spawn CONSTRUCTOR ARGS ...)
+  ;; => <local-refr>
+#+END_SRC
 
-# TODO
+where =CONSTRUCTOR= is a procedure which itself returns a procedure
+representing an object's current behavior.
+The =CONSTRUCTOR= is implicitly passed a first argument, traditionally
+labeled =bcom=, which can be used to change an object's behavior.
+The =ARGS= are passed as the remaining arguments to the constructor.
 
-*** Asynchronous message passing
+So for example, let's say we have the following constructor:
 
-# TODO
+#+BEGIN_SRC scheme
+  (define* (^cell bcom #:optional val)  ; constructor (outer procedure)
+    (case-lambda                        ; behavior    (inner procedure)
+      (()                               ; 0-argument invocation (getter)
+       val)                             ;   (return current value)
+      ((new-val)                        ; 1-argument invocation (setter)
+       (bcom (^cell bcom new-val)))))   ;   ("become" ^cell with new value)
+#+END_SRC
 
-# ** Vats: Communicating event loops
-# ** Actormaps: Low level transactional heaps
-# ** CapTP: Distributed programming
-# ** Aurie: Persistence
-# ** actor-lib: A standard library of sorts
+And so...
 
-# * Debugging
+#+BEGIN_SRC scheme
+  (define some-cell (spawn ^cell 42))
+#+END_SRC
 
-# More on debugging coming soon.
+will bind =val= to =42=.
 
-# * Design and philosophy
+*** Synchronous invocation
 
-# ** Why Scheme?  Why Guile?
+To synchronously invoke two objects within the same vat / actormap,
+use =$=:
 
-# ** History
+#+BEGIN_SRC scheme
+  ($ near-object args ...)
+  ;; => something
+#+END_SRC
 
-# ** The future: hopes, dreams, and hard work
+Provide a synchronous call against the current message handler of
+=NEAR-REFR=, which must be a /near/ =live-refr?=
+in the same vat as the currently running actor context.
+The value returned is that which is returned by the
+current behavior of =NEAR-REFR= upon invocation (or, if
+=NEAR-REFR= chose to =bcom= something else, the second
+argument passed to its =bcom=, or is =unspecified?= if not provided.)
 
-# ** License choice
+*** Asynchronous invocation
 
-# ** Spritely and user freedom
+#+BEGIN_SRC scheme
+  (<- near-object arg ...)
+  ;; => <local-promise>
+#+END_SRC
+
+Like =$=, but called asynchronously and returns a /promise/,
+which may be handled with =on=.
+Unlike =$=, =<-= is not limited to only /near/ objects;
+interaction with /far/ actors are permitted as well.
+
+#+BEGIN_SRC 
+  (<-np [actor-refr live-refr?] [arg any/c] ...)
+#+END_SRC
+
+Like =<-= but does not return (or require the overhead of) a
+promise.
+=<-np= is effectively an optimization; where promises are not
+needed, using =<-np= over =<-= is a good idea.
+
+#+BEGIN_SRC scheme
+(on vow
+    [fulfilled-handler]
+    [#:catch broken-handler]
+    [#:finally finally-handler]
+    [#:promise? #f])
+#+END_SRC
+
+Sets up promise handlers for =vow=, which is typically a
+=live-refr?= to a /promise/ but may be anything.
+
+=fulfilled-handler=, =broken-handler=, and =finally-handler=
+all, if specified, may be either a procedure (the most common case)
+which is run when =vow= becomes resolved, or a reference to an
+actor that should be messaged when the promise is resolved with the
+same arguments that would be passed to an equivalent procedure.
+As their names suggest, =fulfilled-handler= will run if a promise is
+fulfilled and takes one argument, the fulfilled value.
+=broken-handler= will run if a promise is broken and takes one
+argument, the error value.
+=finally-handler= will run when a promise is resolved, no matter the
+outcome and is called with no arguments.
+
+If =#:promise?= is set to =#t=, then =on=
+will itself return a promise.
+The promise will be resolved as follows:
+
+ - If =vow= is fulfilled and =fulfilled-handler= is not
+   provided, the promise returned will share =vow='s resolution.
+ - If =vow= is broken and =broken-handler= is not
+   provided, the promise returned will share =vow='s broken result.
+ - If =vow= is fulfilled and =fulfilled-handler= is provided,
+   the resolution will be whatever is returned from =fulfilled-handler=,
+   unless =fulfilled-handler= raises an error, in which case the promise
+   will be broken with its error-value set to this exception.
+ - If =vow= is broken and =broken-handler= is provided,
+   the resolution will be whatever is returned from =broken-handler=,
+   unless =broken-handler= raises an error, in which case the promise
+   will be broken with its error-value set to this exception (which
+   may even be the original exception).
+
+** Vats
+
+In order to start programming with Goblins, you will need to boot up a
+vat somewhere.  Most of Goblins programming doesn't spend much time
+with the user thinking particularly hard about vats; most of the
+
+*** Starting and stopping vats
+
+*** COMMENT Rolling your own vats
+
+** Actormaps
+
+** OCapN
+** Persistence
+
+* actor-lib: A standard library of sorts
+
+** Cells
+
+** Methods
+
+
+* COMMENT Design and philosophy
+
+** On the design of Goblins' distributed objects
+
+
+** Why Scheme?  Why Guile?
+
+** History
+
+** The future: hopes, dreams, and hard work
+
+** License choice
+
+** Spritely and user freedom
+
+* Thanks
+
+This manual was primarily written by Christine Lemmer-Webber.
+
+# Additional text by: ...
+
+Many of the ideas are borrowed from [[http://www.erights.org/talks/thesis/markm-thesis.pdf][Mark Miller's dissertation]],
+which is an excellent, if nerdy, read.
+
+Jessica Tallon, Jonathan A. Rees, and Randy Farmer provided review and
+feedback.
