@@ -6,24 +6,66 @@ This is the manual for [[https://spritelyproject.org/#goblins][Spritely Goblins]
 * What is Goblins?
 
 [[https://spritelyproject.org/#goblins][Spritely Goblins]] is a distributed object programming environment.
-It provides:
+Features:
 
- - An asynchronous programming environment,
- - A quasi-functional distributed object[fn:on-actors-and-objects]
-   system which is fully transactional (bad things can happen and
-   relevant parties can be notified, but modified state will roll
-   back, preventing the system from becoming corrupted)
+ - *Quasi-functional object system:*
+   Users hold on to references of objects/actors, but objects/actors
+   are just procedures.
+   Rather than directly mutating, objects/actors can specify that
+   they should "become" a new version of themselves when they
+   handle the next invocation.
 
-Coming soon to the Guile version (and already semi-present in the
-Racket version):
+ - *Fully distributed, networked, secure p2p communication:*
+   Via OCapN, the Object Capability Network (which features CapTP, the
+   Capability Transport Protocol), you can communicate with other
+   objects over a network connection.  Distributed object interactions
+   are safe because of ocap security guarantees.
 
- - A distributed object-capability-based object programming system
- - Peer to peer networking abstraction layers 
- - Time travel debugging
- - Process persistence which preserves the security properties
-   of the running system
+ - *Transactional updates:*
+   Changes happen within a transaction.
+   If an unhandled exception occurs, we can "roll back" history
+   as if the message never happened, avoiding confused state
+   changes throughout the system.
 
-Its design is inspired by the [[http://www.erights.org/][E programming language]] and by the
+ - *Time travel:*
+   We can snapshot old revisions of the system and
+   interact with them.
+
+ - *Asynchronous programming with sophisticated promise chaining:*
+   Asynchronous message passing with promises is supported.
+   Promises work such that there's no need to wait for promises
+   to resolve before interacting... you can communicate with the
+   future that doesn't even yet exist!
+   Sent a message to that remote car factory asking for a new car?
+   Why wait for the car to be delivered... you can send it a
+   drive message at the same time, and both messages can be
+   delivered across the network in a single hop.
+
+ - *Communicating event loops:*
+   Objects across multiple event loops (aka "vats") can
+   communicate, whether in the same OS process or (soon) across
+   the network.
+
+ - *Synchronous and asynchronous behavior, integrated but distinguished:*
+   Both synchronous and asynchronous programming is supported,
+   but only objects in the same "vat" (event loop) can perform
+   synchronous immediate calls.
+   All objects can perform asynchronous calls against each other.
+
+ - *A library, not a language:*
+   Goblins is itself a library that can be utilized across a wide
+   variety of Guile programs.
+
+ - *Object capability security:*
+   Goblins itself is built for object capability (ocap) security,
+   which is to say that you can only operate on the references
+   you have access to.
+   Goblins embraces and builds upon this foundation.
+   (However, full ocap security will require utilizing the
+   sandboxing features of Guile; demonstrations of this coming soon.)
+
+
+Goblins' design is inspired by the [[http://www.erights.org/][E programming language]] and by the
 observation that [[http://mumble.net/~jar/pubs/secureos/secureos.html][lambda is already the ultimate security mechanism]]
 (ie, normal argument-passing in programs, if taken seriously/purely,
 is already all the security system we need).
