@@ -846,7 +846,7 @@ which may be handled with =on=.
 Unlike =$=, =<-= is not limited to only /near/ objects;
 interaction with /far/ actors are permitted as well.
 
-#+BEGIN_SRC 
+#+BEGIN_SRC scheme
   (<-np [actor-refr live-refr?] [arg any/c] ...)
 #+END_SRC
 
