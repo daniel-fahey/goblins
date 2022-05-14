@@ -773,6 +773,16 @@ TODO
 
 * API
 
+Here lies the core procedures for building and manipulating Goblins
+programs!
+
+Unless where stated, most code from this section can be found by
+importing:
+
+#+BEGIN_SRC scheme
+  (use-modules (goblins))
+#+END_SRC
+
 ** Objects
 
 Objects are the core of Goblins.
