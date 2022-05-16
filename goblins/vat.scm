@@ -174,7 +174,7 @@ Keywords:
     ;; Control: operations on the vat from someone who spawned it
     (define handle-vat-control
       (match-lambda
-        (('halt)
+        ('halt
          (atomic-box-set! running? #f))
         (('run thunk return-ch)
          (define-values (returned new-actormap new-msgs)
