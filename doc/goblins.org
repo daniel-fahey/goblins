@@ -352,6 +352,47 @@ Thus =your-name= in =^greeter='s behavior procedure is bound to
 The behavior procedure thus proceeds with formatting and returning the
 greeting string.
 
+** Even easier hacking at the REPL
+
+Here's a  little aside that  can make  your hacking with Goblins more
+enjoyable.
+
+Setting up a vat can be annoying when all you want to do is test
+the code you've written.
+While =define-vat-run= simplifies use a little bit, it's also a bit
+funny.
+
+In "normal" Goblins code we'd just write:
+
+#+BEGIN_SRC scheme
+ (define alice
+   (spawn ^greeter "Alice"))
+#+END_SRC
+
+But at the REPL we had to insert this =a-run= thing in the middle:
+
+#+BEGIN_SRC scheme
+ > (define alice
+     (a-run (spawn ^greeter "Alice")))
+#+END_SRC
+
+If you just want to write some quick code for experimenting at the
+REPL, we have a comma command which can make your life a bit easier,
+=,vrun= (or =,vr= for short):
+
+#+BEGIN_SRC scheme
+ > (use-modules (goblins vrun))
+ > ,vrun (define alice (spawn ^greeter "Alice"))
+ > ,vrun ($ alice "Bob")
+ ; => "Hello Bob, my name is Alice!"
+ > ,vr ($ alice "Bob")    ; same thing
+ ; => "Hello Bob, my name is Alice!"
+#+END_SRC
+
+=,vrun= stands for "vat run", because it's a quick way to test.  It
+tries to be smart and unwrap =define= statements and such like the
+above so that they still can be bound at the REPL.
+
 ** State as updating behavior
 
 Let's introduce a simple cell which stores a value.
