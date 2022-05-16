@@ -999,10 +999,50 @@ The promise will be resolved as follows:
 ** Vats
 
 In order to start programming with Goblins, you will need to boot up a
-vat somewhere.  Most of Goblins programming doesn't spend much time
-with the user thinking particularly hard about vats; most of the
+vat somewhere.
+
+In general, Goblins uses [[https://github.com/wingo/fibers/][Fibers]] to implement vats.  However, it is
+intended that users should be able to roll their own vats should they
+have "unusual" event loop needs.  More on how to do this in a future
+iteration of these docs.  ;)
 
 *** Starting and stopping vats
+
+#+BEGIN_SRC scheme
+  > (define my-vat (spawn-vat))
+  > my-vat
+  ; => #<procedure (vat-controller)>
+#+END_SRC
+
+Running =spawn-vat= returns what's called a "vat controller".
+Running with no argument runs some code in the vat, blocking until
+a response is returned... useful for bootstrapping vats, or
+hacking at the REPL:
+
+#+BEGIN_SRC scheme
+  > (define my-vat (spawn-vat))
+  ; => #<procedure (vat-controller)>
+  > (my-vat
+      (lambda ()
+        (define alice (spawn ^greeter "Alice"))
+        ($ alice "Bob")))
+  ; => "Hello Alice, my name is Bob!"
+#+END_SRC
+
+You can also send it the ='halt= method to stop the vat,
+and ='running?= to check its status:
+
+#+BEGIN_SRC scheme
+  > (my-vat 'halt)
+  > (my-vat 'running?)
+  ; => #f
+#+END_SRC
+
+*NOTE:* In the future, we would like vats to automatically halt when
+no more references exist and thus the vat can do no more work.  The
+Racket version of vats works this way, it would be good for the Guile
+version to do the same.  In the meanwhile, you'll need to use ='halt=
+manually.
 
 *** COMMENT Rolling your own vats
 
