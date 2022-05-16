@@ -229,7 +229,9 @@ over some of the communication aspects of controlling the vat."
          (#('ok val) val)
          (#('fail err) (raise-exception err))))
       (('halt)
-       (put-message control-ch 'halt))))
+       (put-message control-ch 'halt))
+      (('running?)
+       (atomic-box-ref running?))))
   vat-runner)
 
 (define (syscaller-free-fiber thunk)
