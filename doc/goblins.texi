@@ -47,6 +47,7 @@ A high level view of Goblins
 Tutorial
 
 * A simple greeter::
+* Even easier hacking at the REPL::
 * State as updating behavior::
 * Methods aren't essential, but they are useful: Methods aren't essential but they are useful. 
 * Objects which contain objects::
@@ -401,6 +402,7 @@ enhancing an already powerful distributed programming paradigm.
 
 @menu
 * A simple greeter::
+* Even easier hacking at the REPL::
 * State as updating behavior::
 * Methods aren't essential, but they are useful: Methods aren't essential but they are useful. 
 * Objects which contain objects::
@@ -465,7 +467,7 @@ operation:
 
 @example
 > (a-run ($ alice "Alfred"))
-; => "Hello Alfred, my name is Alice!"
+=> "Hello Alfred, my name is Alice!"
 @end example
 
 The first argument to @samp{$} is the object to be invoked, the remaining
@@ -474,6 +476,48 @@ Thus @samp{your-name} in @samp{^greeter}'s behavior procedure is bound to
 @samp{"Bob"}.
 The behavior procedure thus proceeds with formatting and returning the
 greeting string.
+
+@node Even easier hacking at the REPL
+@section Even easier hacking at the REPL
+
+Here's a  little aside that  can make  your hacking with Goblins more
+enjoyable.
+
+Setting up a vat can be annoying when all you want to do is test
+the code you've written.
+While @samp{define-vat-run} simplifies use a little bit, it's also a bit
+funny.
+
+In "normal" Goblins code we'd just write:
+
+@example
+(define alice
+  (spawn ^greeter "Alice"))
+@end example
+
+But at the REPL we had to insert this @samp{a-run} thing in the middle:
+
+@example
+> (define alice
+    (a-run (spawn ^greeter "Alice")))
+@end example
+
+If you just want to write some quick code for experimenting at the
+REPL, we have a comma command which can make your life a bit easier,
+@samp{,vrun} (or @samp{,vr} for short):
+
+@example
+> (use-modules (goblins vrun))
+> ,vrun (define alice (spawn ^greeter "Alice"))
+> ,vrun ($ alice "Bob")
+=> "Hello Bob, my name is Alice!"
+> ,vr ($ alice "Bob")    ; same thing
+=> "Hello Bob, my name is Alice!"
+@end example
+
+@samp{,vrun} stands for "vat run", because it's a quick way to test.  It
+tries to be smart and unwrap @samp{define} statements and such like the
+above so that they still can be bound at the REPL@.
 
 @node State as updating behavior
 @section State as updating behavior
@@ -506,10 +550,10 @@ Taking things out and putting them back in is easy:
 > (define chest
     (a-run (spawn ^cell "sword")))
 > (a-run ($ chest))
-; => "sword"
+=> "sword"
 > (a-run ($ chest "gold"))
 > (a-run ($ chest))
-; => "gold" 
+=> "gold" 
 @end example
 
 Now we can see what @samp{bcom} is: a capability specific to this object
@@ -543,10 +587,10 @@ passed to the object:
 > (define jar
     (a-run (spawn ^mcell "cookies")))
 > (a-run ($ jar 'get))
-; => "cookies"
+=> "cookies"
 > (a-run ($ jar 'set "crumbs"))  
 > (a-run ($ jar 'get))
-; => "crumbs"
+=> "crumbs"
 @end example
 
 Methods aren't particularly magical@dots{} the @samp{methods} macro just
@@ -560,9 +604,9 @@ returns a procedure which is convenient to use for procedure dispatch:
      ((bar arg)
       (list 'called-bar-with arg))))
 > (foo-or-bar 'foo)
-; => called-foo
+=> called-foo
 > (foo-or-bar 'bar "meep")
-; => (called-bar-with "meep")
+=> (called-bar-with "meep")
 @end example
 
 So really, @samp{methods} just makes a particularly useful kind of
@@ -603,13 +647,13 @@ and is updated every time the @samp{greet} method is called:
 > (define julius
     (a-run (spawn ^cgreeter "Julius")))
 > (a-run ($ julius 'get-times-called))
-; => 0
+=> 0
 > (a-run ($ julius 'greet "Gaius"))
-; => "[1] Hello Gaius, my name is Julius!"
+=> "[1] Hello Gaius, my name is Julius!"
 > (a-run ($ julius 'greet "Brutus"))
-; => "[2] Hello Brutus, my name is Julius!"
+=> "[2] Hello Brutus, my name is Julius!"
 > (a-run ($ julius 'get-times-called))
-; => 2
+=> 2
 @end example
 
 @node Asynchronous message passing
@@ -634,7 +678,7 @@ The following works just fine:
 
 @example
 > (a-run ($ alice "Alfred"))
-; => "Hello Alfred, my name is Alice!"
+=> "Hello Alfred, my name is Alice!"
 @end example
 
 But since Alice works on A, we cannot synchronously invoke her with
@@ -655,7 +699,7 @@ immediate result, we get a promise:
 
 @example
 > (b-run (<- alice "Bob"))
-; => #<promise>
+=> #<promise>
 @end example
 
 This promise must be listened to.
@@ -733,7 +777,7 @@ Now let's spawn this friend and invoke it:
 > (define horatio
     (a-run (spawn ^borked-cgreeter "Horatio")))
 > (a-run ($ horatio 'get-times-called))
-; => 0
+=> 0
 > (a-run ($ horatio 'greet "Hamlet"))
 ; pk debug: (before-incr 0)
 ; pk debug: (after-incr 1)
@@ -749,7 +793,7 @@ And yet@dots{}
 
 @example
 > (a-run ($ horatio 'get-times-called))
-; => 0
+=> 0
 @end example
 
 We will cover this in greater detail later, but the core idea here
@@ -913,6 +957,16 @@ TODO
 @node API
 @chapter API
 
+Here lies the core procedures for building and manipulating Goblins
+programs!
+
+Unless where stated, most code from this section can be found by
+importing:
+
+@example
+(use-modules (goblins))
+@end example
+
 @menu
 * Objects::
 * Vats::
@@ -944,7 +998,7 @@ Objects can be spawned with the @samp{spawn} operator:
 
 @example
 (spawn CONSTRUCTOR ARGS ...)
-;; => <local-refr>
+;=> <local-refr>
 @end example
 
 where @samp{CONSTRUCTOR} is a procedure which itself returns a procedure
@@ -972,6 +1026,55 @@ And so@dots{}
 
 will bind @samp{val} to @samp{42}.
 
+Let's look at the @samp{bcom} argument in depth.
+This is a capability which allows the actor to change its own behavior.
+It must be called in a tail position, since @samp{bcom} actually returns
+a datastructure demonstrating that this object is choosing to change
+its value (part of Goblins' quasi-functional design.)
+
+@samp{bcom} also can take a second argument, which will be returned from
+the object's invocation as a return value, allowing for both an object
+change its own behavior and return a value at the same time during an
+invocation.
+
+The following actor represents a consumable object that returns a
+string explaining its current status:
+
+@example
+(define (^drink bcom drink-name portions)
+  (define (drinkable-beh portions)   ; "-beh" is a common suffix for "-behavior"
+    (lambda ()
+      (define portions-left
+        (- portions 1))
+      (if (zero? portions-left)
+          (bcom empty-beh
+                (format #f "*GLUG!* You drink your ~a. It's empty!"
+                        drink-name))
+          (bcom (drinkable-beh portions-left)
+                (format #f "*GLUG!* You drink your ~a. Still some left!"
+                        drink-name)))))
+  (define (empty-beh)
+    "Sadly, your glass appears to be empty!")
+  (drinkable-beh portions))
+@end example
+
+Now, playing around at the REPL, we can see how this works:
+
+@example
+> ,vr (define root-beer (spawn ^drink "root beer" 3))
+> ,vr ($ root-beer)
+=> "*GLUG!* You drink your root beer. Still some left!"
+> ,vr ($ root-beer)
+=> "*GLUG!* You drink your root beer. Still some left!"
+> ,vr ($ root-beer)
+=> "*GLUG!* You drink your root beer. It's empty!"
+> ,vr ($ root-beer)
+=> "Sadly, your glass appears to be empty!"
+@end example
+
+As you can see above, @samp{bcom} is also a handy way to construct state
+machines, as @samp{^drink} moves from drinkable to empty as it is consumed.
+
 @node Synchronous invocation
 @subsection Synchronous invocation
 
@@ -980,7 +1083,7 @@ use @samp{$}:
 
 @example
 ($ near-object args ...)
-;; => something
+;=> something
 @end example
 
 Provide a synchronous call against the current message handler of
@@ -996,7 +1099,7 @@ argument passed to its @samp{bcom}, or is @samp{unspecified?} if not provided.)
 
 @example
 (<- near-object arg ...)
-;; => <local-promise>
+;=> <local-promise>
 @end example
 
 Like @samp{$}, but called asynchronously and returns a @emph{promise},
@@ -1064,8 +1167,12 @@ may even be the original exception).
 @section Vats
 
 In order to start programming with Goblins, you will need to boot up a
-vat somewhere.  Most of Goblins programming doesn't spend much time
-with the user thinking particularly hard about vats; most of the
+vat somewhere.
+
+In general, Goblins uses @uref{https://github.com/wingo/fibers/, Fibers} to implement vats.  However, it is
+intended that users should be able to roll their own vats should they
+have "unusual" event loop needs.  More on how to do this in a future
+iteration of these docs.  ;)
 
 @menu
 * Starting and stopping vats::
@@ -1073,6 +1180,42 @@ with the user thinking particularly hard about vats; most of the
 
 @node Starting and stopping vats
 @subsection Starting and stopping vats
+
+@example
+> (define my-vat (spawn-vat))
+> my-vat
+=> #<procedure (vat-controller)>
+@end example
+
+Running @samp{spawn-vat} returns what's called a "vat controller".
+Running with no argument runs some code in the vat, blocking until
+a response is returned@dots{} useful for bootstrapping vats, or
+hacking at the REPL:
+
+@example
+> (define my-vat (spawn-vat))
+=> #<procedure (vat-controller)>
+> (my-vat
+    (lambda ()
+      (define alice (spawn ^greeter "Alice"))
+      ($ alice "Bob")))
+=> "Hello Alice, my name is Bob!"
+@end example
+
+You can also send it the @samp{'halt} method to stop the vat,
+and @samp{'running?} to check its status:
+
+@example
+> (my-vat 'halt)
+> (my-vat 'running?)
+=> #f
+@end example
+
+@strong{NOTE:} In the future, we would like vats to automatically halt when
+no more references exist and thus the vat can do no more work.  The
+Racket version of vats works this way, it would be good for the Guile
+version to do the same.  In the meanwhile, you'll need to use @samp{'halt}
+manually.
 
 @node Actormaps
 @section Actormaps
