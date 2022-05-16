@@ -220,7 +220,7 @@ Keywords:
 over some of the communication aspects of controlling the vat."
   (define running?
     (spawn-vat-fiber #:control-ch control-ch))
-  (define vat-runner
+  (define vat-controller
     (match-lambda*
       ((or ((? procedure? thunk)) ('run (? procedure? thunk)))
        (define return-ch (make-channel))
@@ -232,7 +232,7 @@ over some of the communication aspects of controlling the vat."
        (put-message control-ch 'halt))
       (('running?)
        (atomic-box-ref running?))))
-  vat-runner)
+  vat-controller)
 
 (define (syscaller-free-fiber thunk)
   (syscaller-free
