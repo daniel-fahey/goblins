@@ -913,6 +913,9 @@ Now, playing around at the REPL, we can see how this works:
   ; => "Sadly, your glass appears to be empty!"
 #+END_SRC
 
+As you can see above, =bcom= is also a handy way to construct state
+machines, as =^drink= moves from drinkable to empty as it is consumed.
+
 *** Synchronous invocation
 
 To synchronously invoke two objects within the same vat / actormap,
