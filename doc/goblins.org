@@ -867,6 +867,52 @@ And so...
 
 will bind =val= to =42=.
 
+Let's look at the =bcom= argument in depth.
+This is a capability which allows the actor to change its own behavior.
+It must be called in a tail position, since =bcom= actually returns
+a datastructure demonstrating that this object is choosing to change
+its value (part of Goblins' quasi-functional design.)
+
+=bcom= also can take a second argument, which will be returned from
+the object's invocation as a return value, allowing for both an object
+change its own behavior and return a value at the same time during an
+invocation.
+
+The following actor represents a consumable object that returns a
+string explaining its current status:
+
+#+BEGIN_SRC scheme
+  (define (^drink bcom drink-name portions)
+    (define (drinkable-beh portions)   ; "-beh" is a common suffix for "-behavior"
+      (lambda ()
+        (define portions-left
+          (- portions 1))
+        (if (zero? portions-left)
+            (bcom empty-beh
+                  (format #f "*GLUG!* You drink your ~a. It's empty!"
+                          drink-name))
+            (bcom (drinkable-beh portions-left)
+                  (format #f "*GLUG!* You drink your ~a. Still some left!"
+                          drink-name)))))
+    (define (empty-beh)
+      "Sadly, your glass appears to be empty!")
+    (drinkable-beh portions))
+#+END_SRC
+
+Now, playing around at the REPL, we can see how this works:
+
+#+BEGIN_SRC scheme
+  > ,vr (define root-beer (spawn ^drink "root beer" 3))
+  > ,vr ($ root-beer)
+  ; => "*GLUG!* You drink your root beer. Still some left!"
+  > ,vr ($ root-beer)
+  ; => "*GLUG!* You drink your root beer. Still some left!"
+  > ,vr ($ root-beer)
+  ; => "*GLUG!* You drink your root beer. It's empty!"
+  > ,vr ($ root-beer)
+  ; => "Sadly, your glass appears to be empty!"
+#+END_SRC
+
 *** Synchronous invocation
 
 To synchronously invoke two objects within the same vat / actormap,
