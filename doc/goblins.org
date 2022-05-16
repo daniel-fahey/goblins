@@ -342,7 +342,7 @@ operation:
 
 #+BEGIN_SRC scheme
  > (a-run ($ alice "Alfred"))
- ; => "Hello Alfred, my name is Alice!"
+ => "Hello Alfred, my name is Alice!"
 #+END_SRC
 
 The first argument to =$= is the object to be invoked, the remaining
@@ -384,9 +384,9 @@ REPL, we have a comma command which can make your life a bit easier,
  > (use-modules (goblins vrun))
  > ,vrun (define alice (spawn ^greeter "Alice"))
  > ,vrun ($ alice "Bob")
- ; => "Hello Bob, my name is Alice!"
+ => "Hello Bob, my name is Alice!"
  > ,vr ($ alice "Bob")    ; same thing
- ; => "Hello Bob, my name is Alice!"
+ => "Hello Bob, my name is Alice!"
 #+END_SRC
 
 =,vrun= stands for "vat run", because it's a quick way to test.  It
@@ -423,10 +423,10 @@ Taking things out and putting them back in is easy:
   > (define chest
       (a-run (spawn ^cell "sword")))
   > (a-run ($ chest))
-  ; => "sword"
+  => "sword"
   > (a-run ($ chest "gold"))
   > (a-run ($ chest))
-  ; => "gold" 
+  => "gold" 
 #+END_SRC
 
 Now we can see what =bcom= is: a capability specific to this object
@@ -459,10 +459,10 @@ passed to the object:
   > (define jar
       (a-run (spawn ^mcell "cookies")))
   > (a-run ($ jar 'get))
-  ; => "cookies"
+  => "cookies"
   > (a-run ($ jar 'set "crumbs"))  
   > (a-run ($ jar 'get))
-  ; => "crumbs"
+  => "crumbs"
 #+END_SRC
 
 Methods aren't particularly magical... the =methods= macro just
@@ -476,9 +476,9 @@ returns a procedure which is convenient to use for procedure dispatch:
        ((bar arg)
         (list 'called-bar-with arg))))
   > (foo-or-bar 'foo)
-  ; => called-foo
+  => called-foo
   > (foo-or-bar 'bar "meep")
-  ; => (called-bar-with "meep")
+  => (called-bar-with "meep")
 #+END_SRC
 
 So really, =methods= just makes a particularly useful kind of
@@ -518,13 +518,13 @@ and is updated every time the =greet= method is called:
   > (define julius
       (a-run (spawn ^cgreeter "Julius")))
   > (a-run ($ julius 'get-times-called))
-  ; => 0
+  => 0
   > (a-run ($ julius 'greet "Gaius"))
-  ; => "[1] Hello Gaius, my name is Julius!"
+  => "[1] Hello Gaius, my name is Julius!"
   > (a-run ($ julius 'greet "Brutus"))
-  ; => "[2] Hello Brutus, my name is Julius!"
+  => "[2] Hello Brutus, my name is Julius!"
   > (a-run ($ julius 'get-times-called))
-  ; => 2
+  => 2
 #+END_SRC
 
 ** Asynchronous message passing
@@ -548,7 +548,7 @@ The following works just fine:
 
 #+BEGIN_SRC scheme
  > (a-run ($ alice "Alfred"))
- ; => "Hello Alfred, my name is Alice!"
+ => "Hello Alfred, my name is Alice!"
 #+END_SRC
 
 But since Alice works on A, we cannot synchronously invoke her with
@@ -569,7 +569,7 @@ immediate result, we get a promise:
 
 #+BEGIN_SRC scheme
 > (b-run (<- alice "Bob"))
-; => #<promise>
+=> #<promise>
 #+END_SRC
 
 This promise must be listened to.
@@ -646,7 +646,7 @@ Now let's spawn this friend and invoke it:
   > (define horatio
       (a-run (spawn ^borked-cgreeter "Horatio")))
   > (a-run ($ horatio 'get-times-called))
-  ; => 0
+  => 0
   > (a-run ($ horatio 'greet "Hamlet"))
   ; pk debug: (before-incr 0)
   ; pk debug: (after-incr 1)
@@ -662,7 +662,7 @@ And yet...
 
 #+BEGIN_SRC scheme
 > (a-run ($ horatio 'get-times-called))
-; => 0
+=> 0
 #+END_SRC
 
 We will cover this in greater detail later, but the core idea here
@@ -839,7 +839,7 @@ Objects can be spawned with the =spawn= operator:
 
 #+BEGIN_SRC scheme
   (spawn CONSTRUCTOR ARGS ...)
-  ;; => <local-refr>
+  ;=> <local-refr>
 #+END_SRC
 
 where =CONSTRUCTOR= is a procedure which itself returns a procedure
@@ -904,13 +904,13 @@ Now, playing around at the REPL, we can see how this works:
 #+BEGIN_SRC scheme
   > ,vr (define root-beer (spawn ^drink "root beer" 3))
   > ,vr ($ root-beer)
-  ; => "*GLUG!* You drink your root beer. Still some left!"
+  => "*GLUG!* You drink your root beer. Still some left!"
   > ,vr ($ root-beer)
-  ; => "*GLUG!* You drink your root beer. Still some left!"
+  => "*GLUG!* You drink your root beer. Still some left!"
   > ,vr ($ root-beer)
-  ; => "*GLUG!* You drink your root beer. It's empty!"
+  => "*GLUG!* You drink your root beer. It's empty!"
   > ,vr ($ root-beer)
-  ; => "Sadly, your glass appears to be empty!"
+  => "Sadly, your glass appears to be empty!"
 #+END_SRC
 
 As you can see above, =bcom= is also a handy way to construct state
@@ -923,7 +923,7 @@ use =$=:
 
 #+BEGIN_SRC scheme
   ($ near-object args ...)
-  ;; => something
+  ;=> something
 #+END_SRC
 
 Provide a synchronous call against the current message handler of
@@ -938,7 +938,7 @@ argument passed to its =bcom=, or is =unspecified?= if not provided.)
 
 #+BEGIN_SRC scheme
   (<- near-object arg ...)
-  ;; => <local-promise>
+  ;=> <local-promise>
 #+END_SRC
 
 Like =$=, but called asynchronously and returns a /promise/,
@@ -1011,7 +1011,7 @@ iteration of these docs.  ;)
 #+BEGIN_SRC scheme
   > (define my-vat (spawn-vat))
   > my-vat
-  ; => #<procedure (vat-controller)>
+  => #<procedure (vat-controller)>
 #+END_SRC
 
 Running =spawn-vat= returns what's called a "vat controller".
@@ -1021,12 +1021,12 @@ hacking at the REPL:
 
 #+BEGIN_SRC scheme
   > (define my-vat (spawn-vat))
-  ; => #<procedure (vat-controller)>
+  => #<procedure (vat-controller)>
   > (my-vat
       (lambda ()
         (define alice (spawn ^greeter "Alice"))
         ($ alice "Bob")))
-  ; => "Hello Alice, my name is Bob!"
+  => "Hello Alice, my name is Bob!"
 #+END_SRC
 
 You can also send it the ='halt= method to stop the vat,
@@ -1035,7 +1035,7 @@ and ='running?= to check its status:
 #+BEGIN_SRC scheme
   > (my-vat 'halt)
   > (my-vat 'running?)
-  ; => #f
+  => #f
 #+END_SRC
 
 *NOTE:* In the future, we would like vats to automatically halt when
