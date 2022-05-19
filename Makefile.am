@@ -101,7 +101,6 @@ EXTRA_DIST += README.org \
               AUTHORS \
               ChangeLog \
               guix.scm \
-              hall.scm \
               coverage.scm \
               manifest.scm \
               live-guile.sh \
