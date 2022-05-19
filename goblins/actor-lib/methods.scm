@@ -41,7 +41,7 @@
   (error "No such method" method args))
 
 (define-syntax-rule (methods method-defns ...)
-  (methods* method-defns ... no-such-method))
+  (methods* no-such-method method-defns ...))
 
 (define (extend-actor extends-actor)
   (lambda (method . args)
