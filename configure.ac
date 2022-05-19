@@ -3,7 +3,7 @@ dnl -*- Autoconf -*-
 
 AC_INIT(guile-goblins, 0.6-pre)
 AC_SUBST(HVERSION, "\"0.6-pre\"")
-AC_SUBST(AUTHOR, "\"Christine Lemmer-Webber\"")
+AC_SUBST(AUTHOR, "\"The Spritely Institute\"")
 AC_SUBST(COPYRIGHT, "'(2022)")
 AC_SUBST(LICENSE, asl2.0)
 AC_CONFIG_SRCDIR(goblins.scm)
