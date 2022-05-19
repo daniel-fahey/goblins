@@ -28,8 +28,6 @@
               (string-contains file my-string))
             (list ".git" ".dir-locals.el" "guix.scm"))))
 
-;; Note: We're assuming the source has already been bootstrapped using
-;; `hall dist -x'.
 (package
   (name "guile-goblins")
   (version "0.6-pre")
