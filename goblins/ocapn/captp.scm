@@ -958,15 +958,14 @@
      [(get-location-sig) our-location-sig]))
 
   (define pre-init-beh
-    (extend-methods
-     [(install-remote-key remote-encoded-key
-                          remote-handoff-key
-                          remote-location)
-      (bcom (ready-beh remote-encoded-key
-                       remote-handoff-key
-                       remote-location)
-            'OK)]
-     core-beh))
+    (extend-methods core-beh
+      [(install-remote-key remote-encoded-key
+                           remote-handoff-key
+                           remote-location)
+       (bcom (ready-beh remote-encoded-key
+                        remote-handoff-key
+                        remote-location)
+             'OK)]))
 
   (define (ready-beh remote-encoded-key
                      remote-key
@@ -1134,17 +1133,16 @@
              (pk-verify give-recipient-key encoded-handoff-receive
                         receive-sig))))
 
-    (extend-methods
-     [(get-remote-side-name) remote-side-name]
-     [(get-remote-location) remote-location]
-     [(get-session-name) session-name]
-     [(get-our-side-name) our-side-name]
-     ;; handoff stuff
-     [make-handoff-base-cert make-handoff-base-cert]
-     [start-retrieve-handoff start-retrieve-handoff]
-     [full-handoff-legit? full-handoff-legit?]
-     [give-handoff-legit? give-handoff-legit?]
-     core-beh))
+    (extend-methods core-beh
+      [(get-remote-side-name) remote-side-name]
+      [(get-remote-location) remote-location]
+      [(get-session-name) session-name]
+      [(get-our-side-name) our-side-name]
+      ;; handoff stuff
+      [make-handoff-base-cert make-handoff-base-cert]
+      [start-retrieve-handoff start-retrieve-handoff]
+      [full-handoff-legit? full-handoff-legit?]
+      [give-handoff-legit? give-handoff-legit?]))
 
   pre-init-beh)
 
@@ -1254,12 +1252,11 @@
               (desc:handoff-give-gift-id handoff-give))))
 
       (define main-beh
-        (extend-methods
-         [deposit-gift deposit-gift]
-         [withdraw-gift withdraw-gift]
-         [(fetch swiss-num)
-          ($C locator 'fetch swiss-num)]
-         extends))
+        (extend-methods extends
+          [deposit-gift deposit-gift]
+          [withdraw-gift withdraw-gift]
+          [(fetch swiss-num)
+           ($C locator 'fetch swiss-num)]))
 
       (define cross-gift-beh
         (methods
