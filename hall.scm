@@ -82,7 +82,8 @@ of the library!")
            ((org-file "README")
             (symlink "README" "README.org")
             (symlink "HACKING" "README.org")
-            (symlink "COPYING" "LICENSE.txt")
+            (text-file "COPYING")
+            (symlink "LICENSE.txt" "COPYING")
             (directory
               "doc"
               ((org-file "goblins") (texi-file "goblins")))
