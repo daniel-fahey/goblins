@@ -21,7 +21,6 @@
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
-  #:use-module (fibers internal)
   #:use-module (ice-9 match)
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 threads)

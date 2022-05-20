@@ -16,14 +16,24 @@
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers conditions)
-  ;; TODO: This won't exist in Fibers 1.1.0.
-  ;;   As such, we should conditionally load different code
-  ;;   depending on whether or not Fibers 1.0 or 1.1.0 is used,
-  ;;   or maybe move to Fibers 1.1.0 altogether.
-  #:use-module (fibers internal)
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 threads)
   #:export (default-vat-scheduler))
+
+;; Kludge to get around change of interface for accessing current
+;; fiber between Fibers 1.0.0 and 1.1.0
+(define %current-scheduler
+  (catch
+    #t
+    ;; Fibers 1.0.0
+    (lambda ()
+      (let ((current-fiber (@@ (fibers internal) current-fiber))
+            (fiber-scheduler (@@ (fibers internal) fiber-scheduler)))
+        (lambda ()
+          (fiber-scheduler (current-fiber)))))
+    ;; Fibers 1.1.0
+    (lambda _
+      (@@ (fibers scheduler) current-scheduler))))
 
 ;; A shared Fibers scheduler to default most vats connecting to.
 ;; We might prefer eventually to delay booting this up as long
@@ -42,7 +52,7 @@ appropriate"
               (lambda ()
                 ;; attempt to install this as the current scheduler
                 (define this-sched
-                  (fiber-scheduler (current-fiber)))
+                  (%current-scheduler))
                 (define prev-sched
                   (atomic-box-compare-and-swap! %vat-sched #f this-sched))
                 (if prev-sched
