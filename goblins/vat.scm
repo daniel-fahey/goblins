@@ -174,7 +174,7 @@ Keywords:
     ;; Control: operations on the vat from someone who spawned it
     (define handle-vat-control
       (match-lambda
-        (('halt)
+        ('halt
          (atomic-box-set! running? #f))
         (('run thunk return-ch)
          (define-values (returned new-actormap new-msgs)
@@ -220,7 +220,7 @@ Keywords:
 over some of the communication aspects of controlling the vat."
   (define running?
     (spawn-vat-fiber #:control-ch control-ch))
-  (define vat-runner
+  (define vat-controller
     (match-lambda*
       ((or ((? procedure? thunk)) ('run (? procedure? thunk)))
        (define return-ch (make-channel))
@@ -229,8 +229,10 @@ over some of the communication aspects of controlling the vat."
          (#('ok val) val)
          (#('fail err) (raise-exception err))))
       (('halt)
-       (put-message control-ch 'halt))))
-  vat-runner)
+       (put-message control-ch 'halt))
+      (('running?)
+       (atomic-box-ref running?))))
+  vat-controller)
 
 (define (syscaller-free-fiber thunk)
   (syscaller-free
