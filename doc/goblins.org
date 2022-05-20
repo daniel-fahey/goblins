@@ -6,24 +6,66 @@ This is the manual for [[https://spritelyproject.org/#goblins][Spritely Goblins]
 * What is Goblins?
 
 [[https://spritelyproject.org/#goblins][Spritely Goblins]] is a distributed object programming environment.
-It provides:
+Features:
 
- - An asynchronous programming environment,
- - A quasi-functional distributed object[fn:on-actors-and-objects]
-   system which is fully transactional (bad things can happen and
-   relevant parties can be notified, but modified state will roll
-   back, preventing the system from becoming corrupted)
+ - *Quasi-functional object system:*
+   Users hold on to references of objects/actors, but objects/actors
+   are just procedures.
+   Rather than directly mutating, objects/actors can specify that
+   they should "become" a new version of themselves when they
+   handle the next invocation.
 
-Coming soon to the Guile version (and already semi-present in the
-Racket version):
+ - *Fully distributed, networked, secure p2p communication:*
+   Via OCapN, the Object Capability Network (which features CapTP, the
+   Capability Transport Protocol), you can communicate with other
+   objects over a network connection.  Distributed object interactions
+   are safe because of ocap security guarantees.
 
- - A distributed object-capability-based object programming system
- - Peer to peer networking abstraction layers 
- - Time travel debugging
- - Process persistence which preserves the security properties
-   of the running system
+ - *Transactional updates:*
+   Changes happen within a transaction.
+   If an unhandled exception occurs, we can "roll back" history
+   as if the message never happened, avoiding confused state
+   changes throughout the system.
 
-Its design is inspired by the [[http://www.erights.org/][E programming language]] and by the
+ - *Time travel:*
+   We can snapshot old revisions of the system and
+   interact with them.
+
+ - *Asynchronous programming with sophisticated promise chaining:*
+   Asynchronous message passing with promises is supported.
+   Promises work such that there's no need to wait for promises
+   to resolve before interacting... you can communicate with the
+   future that doesn't even yet exist!
+   Sent a message to that remote car factory asking for a new car?
+   Why wait for the car to be delivered... you can send it a
+   drive message at the same time, and both messages can be
+   delivered across the network in a single hop.
+
+ - *Communicating event loops:*
+   Objects across multiple event loops (aka "vats") can
+   communicate, whether in the same OS process or (soon) across
+   the network.
+
+ - *Synchronous and asynchronous behavior, integrated but distinguished:*
+   Both synchronous and asynchronous programming is supported,
+   but only objects in the same "vat" (event loop) can perform
+   synchronous immediate calls.
+   All objects can perform asynchronous calls against each other.
+
+ - *A library, not a language:*
+   Goblins is itself a library that can be utilized across a wide
+   variety of Guile programs.
+
+ - *Object capability security:*
+   Goblins itself is built for object capability (ocap) security,
+   which is to say that you can only operate on the references
+   you have access to.
+   Goblins embraces and builds upon this foundation.
+   (However, full ocap security will require utilizing the
+   sandboxing features of Guile; demonstrations of this coming soon.)
+
+
+Goblins' design is inspired by the [[http://www.erights.org/][E programming language]] and by the
 observation that [[http://mumble.net/~jar/pubs/secureos/secureos.html][lambda is already the ultimate security mechanism]]
 (ie, normal argument-passing in programs, if taken seriously/purely,
 is already all the security system we need).
@@ -115,11 +157,136 @@ first execute:
 "hang".  We know this is an annoyance!  It'll be fixed soon!
 
 
-* Tutorial
+* A high level view of Goblins
 
-TODO: we should port the [[https://docs.racket-lang.org/goblins/index.html][Goblins on Racket tutorial]] but simplify it
-(introduce actormaps much later, use =(goblins vrun)= to simplify
-REPL experimentation, etc).
+Let's start with a sketch of a network of Goblins objects wired
+to communicate with each other:
+
+#+BEGIN_SRC text
+  .----------------------------------.         .----------------------.
+  |            Machine 1             |         |       Machine 2      |
+  |            =========             |         |       =========      |
+  |                                  |         |                      |
+  | .--------------.  .---------.   .-.       .-.                     |
+  | |    Vat A     |  |  Vat B  |   |  \______|  \_   .------------.  |
+  | |  .---.       |  |   .-.   | .-|  /      |  / |  |    Vat C   |  |
+  | | (Alice)----------->(Bob)----' '-'       '-'  |  |  .---.     |  |
+  | |  '---'       |  |   '-'   |    |         |   '--->(Carol)    |  |
+  | |      \       |  '----^----'    |         |      |  '---'     |  |
+  | |       V      |       |         |         |      |            |  |
+  | |      .----.  |       |        .-.       .-.     |  .------.  |  |
+  | |     (Alfred) |       '-------/  |______/  |____---( Carlos ) |  |
+  | |      '----'  |               \  |      \  |     |  '------'  |  |
+  | |              |                '-'       '-'     '------------'  |
+  | '--------------'                 |         |                      |
+  |                                  |         |                      |
+  '----------------------------------'         '----------------------'
+#+END_SRC
+
+In the above diagram, we see:
+
+ - Two machines (=Machine 1= and =Machine 2=, running separately from
+   each other, but connected to each other over the network via OCapN
+   and CapTP.
+
+ - =Vat A= and =Vat B= are event loops which live on =Machine 1=,
+   and =Vat C= is an event loop which live son =Machine 2=.
+
+ - The individual objects (represented by circles) live in /vats/,
+   aka event loops which contain objects.  =Alice= and
+   =Alfred= live in =Vat A=, =Bob= lives in =Vat B=, and =Carol= and
+   =Carlos= live on =Vat C=.  (While we've given these objects
+   human-like names, they're just Goblins objects.)
+
+ - The arrows between the objects represent references these objects
+   have to each other.  =Alice= has references to both =Alfred= and
+   =Bob=.  =Bob= has a reference to =Carol=.  =Carlos= has a reference
+   to =Bob=.
+
+ - Two objects which are in the same vat are considered /near/ each
+   other, and thus can invoke each other synchronously, whereas any
+   objects not in the same vat are considered /far/ from each other.
+   Any objects can invoke each other by asynchronous message
+   passing... assuming they have a reference to each other.
+
+ - Not pictured: each vat has an /actormap/, an underlying
+   transactional heap used for object communication.  This is what
+   permits transactionality and time travel.  (Actormaps can also used
+   independently of vats for certain categories of applications.)
+
+Another way to think about this is via the following abstraction
+nesting dolls:
+
+#+BEGIN_SRC scheme
+  (machine (vat (actormap {refr: object-behavior})))
+#+END_SRC
+
+ - *Machines*, which are computers on the network, or more
+   realistically, operating system processes, which contain...
+ - *Vats*, which are communicating event loops, which contain...
+ - *Actormaps*, transactional heaps, which contain...
+ - A mapping of *References* to *Object Behavior*.
+
+** The "vat model" of computation
+
+As said, Goblins follows what is called the /vat model/ of
+computation.
+A /vat/ is simply an event loop that manages a set of
+objects which are /near/ to each other (and similarly, objects outside
+of a vat are /far/ from each other).
+
+Objects which are /near/ can perform synchronous call-return
+invocations in a manner familiar to most sequential programming
+languages used by most programmers today.  Aside from being
+a somewhat more convenient way to program, sequential invocation
+is desirable because of cheap /transactionality/, which we shall
+expand on more later.  In Goblins, we use the =$= operator
+to perform synchronous operations.
+
+Both /near/ and /far/ objects are able to invoke each other
+asynchronously using asynchronous message passing (in the same style
+as the /classic actor model/).  It does not
+generally matter whether or not a /far/ object is running within the
+same OS process or machine or one somewhere else on the
+network for most programming tasks; asynchronous
+message passing works the same either way.  In Goblins, we use the
+=<-= operator to perform asynchronous operations.
+# [fn:classic-actors] [fn:session-severance]
+
+For both programmer convenience and for networked efficiency, Goblins
+supports /promise pipelining/: messages can be sent to promises which
+have not yet resolved, and will be forwarded to the target once the
+promise resolves.
+The sender of the message is handed back a promise to which it can
+supply callbacks, listening for the promise to be fulfilled with a
+value or broken (usually in case of an unexpected error).
+# [fn:full-promise-vision]
+
+As usual in the vat model of computation, individual message sends to
+a vat (event loop) are queued and then handled one /turn/ at a time,
+akin to the way board game players take turns around a table (which is
+indeed the basis for the term /turn/).
+
+The message, addressing a specific object, is passed to the recipient
+object's current behavior.  This object may then invoke other
+/near/ objects (residing within the same vat), which may themselves
+invoke other near objects in a synchronous and sequential call-return
+style familiar to most users of most contemporary programming
+languages.  Any of these invoked objects may also change their
+state/behavior (behavior changes appear purely functional in Goblins;
+invocations of other actors do not), spawn new objects, invoke
+ordinary expressions from the host language, or send asynchronous
+messages to other objects (which are only sent if the /turn/ completes
+successfully).
+
+While the /vat model/ of computation is not new (it originates in the
+[[http://erights.org/][E]] programming language and can trace some of its ideas back to E's
+predecessor [[http://erights.org/history/joule/][Joule]], and has since reappeared in systems such as
+[[https://agoric.com/][Agoric's]] [[https://github.com/Agoric/agoric-sdk/tree/master/packages/SwingSet][SwingSet]] kernel), Goblins brings some novel contributions to
+the table in terms of transactionality and time-travel debugging,
+enhancing an already powerful distributed programming paradigm.
+
+* Tutorial
 
 ** A simple greeter
 
@@ -175,7 +342,7 @@ operation:
 
 #+BEGIN_SRC scheme
  > (a-run ($ alice "Alfred"))
- ; => "Hello Alfred, my name is Alice!"
+ => "Hello Alfred, my name is Alice!"
 #+END_SRC
 
 The first argument to =$= is the object to be invoked, the remaining
@@ -184,6 +351,47 @@ Thus =your-name= in =^greeter='s behavior procedure is bound to
 ="Bob"=.
 The behavior procedure thus proceeds with formatting and returning the
 greeting string.
+
+** Even easier hacking at the REPL
+
+Here's a  little aside that  can make  your hacking with Goblins more
+enjoyable.
+
+Setting up a vat can be annoying when all you want to do is test
+the code you've written.
+While =define-vat-run= simplifies use a little bit, it's also a bit
+funny.
+
+In "normal" Goblins code we'd just write:
+
+#+BEGIN_SRC scheme
+ (define alice
+   (spawn ^greeter "Alice"))
+#+END_SRC
+
+But at the REPL we had to insert this =a-run= thing in the middle:
+
+#+BEGIN_SRC scheme
+ > (define alice
+     (a-run (spawn ^greeter "Alice")))
+#+END_SRC
+
+If you just want to write some quick code for experimenting at the
+REPL, we have a comma command which can make your life a bit easier,
+=,vrun= (or =,vr= for short):
+
+#+BEGIN_SRC scheme
+ > (use-modules (goblins vrun))
+ > ,vrun (define alice (spawn ^greeter "Alice"))
+ > ,vrun ($ alice "Bob")
+ => "Hello Bob, my name is Alice!"
+ > ,vr ($ alice "Bob")    ; same thing
+ => "Hello Bob, my name is Alice!"
+#+END_SRC
+
+=,vrun= stands for "vat run", because it's a quick way to test.  It
+tries to be smart and unwrap =define= statements and such like the
+above so that they still can be bound at the REPL.
 
 ** State as updating behavior
 
@@ -215,10 +423,10 @@ Taking things out and putting them back in is easy:
   > (define chest
       (a-run (spawn ^cell "sword")))
   > (a-run ($ chest))
-  ; => "sword"
+  => "sword"
   > (a-run ($ chest "gold"))
   > (a-run ($ chest))
-  ; => "gold" 
+  => "gold" 
 #+END_SRC
 
 Now we can see what =bcom= is: a capability specific to this object
@@ -251,10 +459,10 @@ passed to the object:
   > (define jar
       (a-run (spawn ^mcell "cookies")))
   > (a-run ($ jar 'get))
-  ; => "cookies"
+  => "cookies"
   > (a-run ($ jar 'set "crumbs"))  
   > (a-run ($ jar 'get))
-  ; => "crumbs"
+  => "crumbs"
 #+END_SRC
 
 Methods aren't particularly magical... the =methods= macro just
@@ -268,9 +476,9 @@ returns a procedure which is convenient to use for procedure dispatch:
        ((bar arg)
         (list 'called-bar-with arg))))
   > (foo-or-bar 'foo)
-  ; => called-foo
+  => called-foo
   > (foo-or-bar 'bar "meep")
-  ; => (called-bar-with "meep")
+  => (called-bar-with "meep")
 #+END_SRC
 
 So really, =methods= just makes a particularly useful kind of
@@ -310,13 +518,13 @@ and is updated every time the =greet= method is called:
   > (define julius
       (a-run (spawn ^cgreeter "Julius")))
   > (a-run ($ julius 'get-times-called))
-  ; => 0
+  => 0
   > (a-run ($ julius 'greet "Gaius"))
-  ; => "[1] Hello Gaius, my name is Julius!"
+  => "[1] Hello Gaius, my name is Julius!"
   > (a-run ($ julius 'greet "Brutus"))
-  ; => "[2] Hello Brutus, my name is Julius!"
+  => "[2] Hello Brutus, my name is Julius!"
   > (a-run ($ julius 'get-times-called))
-  ; => 2
+  => 2
 #+END_SRC
 
 ** Asynchronous message passing
@@ -340,7 +548,7 @@ The following works just fine:
 
 #+BEGIN_SRC scheme
  > (a-run ($ alice "Alfred"))
- ; => "Hello Alfred, my name is Alice!"
+ => "Hello Alfred, my name is Alice!"
 #+END_SRC
 
 But since Alice works on A, we cannot synchronously invoke her with
@@ -361,7 +569,7 @@ immediate result, we get a promise:
 
 #+BEGIN_SRC scheme
 > (b-run (<- alice "Bob"))
-; => #<promise>
+=> #<promise>
 #+END_SRC
 
 This promise must be listened to.
@@ -438,7 +646,7 @@ Now let's spawn this friend and invoke it:
   > (define horatio
       (a-run (spawn ^borked-cgreeter "Horatio")))
   > (a-run ($ horatio 'get-times-called))
-  ; => 0
+  => 0
   > (a-run ($ horatio 'greet "Hamlet"))
   ; pk debug: (before-incr 0)
   ; pk debug: (after-incr 1)
@@ -454,7 +662,7 @@ And yet...
 
 #+BEGIN_SRC scheme
 > (a-run ($ horatio 'get-times-called))
-; => 0
+=> 0
 #+END_SRC
 
 We will cover this in greater detail later, but the core idea here
@@ -606,42 +814,273 @@ TODO
 
 * API
 
-TODO
+Here lies the core procedures for building and manipulating Goblins
+programs!
 
-** Objects and behavior
+Unless where stated, most code from this section can be found by
+importing:
 
-TODO
+#+BEGIN_SRC scheme
+  (use-modules (goblins))
+#+END_SRC
+
+** Objects
+
+Objects are the core of Goblins.
+In general, you'll need to be within an ambient "Goblins Context" (TM)
+in order to start programming against them, see [[*Vats][Vats]] for most event
+loop type programming, or [[*Actormaps][Actormaps]] if you want to play with more low-level
+control over transactional operations.
+(However, most users will just use vats.)
 
 *** Spawning objects
 
-# TODO
+Objects can be spawned with the =spawn= operator:
 
-*** Synchronous calls
+#+BEGIN_SRC scheme
+  (spawn CONSTRUCTOR ARGS ...)
+  ;=> <local-refr>
+#+END_SRC
 
-# TODO
+where =CONSTRUCTOR= is a procedure which itself returns a procedure
+representing an object's current behavior.
+The =CONSTRUCTOR= is implicitly passed a first argument, traditionally
+labeled =bcom=, which can be used to change an object's behavior.
+The =ARGS= are passed as the remaining arguments to the constructor.
 
-*** Asynchronous message passing
+So for example, let's say we have the following constructor:
 
-# TODO
+#+BEGIN_SRC scheme
+  (define* (^cell bcom #:optional val)  ; constructor (outer procedure)
+    (case-lambda                        ; behavior    (inner procedure)
+      (()                               ; 0-argument invocation (getter)
+       val)                             ;   (return current value)
+      ((new-val)                        ; 1-argument invocation (setter)
+       (bcom (^cell bcom new-val)))))   ;   ("become" ^cell with new value)
+#+END_SRC
 
-# ** Vats: Communicating event loops
-# ** Actormaps: Low level transactional heaps
-# ** CapTP: Distributed programming
-# ** Aurie: Persistence
-# ** actor-lib: A standard library of sorts
+And so...
 
-# * Debugging
+#+BEGIN_SRC scheme
+  (define some-cell (spawn ^cell 42))
+#+END_SRC
 
-# More on debugging coming soon.
+will bind =val= to =42=.
 
-# * Design and philosophy
+Let's look at the =bcom= argument in depth.
+This is a capability which allows the actor to change its own behavior.
+It must be called in a tail position, since =bcom= actually returns
+a datastructure demonstrating that this object is choosing to change
+its value (part of Goblins' quasi-functional design.)
 
-# ** Why Scheme?  Why Guile?
+=bcom= also can take a second argument, which will be returned from
+the object's invocation as a return value, allowing for both an object
+change its own behavior and return a value at the same time during an
+invocation.
 
-# ** History
+The following actor represents a consumable object that returns a
+string explaining its current status:
 
-# ** The future: hopes, dreams, and hard work
+#+BEGIN_SRC scheme
+  (define (^drink bcom drink-name portions)
+    (define (drinkable-beh portions)   ; "-beh" is a common suffix for "-behavior"
+      (lambda ()
+        (define portions-left
+          (- portions 1))
+        (if (zero? portions-left)
+            (bcom empty-beh
+                  (format #f "*GLUG!* You drink your ~a. It's empty!"
+                          drink-name))
+            (bcom (drinkable-beh portions-left)
+                  (format #f "*GLUG!* You drink your ~a. Still some left!"
+                          drink-name)))))
+    (define (empty-beh)
+      "Sadly, your glass appears to be empty!")
+    (drinkable-beh portions))
+#+END_SRC
 
-# ** License choice
+Now, playing around at the REPL, we can see how this works:
 
-# ** Spritely and user freedom
+#+BEGIN_SRC scheme
+  > ,vr (define root-beer (spawn ^drink "root beer" 3))
+  > ,vr ($ root-beer)
+  => "*GLUG!* You drink your root beer. Still some left!"
+  > ,vr ($ root-beer)
+  => "*GLUG!* You drink your root beer. Still some left!"
+  > ,vr ($ root-beer)
+  => "*GLUG!* You drink your root beer. It's empty!"
+  > ,vr ($ root-beer)
+  => "Sadly, your glass appears to be empty!"
+#+END_SRC
+
+As you can see above, =bcom= is also a handy way to construct state
+machines, as =^drink= moves from drinkable to empty as it is consumed.
+
+*** Synchronous invocation
+
+To synchronously invoke two objects within the same vat / actormap,
+use =$=:
+
+#+BEGIN_SRC scheme
+  ($ near-object args ...)
+  ;=> something
+#+END_SRC
+
+Provide a synchronous call against the current message handler of
+=NEAR-REFR=, which must be a /near/ =live-refr?=
+in the same vat as the currently running actor context.
+The value returned is that which is returned by the
+current behavior of =NEAR-REFR= upon invocation (or, if
+=NEAR-REFR= chose to =bcom= something else, the second
+argument passed to its =bcom=, or is =unspecified?= if not provided.)
+
+*** Asynchronous invocation
+
+#+BEGIN_SRC scheme
+  (<- near-object arg ...)
+  ;=> <local-promise>
+#+END_SRC
+
+Like =$=, but called asynchronously and returns a /promise/,
+which may be handled with =on=.
+Unlike =$=, =<-= is not limited to only /near/ objects;
+interaction with /far/ actors are permitted as well.
+
+#+BEGIN_SRC scheme
+  (<-np [actor-refr live-refr?] [arg any/c] ...)
+#+END_SRC
+
+Like =<-= but does not return (or require the overhead of) a
+promise.
+=<-np= is effectively an optimization; where promises are not
+needed, using =<-np= over =<-= is a good idea.
+
+#+BEGIN_SRC scheme
+(on vow
+    [fulfilled-handler]
+    [#:catch broken-handler]
+    [#:finally finally-handler]
+    [#:promise? #f])
+#+END_SRC
+
+Sets up promise handlers for =vow=, which is typically a
+=live-refr?= to a /promise/ but may be anything.
+
+=fulfilled-handler=, =broken-handler=, and =finally-handler=
+all, if specified, may be either a procedure (the most common case)
+which is run when =vow= becomes resolved, or a reference to an
+actor that should be messaged when the promise is resolved with the
+same arguments that would be passed to an equivalent procedure.
+As their names suggest, =fulfilled-handler= will run if a promise is
+fulfilled and takes one argument, the fulfilled value.
+=broken-handler= will run if a promise is broken and takes one
+argument, the error value.
+=finally-handler= will run when a promise is resolved, no matter the
+outcome and is called with no arguments.
+
+If =#:promise?= is set to =#t=, then =on=
+will itself return a promise.
+The promise will be resolved as follows:
+
+ - If =vow= is fulfilled and =fulfilled-handler= is not
+   provided, the promise returned will share =vow='s resolution.
+ - If =vow= is broken and =broken-handler= is not
+   provided, the promise returned will share =vow='s broken result.
+ - If =vow= is fulfilled and =fulfilled-handler= is provided,
+   the resolution will be whatever is returned from =fulfilled-handler=,
+   unless =fulfilled-handler= raises an error, in which case the promise
+   will be broken with its error-value set to this exception.
+ - If =vow= is broken and =broken-handler= is provided,
+   the resolution will be whatever is returned from =broken-handler=,
+   unless =broken-handler= raises an error, in which case the promise
+   will be broken with its error-value set to this exception (which
+   may even be the original exception).
+
+** Vats
+
+In order to start programming with Goblins, you will need to boot up a
+vat somewhere.
+
+In general, Goblins uses [[https://github.com/wingo/fibers/][Fibers]] to implement vats.  However, it is
+intended that users should be able to roll their own vats should they
+have "unusual" event loop needs.  More on how to do this in a future
+iteration of these docs.  ;)
+
+*** Starting and stopping vats
+
+#+BEGIN_SRC scheme
+  > (define my-vat (spawn-vat))
+  > my-vat
+  => #<procedure (vat-controller)>
+#+END_SRC
+
+Running =spawn-vat= returns what's called a "vat controller".
+Running with no argument runs some code in the vat, blocking until
+a response is returned... useful for bootstrapping vats, or
+hacking at the REPL:
+
+#+BEGIN_SRC scheme
+  > (define my-vat (spawn-vat))
+  => #<procedure (vat-controller)>
+  > (my-vat
+      (lambda ()
+        (define alice (spawn ^greeter "Alice"))
+        ($ alice "Bob")))
+  => "Hello Alice, my name is Bob!"
+#+END_SRC
+
+You can also send it the ='halt= method to stop the vat,
+and ='running?= to check its status:
+
+#+BEGIN_SRC scheme
+  > (my-vat 'halt)
+  > (my-vat 'running?)
+  => #f
+#+END_SRC
+
+*NOTE:* In the future, we would like vats to automatically halt when
+no more references exist and thus the vat can do no more work.  The
+Racket version of vats works this way, it would be good for the Guile
+version to do the same.  In the meanwhile, you'll need to use ='halt=
+manually.
+
+*** COMMENT Rolling your own vats
+
+** Actormaps
+
+** OCapN
+** Persistence
+
+* actor-lib: A standard library of sorts
+
+** Cells
+
+** Methods
+
+
+* COMMENT Design and philosophy
+
+** On the design of Goblins' distributed objects
+
+
+** Why Scheme?  Why Guile?
+
+** History
+
+** The future: hopes, dreams, and hard work
+
+** License choice
+
+** Spritely and user freedom
+
+* Thanks
+
+This manual was primarily written by Christine Lemmer-Webber.
+
+# Additional text by: ...
+
+Many of the ideas are borrowed from [[http://www.erights.org/talks/thesis/markm-thesis.pdf][Mark Miller's dissertation]],
+which is an excellent, if nerdy, read.
+
+Jessica Tallon, Jonathan A. Rees, and Randy Farmer provided review and
+feedback.
