@@ -10,7 +10,4 @@
 ## No attribution is required and you are free to copy-paste and munge
 ## into your own project.
 
-if [ ! -e "configure.ac" ]; then
-    hall dist -x
-fi
 exec autoreconf -vif

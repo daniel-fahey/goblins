@@ -20,7 +20,6 @@
 
 (packages->manifest
  (cons*
-  guile-hall
   lcov
   (filter-map
    (match-lambda
