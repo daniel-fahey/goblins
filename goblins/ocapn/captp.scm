@@ -39,7 +39,8 @@
   #:use-module (srfi srfi-9)
   #:use-module (rnrs bytevectors)
   #:use-module (rnrs io ports)
-  #:use-module (fibers channels))
+  #:use-module (fibers channels)
+  #:export (spawn-mycapn))
 
 ;;; Some crap to make this work in the port from Racket->Guile
 

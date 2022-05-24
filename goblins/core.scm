@@ -1450,7 +1450,7 @@
         ;; Messages sent to a promise that is "closer" are a kind of
         ;; intermediate state; we build a queue.
         [(? mactor:closer?)
-         (match (mactor:remote-link-point-to orig-mactor)
+         (match (mactor:closer-point-to orig-mactor)
            ;; If we're pointing at another near promise then we recurse
            ;; to _handle-messages with the next promise...
            [(? local-promise-refr? point-to)
