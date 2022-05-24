@@ -20,6 +20,10 @@
   #:use-module (ice-9 threads)
   #:export (default-vat-scheduler))
 
+;;; The reason for this whole module is to try to prevent creating
+;;; so many threads that epoll gets mad.  Having a shared scheduler
+;;; mitigates this.
+
 ;; Kludge to get around change of interface for accessing current
 ;; fiber between Fibers 1.0.0 and 1.1.0
 (define %current-scheduler
