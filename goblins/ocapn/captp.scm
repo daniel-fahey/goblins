@@ -40,6 +40,8 @@
   #:use-module (rnrs bytevectors)
   #:use-module (rnrs io ports)
   #:use-module (fibers channels)
+  #:use-module (gcrypt base16) ;; shouldn't need in future.
+  #:use-module (gcrypt pk-crypto)
   #:export (spawn-mycapn))
 
 ;;; Some crap to make this work in the port from Racket->Guile
@@ -974,7 +976,7 @@
                            this-question-finder
                            #:captp-connector
                            captp-connector))
-  (define (bootstrap-msg)
+  (define bootstrap-msg
     (op:bootstrap (hashq-ref questions this-question-finder)
                   (outgoing-pre-marshall! remote-bootstrap-resolver)))
   (send-to-remote bootstrap-msg)
@@ -982,14 +984,13 @@
   ;; ==============================
   (values captp-incoming-handler remote-bootstrap-vow))
 
-
 (define* (^coordinator bcom router our-location
                        intra-machine-warden intra-machine-incanter
-                       #:key [handoff-privkey
-                              'TODO-crypto
-                              #;(generate-private-key eddsa
-                              '((curve ed25519)))
-                              ]
+                       #:key [handoff-key-pair
+			      (generate-key
+			       (sexp->canonical-sexp
+				'(genkey (eddsa (curve Ed25519) (flags eddsa)))))
+                             ]
                        ;; #:local-machine-location [local-machine-location #f]
                        )
   ;; counters used to increment how many handoff requests have been
@@ -1001,23 +1002,43 @@
   ;;   attack
   (define remote-handoff-count 0)
 
+  ;; (define handoff-key-pair
+  ;;   (generate-key
+  ;;    (sexp->canonical-sexp
+  ;;     '(genkey (eddsa (curve Ed25519) (flags eddsa))))))
+
+  (define handoff-privkey
+    (find-sexp-token handoff-key-pair 'private-key))
+  
   (define handoff-pubkey
-    #;(pk-key->public-only-key handoff-privkey)
-    'TODO-crypto)
+    (find-sexp-token handoff-key-pair 'public-key))
 
   (define (get-handoff-pubkey)
-    #;(pk-key->datum handoff-pubkey 'rkt-public)
-    'TODO-crypto)
+    (canonical-sexp->sexp handoff-pubkey))
 
   ;; TODO: maybe the hashing isn't necessary
   (define our-side-name
     (sha256d (syrup-encode (get-handoff-pubkey))))
 
   (define our-location-sig
-    'TODO-crypto
-    #;(pk-sign handoff-privkey
-    (syrup-encode (record* 'my-location our-location)
-    #:marshallers marshallers)))
+    ((lambda ()
+       ;; In the future this probably should be supported in the
+       ;; gcrypt library. This is currently because for eddsa
+       ;; signatures the data needs to look like the below.
+       (define encoded-location
+	 (syrup-encode
+	  (make-syrec* 'my-location our-location)
+	  #:marshallers marshallers))
+       (define encoded-location-b16
+	 (bytevector->base16-string encoded-location))
+       (define data
+	 (string->canonical-sexp
+	  (format #f "(data (flags ~a) (hash-algo \"~a\" (value #~a#)))"
+		  "eddsa"
+		  "sha512"
+		  encoded-location-b16)))
+       (canonical-sexp->sexp
+	(sign data handoff-privkey)))))
 
   (define core-beh
     (methods
@@ -1466,12 +1487,12 @@
           ;; TODO: Shouldn't the netlayer actually interpret this message
           ;;   before it gets here?  Ie, at this stage, we're already
           ;;   "confident" this is from the right location
-          [($ <mtp:op:start-session> (and remote-encoded-pubkey
-                                          ('eddsa 'public 'ed25519 _))
-                                     (? ocapn-machine? claimed-remote-location)
-                                     remote-location-sig)
+          [($ <mtp:op:start-session> remote-encoded-pubkey
+                                 claimed-remote-location
+                                     ;;(? ocapn-machine? claimed-remote-location)
+                                     encoded-remote-location-sig)
            (define remote-handoff-pubkey
-             (datum->pk-key remote-encoded-pubkey 'rkt-public))
+         (sexp->canonical-sexp remote-encoded-pubkey))
            ;; TODO: I guess we didn't know by the time this was opened
            ;;   what the remote location was going to be... that's part of the reason
            ;;   for the start-session message...
@@ -1480,11 +1501,26 @@
            #;(unless (same-machine-location? claimed-remote-location remote-location)
            (error (format "Supplied location mismatch. Claimed: ~s Expected: ~s"
            claimed-remote-location remote-location)))
-           (unless (pk-verify remote-handoff-pubkey
-                              (syrup-encode (make-syrec* 'my-location
-                                                         claimed-remote-location)
-                                            #:marshallers marshallers)
-                              remote-location-sig)
+
+       ;; TODO: this should be factored out to gcrypt (see: sign
+       ;; call)
+       (define encoded-location
+         (syrup-encode
+          (make-syrec* 'my-location claimed-remote-location)
+          #:marshallers marshallers))
+       (define encoded-location-b16
+         (bytevector->base16-string encoded-location))
+       (define data
+         (string->canonical-sexp
+          (format #f "(data (flags ~a) (hash-algo \"~a\" (value #~a#)))"
+              "eddsa"
+              "sha512"
+              encoded-location-b16)))
+
+       (define remote-location-sig
+         (sexp->canonical-sexp encoded-remote-location-sig))
+
+       (unless (verify remote-location-sig data remote-handoff-pubkey)
              (error "Location not signed by handoff key"))
 
            ;; TODO: Now we need to do the dial back and verify that
@@ -1517,7 +1553,7 @@
            ;; And set things up so that the incoming-forwarder now goes
            ;; to the captp-incoming-handler
            (incoming-swap captp-incoming-handler)
-           
+
            ;; TODO: Deal with duplicate sessions and also "crossed connections"
 
            ;; And now install in the open sessions in the directory
