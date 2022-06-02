@@ -36,7 +36,7 @@ SUFFIXES = .scm .go
 
 SOURCES = goblins.scm \
           goblins/ocapn/crypto-stubs.scm \
-          goblins/ocapn/define-recordable.scm \
+	  goblins/ocapn/marshalling.scm \
           goblins/ocapn/structs-urls.scm \
           goblins/ocapn/captp.scm \
           goblins/utils/simple-sealers.scm \
@@ -67,6 +67,7 @@ TESTS = tests/utils/test-bytes-stuff.scm \
         tests/actor-lib/test-common.scm \
         tests/actor-lib/test-swappable.scm \
         tests/actor-lib/test-cell.scm \
+	tests/ocapn/marshalling.scm \
         tests/test-vat.scm \
         tests/test-inbox.scm \
         tests/test-ghash.scm \

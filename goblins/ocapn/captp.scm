@@ -17,7 +17,7 @@
   #:use-module (goblins vat)
   #:use-module (goblins ghash)
   #:use-module (goblins inbox)
-  #:use-module (goblins ocapn define-recordable)
+  #:use-module (goblins ocapn marshalling)
   #:use-module (goblins ocapn structs-urls)
   #:use-module (goblins ocapn crypto-stubs)
   #:use-module (goblins actor-lib common)
@@ -77,47 +77,88 @@
   captp-session-severed?)
 
 ;;; Messages
+(define-record-type <op:bootstrap>
+  (op:bootstrap answer-pos resolve-me-desc)
+  op:bootstrap?
+  (answer-pos op:bootstrap-answer-pos)
+  (resolve-me-desc op:bootstrap-resolve-me-desc))
 
-(define-recordable op:bootstrap
-  (answer-pos resolve-me-desc))
-
+(define-values (marshall::op:bootstrap unmarshall::op:bootstrap)
+  (make-marshallers <op:bootstrap> #:name 'op:bootstrap))
 
 ;; Queue a delivery of verb(args..) to recip, discarding the outcome.
-(define-recordable op:deliver-only
-  (;; Position in the table for the target
-   ;; (sender's imports, reciever's exports)
-   to-desc
-   ;; Either the method name, or #f if this is a procedure call
-   method
+(define-record-type <op:deliver-only>
+  (op:deliver-only to-desc method args)
+  op:deliver-only?
+  ;; Position in the table for the target
+  ;; (sender's imports, reciever's exports)
+  (to-desc op:deliver-only-to-desc)
+  ;; Either the method name, or #f if this is a procedure call
+  (method op:deliver-only-method)
    ;; Either arguments to the method or to the procedure, depending
    ;; on whether method exists
-   args))
+  (args op:deliver-only-args))
+
+(define-values (marshall::op:deliver-only unmarshall::op:deliver-only)
+  (make-marshallers <op:deliver-only> #:name 'op:deliver-only))
 
 ;; Queue a delivery of verb(args..) to recip, binding answer/rdr to the outcome.
-(define-recordable op:deliver
-  (to-desc
-   method
-   args
-   answer-pos
-   resolve-me-desc))  ; a resolver, probably an import (though it could be a handoff)
+(define-record-type <op:deliver>
+  (op:deliver to-desc method args answer-pos resolve-me-desc)
+  op:deliver?
+  (to-desc op:deliver-to-desc)
+  (method op:deliver-method)
+  (args op:deliver-args)
+  (answer-pos op:deliver-answer-pos)
+  ;; a resolver, probably an import (though it could be a handoff)
+  (resolve-me-desc op:deliver-resolve-me-desc))
+(define-values (marshall::op:deliver unmarshall::op:deliver)
+  (make-marshallers <op:deliver> #:name 'op:deliver))
 
-(define-recordable op:abort
-  (reason))
+(define-record-type <op:abort>
+  (op:abort reason)
+  op:abort?
+  (reason op:abort-reason))
+(define-values (marshall::op:abort unmarshall::op:abort)
+  (make-marshallers <op:abort> #:name 'op:abort))
 
-(define-recordable op:listen
-  (to-desc listener-desc wants-partial?))
+(define-record-type <op:listen>
+  (op:listen to-desc listener-desc wants-partial?)
+  op:listen?
+  (to-desc op:listen-to-desc)
+  (listener-desc op:listen-listener-desc)
+  (wants-partial? op:listen-wants-partial?))
+(define-values (marshall::op:listen unmarshall::op:listen)
+  (make-marshallers <op:listen> #:name 'op:listen))
 
-(define-recordable op:gc-export
-  (export-pos wire-delta))
+(define-record-type <op:gc-export>
+  (op:gc-export export-pos wire-delta)
+  op:gc-export?
+  (export-pos op:gc-export-export-pos)
+  (wire-delta op:gc-export-wire-delta))
+(define-values (marshall::op:gc-export unmarshall::op:gc-export)
+  (make-marshallers <op:gc-export> #:name 'op:gc-export))
 
-(define-recordable op:gc-answer
-  (answer-pos))
+(define-record-type <op:gc-answer>
+  (op:gc-answer answer-pos)
+  op:gc-answer?
+  (answer-pos op:gc-answer-answer-pos))
+(define-values (marshall::op:gc-answer unmarshall::op:gc-answer)
+  (make-marshallers <op:gc-answer> #:name 'op:gc-answer))
 
-(define-recordable desc:import-object
-  (pos))
+(define-record-type <desc:import-object>
+  (desc:import-object pos)
+  desc:import-object?
+  (pos desc:import-object-pos))
+(define-values (marshall::desc:import-object unmarshall::desc:import-object)
+  (make-marshallers <desc:import-object> #:name 'desc:import-object))
 
-(define-recordable desc:import-promise
-  (pos))
+(define-record-type <desc:import-promise>
+  (desc:import-promise pos)
+  desc:import-promise?
+  (pos desc:import-promise-pos))
+(define-values (marshall::desc:import-promise unmarshall::desc:import-promise)
+  (make-marshallers <desc:import-promise> #:name 'desc:import-promise))
 
 (define (desc:import-pos import-desc)
   (match import-desc
@@ -132,13 +173,21 @@
 
 ;; Whether it's an import or export doesn't really matter as much to
 ;; the entity exporting as it does to the entity importing
-(define-recordable desc:export
-  (pos))
+(define-record-type <desc:export>
+  (desc:export pos)
+  desc:export?
+  (pos desc:export-pos))
+(define-values (marshall::desc:export unmarshall::desc:export)
+  (make-marshallers <desc:export> #:name 'desc:export))
 
 ;; Something to answer that we haven't seen before.
 ;; As such, we need to set up both the promise import and this resolver/redirector
-(define-recordable desc:answer
-  (pos))
+(define-record-type <desc:answer>
+  (desc:answer pos)
+  desc:answer?
+  (pos desc:answer-pos))
+(define-values (marshall::desc:answer unmarshall::desc:answer)
+  (make-marshallers <desc:answer> #:name 'desc:answer))
 
 ;; This is a general sig-envelope, we might have some more specific
 ;; ones.  Whatever signed must refer to another serializable record
@@ -147,8 +196,13 @@
 ;;   https://sandstorm.io/news/2015-05-01-is-that-ascii-or-protobuf
 ;; Note that the key is not referred to; if it isn't obvious by the
 ;; payload and the protocol, then we aren't doing things right.
-(define-recordable desc:sig-envelope
-  (signed signature))
+(define-record-type <desc:sig-envelope>
+  (desc:sig-envelope signed signature)
+  desc:sig-envelope?
+  (signed desc:sig-envelope-signed)
+  (signature desc:sig-envelope-signature))
+(define-values (marshall::desc:sig-envelope unmarshall::desc:sig-envelope)
+  (make-marshallers <desc:sig-envelope> #:name 'desc:sig-envelope))
 
 ;; Handoffs have three roles:
 ;;  - Gifter: who's sharing their import
@@ -158,38 +212,53 @@
 ;;    eventually points to something else)
 
 ;; The handoff certificate from the gifter
-(define-recordable desc:handoff-give
-  (;; handoff signing key this is being given to
+(define-record-type <desc:handoff-give>
+  (desc:handoff-give recipient-key exporter-location session gifter-side gift-id)
+  desc:handoff-give?
+   ;; handoff signing key this is being given to
    ;;   : handoff-key?
-   recipient-key
+  (recipient-key desc:handoff-give-recipient-key)
    ;; exporter-location(-hint(s)): how to connect to get this
    ;;   : ocap-machine-uri?
    ;;   Note that currently this requires a certain amount of VatTP
    ;;   crossover, since we have to give a way to connect to VatTP...
-   exporter-location
+  (exporter-location desc:handoff-give-exporter-location)
    ;; session: which session betweein gifter and exporter at the location
    ;;   : bytes?
-   session
+  (session desc:handoff-give-session)
    ;; gifter-side: which "named side" of the session is the gifter
    ;;   : bytes?
-   gifter-side
-   ;; gift-id: The gift id associated with this gift
+  (gifter-side desc:handoff-give-gifter-side)
+  ;; gift-id: The gift id associated with this gift
    ;;   : (or/c integer? bytes?)
-   gift-id))
+  (gift-id desc:handoff-give-gift-id))
+
+(define-values (marshall::desc:handoff-give unmarshall::desc:handoff-give)
+  (make-marshallers <desc:handoff-give> #:name 'desc:handoff-give))
 
 ;; TODO: Maybe we only need the receiving-side, unsure
-(define-recordable desc:handoff-receive
-  (receiving-session
-   receiving-side
-   handoff-count
-   signed-give))
+(define-record-type <desc:handoff-receive>
+  (desc:handoff-receive receiving-session receiving-side handoff-count signed-give)
+  desc:handoff-receive?
+  (receiving-session desc:handoff-receive-receiving-session)
+  (receiving-side desc:handoff-receive-receiving-side)
+  (handoff-count desc:handoff-receive-handoff-count)
+  (signed-give desc:handoff-receive-signed-give))
+
+(define-values (marshall::desc:handoff-receive unmarshall::desc:handoff-receive)
+  (make-marshallers <desc:handoff-receive> #:name 'desc:handoff-receive))
 
 ;; machinetp operations/descriptions
-(define-recordable mtp:op:start-session
-  (handoff-pubkey
-   ;; a sig-envelope signed by handoff-pubkey with a <my-location $location-data>
-   acceptable-location
-   acceptable-location-sig))
+(define-record-type <mtp:op:start-session>
+  (mtp:op:start-session handoff-pubkey acceptable-location acceptable-location-sig)
+  mtp:op:start-session?
+  (handoff-pubkey mtp:op:start-session-handoff-pubkey)
+  ;; a sig-envelope signed by handoff-pubkey with a <my-location $location-data>
+  (acceptable-location mtp:op:start-session-acceptable-location)
+  (acceptable-location-sig mtp:op:start-session-acceptable-location-sig))
+
+(define-values (marshall::mtp:op:start-session unmarshall::mtp:op:start-session)
+  (make-marshallers <mtp:op:start-session> #:name 'mtp:op:start-session))
 
 ;; Confirm we both have the session name, each side signs with its
 ;; respective key
@@ -1326,7 +1395,7 @@
       (let* ((netlayer ($C netlayer-map 'ref netlayer-name))
              (machine-loc ($C netlayer 'our-location))
              (nonce ($C registry 'register obj)))
-        (ocapn-sturdyref machine-loc nonce)))
+        (make-ocapn-sturdyref machine-loc nonce)))
     (define (enliven sturdyref)
       (assert-type sturdyref ocapn-sturdyref?)
       (let ((sref-loc (ocapn-sturdyref-machine sturdyref))
