@@ -6,6 +6,7 @@
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins ocapn structs-urls)
+  #:use-module (goblins contrib syrup)
   #:use-module (ice-9 match)
   #:use-module (ice-9 popen)
   #:export (^fake-network ^fake-netlayer))
@@ -32,11 +33,14 @@
 
 (define (make-message-reader ch)
   (lambda (unmarshallers)
-    ;; TODO: do we want to syrup encode, them?
-    (get-message ch)))
+    (syrup-decode
+     (get-message ch)
+     #:unmarshallers unmarshallers)))
 (define (make-message-writer ch)
   (lambda (msg marshallers)
-    (put-message ch msg)))
+    (define encoded
+      (syrup-encode msg #:marshallers marshallers))
+    (put-message ch encoded)))
 
 (define (^fake-netlayer _bcom our-name network new-conn-ch)
   (define our-location (make-ocapn-machine 'fake our-name #f))
