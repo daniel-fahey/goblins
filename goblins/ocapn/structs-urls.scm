@@ -16,7 +16,7 @@
 (define-module (goblins ocapn structs-urls)
   #:use-module (ice-9 match)
   #:use-module (ice-9 regex)
-  :use-module  (srfi srfi-9)
+  #:use-module (srfi srfi-9)
   #:use-module (goblins ocapn marshalling)
   #:export (<ocapn-machine>
 	    make-ocapn-machine
