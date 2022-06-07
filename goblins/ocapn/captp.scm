@@ -1461,7 +1461,7 @@
      ;; the ^connection-establisher should call...
      [(new-connection netlayer netlayer-name read-message write-message)
       (define-values (captp-outgoing-enq-ch captp-outgoing-deq-ch captp-outgoing-stop?)
-        (spawn-delivery-agent))
+        (spawn-delivery-agent #:name "~captp~"))
       (define (send-to-remote msg)
         (put-message captp-outgoing-enq-ch msg)
         _void)

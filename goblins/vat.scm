@@ -111,10 +111,17 @@
                  (current-error-port %base-error-port))
     (proc)))
 
+(define (generate-random-vat-name)
+  (set! *random-state* (random-state-from-platform))
+  (apply string
+	 (map
+	  (lambda _ (integer->char (+ 65 (random 26))))
+	  (iota 5)))) ;; length.
+
 ;; TODO: An explicit 'halt message isn't as ideal as vats which auto-gc.
 ;; But that is probably possible... we could possibly set up a fializer
 ;; that is attached to the vat-control-ch and vat-connector of this vat.
-(define* (spawn-vat-fiber #:key (control-ch (make-channel))
+(define* (spawn-vat-fiber name #:key (control-ch (make-channel))
                           (scheduler (default-vat-scheduler))
                           (dynamic-wrap port-redirect-dynamic-wrap))
   "Spawns a fiber for this vat and returns a channel by which
@@ -224,13 +231,13 @@ Keywords:
   (_dynamic-wrap (lambda () (spawn-fiber vat-loop scheduler)))
   running?)
 
-(define* (spawn-vat-proc #:key
+(define* (spawn-vat-proc name #:key
                          (control-ch (make-channel))
                          (dynamic-wrap port-redirect-dynamic-wrap))
   "Like spawn-vat-fiber except returns a convenient procedure which abstracts
 over some of the communication aspects of controlling the vat."
   (define running?
-    (spawn-vat-fiber #:control-ch control-ch))
+    (spawn-vat-fiber name #:control-ch control-ch))
   (define vat-controller
     (match-lambda*
       ((or ((? procedure? thunk)) ('run (? procedure? thunk)))
@@ -275,15 +282,16 @@ over some of the communication aspects of controlling the vat."
 (define-syntax-rule (fibrous body ...)
   (spawn-fibrous-vow (lambda () body ...)))
 
-(define (spawn-vat)
-  (let* ((result-ch (make-channel))
+(define* (spawn-vat #:key (name #f))
+  (let* ((name (or name (generate-random-vat-name)))
+	     (result-ch (make-channel))
          (vat-halt? (make-condition))
          (vat-thread
           (call-with-new-thread
            (lambda ()
              (run-fibers
               (lambda ()
-                (define a-vat (spawn-vat-proc))
+                (define a-vat (spawn-vat-proc name))
                 (put-message result-ch a-vat)
                 (wait vat-halt?))))))
          (new-vat  ; vat controller procedure
