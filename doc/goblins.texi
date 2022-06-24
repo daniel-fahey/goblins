@@ -18,7 +18,13 @@
 @node Top
 @top Spritely Goblins
 
-This is the manual for @uref{https://spritelyproject.org/#goblins, Spritely Goblins}.  It is released under the
+This is the manual for @uref{https://spritelyproject.org/#goblins, Spritely Goblins}, a distributed object
+programming environment.
+Spritely Goblins is a project of the @uref{https://spritely.institute/, Spritely Institute} and is
+built to be the core layer for building Spritely's broader
+decentralized networking technologies.
+
+This manual is released under the
 @uref{https://www.apache.org/licenses/LICENSE-2.0, Apache v2 license}, just like Goblins itself.
 @end ifnottex
 
