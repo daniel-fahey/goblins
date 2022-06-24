@@ -1,4 +1,18 @@
 #+TITLE: Spritely Goblins
+#+AUTHOR: Christine Lemmer-Webber
+#+SUBAUTHOR: The Spritely Institute
+#+EMAIL: christine@spritely.institute
+
+#+OPTIONS: ':t toc:t author:t email:t
+#+LANGUAGE: en
+
+#+TEXINFO_FILENAME: goblins.info
+#+TEXINFO_HEADER: @syncodeindex pg cp
+
+#+TEXINFO_DIR_CATEGORY: The Algorithmic Language Scheme
+
+#+TEXINFO_DIR_TITLE: Goblins: (goblins)
+#+TEXINFO_DIR_DESC: Distributed programming environment and Spritely's core (Guile edition).
 
 This is the manual for [[https://spritelyproject.org/#goblins][Spritely Goblins]], a distributed object
 programming environment.
