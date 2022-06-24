@@ -1,0 +1,183 @@
+This document roughly describes some details about CapTP, from a live
+walkthrough with Jonathan A. Rees and Jessica Tallon.
+
+In the future some of this material is likely to be borrowed for a
+CapTP explainer that's not just a dump of things, so keeping here
+so as to not lose it.
+
+ - OCapN: Object Capability Network
+   - URIs: to connect to OCapN instances and bootstrap
+     connections to individual objects (sturdyrefs, certs)
+   - CapTP: distributed object programming
+   - netlayers: network layers on top of which captp sits
+     - tor onion services
+     - dns + tls sockets
+     - store and forward
+     - carrier pidgeons with microsd card backpacks
+     - "fake" network
+     - d-bus support?
+     - DIDs (Decentralized Identifiers)
+
+#+BEGIN_SRC scheme
+(op:deliver-only
+ (desc:export 3)       ; to-desc
+ (list 'read-balance)) ; args
+
+(<-np remote-bob 'read-balance)
+
+(<-np remote-bob 'meet remote-carol)
+
+(op:deliver-only
+ (desc:export 3)       ; to-desc
+ (list 'meet           ; args
+       (desc:mysterious-handoff-cert ...)))   ; describes carol
+
+
+;;;;;; promise pipelining example
+;;;;;;
+
+(op:gc-export 3 ...)
+
+(define car-vow (<- car-factory 'make-me-a-car))
+
+(op:deliver
+  (desc:export 42)      ; to-desc
+  (list 'make-me-a-car) ; args
+  (desc:answer 6)       ; answer-pos
+  (desc:import 65))     ; resolve-me-desc
+
+(<- car-vow 'drive)
+
+(op:deliver
+  (desc:answer 6)       ; to-desc
+  (list 'drive)
+  (desc:answer 7)
+  (desc:import 66))
+
+;;;;;;;
+
+
+
+
+(define-values (a-promise a-resolver)
+  (spawn-promise-resolver-pair))
+
+(<- a-resolver 'fulfill 'foo)
+(<- a-resolver 'break 'some-error)
+
+
+; imports
+; exports
+
+; questions
+; answers
+
+
+;; A -> B -> A -> B
+
+;; A -> B (gonna drive that car as soon as we can) -> A
+
+
+;; Features of CapTP:
+;;  - Illusion of programming against objects without caring about location
+;;  - (Acylcic) cooperative distributed garbage collection
+;;  - Promise pipelining: send messages to objects before they even exist!
+;;    Optimization from network perspective
+;;    (programmer convenience from language perspective)
+;;  - Transport agnostic
+;;  - Support for introductions/"handoffs"
+;;  - E-order (?!?!?!!!!?!?!??!)
+;; 
+#+END_SRC
+
+
+
+
+#+BEGIN_SRC racket
+;; This is a general sig-envelope, we might have some more specific
+;; ones.  Whatever signed must refer to another serializable record
+;; which is concretely typed.  If not, we run into confused deputy,
+;; replay, oracle attack possibilities.  See also:
+;;   https://sandstorm.io/news/2015-05-01-is-that-ascii-or-protobuf
+;; Note that the key is not referred to; if it isn't obvious by the
+;; payload and the protocol, then we aren't doing things right.
+(define-recordable-struct desc:sig-envelope
+  (signed signature)
+  marshall::desc:sig-envelope unmarshall::desc:sig-envelope)
+
+;; Handoffs have three roles:
+;;  - Gifter: who's sharing their import
+;;  - Receiver: who's receiving the gift
+;;  - Exporter: the location where the gift import is exported from
+;;    (presumably, where it lives, though it may be a promise which
+;;    eventually points to something else)
+
+;; The handoff certificate from the gifter
+(define-recordable-struct desc:handoff-give
+  (;; handoff signing key this is being given to
+   ;;   : handoff-key?
+   recipient-key
+   ;; exporter-location(-hint(s)): how to connect to get this
+   ;;   : ocap-machine-uri?
+   ;;   Note that currently this requires a certain amount of VatTP
+   ;;   crossover, since we have to give a way to connect to VatTP...
+   exporter-location
+   ;; session: which session betweein gifter and exporter at the location
+   ;;   : bytes?
+   session
+   ;; gifter-side: which "named side" of the session is the gifter
+   ;;   : bytes?
+   gifter-side
+   ;; gift-id: The gift id associated with this gift
+   ;;   : (or/c integer? bytes?)
+   gift-id)
+  marshall::desc:handoff-give unmarshall::desc:handoff-give)
+
+; Sessions:
+;  AtoB1-session <- hash of A-key and B-key (sorted)
+;   - A-key-of-AtoB1
+;   - B-key-of-AtoB1
+;  AtoC1-session <- hash of A-key and C-key (sorted)
+;   - A-key-of-AtoC1
+;   - C-key-of-AtoC1
+; Possibly new:
+;  BtoC1-session <- hash of B-key and C-key (sorted)
+
+;; Given to B
+(desc:sig-envelope
+  (desc:handoff-give
+   <B-key-of-AtoB1>       ; recipient-key
+   ocapn:foo:<c-machine>  ; exporter-location
+   AtoC1-session          ; session
+   A-key-of-AtoC1         ; gifter-side
+   25)                    ; gift-id
+  <signature-by-A-key-of-AtoB1>)
+
+;; A->C
+(op:deliver-only
+ (desc:export 0) ; bootstrap object
+ (list 'im-giving-a-gift 25 (desc:export 1)))
+
+;; TODO: Maybe we only need the receiving-side, unsure
+(define-recordable-struct desc:handoff-receive
+  (receiving-session
+   receiving-side
+   handoff-count
+   signed-give)
+  marshall::desc:handoff-receive unmarshall::desc:handoff-receive)
+
+(desc:sig-envelope
+  (desc:handoff-receive
+   <BtoC1-session>
+   <B-key-of-BtoC1>
+   4
+   (desc:sig-envelope
+    (desc:handoff-give
+     <B-key-of-AtoB1>       ; recipient-key
+     ocapn:foo:<c-machine>  ; exporter-location
+     AtoC1-session          ; session
+     A-key-of-AtoC1         ; gifter-side
+     25)                    ; gift-id
+    <signature-by-A-key-of-AtoB1>))
+  <signature-by-B-key-of-AtoB1>)
+#+END_SRC
