@@ -4,12 +4,19 @@
 @settitle Spritely Goblins
 @documentencoding UTF-8
 @documentlanguage en
+@syncodeindex pg cp
 @c %**end of header
+
+@dircategory The Algorithmic Language Scheme
+@direntry
+* Goblins: (goblins).   Distributed programming environment and Spritely's core (Guile edition).
+@end direntry
 
 @finalout
 @titlepage
 @title Spritely Goblins
-@author Christine Lemmer-Webber
+@author Christine Lemmer-Webber (@email{christine@@spritely.institute})
+@author The Spritely Institute
 @end titlepage
 
 @contents
@@ -24,8 +31,8 @@ Spritely Goblins is a project of the @uref{https://spritely.institute/, Spritely
 built to be the core layer for building Spritely's broader
 decentralized networking technologies.
 
-This manual is released under the
-@uref{https://www.apache.org/licenses/LICENSE-2.0, Apache v2 license}, just like Goblins itself.
+Both this manual and Guile Goblins itself are released under
+Apache v2.  See @ref{License} for more information.
 @end ifnottex
 
 @menu
@@ -36,6 +43,7 @@ This manual is released under the
 * API::
 * actor-lib A standard library of sorts::
 * Thanks::
+* License::
 
 @detailmenu
 --- The Detailed Node Listing ---
@@ -44,11 +52,11 @@ Getting started
 
 * Installing Goblins::
 * Setup for hacking on Goblins::
-* TEMPORARY Live hacking "fix"::
+* TEMPORARY Live hacking ``fix''::
 
 A high level view of Goblins
 
-* The "vat model" of computation::
+* The ``vat model'' of computation::
 
 Tutorial
 
@@ -100,7 +108,7 @@ Features:
 Users hold on to references of objects/actors, but objects/actors
 are just procedures.
 Rather than directly mutating, objects/actors can specify that
-they should "become" a new version of themselves when they
+they should ``become'' a new version of themselves when they
 handle the next invocation.
 
 @item
@@ -113,7 +121,7 @@ are safe because of ocap security guarantees.
 @item
 @strong{Transactional updates:}
 Changes happen within a transaction.
-If an unhandled exception occurs, we can "roll back" history
+If an unhandled exception occurs, we can ``roll back'' history
 as if the message never happened, avoiding confused state
 changes throughout the system.
 
@@ -135,14 +143,14 @@ delivered across the network in a single hop.
 
 @item
 @strong{Communicating event loops:}
-Objects across multiple event loops (aka "vats") can
+Objects across multiple event loops (aka ``vats'') can
 communicate, whether in the same OS process or (soon) across
 the network.
 
 @item
 @strong{Synchronous and asynchronous behavior, integrated but distinguished:}
 Both synchronous and asynchronous programming is supported,
-but only objects in the same "vat" (event loop) can perform
+but only objects in the same ``vat'' (event loop) can perform
 synchronous immediate calls.
 All objects can perform asynchronous calls against each other.
 
@@ -184,7 +192,7 @@ most of which applies to the Guile version too.
 @menu
 * Installing Goblins::
 * Setup for hacking on Goblins::
-* TEMPORARY Live hacking "fix"::
+* TEMPORARY Live hacking ``fix''::
 @end menu
 
 @node Installing Goblins
@@ -230,11 +238,11 @@ smartparens if uncertain)
 Now you'll have a nice hacking setup!  Be sure to read the Geiser
 manual.
 
-@node TEMPORARY Live hacking "fix"
-@section TEMPORARY: Live hacking "fix"
+@node TEMPORARY Live hacking ``fix''
+@section TEMPORARY: Live hacking ``fix''
 
 The traditional way to hack Guile is to use Geiser, both evaluating
-from some @samp{foo.scm} file/buffer with more "permanent" code via, for
+from some @samp{foo.scm} file/buffer with more ``permanent'' code via, for
 example, the @samp{C-x C-e} / @samp{C-x C-b} / @samp{C-x C-k} commands to evaluate an
 expression, evaluate a whole buffer, or compile a buffer's content,
 and switching back and forth between that and the (usually called
@@ -254,7 +262,7 @@ first execute:
 @end example
 
 @dots{} from the @samp{*Geiser Guile REPL*}.  Otherwise vats may mysteriously
-"hang".  We know this is an annoyance!  It'll be fixed soon!
+``hang''.  We know this is an annoyance!  It'll be fixed soon!
 
 @node A high level view of Goblins
 @chapter A high level view of Goblins
@@ -342,11 +350,11 @@ A mapping of @strong{References} to @strong{Object Behavior}.
 @end itemize
 
 @menu
-* The "vat model" of computation::
+* The ``vat model'' of computation::
 @end menu
 
-@node The "vat model" of computation
-@section The "vat model" of computation
+@node The ``vat model'' of computation
+@section The ``vat model'' of computation
 
 As said, Goblins follows what is called the @emph{vat model} of
 computation.
@@ -427,7 +435,7 @@ First, let's import Goblins:
 > (use-modules (goblins))
 @end example
 
-(@strong{NOTE}: See @ref{TEMPORARY Live hacking "fix"} if you haven't.)
+(@strong{NOTE}: See @ref{TEMPORARY Live hacking ``fix''} if you haven't.)
 
 Every Goblins actor / object has to live in a vat somewhere.
 So, let's make a vat to play around with:
@@ -442,7 +450,7 @@ So, let's make a vat to play around with:
 Objects/actors are instantiated with @samp{spawn} and can be synchronously
 invoked with @samp{$} or asynchronously invoked with @samp{<-}.
 All of these operations need to operate within a Goblins-aware context,
-and so @samp{a-run} "bootstraps" some code within the vat.
+and so @samp{a-run} ``bootstraps'' some code within the vat.
 
 Now let us implement a friend who will greet us:
 
@@ -465,7 +473,7 @@ The first argument to @samp{spawn} is the constructor we will use to make
 our Goblins object, in this case @samp{^greeter}.
 The remaining arguments will be passed to the constructor,
 along with an implicit argument which can be used to change object
-behavior called @samp{bcom} (pronounced "become").
+behavior called @samp{bcom} (pronounced ``become'').
 Thus @samp{"Alice"} maps to @samp{our-name}.
 
 We can invoke @samp{alice} by using @samp{$} for a synchronous call-return
@@ -477,7 +485,7 @@ operation:
 @end example
 
 The first argument to @samp{$} is the object to be invoked, the remaining
-arguments are passed to the "behavior" of the object.
+arguments are passed to the ``behavior'' of the object.
 Thus @samp{your-name} in @samp{^greeter}'s behavior procedure is bound to
 @samp{"Bob"}.
 The behavior procedure thus proceeds with formatting and returning the
@@ -494,7 +502,7 @@ the code you've written.
 While @samp{define-vat-run} simplifies use a little bit, it's also a bit
 funny.
 
-In "normal" Goblins code we'd just write:
+In ``normal'' Goblins code we'd just write:
 
 @example
 (define alice
@@ -521,7 +529,7 @@ REPL, we have a comma command which can make your life a bit easier,
 => "Hello Bob, my name is Alice!"
 @end example
 
-@samp{,vrun} stands for "vat run", because it's a quick way to test.  It
+@samp{,vrun} stands for ``vat run'', because it's a quick way to test.  It
 tries to be smart and unwrap @samp{define} statements and such like the
 above so that they still can be bound at the REPL@.
 
@@ -564,14 +572,14 @@ Taking things out and putting them back in is easy:
 
 Now we can see what @samp{bcom} is: a capability specific to this object
 instance which allows it to change its behavior!
-(For this reason, @samp{bcom} is pronounced "become"!)
+(For this reason, @samp{bcom} is pronounced ``become''!)
 
 @node Methods aren't essential but they are useful
 @section Methods aren't essential, but they are useful
 
 The most common way to select different sub-behaviors isn't by the
 number of arguments though.
-It's much more common to have "methods" that are selected by name.
+It's much more common to have ``methods'' that are selected by name.
 We can use the @samp{methods} macro to do just that:
 
 @example
@@ -626,7 +634,7 @@ them to the relevant method.
 Objects can also contain and define other object references, including
 in their outer constructor procedure.
 
-Here is the definition of a "counting greeter" we call @samp{^cgreeter}:
+Here is the definition of a ``counting greeter'' we call @samp{^cgreeter}:
 
 @example
 (define (^cgreeter _bcom our-name)
@@ -755,7 +763,7 @@ But with many moving parts, accomplishing this can be difficult.
 
 However, Goblins makes our life easier.
 To see how, let's intentionally insert a couple of print debugging
-lines (with @samp{pk}, which is pronounced and means "peek")
+lines (with @samp{pk}, which is pronounced and means ``peek'')
 and then an error:
 
 @example
@@ -815,9 +823,9 @@ steps are handled automatically.
 @section Promise pipelining
 
 @quotation
-"Machines grow faster and memories grow larger.
+``Machines grow faster and memories grow larger.
 But the speed of light is constant and New York is not getting any
-closer to Tokyo."
+closer to Tokyo.''
 
 --- Mark S@. Miller,
     @uref{http://www.erights.org/talks/thesis/, Robust Composition: Towards a Unified Approach to Access Control and Concurrency Control}
@@ -938,8 +946,8 @@ B => A => B
 @end example
 
 
-In other words, machine B can say to machine A: "Make me a car,
-and as soon as that car is ready, I want to drive it!"
+In other words, machine B can say to machine A: ``Make me a car,
+and as soon as that car is ready, I want to drive it!''
 
 With this in mind, the promise behind Mark Miller's quote at the
 beginning of this section is clear.@footnote{Like so many examples in this document, the designs
@@ -985,7 +993,7 @@ importing:
 @section Objects
 
 Objects are the core of Goblins.
-In general, you'll need to be within an ambient "Goblins Context" (TM)
+In general, you'll need to be within an ambient ``Goblins Context'' (TM)
 in order to start programming against them, see @ref{Vats} for most event
 loop type programming, or @ref{Actormaps} if you want to play with more low-level
 control over transactional operations.
@@ -1177,7 +1185,7 @@ vat somewhere.
 
 In general, Goblins uses @uref{https://github.com/wingo/fibers/, Fibers} to implement vats.  However, it is
 intended that users should be able to roll their own vats should they
-have "unusual" event loop needs.  More on how to do this in a future
+have ``unusual'' event loop needs.  More on how to do this in a future
 iteration of these docs.  ;)
 
 @menu
@@ -1193,7 +1201,7 @@ iteration of these docs.  ;)
 => #<procedure (vat-controller)>
 @end example
 
-Running @samp{spawn-vat} returns what's called a "vat controller".
+Running @samp{spawn-vat} returns what's called a ``vat controller''.
 Running with no argument runs some code in the vat, blocking until
 a response is returned@dots{} useful for bootstrapping vats, or
 hacking at the REPL:
@@ -1256,5 +1264,225 @@ which is an excellent, if nerdy, read.
 
 Jessica Tallon, Jonathan A@. Rees, and Randy Farmer provided review and
 feedback.
+
+@node License
+@chapter License
+
+@emph{(C) 2019-2022 Christine Lemmer-Webber, the Spritely Institute, and other contributors.  See @samp{AUTHORS} for details.}
+
+@emph{Both Spritely Goblins and this manual are released under the terms of the following license:}
+
+         Apache License
+   Version 2.0, January 2004
+@uref{http://www.apache.org/licenses/}
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+@enumerate
+@item
+Definitions.
+
+``License'' shall mean the terms and conditions for use, reproduction,
+and distribution as defined by Sections 1 through 9 of this document.
+
+``Licensor'' shall mean the copyright owner or entity authorized by
+the copyright owner that is granting the License.
+
+``Legal Entity'' shall mean the union of the acting entity and all
+other entities that control, are controlled by, or are under common
+control with that entity. For the purposes of this definition,
+``control'' means (i) the power, direct or indirect, to cause the
+direction or management of such entity, whether by contract or
+otherwise, or (ii) ownership of fifty percent (50%) or more of the
+outstanding shares, or (iii) beneficial ownership of such entity.
+
+``You'' (or ``Your'') shall mean an individual or Legal Entity
+exercising permissions granted by this License.
+
+``Source'' form shall mean the preferred form for making modifications,
+including but not limited to software source code, documentation
+source, and configuration files.
+
+``Object'' form shall mean any form resulting from mechanical
+transformation or translation of a Source form, including but
+not limited to compiled object code, generated documentation,
+and conversions to other media types.
+
+``Work'' shall mean the work of authorship, whether in Source or
+Object form, made available under the License, as indicated by a
+copyright notice that is included in or attached to the work
+(an example is provided in the Appendix below).
+
+``Derivative Works'' shall mean any work, whether in Source or Object
+form, that is based on (or derived from) the Work and for which the
+editorial revisions, annotations, elaborations, or other modifications
+represent, as a whole, an original work of authorship. For the purposes
+of this License, Derivative Works shall not include works that remain
+separable from, or merely link (or bind by name) to the interfaces of,
+the Work and Derivative Works thereof.
+
+``Contribution'' shall mean any work of authorship, including
+the original version of the Work and any modifications or additions
+to that Work or Derivative Works thereof, that is intentionally
+submitted to Licensor for inclusion in the Work by the copyright owner
+or by an individual or Legal Entity authorized to submit on behalf of
+the copyright owner. For the purposes of this definition, ``submitted''
+means any form of electronic, verbal, or written communication sent
+to the Licensor or its representatives, including but not limited to
+communication on electronic mailing lists, source code control systems,
+and issue tracking systems that are managed by, or on behalf of, the
+Licensor for the purpose of discussing and improving the Work, but
+excluding communication that is conspicuously marked or otherwise
+designated in writing by the copyright owner as ``Not a Contribution.''
+
+``Contributor'' shall mean Licensor and any individual or Legal Entity
+on behalf of whom a Contribution has been received by Licensor and
+subsequently incorporated within the Work.
+
+@item
+Grant of Copyright License. Subject to the terms and conditions of
+this License, each Contributor hereby grants to You a perpetual,
+worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+copyright license to reproduce, prepare Derivative Works of,
+publicly display, publicly perform, sublicense, and distribute the
+Work and such Derivative Works in Source or Object form.
+
+@item
+Grant of Patent License. Subject to the terms and conditions of
+this License, each Contributor hereby grants to You a perpetual,
+worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+(except as stated in this section) patent license to make, have made,
+use, offer to sell, sell, import, and otherwise transfer the Work,
+where such license applies only to those patent claims licensable
+by such Contributor that are necessarily infringed by their
+Contribution(s) alone or by combination of their Contribution(s)
+with the Work to which such Contribution(s) was submitted. If You
+institute patent litigation against any entity (including a
+cross-claim or counterclaim in a lawsuit) alleging that the Work
+or a Contribution incorporated within the Work constitutes direct
+or contributory patent infringement, then any patent licenses
+granted to You under this License for that Work shall terminate
+as of the date such litigation is filed.
+
+@item
+Redistribution. You may reproduce and distribute copies of the
+Work or Derivative Works thereof in any medium, with or without
+modifications, and in Source or Object form, provided that You
+meet the following conditions:
+
+(a) You must give any other recipients of the Work or
+    Derivative Works a copy of this License; and
+
+(b) You must cause any modified files to carry prominent notices
+    stating that You changed the files; and
+
+(c) You must retain, in the Source form of any Derivative Works
+    that You distribute, all copyright, patent, trademark, and
+    attribution notices from the Source form of the Work,
+    excluding those notices that do not pertain to any part of
+    the Derivative Works; and
+
+(d) If the Work includes a ``NOTICE'' text file as part of its
+    distribution, then any Derivative Works that You distribute must
+    include a readable copy of the attribution notices contained
+    within such NOTICE file, excluding those notices that do not
+    pertain to any part of the Derivative Works, in at least one
+    of the following places: within a NOTICE text file distributed
+    as part of the Derivative Works; within the Source form or
+    documentation, if provided along with the Derivative Works; or,
+    within a display generated by the Derivative Works, if and
+    wherever such third-party notices normally appear. The contents
+    of the NOTICE file are for informational purposes only and
+    do not modify the License. You may add Your own attribution
+    notices within Derivative Works that You distribute, alongside
+    or as an addendum to the NOTICE text from the Work, provided
+    that such additional attribution notices cannot be construed
+    as modifying the License.
+
+You may add Your own copyright statement to Your modifications and
+may provide additional or different license terms and conditions
+for use, reproduction, or distribution of Your modifications, or
+for any such Derivative Works as a whole, provided Your use,
+reproduction, and distribution of the Work otherwise complies with
+the conditions stated in this License.
+
+@item
+Submission of Contributions. Unless You explicitly state otherwise,
+any Contribution intentionally submitted for inclusion in the Work
+by You to the Licensor shall be under the terms and conditions of
+this License, without any additional terms or conditions.
+Notwithstanding the above, nothing herein shall supersede or modify
+the terms of any separate license agreement you may have executed
+with Licensor regarding such Contributions.
+
+@item
+Trademarks. This License does not grant permission to use the trade
+names, trademarks, service marks, or product names of the Licensor,
+except as required for reasonable and customary use in describing the
+origin of the Work and reproducing the content of the NOTICE file.
+
+@item
+Disclaimer of Warranty. Unless required by applicable law or
+agreed to in writing, Licensor provides the Work (and each
+Contributor provides its Contributions) on an ``AS IS'' BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+implied, including, without limitation, any warranties or conditions
+of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+PARTICULAR PURPOSE@. You are solely responsible for determining the
+appropriateness of using or redistributing the Work and assume any
+risks associated with Your exercise of permissions under this License.
+
+@item
+Limitation of Liability. In no event and under no legal theory,
+whether in tort (including negligence), contract, or otherwise,
+unless required by applicable law (such as deliberate and grossly
+negligent acts) or agreed to in writing, shall any Contributor be
+liable to You for damages, including any direct, indirect, special,
+incidental, or consequential damages of any character arising as a
+result of this License or out of the use or inability to use the
+Work (including but not limited to damages for loss of goodwill,
+work stoppage, computer failure or malfunction, or any and all
+other commercial damages or losses), even if such Contributor
+has been advised of the possibility of such damages.
+
+@item
+Accepting Warranty or Additional Liability. While redistributing
+the Work or Derivative Works thereof, You may choose to offer,
+and charge a fee for, acceptance of support, warranty, indemnity,
+or other liability obligations and/or rights consistent with this
+License. However, in accepting such obligations, You may act only
+on Your own behalf and on Your sole responsibility, not on behalf
+of any other Contributor, and only if You agree to indemnify,
+defend, and hold each Contributor harmless for any liability
+incurred by, or claims asserted against, such Contributor by reason
+of your accepting any such warranty or additional liability.
+@end enumerate
+
+END OF TERMS AND CONDITIONS
+
+APPENDIX: How to apply the Apache License to your work.
+
+To apply the Apache License to your work, attach the following
+boilerplate notice, with the fields enclosed by brackets ``[]''
+replaced with your own identifying information. (Don't include
+the brackets!)  The text should be enclosed in the appropriate
+comment syntax for the file format. We also recommend that a
+file or class name and description of purpose be included on the
+same ``printed page'' as the copyright notice for easier
+identification within third-party archives.
+
+Copyright [yyyy] [name of copyright owner]
+
+Licensed under the Apache License, Version 2.0 (the ``License'');
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+@uref{http://www.apache.org/licenses/LICENSE-2.0}
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an ``AS IS'' BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
 @bye
