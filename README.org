@@ -1,8 +1,16 @@
 #+TITLE: Spritely Goblins: Guile edition
 
-This is a port of [[https://gitlab.com/spritely/goblins][Spritely Goblins]] to [[https://www.gnu.org/software/guile/][Guile]].  It's a distributed
-programming system with local transactions and following object
-capability security principles.  See [[https://gitlab.com/spritely/guile-goblins/-/blob/main/doc/goblins.org][the manual]] for more details.
+This is a port of [[https://gitlab.com/spritely/goblins][Spritely Goblins]] to [[https://www.gnu.org/software/guile/][Guile]].
+Goblins is a distributed object programming environment.
+It is both Spritely's core distributed networked technology, and
+general enough to be used broadly.
+
+Spritely, and Spritely Goblins, are developed under the stewardship
+of the [[https://spritely.institute/][Spritely Institute]].  Support Spritely!
+
+Goblins is a distributed programming system with local transactions
+and following object capability security principles.  See [[https://gitlab.com/spritely/guile-goblins/-/blob/main/doc/goblins.org][the manual]]
+for more details.
 
 It's very early, so I'd caution against using it for anything
 "production-facing" quite yet. :)
