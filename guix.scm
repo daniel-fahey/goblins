@@ -36,9 +36,13 @@
                       #:select? keep-file?))
   (build-system gnu-build-system)
   (arguments
-   (list
+   `(#:phases
+     (modify-phases %standard-phases
+       (replace 'bootstrap
+         (lambda _
+           (invoke "autoreconf" "-vif"))))
      #:make-flags
-     #~(list "GUILE_AUTO_COMPILE=0")))
+     ,#~(list "GUILE_AUTO_COMPILE=0")))
   (native-inputs
    (list
      autoconf
