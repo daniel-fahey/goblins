@@ -6,8 +6,8 @@ Spritely Goblins is a project of the [[https://spritely.institute/][Spritely Ins
 built to be the core layer for building Spritely's broader
 decentralized networking technologies.
 
-This manual is released under the
-[[https://www.apache.org/licenses/LICENSE-2.0][Apache v2 license]], just like Goblins itself.
+Both this manual and Guile Goblins itself are released under
+Apache v2.  See [[* License][License]] for more information.
 
 * What is Goblins?
 
@@ -1090,3 +1090,11 @@ which is an excellent, if nerdy, read.
 
 Jessica Tallon, Jonathan A. Rees, and Randy Farmer provided review and
 feedback.
+
+* License
+
+/(C) 2019-2022 Christine Lemmer-Webber, the Spritely Institute, and other contributors.  See =AUTHORS= for details./
+
+/Both Spritely Goblins and this manual are released under the terms of the following license:/
+
+#+INCLUDE: "../COPYING"
