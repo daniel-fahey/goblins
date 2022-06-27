@@ -3,6 +3,7 @@
   #:use-module (fibers channels)
   #:use-module ((goblins core) #:renamer (lambda (x) (if (eq? x '$) '$C x)))
   #:use-module (goblins vat)
+  #:use-module (goblins inbox)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins ocapn structs-urls)
@@ -32,15 +33,30 @@
     (cons me->them them->me)]))
 
 (define (make-message-reader ch)
+  (define-values (enq-ch deq-ch stop)
+    (spawn-delivery-agent "make-message-writer"))
+
+  (spawn-fiber
+   (lambda ()
+     (put-message enq-ch (get-message ch))))
+
   (lambda (unmarshallers)
     (syrup-decode
-     (get-message ch)
+     (get-message deq-ch)
      #:unmarshallers unmarshallers)))
 (define (make-message-writer ch)
+  (define-values (enq-ch deq-ch stop)
+    (spawn-delivery-agent "make-message-writer"))
+
+  (spawn-fiber
+   (lambda ()
+     (define msg (get-message deq-ch))
+     (put-message ch msg)))
+
   (lambda (msg marshallers)
     (define encoded
       (syrup-encode msg #:marshallers marshallers))
-    (put-message ch encoded)))
+    (put-message enq-ch encoded)))
 
 (define (^fake-netlayer _bcom our-name network new-conn-ch)
   (define our-location (make-ocapn-machine 'fake our-name #f))
