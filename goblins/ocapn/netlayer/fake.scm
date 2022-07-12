@@ -12,7 +12,6 @@
   #:use-module (ice-9 popen)
   #:export (^fake-network ^fake-netlayer))
 
-
 (define (^fake-network _bcom)
   (define routes (spawn ^ghash))
   (methods
@@ -23,40 +22,24 @@
       ($C routes 'ref name))
     (when (not (channel? connection-ch))
       (error (format #t "No connection found by name: ~a" name)))
-    (define me->them
-      (make-channel))
-    (define them->me
-      (make-channel))
+    (define-values (me-enq-ch me-deq-ch me-stop?)
+      (spawn-delivery-agent))
+    (define-values (them-enq-ch them-deq-ch them-stop?)
+      (spawn-delivery-agent))
     (spawn-fiber
      (lambda ()
-       (put-message connection-ch (cons them->me me->them))))
-    (cons me->them them->me)]))
+       (put-message connection-ch (list '*incoming-new-conn* me-enq-ch them-deq-ch))))
+    (list '*outgoing-new-conn* me-deq-ch them-enq-ch)]))
 
-(define (make-message-reader ch)
-  (define-values (enq-ch deq-ch stop)
-    (spawn-delivery-agent "make-message-writer"))
-
-  (spawn-fiber
-   (lambda ()
-     (put-message enq-ch (get-message ch))))
-
+(define (make-message-reader incoming-ch)
   (lambda (unmarshallers)
-    (syrup-decode
-     (get-message deq-ch)
-     #:unmarshallers unmarshallers)))
-(define (make-message-writer ch)
-  (define-values (enq-ch deq-ch stop)
-    (spawn-delivery-agent "make-message-writer"))
+    (define msg (get-message incoming-ch))
+    (syrup-decode msg #:unmarshallers unmarshallers)))
 
-  (spawn-fiber
-   (lambda ()
-     (define msg (get-message deq-ch))
-     (put-message ch msg)))
-
+(define (make-message-writer outgoing-ch)
   (lambda (msg marshallers)
-    (define encoded
-      (syrup-encode msg #:marshallers marshallers))
-    (put-message enq-ch encoded)))
+    (put-message outgoing-ch
+                 (syrup-encode msg #:marshallers marshallers))))
 
 (define (^fake-netlayer _bcom our-name network new-conn-ch)
   (define our-location (make-ocapn-machine 'fake our-name #f))
@@ -66,11 +49,12 @@
 	(spawn-fibrous-vow
 	 (lambda () (get-message new-conn-ch))))
       (on message-vow
-	  (lambda (ports)
-	    (<- conn-establisher
-		(make-message-reader (car ports))
-		(make-message-writer (cdr ports))
-		#t))
+          (match-lambda
+            (('*incoming-new-conn* them-enq-ch me-deq-ch)
+             (<- conn-establisher
+		 (make-message-reader me-deq-ch)
+		 (make-message-writer them-enq-ch)
+		 #t)))
 	  #:finally listen))
     (listen))
 
@@ -96,11 +80,12 @@
 	(match remote-machine
 	  (($ <ocapn-machine> 'fake name #f)
 	   (on (<- network 'connect-to name)
-	       (lambda (ports)
-		 (<- conn-establisher
-		       (make-message-reader (car ports))
-		       (make-message-writer (cdr ports))
-		       #f))
+	       (match-lambda
+                 (('*outgoing-new-conn* me-deq-ch them-enq-ch)
+		  (<- conn-establisher
+		      (make-message-reader me-deq-ch)
+		      (make-message-writer them-enq-ch)
+		      #f)))
 	       #:promise? #t)))]))
     pre-setup-beh)
   (spawn ^netlayer))
