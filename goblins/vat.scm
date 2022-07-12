@@ -97,28 +97,6 @@
 ;;; and vat-id methods, though it's not unlikely this module will get
 ;;; out of date... oops)
 
-(define fibers-wait-for-readable
-  (@@ (fibers) wait-for-readable))
-
-(define fibers-wait-for-writable
-  (@@ (fibers) wait-for-writable))
-
-(define (fibrous-read-waiter port)
-  (define (fibrous-fulfill-await resolver)
-    (spawn-fiber
-     (lambda ()
-       (define result (fibers-wait-for-readable port))
-       (<-np-extern resolver 'fulfill result))))
-  (await* fibrous-fulfill-await))
-
-(define (fibrous-write-waiter port)
-  (define (fibrous-fulfill-await resolver)
-    (spawn-fiber
-     (lambda ()
-       (define result (fibers-wait-for-writable port))
-       (<-np-extern resolver 'fulfill result))))
-  (await* fibrous-fulfill-await))
-
 ;; The purpose of this is to prevent issues where a user hacking
 ;; with Geiser's buffer evaluation commands (eg C-x C-e)
 ;; launches a vat, and things weirdly break... because geiser
