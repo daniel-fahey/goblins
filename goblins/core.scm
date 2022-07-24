@@ -1079,7 +1079,7 @@
     (define mactor
       (actormap-ref actormap to-refr))
     (unless mactor
-      (error 'no-such-actor "no actor with this id in this vat: ~a" to-refr))
+      (error 'no-such-actor "no actor with this id in this vat:" to-refr))
     mactor)
 
   ;; call actor's behavior
@@ -1088,12 +1088,12 @@
     ;; vat-connector as us
     (unless (local-refr? to-refr)
       (error 'not-callable
-             "Not a live reference: ~a" to-refr))
+             "Not a live reference:" to-refr))
 
     (unless (eq? (local-refr-vat-connector to-refr)
                  vat-connector)
       (error 'not-callable
-             "Not in the same vat: ~a" to-refr))
+             "Not in the same vat:" to-refr))
 
     (define mactor
       (actormap-ref-or-die to-refr))
@@ -1189,7 +1189,7 @@
       ;; Not a callable mactor!
       [_other
        (error 'not-callable
-              "Not an encased or object mactor: ~a" mactor)]))
+              "Not an encased or object mactor:" mactor)]))
 
   ;; spawn a new actor
   (define (_spawn constructor args debug-name)
@@ -1210,7 +1210,7 @@
       [(? live-refr? pre-existing-refr)
        pre-existing-refr]
       [_
-       (error 'invalid-actor-handler "Not a procedure or live refr: ~a" initial-behavior)]))
+       (error 'invalid-actor-handler "Not a procedure or live refr:" initial-behavior)]))
 
   (define (spawn-mactor mactor debug-name)
     (actormap-spawn-mactor! actormap mactor debug-name))
@@ -1222,7 +1222,7 @@
          (actormap-ref-or-die promise-id))
        (unless (mactor:unresolved? orig-mactor)
          (error 'resolving-resolved
-                "Attempt to resolve resolved actor: ~a" promise-id))
+                "Attempt to resolve resolved actor:" promise-id))
        (define resolve-to-val
          (unseal-mactor-resolution orig-mactor sealed-val))
 
@@ -1403,12 +1403,12 @@
     (define args (message-args msg))
 
     (unless (near-refr? to-refr)
-      (error 'not-a-near-refr "Not a near refr: ~a" to-refr))
+      (error 'not-a-near-refr "Not a near refr:" to-refr))
 
     ;; Prevent someone trying to throw this vat into an infinite loop
     (when (eq? to-refr resolve-me)
       (error 'same-recipient-and-resolver
-             "Recipient and resolver are the same: ~a" to-refr))
+             "Recipient and resolver are the same:" to-refr))
 
     (let ([call-with-resolution
            (lambda (proc)
@@ -1918,7 +1918,7 @@
     [(? live-refr? pre-existing-refr)
      pre-existing-refr]
     [_
-     (error 'invalid-actor-handler "Not a procedure or live refr: ~a" actor-handler)]))
+     (error 'invalid-actor-handler "Not a procedure or live refr:" actor-handler)]))
 
 ;; These two are user-facing procedures.  Thus, they set up
 ;; their own syscaller.
