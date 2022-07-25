@@ -18,6 +18,7 @@
   #:use-module (ice-9 iconv)
   #:use-module (ice-9 vlist)
   #:use-module (ice-9 hash-table)
+  #:use-module (goblins ghash)
   #:use-module (rnrs bytevectors)
 
   #:export (;;; The main procedures
@@ -452,35 +453,40 @@
    (lambda (return-early)
      (define (return-eof)
        (return-early the-eof-object))
-     ;; Renaming because it makes porting the racket code faster :P
-     (define (peek-char ip)
-       (match (lookahead-u8 ip)
+     (define (_read-char)
+       (match (read-char in-port)
          [(? eof-object?) (return-eof)]
-         [char-int (integer->char char-int)]))
-     (define (read-char ip)
-       (match (get-u8 ip)
+         [char char]))
+     (define (_peek-char)
+       (match (peek-char in-port)
          [(? eof-object?) (return-eof)]
-         [char-int (integer->char char-int)]))
+         [char char]))
+     (define read-byte get-u8)
+     (define (read-bytes n port)
+       (get-bytevector-n port n))
      (define (read-next)
        ;; consume whitespace
        (let lp ()
-         (when (whitespace-char? (peek-char in-port))
-           (get-u8 in-port)
+         (when (whitespace-char? (_peek-char))
+           (_read-char)
            (lp)))
 
-       (match (peek-char in-port)
+       (match (_peek-char)
          ;; it's either a bytestring, a symbol, a string, or an integer...
          ;; we tell via the divider
          [(? digit-char?)
-          (let* ([type #f]
-                 [int-prefix
+          (let* ((type #f)
+                 (int-prefix
                   (string->number
                    (list->string
                     (let lp ()
-                      (match (read-char in-port)
+                      (match (_read-char)
+                        ;; Oh, it's a plus... that means it's a positive
+                        ;; integer.  Ok.
                         [#\+
                          (set! type 'positive-int)
                          '()]
+                        ;; Or the inverse for a minus.
                         [#\-
                          (set! type 'negative-int)
                          '()]
@@ -498,11 +504,9 @@
                                (lp))]
                         [other-char
                          (error 'syrup-invalid-digit
-                                "Invalid digit"
-                                #:pos
-                                (- (file-position in-port)) 1
-                                #:char
-                                other-char)]))))])
+                                "Invalid digit at pos ~a: ~a"
+                                (file-position in-port)
+                                other-char)]))))))
             (match type
               ;; it's positive, so just return as-is
               ['positive-int int-prefix]
@@ -510,99 +514,95 @@
               ['negative-int (* int-prefix -1)]
               ;; otherwise it's some byte-length thing
               [_
-               (let ([bstr (get-bytevector-n in-port int-prefix)])
-                 (match type
-                   ['bstr
-                    bstr]
-                   ['sym
-                    (string->symbol (bytes->string/utf-8 bstr))]
-                   ['str
-                    (bytes->string/utf-8 bstr)]))]))]
+               (define bstr (read-bytes int-prefix in-port))
+               (match type
+                 ['bstr
+                  bstr]
+                 ['sym
+                  (string->symbol (bytes->string/utf-8 bstr))]
+                 ['str
+                  (bytes->string/utf-8 bstr)])]))]
          ;; it's a list
          [(or #\[ #\( #\l)
-          (read-char in-port)
+          (read-byte in-port)
           (let lp ()
-            (match (peek-char in-port)
+            (match (_peek-char)
               ;; We've reached the end
               [(or #\] #\) #\e)
-               (read-char in-port)
+               (read-byte in-port)
                '()]
               ;; one more loop
               [_
                (cons (read-next) (lp))]))]
-         ;; TODO: Switch to fashes
          ;; it's a hashmap/dictionary
          [(or #\{ #\d)
-          (get-u8 in-port)
-          (let lp ([ht vlist-null])
-            (match (peek-char in-port)
+          (read-byte in-port)
+          (let lp ((ht (make-ghash)))
+            (match (_peek-char)
               [(or #\} #\e)
-               (get-u8 in-port)
+               (read-byte in-port)
                ht]
               [_
-               (define key
-                 (read-next))
-               (define val
-                 (read-next))
-               (lp (vhash-cons key val ht))]))]
+               (let ((key (read-next))
+                     (val (read-next)))
+                 (lp (ghash-set ht key val)))]))]
          ;; it's a record
          [#\<
-          (get-u8 in-port)
-          (let ([label
-                 (read in-port)]
-                [args
-                 (let lp ()
-                   (match (peek-char in-port)
-                     [#\> '()]
-                     [_ (cons (read-next) (lp))]))])
+          (read-byte in-port)
+          (let ((label (read-next))
+                (args (let lp ()
+                        (match (_peek-char)
+                          [#\>
+                           (read-byte in-port)
+                           '()]
+                          [_ (cons (read-next) (lp))]))))
             (call/ec
              (lambda (return)
                (for-each
                 (match-lambda
-                  [((and (or (? symbol?) (? string?) (? number?) (? boolean?) (? bytevector?))
-                         expected-label)
+                  [((and (and (or (? symbol?) (? string?) (? number?)
+                                  (? boolean?) (? bytevector?)))
+                              expected-label)
                     . derecordify)
                    (when (equal? label expected-label)
                      (return (apply derecordify args)))]
                   [(label-pred? . derecordify)
                    (when (label-pred? label)
                      (return (apply derecordify args)))])
-                unmarshallers)
+                         unmarshallers)
                ;; no handler, return as record
                (make-syrec label args))))]
          ;; it's a single float
          [#\F
-          (get-u8 in-port)
+          (read-byte in-port)
           (bytevector-ieee-double-ref (get-bytevector-n in-port 4) 0
                                       (endianness big))]
          ;; it's a double float
          [#\D
-          (get-u8 in-port)
+          (read-byte in-port)
           (bytevector-ieee-double-ref (get-bytevector-n in-port 8) 0
                                       (endianness big))]
          ;; it's a boolean
          [#\t
-          (get-u8 in-port)
+          (read-byte in-port)
           #t]
          [#\f
-          (get-u8 in-port)
+          (read-byte in-port)
           #f]
          ;; it's a set
          [#\#
-          (get-u8 in-port)
+          (read-byte in-port)
           (let lp ([s (make-set)])
-            (match (peek-char in-port)
+            (match (_peek-char)
               [#\$
-               (read-char in-port)
+               (read-byte in-port)
                s]
               [_
                (lp (set-add s (read-next)))]))]
          [_
-          (error 'syrup-invalid-char "Unexpected character"
-                 #:pos
+          (error 'syrup-invalid-char "Unexpected character at position ~a: ~a"
                  (file-position in-port)
-                 #:char
-                 (peek-char in-port))]))
+                 (_peek-char))]))
      (read-next))))
 
 (define* (syrup-decode bstr #:key (unmarshallers '()))
