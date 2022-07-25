@@ -461,136 +461,149 @@
        (match (get-u8 ip)
          [(? eof-object?) (return-eof)]
          [char-int (integer->char char-int)]))
+     (define (read-next)
+       ;; consume whitespace
+       (let lp ()
+         (when (whitespace-char? (peek-char in-port))
+           (get-u8 in-port)
+           (lp)))
 
-     ;; consume whitespace
-     (let lp ()
-       (when (whitespace-char? (peek-char in-port))
-         (get-u8 in-port)
-         (lp)))
-
-     (match (peek-char in-port)
-       ;; it's either a bytestring, a symbol, a string, or an integer...
-       ;; we tell via the divider
-       [(? digit-char?)
-        (let* ([type #f]
-               [int-prefix
-                (string->number
-                 (list->string
-                  (let lp ()
-                    (match (read-char in-port)
-                      [#\+
-                       (set! type 'positive-int)
-                       '()]
-                      [#\-
-                       (set! type 'negative-int)
-                       '()]
-                      [#\:
-                       (set! type 'bstr)
-                       '()]
-                      [#\'
-                       (set! type 'sym)
-                       '()]
-                      [#\"
-                       (set! type 'str)
-                       '()]
-                      [(? digit-char? digit-char)
-                       (cons digit-char
-                             (lp))]
-                      [other-char
-                       (error 'syrup-invalid-digit
-                              "Invalid digit"
-                              #:pos
-                              (- (file-position in-port)) 1
-                              #:char
-                              other-char)]))))])
-          (match type
-            ;; it's positive, so just return as-is
-            ['positive-int int-prefix]
-            ;; it's negative, so invert
-            ['negative-int (* int-prefix -1)]
-            ;; otherwise it's some byte-length thing
-            [_
-             (let ([bstr (get-bytevector-n in-port int-prefix)])
-               (match type
-                 ['bstr
-                  bstr]
-                 ['sym
-                  (string->symbol (bytes->string/utf-8 bstr))]
-                 ['str
-                  (bytes->string/utf-8 bstr)]))]))]
-       ;; TODO: Switch to fashes
-       ;; it's a hashmap/dictionary
-       [(or #\{ #\d)
-        (get-u8 in-port)
-        (let lp ([ht vlist-null])
-          (match (peek-char in-port)
-            [(or #\} #\e)
-             (get-u8 in-port)
-             ht]
-            [_
-             (define key
-               (syrup-read in-port))
-             (define val
-               (syrup-read in-port))
-             (lp (vhash-cons key val ht))]))]
-       ;; it's a record
-       [#\<
-        (get-u8 in-port)
-        (let ([label
-               (syrup-read in-port)]
-              [args
-               (let lp ()
-                 (match (peek-char in-port)
-                   [#\> '()]
-                   [_ (cons (syrup-read in-port) (lp))]))])
-          (call/ec
-           (lambda (return)
-             (for-each
-              (match-lambda
-                [((and (or (? symbol?) (? string?) (? number?) (? boolean?) (? bytevector?))
-                       expected-label)
-                  . derecordify)
-                 (when (equal? label expected-label)
-                   (return (apply derecordify args)))]
-                [(label-pred? . derecordify)
-                 (when (label-pred? label)
-                   (return (apply derecordify args)))])
-              unmarshallers)
-             ;; no handler, return as record
-             (make-syrec label args))))]
-       ;; it's a single float
-       [#\F
-        (get-u8 in-port)
-        (bytevector-ieee-double-ref (get-bytevector-n in-port 4) 0
-                                    (endianness big))]
-       ;; it's a double float
-       [#\D
-        (get-u8 in-port)
-        (bytevector-ieee-double-ref (get-bytevector-n in-port 8) 0
-                                    (endianness big))]
-       ;; it's a boolean
-       [#\t
-        (get-u8 in-port)
-        #t]
-       [#\f
-        (get-u8 in-port)
-        #f]
-       ;; it's a set
-       [#\#
-        (get-u8 in-port)
-        (let lp ([s (make-set)])
-          (match (peek-char in-port)
-            [#\$
-             (read-char in-port)
-             s]
-            [_
-             (lp (set-add s (syrup-read in-port)))]))]
-       [_
-        (error 'syrup-invalid-char "Unexpected character"
-               #:pos
-               (file-position in-port)
-               #:char
-               (peek-char in-port))]))))
+       (match (peek-char in-port)
+         ;; it's either a bytestring, a symbol, a string, or an integer...
+         ;; we tell via the divider
+         [(? digit-char?)
+          (let* ([type #f]
+                 [int-prefix
+                  (string->number
+                   (list->string
+                    (let lp ()
+                      (match (read-char in-port)
+                        [#\+
+                         (set! type 'positive-int)
+                         '()]
+                        [#\-
+                         (set! type 'negative-int)
+                         '()]
+                        [#\:
+                         (set! type 'bstr)
+                         '()]
+                        [#\'
+                         (set! type 'sym)
+                         '()]
+                        [#\"
+                         (set! type 'str)
+                         '()]
+                        [(? digit-char? digit-char)
+                         (cons digit-char
+                               (lp))]
+                        [other-char
+                         (error 'syrup-invalid-digit
+                                "Invalid digit"
+                                #:pos
+                                (- (file-position in-port)) 1
+                                #:char
+                                other-char)]))))])
+            (match type
+              ;; it's positive, so just return as-is
+              ['positive-int int-prefix]
+              ;; it's negative, so invert
+              ['negative-int (* int-prefix -1)]
+              ;; otherwise it's some byte-length thing
+              [_
+               (let ([bstr (get-bytevector-n in-port int-prefix)])
+                 (match type
+                   ['bstr
+                    bstr]
+                   ['sym
+                    (string->symbol (bytes->string/utf-8 bstr))]
+                   ['str
+                    (bytes->string/utf-8 bstr)]))]))]
+         ;; it's a list
+         [(or #\[ #\( #\l)
+          (read-char in-port)
+          (let lp ()
+            (match (peek-char in-port)
+              ;; We've reached the end
+              [(or #\] #\) #\e)
+               (read-char in-port)
+               '()]
+              ;; one more loop
+              [_
+               (cons (read-next) (lp))]))]
+         ;; TODO: Switch to fashes
+         ;; it's a hashmap/dictionary
+         [(or #\{ #\d)
+          (get-u8 in-port)
+          (let lp ([ht vlist-null])
+            (match (peek-char in-port)
+              [(or #\} #\e)
+               (get-u8 in-port)
+               ht]
+              [_
+               (define key
+                 (read-next))
+               (define val
+                 (read-next))
+               (lp (vhash-cons key val ht))]))]
+         ;; it's a record
+         [#\<
+          (get-u8 in-port)
+          (let ([label
+                 (read in-port)]
+                [args
+                 (let lp ()
+                   (match (peek-char in-port)
+                     [#\> '()]
+                     [_ (cons (read-next) (lp))]))])
+            (call/ec
+             (lambda (return)
+               (for-each
+                (match-lambda
+                  [((and (or (? symbol?) (? string?) (? number?) (? boolean?) (? bytevector?))
+                         expected-label)
+                    . derecordify)
+                   (when (equal? label expected-label)
+                     (return (apply derecordify args)))]
+                  [(label-pred? . derecordify)
+                   (when (label-pred? label)
+                     (return (apply derecordify args)))])
+                unmarshallers)
+               ;; no handler, return as record
+               (make-syrec label args))))]
+         ;; it's a single float
+         [#\F
+          (get-u8 in-port)
+          (bytevector-ieee-double-ref (get-bytevector-n in-port 4) 0
+                                      (endianness big))]
+         ;; it's a double float
+         [#\D
+          (get-u8 in-port)
+          (bytevector-ieee-double-ref (get-bytevector-n in-port 8) 0
+                                      (endianness big))]
+         ;; it's a boolean
+         [#\t
+          (get-u8 in-port)
+          #t]
+         [#\f
+          (get-u8 in-port)
+          #f]
+         ;; it's a set
+         [#\#
+          (get-u8 in-port)
+          (let lp ([s (make-set)])
+            (match (peek-char in-port)
+              [#\$
+               (read-char in-port)
+               s]
+              [_
+               (lp (set-add s (read-next)))]))]
+         [_
+          (error 'syrup-invalid-char "Unexpected character"
+                 #:pos
+                 (file-position in-port)
+                 #:char
+                 (peek-char in-port))]))
+     (read-next))))
 
 (define* (syrup-decode bstr #:key (unmarshallers '()))
   (define bstr-port
