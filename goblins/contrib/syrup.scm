@@ -1,4 +1,4 @@
-;;; (C) 2020-2021 Christine Lemmer-Webber
+;;; (C) 2020-2022 Christine Lemmer-Webber
 ;;; Licensed under Apache v2
 
 ;; Pulled from:
@@ -8,16 +8,13 @@
 
 (define-module (goblins contrib syrup)
   #:use-module (ice-9 match)
-  #:use-module (srfi srfi-1)
-  #:use-module (srfi srfi-9)
-  #:use-module (srfi srfi-9 gnu)
-  #:use-module (srfi srfi-64)
-  #:use-module (srfi srfi-111)
-  #:use-module (ice-9 binary-ports)
+  #:use-module (srfi srfi-1)          ; lists
+  #:use-module (srfi srfi-9)          ; records
+  #:use-module (srfi srfi-9 gnu)      ; record extensions
+  #:use-module (srfi srfi-64)         ; tests
   #:use-module (ice-9 control)
   #:use-module (ice-9 iconv)
   #:use-module (ice-9 vlist)
-  #:use-module (ice-9 hash-table)
   #:use-module (goblins ghash)
   #:use-module (rnrs bytevectors)
 
@@ -176,24 +173,6 @@
      #t]
     [#f #f]))
 
-(define (test-sets)
-  (test-begin "sets")
-  ;;;; Well the negative out of order set equality doesn't work, so...
-  ;;;; TODO: add set-equal?
-  ;; (unless (equal? (make-set 1 2 3)
-  ;;                 (make-set 1 2 3))
-  ;;   (error 'test "set equality"))
-  ;; (unless (equal? (make-set 3 2 1)
-  ;;                 (make-set 1 2 3))
-  ;;   (error 'test "out-of-order set equality"))
-  (let ([s (make-set 1 2 3)])
-    (test-assert "positive set membership"
-      (set-member? s 1))
-    (test-assert "negative set membership"
-      (not (set-member? s 99))))
-  (test-end "sets"))
-
-
 
 ;;; bytevector utils
 ;;; ================
@@ -218,11 +197,6 @@
            next-bvs)]
       ['() 'done]))
   new-bv)
-
-;; expected: #vu8(0 0 0 0 11 11 22 22)
-#; (bytes-append #vu8(00 00 00 00)
-                 #vu8(11 11)
-                 #vu8(22 22))
 
 (define* (netstring-encode bstr #:key [joiner colon-bv])
   (define bstr-len
@@ -277,32 +251,6 @@
             (lp (1+ pos))
             ;; otherwise, just compare nubmers
             (< bstr1-byte bstr2-byte)))])))
-
-
-(define (test-bytes-utils)
-  (test-begin "bytes-utils")
-  (test-assert "same bytestring isn't less"
-    (not (bytes<? (bytes "meep")
-                  (bytes "meep"))))
-  (test-assert "greater bytestring of same length isn't less"
-    (not (bytes<? (bytes "meep")
-                  (bytes "beep"))))
-  (test-assert "lesser bytestring of same length is less"
-    (bytes<? (bytes "beep")
-             (bytes "meep")))
-  (test-assert "greater bytestring of same length isn't less 2"
-    (not (bytes<? (bytes "meep")
-                  (bytes "meeb"))))
-  (test-assert "lesser bytestring of same length is less 2"
-    (bytes<? (bytes "meeb")
-             (bytes "meep")))
-  (test-assert "shorter bytestring is less"
-    (bytes<? (bytes "meep")
-             (bytes "meeple")))
-  (test-assert "longer bytestring is greater"
-    (not (bytes<? (bytes "meeple")
-                  (bytes "meep"))))
-  (test-end "bytes-utils"))
 
 
 ;;; Encoding
@@ -560,16 +508,16 @@
              (lambda (return)
                (for-each
                 (match-lambda
-                  [((and (and (or (? symbol?) (? string?) (? number?)
-                                  (? boolean?) (? bytevector?)))
-                              expected-label)
+                  [((and (or (? symbol?) (? string?) (? number?)
+                             (? boolean?) (? bytevector?))
+                         expected-label)
                     . derecordify)
                    (when (equal? label expected-label)
                      (return (apply derecordify args)))]
                   [(label-pred? . derecordify)
                    (when (label-pred? label)
                      (return (apply derecordify args)))])
-                         unmarshallers)
+                unmarshallers)
                ;; no handler, return as record
                (make-syrec label args))))]
          ;; it's a single float
@@ -610,64 +558,3 @@
     (open-bytevector-input-port bstr))
   (syrup-read bstr-port #:unmarshallers unmarshallers))
 
-
-(define (test-syrup)
-  (define zoo-structure
-    (make-syrec* (bytes "zoo")
-                 "The Grand Menagerie"
-                 (map alist->hash-table
-                      `(((species . ,(bytes "cat"))
-                         (name . "Tabatha")
-                         (age . 12)
-                         (weight . 8.2)
-                         (alive? . #t)
-                         (eats . ,(make-set (bytes "mice") (bytes "fish")
-                                            (bytes "kibble"))))
-                        ((species . ,(bytes "monkey"))
-                         (name . "George")
-                         (age . 6)
-                         (weight . 17.24)
-                         (alive? . #f)
-                         (eats . ,(make-set (bytes "bananas")
-                                            (bytes "insects"))))
-                        ((species . ,(bytes "ghost"))
-                         (name . "Casper")
-                         (age . -12)
-                         (weight . -34.5)
-                         (alive? . #f)
-                         (eats . ,(make-set)))))))
-  (define encoded-zoo
-    (call-with-values
-        (lambda ()
-          (open-bytevector-output-port))
-      (lambda (bvp get-bytevector)
-        (put-bytevector bvp (syrup-encode zoo-structure))
-        (get-bytevector))))
-  (test-begin "syrup")
-  (define expected-zoo-binary
-    #vu8(60 51 58 122 111 111 49 57 34 84 104 101 32 71 114 97 110 100
-         32 77 101 110 97 103 101 114 105 101 91 123 51 39 97 103 101
-         49 50 43 52 39 101 97 116 115 35 52 58 102 105 115 104 52 58 109
-         105 99 101 54 58 107 105 98 98 108 101 36 52 39 110 97 109 101 55
-         34 84 97 98 97 116 104 97 54 39 97 108 105 118 101 63 116 54 39 119
-         101 105 103 104 116 68 64 32 102 102 102 102 102 102 55 39 115 112
-         101 99 105 101 115 51 58 99 97 116 125 123 51 39 97 103 101 54 43
-         52 39 101 97 116 115 35 55 58 98 97 110 97 110 97 115 55 58 105 110
-         115 101 99 116 115 36 52 39 110 97 109 101 54 34 71 101 111 114 103
-         101 54 39 97 108 105 118 101 63 102 54 39 119 101 105 103 104 116 68
-         64 49 61 112 163 215 10 61 55 39 115 112 101 99 105 101 115 54 58 109
-         111 110 107 101 121 125 123 51 39 97 103 101 49 50 45 52 39 101 97
-         116 115 35 36 52 39 110 97 109 101 54 34 67 97 115 112 101 114 54 39
-         97 108 105 118 101 63 102 54 39 119 101 105 103 104 116 68 192 65 64
-         0 0 0 0 0 55 39 115 112 101 99 105 101 115 53 58 103 104 111 115 116
-         125 93 62))
-  (test-equal "zoo structure encodes as expected"
-    expected-zoo-binary
-    encoded-zoo)
-  (test-end "syrup"))
-
-
-(define (tests)
-  (test-sets)
-  (test-bytes-utils)
-  (test-syrup))
