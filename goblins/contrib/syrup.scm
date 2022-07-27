@@ -295,6 +295,8 @@
        (match (vhash-assoc key vh)
          [(_ . val) val]))
      vhash-fold))
+  (define encode-ghash
+    (build-encode-hash ghash-ref ghash-fold))
   (define (encode obj)
     (match obj
       ;; Bytes are like <bytes-len>:<bytes>
@@ -316,10 +318,8 @@
       ;; We sort by the key being fully encoded.
       [(? hash-table?)
        (encode-hash obj)]
-      ;; TODO: I guess this throws encoding just-vlists out the window.
-      ;;   Replace with fashes for our functional hashtables!
-      [(? vlist?)
-       (encode-vhash obj)]
+      [(? ghash?)
+       (encode-ghash obj)]
       ;; Strings are like <encoded-bytes-len>"<utf8-encoded>
       [(? string?)
        (netstring-encode (string->bytes/utf-8 obj)
