@@ -44,13 +44,9 @@
 	     field-accessors)))))
   (define unmarshaller
     (cons
-     (lambda (obj)
-       (and (syrec? obj)
-	    (eq? (syrec-label obj) syrup-label)))
-     (lambda (obj)
-       (apply
-	make-record
-	(syrec-args obj)))))
+     (lambda (label)
+       (eq? label syrup-label))
+     make-record))
 
   (values marshaller
 	  unmarshaller))
