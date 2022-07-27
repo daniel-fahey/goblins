@@ -4,7 +4,9 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 hash-table)
   #:use-module (ice-9 binary-ports)
+  #:use-module (ice-9 iconv)
   #:use-module (srfi srfi-1)     ; lists
+  #:use-module (srfi srfi-9)     ; records
   #:use-module (srfi srfi-64))   ; tests
 
 (test-begin "test-syrup")
@@ -72,13 +74,32 @@
   (syrup-encode zoo-structure)
   zoo-expected-bytes)
 
-;;; Checking for equivalence here is trickier than it may look because
-;;; comparing ghashes doesn't work right yet...
-(test-expect-fail 1)
+;; The extra encoding is a workaround for complexity around checking equality :P
 (test-equal "Correctly decodes zoo structure"
-  (syrup-decode zoo-expected-bytes)
-  zoo-structure)
+  (syrup-encode (syrup-decode zoo-expected-bytes))
+  (syrup-encode zoo-structure))
 
+(test-equal "csexp backwards compat"
+  (syrup-decode (bytes "(3:zoo (3:cat 7:tabatha))"))
+  (list (bytes "zoo") (list (bytes "cat") (bytes "tabatha"))))
 
+(define-record-type <foop>
+  (make-foop blorp blap)
+  foop?
+  (blorp foop-blorp)
+  (blap foop-blap))
+
+(define (foop->record fb)
+  (make-syrec* 'foop (foop-blorp fb) (foop-blap fb)))
+  
+(test-equal "marshaller works"
+ (syrup-encode (list 'meep 'moop (make-foop 'fizzy 'water) 'bop)
+               #:marshallers (list (cons foop? foop->record)))
+ (bytes "[4'meep4'moop<4'foop5'fizzy5'water>3'bop]"))
+
+(test-equal "unmarshaller works"
+ (syrup-decode (bytes "[4'meep4'moop<4'foop5'fizzy5'water>3'bop]")
+               #:unmarshallers (list (cons 'foop make-foop)))
+ (list 'meep 'moop (make-foop 'fizzy 'water) 'bop))
 
 (test-end "test-syrup")
