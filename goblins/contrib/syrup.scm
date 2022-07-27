@@ -122,6 +122,8 @@
 
 ;;; An extremely meh implementation of sets
 
+;;; TODO: make and replace with "gsets"
+
 (define-record-type <set>
   (_make-set ht)
   set?
