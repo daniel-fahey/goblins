@@ -1487,8 +1487,13 @@
           ;; TODO: Shouldn't the netlayer actually interpret this message
           ;;   before it gets here?  Ie, at this stage, we're already
           ;;   "confident" this is from the right location
-          [($ <mtp:op:start-session> (and remote-encoded-pubkey
-                                          ('eddsa 'public 'ed25519 _))
+          [($ <mtp:op:start-session>
+              remote-encoded-pubkey
+              ;; TODO: We want to restores something like the below, which
+              ;;   is what the racket version expects, or at least unify the
+              ;;   two.
+              #;(and remote-encoded-pubkey
+                 ('eddsa 'public 'ed25519 _))
               (? ocapn-machine? claimed-remote-location)
               encoded-remote-location-sig)
            (define remote-handoff-pubkey
