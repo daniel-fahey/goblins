@@ -19,7 +19,7 @@
   #:use-module (srfi srfi-9)
   #:use-module (goblins ocapn marshalling)
   #:export (<ocapn-machine>
-	    make-ocapn-machine
+	          make-ocapn-machine
             ocapn-machine?
             ocapn-machine-transport
             ocapn-machine-address
