@@ -405,9 +405,9 @@
      (define (return-eof)
        (return-early the-eof-object))
      (define (_read-char)
-       (match (read-char in-port)
+       (match (get-u8 in-port)
          [(? eof-object?) (return-eof)]
-         [char char]))
+         [char-int (integer->char char-int)]))
      (define (_peek-char)
        (match (peek-char in-port)
          [(? eof-object?) (return-eof)]
