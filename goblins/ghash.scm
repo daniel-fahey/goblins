@@ -22,8 +22,10 @@
 
 (define-module (goblins ghash)
   #:use-module (goblins core)
-  #:use-module (srfi srfi-9)
+  #:use-module (srfi srfi-9)        ; records
+  #:use-module (srfi srfi-9 gnu)    ; record extensions
   #:use-module (ice-9 vlist)
+  #:use-module (ice-9 hash-table)
   #:use-module (ice-9 match)
   #:export (make-ghash
             ghash?
@@ -46,6 +48,16 @@
   (_make-ghash vhash)
   ghash?
   (vhash ghash-vhash))
+
+(define (vhash-length vhash)
+  (vhash-fold (lambda (_k _v count) (1+ count))
+              0 vhash))
+
+(define (print-ghash vhash port)
+  (format port "#<ghash (~a)>"
+          (vhash-length (ghash-vhash vhash))))
+
+(set-record-type-printer! <ghash> print-ghash)
 
 (define ghash-null (_make-ghash vlist-null))
 
