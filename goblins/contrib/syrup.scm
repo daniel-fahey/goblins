@@ -375,7 +375,8 @@
                            (if (record? translated)
                                (return (encode translated))
                                (error 'syrup-marshaller-returned-unsupported-type))))))
-                    marshallers)))]))
+                    marshallers)
+          (error "Unsupported Syrup type:" obj)))]))
   (encode obj))
 
 (define* (syrup-write obj out-port #:key (marshallers '()))
