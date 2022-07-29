@@ -43,9 +43,9 @@
            (throw 'no-such-key
                   (format #f "No object registered with swiss-num: ~a"
                           (url-base64-encode swiss-num))))
-         (hash-ref ht swiss-num)]
+         (ghash-ref ht swiss-num)]
         [(swiss-num dflt)
-         (hash-ref ht swiss-num dflt)])])))
+         (ghash-ref ht swiss-num dflt)])])))
 
 (define (spawn-nonce-registry-locator-pair)
   (define registry
