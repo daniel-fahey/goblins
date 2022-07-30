@@ -1743,10 +1743,12 @@
      (let ((vat-connector (local-refr-vat-connector to-refr)))
        (unless vat-connector
          (error "Can't use <-np-extern on local-refr with no vat-connector"))
-       (vat-connector 'handle-message msg))]
+       (vat-connector 'handle-message msg)
+       _void)]
     [(? remote-refr?)
      (let ((captp-connector (remote-refr-captp-connector to-refr)))
-       (captp-connector 'handle-message msg))]))
+       (captp-connector 'handle-message msg)
+       _void)]))
 
 ;; Listen to a promise
 (define* (listen-to to-refr listener #:key [wants-partial? #f])
