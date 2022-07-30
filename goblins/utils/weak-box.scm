@@ -28,7 +28,7 @@
   (wvec weak-box-wvec))
 
 (define (make-weak-box val)
-  (make-weak-vector 1 val))
+  (_make-weak-box (make-weak-vector 1 val)))
 
 (define (weak-box-value weak-box)
   (weak-vector-ref (weak-box-wvec weak-box) 0))
