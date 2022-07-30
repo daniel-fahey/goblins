@@ -44,19 +44,17 @@
 (define (^fake-netlayer _bcom our-name network new-conn-ch)
   (define our-location (make-ocapn-machine 'fake our-name #f))
   (define (start-listening conn-establisher)
-    (define (listen)
-      (define message-vow
-	(spawn-fibrous-vow
-	 (lambda () (get-message new-conn-ch))))
-      (on message-vow
-          (match-lambda
-            (('*incoming-new-conn* them-enq-ch me-deq-ch)
-             (<- conn-establisher
-		 (make-message-reader me-deq-ch)
-		 (make-message-writer them-enq-ch)
-		 #t)))
-	  #:finally listen))
-    (listen))
+    (syscaller-free-fiber
+     (lambda ()
+       ;; TODO: Insert shutdown code nere
+       (while #t
+         (pk 'listen-again our-name)
+         (match-let ((('*incoming-new-conn* them-enq-ch me-deq-ch)
+                      (pk 'got-message our-name (get-message new-conn-ch))))
+           (<-np-extern (pk 'conn-establisher conn-establisher)
+		        (make-message-reader me-deq-ch)
+		        (make-message-writer them-enq-ch)
+		        #t))))))
 
   (define (^netlayer bcom)
     (define base-beh
