@@ -952,7 +952,8 @@
 (define message-or-request-to
   (match-lambda
     [(? message? msg) (message-to msg)]
-    [(? listen-request? lr) (listen-request-to lr)]))
+    [(? listen-request? lr) (listen-request-to lr)]
+    [(? questioned? qstn) (message-to (questioned-message qstn))]))
 
 (define message-who-wants-response
   (match-lambda
