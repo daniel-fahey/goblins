@@ -1482,7 +1482,6 @@
                              (make-mactor:closer 
                               unresolved point-to history
                               (cons msg waiting-messages))))
-            ;; But we should return that this was deferred
             _void])]
         ;; Similar to the above w/ remote promises, except that we really
         ;; just don't know where things go *at all* yet, so no swimming
