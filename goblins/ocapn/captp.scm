@@ -758,7 +758,8 @@
   (define (marshall-to obj)
     (match obj
       [(? question-finder?)
-       (desc:answer (hashq-ref questions obj))]
+       (desc:answer (or (hashq-ref questions obj)
+                        (error "No such entry in questions" obj)))]
       [(? remote-refr?)
        (let ((refr-captp-connector
               (remote-refr-captp-connector obj)))
