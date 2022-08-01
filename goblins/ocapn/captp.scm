@@ -645,20 +645,19 @@
 
   (define (question-finder->question-pos! question-finder)
     (assert-type question-finder question-finder?)
-    (cond
+    (or
      ;; we already have a question relevant to this question id
-     ((hashq-ref questions question-finder) => identity)
-     (else
-      ;; new question id...
-      (let ([question-pos next-question-pos])
-        ;; install our question at this question id
-        (hashq-set! questions question-finder question-pos)
-        ;; TODO: Port over to guile GC
-        ;; (install-question-will-handler! question-finder question-pos)
-        ;; increment the next-question id
-        (set! next-question-pos (add1 next-question-pos))
-        ;; and return the question-pos we set up
-        question-pos))))
+     (hashq-ref questions question-finder)
+     ;; new question id...
+     (let ([question-pos next-question-pos])
+       ;; install our question at this question id
+       (hashq-set! questions question-finder question-pos)
+       ;; TODO: Port over to guile GC
+       ;; (install-question-will-handler! question-finder question-pos)
+       ;; increment the next-question id
+       (set! next-question-pos (add1 next-question-pos))
+       ;; and return the question-pos we set up
+       question-pos)))
 
   ;; general argument marshall/unmarshall for import/export
 
