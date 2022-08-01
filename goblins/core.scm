@@ -1507,7 +1507,7 @@
              ;; If we're being asked to resolve something, this is a
              ;; "followup question"
              [resolve-me
-              (let*-values ([followup-question-finder
+              (let*-values ([(followup-question-finder)
                              (captp-connector 'new-question-finder)]
                             [(followup-question-promise followup-question-resolver)
                              (_spawn-promise-values #:question-finder
