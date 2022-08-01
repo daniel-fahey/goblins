@@ -1463,7 +1463,8 @@
       (define-values (captp-outgoing-enq-ch captp-outgoing-deq-ch captp-outgoing-stop?)
         (spawn-delivery-agent))
       (define (send-to-remote msg)
-        (put-message captp-outgoing-enq-ch msg))
+        (put-message captp-outgoing-enq-ch msg)
+        _void)
       (define our-location
         ($C netlayer 'our-location))
       (define coordinator
