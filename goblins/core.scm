@@ -2098,6 +2098,10 @@
                          #:key [catch-errors? #t]
                          [make-transactormap? #t])
   (define churn-q (make-q))     ; message to churn on here
+  ;; This one doesn't really need to be a queue.  Maybe it
+  ;; makes things easier to think about though, I'm undecided.
+  ;; TODO: Is our ordering really right for the final set of
+  ;; things to send?
   (define send-far-q (make-q))  ; messages we must still send
   (define new-am
     (if make-transactormap?
