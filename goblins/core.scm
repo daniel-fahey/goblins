@@ -1459,7 +1459,7 @@
             (cond
              [(near-refr? point-to)
               ;; (We don't use call-with-resolution because the next one will!)
-              (_handle-message (make-message to-refr resolve-me args))]
+              (_handle-message (make-message point-to resolve-me args))]
              [else
               ;; Otherwise, we need to forward this message to the appropriate
               ;; vat
