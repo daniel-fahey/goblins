@@ -2157,7 +2157,7 @@
   ;; actormap turn / vat to quiescence
   (churn!)
   ;; And now let's return everything...
-  (let ((send-far-msgs (car send-far-q)))
+  (let ((send-far-msgs (reverse (car send-far-q))))
     (values first-return-val new-am send-far-msgs)))
 
 (define* (actormap-churn-run actormap thunk
