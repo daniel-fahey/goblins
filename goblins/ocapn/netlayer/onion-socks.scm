@@ -1,3 +1,4 @@
+;;; Copyright 2021-2022 Christine Lemmer-Webber
 ;;; Copyright 2022 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +18,7 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 binary-ports)
   #:use-module (goblins ocapn netlayer utils)
+  #:use-module (fibers channels)
   #:export (onion-socks5-setup!))
 
 (define (read-bytes p bytes-to-read)
