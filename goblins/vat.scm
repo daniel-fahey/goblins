@@ -21,6 +21,7 @@
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
+  #:use-module (ice-9 control)
   #:use-module (ice-9 match)
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 threads)
@@ -150,24 +151,43 @@ Keywords:
   (define (vat-loop)
     ;; Control: operations on the vat from someone who spawned it
     (define handle-vat-control
-      (match-lambda
-        ('halt
-         (atomic-box-set! running? #f))
-        (('run thunk return-ch)
-         (define-values (returned new-actormap new-msgs)
-           (actormap-churn-run actormap thunk))
-         (dispatch-messages new-msgs)
-         (match returned
-           [#('ok rval)
-            (transactormap-merge! new-actormap)]
-           [_ #f])
-         ;; we have the put-message be run in its own fiber so that if
-         ;; the other side isn't listening for it anymore, the vat
-         ;; itself doesn't end up blocked
-         (spawn-fiber
-          (lambda ()
-            (put-message return-ch returned))
-          scheduler))))
+      ;;      (match-lambda
+      (lambda (arg)
+        (match arg
+          ('halt
+           (atomic-box-set! running? #f))
+          (('run thunk return-ch)
+           (call/ec
+            (lambda (abort)
+              ;; Yes, we also have slightly similar but almost the same error
+              ;; handling here as a bit lower, because we want to return the
+              ;; exception to the REPL in case things fail here
+              (define (handle-exn exn)
+                (define stack
+                  (make-stack #t handle-exn))
+                (display-backtrace stack (current-error-port))
+                (newline (current-error-port))
+                (spawn-fiber
+                 (lambda ()
+                   (put-message return-ch `#(fail ,exn))))
+                (abort))
+              (define (do-run)
+                (define-values (returned new-actormap new-msgs)
+                  (actormap-churn-run actormap thunk))
+                (dispatch-messages new-msgs)
+                (match returned
+                  [#('ok rval)
+                   (transactormap-merge! new-actormap)]
+                  [_ #f])
+                ;; we have the put-message be run in its own fiber so that if
+                ;; the other side isn't listening for it anymore, the vat
+                ;; itself doesn't end up blocked
+                (spawn-fiber
+                 (lambda ()
+                   (put-message return-ch returned))
+                 scheduler))
+              (with-exception-handler handle-exn
+                do-run)))))))
     ;; Connect: operations on the vat from the outside
     (define (handle-incoming-message msg)
       (define-values (returned new-actormap new-msgs)
@@ -177,12 +197,26 @@ Keywords:
         [#('ok rval)
          (transactormap-merge! new-actormap)]
         [_ #f]))
-    (while (atomic-box-ref running?)
-      (perform-operation
-       (choice-operation (wrap-operation (get-operation control-ch)
-                                         handle-vat-control)
-                         (wrap-operation (get-operation deq-ch)
-                                         handle-incoming-message)))))
+    ;; And now loop doing this...
+    (while (atomic-box-ref running?)     ; ... unless it's time to stop
+      (call/ec
+       (lambda (abort)
+         ;; Error handling in case one of these goes badly...
+         (define (handle-exn exn)
+           (define stack
+             (make-stack #t handle-exn))
+           (display-backtrace stack (current-error-port))
+           (newline (current-error-port))
+           (abort))
+         ;; Actually run operation
+         (define (handle-op)
+           (perform-operation
+            (choice-operation (wrap-operation (get-operation control-ch)
+                                              handle-vat-control)
+                              (wrap-operation (get-operation deq-ch)
+                                              handle-incoming-message))))
+         (with-exception-handler handle-exn
+           handle-op)))))
   ;; Wrap vat spawning in "ambient advice", allowing an opportunity
   ;; to set up parameters, etc
   (define _dynamic-wrap
