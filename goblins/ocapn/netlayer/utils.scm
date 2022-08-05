@@ -143,7 +143,7 @@
     (make-port-object sock))
 
   (define defunct
-    (lambda ()
+    (lambda _
       (error "This connection is no longer active.")))
 
   (define beh
