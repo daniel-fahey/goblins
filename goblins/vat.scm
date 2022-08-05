@@ -253,7 +253,7 @@ over some of the communication aspects of controlling the vat."
 (define (spawn-fibrous-vow proc)
   (define-values (promise resolver)
     (spawn-promise-values))
-  (spawn-fiber
+  (syscaller-free-fiber
    (lambda ()
      ;; TODO: Add error handling
      (define result (proc))
