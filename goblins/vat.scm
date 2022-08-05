@@ -255,9 +255,21 @@ over some of the communication aspects of controlling the vat."
     (spawn-promise-values))
   (syscaller-free-fiber
    (lambda ()
-     ;; TODO: Add error handling
-     (define result (proc))
-     (<-np-extern resolver 'fulfill result)))
+     (call/ec
+      (lambda (abort)
+        (define (handle-exn exn)
+          (define stack
+            (make-stack #t handle-exn))
+          (display-backtrace stack (current-error-port))
+          (newline (current-error-port))
+          (<-np-extern resolver 'break exn)
+          (abort))
+        (define (run-and-send)
+          ;; TODO: Add error handling
+          (define result (proc))
+          (<-np-extern resolver 'fulfill result))
+        (with-exception-handler handle-exn
+          run-and-send)))))
   promise)
 
 (define-syntax-rule (fibrous body ...)
