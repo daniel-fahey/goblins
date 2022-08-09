@@ -116,7 +116,11 @@
     (random-tmp-filename tor-ocapn-socks-dir
                          #:format-name
                          (lambda (name)
-                           (format #f "ocapn-~a.sock" name))))
+                           ;; store the uid in the ocapn sock directory so maybe
+                           ;; we could add a gc routine for obviously-unused
+                           ;; old sock files
+                           (format #f "ocapn-~a-~a.sock"
+                                   (getuid) name))))
 
   (define-values (tor-in-ch tor-out-ch)
     (tor-control-connect-unix tor-control-path))
