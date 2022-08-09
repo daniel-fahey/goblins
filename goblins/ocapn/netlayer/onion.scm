@@ -112,10 +112,11 @@
   (unless (file-exists? tor-ocapn-socks-dir)
     ;; TODO: Make this recursive?
     (mkdir tor-ocapn-socks-dir))
-  (define ocapn-socks-dir
-    (mkdtemp (format #f "~a/XXXXXX" tor-ocapn-socks-dir)))
-  (define ocapn-socks-path
-    (string-append ocapn-socks-dir file-name-separator-string "ocapn.sock"))
+  (define ocapn-sock-path
+    (random-tmp-filename tor-ocapn-socks-dir
+                         #:format-name
+                         (lambda (name)
+                           (format #f "ocapn-~a.sock" name))))
 
   (define-values (tor-in-ch tor-out-ch)
     (tor-control-connect-unix tor-control-path))
@@ -124,12 +125,11 @@
   (expect-250-ok tor-in-ch)
 
   (define ocapn-sock-listener (unix-socket-listen ocapn-sock-path))
-  (values ocapn-sock-dir ocapn-sock-path ocapn-sock-listener
+  (values ocapn-sock-path ocapn-sock-listener
           tor-in-ch tor-out-ch))
 
 (define (new-tor-connection tor-control-path tor-ocapn-socks-dir)
-  (define-values (ocapn-sock-dir
-                  ocapn-sock-path ocapn-sock-listener
+  (define-values (ocapn-sock-path ocapn-sock-listener
                   tor-in-ch tor-out-ch)
     (setup-ocapn-io tor-control-path tor-ocapn-socks-dir))
 
@@ -154,12 +154,11 @@
 
   (expect-250-ok tor-in-ch)
   
-  (values ocapn-sock-dir ocapn-sock-path ocapn-sock-listener service-id private-key))
+  (values ocapn-sock-path ocapn-sock-listener service-id private-key))
 
 (define (restore-tor-connection tor-control-path tor-ocapn-socks-dir
                                 private-key service-id)
-  (define-values (ocapn-sock-dir
-                  ocapn-sock-path ocapn-sock-listener
+  (define-values (ocapn-sock-path ocapn-sock-listener
                   tor-in-ch tor-out-ch)
     (setup-ocapn-io tor-control-path tor-ocapn-socks-dir))
   (put-message tor-out-ch
@@ -178,7 +177,7 @@
            service-id returned-service-id))
   (expect-250-ok tor-in-ch)
 
-  (values ocapn-sock-dir ocapn-sock-path ocapn-sock-listener))
+  (values ocapn-sock-path ocapn-sock-listener))
 
 (define (^onion-netlayer bcom our-location ocapn-sock-listener
                          tor-socks-path do-cleanup)
@@ -247,12 +246,11 @@
   pre-setup-beh)
 
 (define (_finish-setup-onion private-key service-id tor-socks-path
-                             ocapn-tmp-dir ocapn-sock-path ocapn-sock-listener)
+                             ocapn-sock-path ocapn-sock-listener)
   ;; TODO: Cleanup tor subprocess also.
   (define (do-cleanup)
     (unix-socket-close-listener ocapn-sock-listener)
-    (delete-file ocapn-sock-path)
-    (rmdir ocapn-tmp-dir))
+    (delete-file ocapn-sock-path))
 
   (define our-location
     (make-ocapn-machine 'onion service-id #f))
@@ -269,21 +267,21 @@
           [tor-control-path default-tor-control-path]
           [tor-socks-path default-tor-socks-path]
           [tor-ocapn-socks-dir default-tor-ocapn-socks-dir])
-  (define-values (ocapn-tmp-dir ocapn-sock-path ocapn-sock-listener service-id private-key)
+  (define-values (ocapn-sock-path ocapn-sock-listener service-id private-key)
     (new-tor-connection tor-control-path tor-ocapn-socks-dir))
 
   (_finish-setup-onion private-key service-id tor-socks-path
-                       ocapn-tmp-dir ocapn-sock-path ocapn-sock-listener))
+                       ocapn-sock-path ocapn-sock-listener))
 
 (define* (restore-onion-netlayer
           service-id private-key
           #:key [tor-control-path default-tor-control-path]
           [tor-socks-path default-tor-socks-path]
           [tor-ocapn-socks-dir default-tor-ocapn-socks-dir])
-  (define-values (ocapn-tmp-dir ocapn-sock-path ocapn-sock-listener)
+  (define-values (ocapn-sock-path ocapn-sock-listener)
     (restore-tor-connection tor-control-path tor-ocapn-socks-dir
                             private-key service-id))
   (_finish-setup-onion private-key service-id tor-socks-path
-                       ocapn-tmp-dir ocapn-sock-path ocapn-sock-listener))
+                       ocapn-sock-path ocapn-sock-listener))
 
 
