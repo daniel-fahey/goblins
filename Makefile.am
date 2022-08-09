@@ -53,6 +53,7 @@ SOURCES = goblins.scm \
           goblins/utils/weak-box.scm \
           goblins/utils/assert-type.scm \
           goblins/utils/simple-dispatcher.scm \
+          goblins/utils/random-name.scm \
           goblins/contrib/syrup.scm \
           goblins/actor-lib/methods.scm \
           goblins/actor-lib/ticker.scm \

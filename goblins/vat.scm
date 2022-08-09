@@ -18,6 +18,7 @@
   #:use-module (goblins core)
   #:use-module (goblins inbox)
   #:use-module (goblins default-vat-scheduler)
+  #:use-module (goblins utils random-name)
   #:use-module (fibers)
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
@@ -112,18 +113,8 @@
                  (current-error-port %base-error-port))
     (proc)))
 
-(define vat-name-random-state
-  (make-parameter #f))
-
 (define (generate-random-vat-name)
-  ;; it's fine if this gets clobbered in this case?
-  (unless (vat-name-random-state)
-    (vat-name-random-state (random-state-from-platform)))
-  (let ((random-state (vat-name-random-state)))
-    (apply string
-	   (map
-	    (lambda _ (integer->char (+ 65 (random 26 random-state))))
-	    (iota 7))))) ;; length.
+  (random-name 8))
 
 ;; TODO: An explicit 'halt message isn't as ideal as vats which auto-gc.
 ;; But that is probably possible... we could possibly set up a fializer
