@@ -24,7 +24,9 @@
   #:use-module (goblins actor-lib ward)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib joiners)
+  #:use-module (goblins utils random-name)
   #:export (read-write-procs
+            random-tmp-filename
             ^unix-socket))
 
 
@@ -36,6 +38,25 @@
     (flush-output-port op))
   (values read-message write-message))
 
+(define* (random-tmp-filename base-directory
+                              #:key
+                              (random-len 16)
+                              (format-name
+                               (lambda (name)
+                                 (string-append "tmp-" name))))
+  "Generate a new filename in base-directory, returns the filename
+including the BASE-DIRECTORY
+
+Will detect if a collision exists, but doesn't take action to
+create or claim the file.  Extremely unlikely race conditions could
+exist between this time, but they are really extremely unlikely."
+  (let lp ()
+    (define new-filename
+      (string-append base-directory file-name-separator-string
+                     (format-name (random-name random-len))))
+    (if (file-exists? new-filename)
+        (lp)             ; try again
+        new-filename)))
 
 ;; This makes sequential operations easy in the asynchronous promise based
 ;; system, that is Goblins.
@@ -124,6 +145,7 @@
       (methods
        (process-operation process-operation)
        ((read-message)
+        ;; What ensures that there's only one of these at any time?
         (spawn-fibrous-vow
          (lambda ()
            (let read-message ((buffer '()))
