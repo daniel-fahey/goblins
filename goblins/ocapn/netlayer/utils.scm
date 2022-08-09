@@ -14,15 +14,27 @@
 
 (define-module (goblins ocapn netlayer utils)
   #:use-module (rnrs bytevectors)
+  #:use-module (rnrs io ports)
   #:use-module (ice-9 match)
   #:use-module (ice-9 binary-ports)
   #:use-module (goblins)
   #:use-module (goblins vat)
+  #:use-module (goblins contrib syrup)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib ward)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib joiners)
-  #:export (^unix-socket))
+  #:export (read-write-procs
+            ^unix-socket))
+
+
+(define (read-write-procs ip op)
+  (define (read-message unmarshallers)
+    (syrup-read ip #:unmarshallers unmarshallers))
+  (define (write-message msg marshallers)
+    (syrup-write msg op #:marshallers marshallers)
+    (flush-output-port op))
+  (values read-message write-message))
 
 
 ;; This makes sequential operations easy in the asynchronous promise based
