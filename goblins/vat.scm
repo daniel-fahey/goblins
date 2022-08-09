@@ -111,12 +111,18 @@
                  (current-error-port %base-error-port))
     (proc)))
 
+(define vat-name-random-state
+  (make-parameter #f))
+
 (define (generate-random-vat-name)
-  (set! *random-state* (random-state-from-platform))
-  (apply string
-	 (map
-	  (lambda _ (integer->char (+ 65 (random 26))))
-	  (iota 5)))) ;; length.
+  ;; it's fine if this gets clobbered in this case?
+  (unless (vat-name-random-state)
+    (vat-name-random-state (random-state-from-platform)))
+  (let ((random-state (vat-name-random-state)))
+    (apply string
+	   (map
+	    (lambda _ (integer->char (+ 65 (random 26 random-state))))
+	    (iota 7))))) ;; length.
 
 ;; TODO: An explicit 'halt message isn't as ideal as vats which auto-gc.
 ;; But that is probably possible... we could possibly set up a fializer
