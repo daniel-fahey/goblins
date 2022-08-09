@@ -35,8 +35,6 @@
   #:export (new-onion-netlayer
             restore-onion-netlayer))
 
-(define _void *unspecified*)
-
 (define (line-delimited-ports->channels ip op)
   (define-values (in-enq-ch in-deq-ch in-stop?)
     (spawn-delivery-agent))
@@ -196,7 +194,7 @@
     (syscaller-free-fiber
      (lambda ()
        (dynamic-wind
-         _void
+         (lambda () 'no-op)
          (lambda ()
            (let lp ()
              (choice-operation
