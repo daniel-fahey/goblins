@@ -86,7 +86,7 @@
   (line-delimited-ports->channels sock sock))
 
 (define (build-path . args)
-  (string-join args  file-name-separator-string))
+  (string-join args file-name-separator-string))
 
 (define default-goblins-tor-dir
   (build-path (getenv "HOME") ".cache" "goblins" "tor"))
