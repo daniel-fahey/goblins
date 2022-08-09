@@ -133,10 +133,11 @@
 
   (define service-id-and-private-key-vow
     (on (<- tor-sock 'ask add-onion-message #:replies 3)
-        (lambda (replies)
-          (when (expect-250-ok (list-ref replies 2))
-            (cons (read-service-id (list-ref replies 0))
-                  (read-private-key (list-ref replies 1)))))
+        (match-lambda
+          ((response-code-line service-id-line private-key-line)
+           (when (expect-250-ok response-code-line)
+             (cons (read-service-id service-id-line)
+                   (read-private-key private-key-line)))))
         #:promise? #t))
 
   (define service-id-vow
