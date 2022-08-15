@@ -79,7 +79,7 @@
 
 (define (tor-control-connect-unix path)
   (define sock
-    (socket PF_UNIX SOCK_STREAM 0))
+    (make-client-unix-domain-socket path))
   (connect sock AF_UNIX path)
   (line-delimited-ports->channels sock sock))
 
@@ -126,7 +126,7 @@
   (put-message tor-out-ch "AUTHENTICATE")
   (expect-250-ok tor-in-ch)
 
-  (define ocapn-sock-listener (unix-socket-listen ocapn-sock-path))
+  (define ocapn-sock-listener (make-server-unix-domain-socket ocapn-sock-path))
   (values ocapn-sock-path ocapn-sock-listener
           tor-in-ch tor-out-ch))
 
@@ -186,6 +186,7 @@
   (define shutdown-time (make-condition))
   (define (start-listen-thread conn-establisher)
     (define (handle-ocapn-sock-listen)
+      ;; TODO: RESUME HERE <=====================================
       (define-values (ip op)
         (unix-socket-accept ocapn-sock-listener))
       (define-values (read-message write-message)
@@ -237,11 +238,11 @@
              (^start-conn
               (lambda (_bcom)
                 (lambda ()
-                  (define-values (ip op)
-                    (unix-socket-connect tor-socks-path))
-                  (onion-socks5-setup! ip op (string-append address ".onion"))
+                  (define sock (make-client-unix-domain-socket tor-socks-path))
+                  (onion-socks5-setup! sock (string-append address ".onion")
+                                       9045)
                   (define-values (read-message write-message)
-                    (read-write-procs ip op))
+                    (read-write-procs sock sock))
                   (<- conn-establisher read-message write-message #f))))
              (start-conn (connect-vat 'spawn ^start-conn)))
         (<- start-conn))]))
