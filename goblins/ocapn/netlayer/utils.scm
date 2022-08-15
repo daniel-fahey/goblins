@@ -27,8 +27,9 @@
   #:use-module (goblins utils random-name)
   #:export (read-write-procs
             random-tmp-filename
+            make-server-unix-domain-socket
+            make-client-unix-domain-socket
             ^unix-socket))
-
 
 (define (read-write-procs ip op)
   (define (read-message unmarshallers)
@@ -57,6 +58,29 @@ exist between this time, but they are really extremely unlikely."
     (if (file-exists? new-filename)
         (lp)             ; try again
         new-filename)))
+
+(define* (make-server-unix-domain-socket path #:optional (listen-backlog 1024))
+  (let ((sock (socket PF_UNIX SOCK_STREAM 0)))   ; open unix domain socket
+    (setsockopt sock SOL_SOCKET SO_REUSEADDR 1)  ; allow socket reuse
+    (fcntl sock F_SETFD FD_CLOEXEC)
+    (bind sock AF_UNIX path)
+    (fcntl sock F_SETFL
+           (logior O_NONBLOCK
+                   (fcntl sock F_GETFL)))
+    (sigaction SIGPIPE SIG_IGN)
+    (listen sock listen-backlog)
+    sock))
+
+(define (make-client-unix-domain-socket path)
+  (let ((sock (socket PF_UNIX SOCK_STREAM 0)))   ; open unix domain socket
+    (connect sock AF_UNIX path)
+    (fcntl sock F_SETFL
+           (logior O_NONBLOCK
+                   (fcntl sock F_GETFL)))
+    sock))
+
+;;;; Jessica's new line-delimited ports actors design
+;;;; ================================================
 
 ;; This makes sequential operations easy in the asynchronous promise based
 ;; system, that is Goblins.
