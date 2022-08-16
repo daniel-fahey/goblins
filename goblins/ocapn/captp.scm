@@ -1489,10 +1489,10 @@
           ;;   "confident" this is from the right location
           [($ <mtp:op:start-session> (and remote-encoded-pubkey
                                           ('eddsa 'public 'ed25519 _))
-	                             (? ocapn-machine? claimed-remote-location)
-                                     encoded-remote-location-sig)
+              (? ocapn-machine? claimed-remote-location)
+              encoded-remote-location-sig)
            (define remote-handoff-pubkey
-         (sexp->canonical-sexp remote-encoded-pubkey))
+             (sexp->canonical-sexp remote-encoded-pubkey))
            ;; TODO: I guess we didn't know by the time this was opened
            ;;   what the remote location was going to be... that's part of the reason
            ;;   for the start-session message...
@@ -1502,25 +1502,25 @@
            (error (format "Supplied location mismatch. Claimed: ~s Expected: ~s"
            claimed-remote-location remote-location)))
 
-       ;; TODO: this should be factored out to gcrypt (see: sign
-       ;; call)
-       (define encoded-location
-         (syrup-encode
-          (make-syrec* 'my-location claimed-remote-location)
-          #:marshallers marshallers))
-       (define encoded-location-b16
-         (bytevector->base16-string encoded-location))
-       (define data
-         (string->canonical-sexp
-          (format #f "(data (flags ~a) (hash-algo \"~a\" (value #~a#)))"
-              "eddsa"
-              "sha512"
-              encoded-location-b16)))
+           ;; TODO: this should be factored out to gcrypt (see: sign
+           ;; call)
+           (define encoded-location
+             (syrup-encode
+              (make-syrec* 'my-location claimed-remote-location)
+              #:marshallers marshallers))
+           (define encoded-location-b16
+             (bytevector->base16-string encoded-location))
+           (define data
+             (string->canonical-sexp
+              (format #f "(data (flags ~a) (hash-algo \"~a\" (value #~a#)))"
+                      "eddsa"
+                      "sha512"
+                      encoded-location-b16)))
 
-       (define remote-location-sig
-         (sexp->canonical-sexp encoded-remote-location-sig))
+           (define remote-location-sig
+             (sexp->canonical-sexp encoded-remote-location-sig))
 
-       (unless (verify remote-location-sig data remote-handoff-pubkey)
+           (unless (verify remote-location-sig data remote-handoff-pubkey)
              (error "Location not signed by handoff key"))
 
            ;; TODO: Now we need to do the dial back and verify that
@@ -1566,10 +1566,10 @@
                                  local-bootstrap-obj remote-bootstrap-vow
                                  coordinator session-name))
            _void]))
-
+      
       (define-values (incoming-forwarder incoming-swap)
         (swappable (spawn ^setup-completer)))
-
+      
       ;; Now spawn fibers that read/write to these ports
       (syscaller-free-fiber
        (lambda ()
@@ -1582,7 +1582,7 @@
              [msg
               (<-np-extern incoming-forwarder msg)
               (lp)]))))
-
+      
       (syscaller-free-fiber
        (lambda ()
          (let lp ()
@@ -1607,7 +1607,7 @@
      [self-location? self-location?]
      ;; ... is that it?
      [connect-to-machine retrieve-or-setup-session-vow]
-
+     
      [(install-netlayer netlayer)
       (define netlayer-name ($C netlayer 'netlayer-name))
       (when ($C netlayer-map 'hash-has-key? netlayer-name)
