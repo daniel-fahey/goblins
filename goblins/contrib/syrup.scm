@@ -361,7 +361,7 @@
       [(? pair?)
        (bytes-append squarebrac-left-bv
                      (apply bytes-append
-                            (map syrup-encode obj))
+                            (map encode obj))
                      squarebrac-right-bv)]
       ;; Dictionaries are like {<key1><val1><key2><val2>}
       ;; We sort by the key being fully encoded.
@@ -393,9 +393,9 @@
       ;; Records are like <<tag><arg1><arg2>> but with the outer <> for realsies
       [(? syrec?)
        (bytes-append anglebrac-left-bv
-                     (syrup-encode (syrec-label obj))
+                     (encode (syrec-label obj))
                      (apply bytes-append
-                            (map syrup-encode (syrec-args obj)))
+                            (map encode (syrec-args obj)))
                      anglebrac-right-bv)]
       ;; #t is t, #f is f
       [#t t-bv]
@@ -405,7 +405,7 @@
        (let* ([encoded-items
                (set-fold
                 (lambda (item prev)
-                  (cons (syrup-encode item)
+                  (cons (encode item)
                         prev))
                 '() obj)]
               [sorted-items
