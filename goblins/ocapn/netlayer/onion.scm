@@ -69,8 +69,13 @@
          ['close
           (close-input-port ip)
           (close-output-port op)]
-         [(? bytevector? msg)
+         [(? string? msg)
           (display msg op)
+          (display "\r\n" op)
+          (flush-output-port op)
+          (lp)]
+         [(? bytevector? msg)
+          (put-bytevector op msg)
           (display "\r\n" op)
           (flush-output-port op)
           (lp)]))))
