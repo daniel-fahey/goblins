@@ -48,13 +48,12 @@
      (lambda ()
        ;; TODO: Insert shutdown code nere
        (while #t
-         (pk 'listen-again our-name)
          (match-let ((('*incoming-new-conn* them-enq-ch me-deq-ch)
-                      (pk 'got-message our-name (get-message new-conn-ch))))
-           (<-np-extern (pk 'conn-establisher conn-establisher)
-		        (make-message-reader me-deq-ch)
-		        (make-message-writer them-enq-ch)
-		        #t))))))
+                      (get-message new-conn-ch)))
+           (<-np-extern conn-establisher
+                        (make-message-reader me-deq-ch)
+                        (make-message-writer them-enq-ch)
+                        #t))))))
 
   (define (^netlayer bcom)
     (define base-beh
@@ -66,24 +65,24 @@
       (extend-methods
        base-beh
        [(setup conn-establisher)
-	(start-listening conn-establisher)
-	(bcom (ready-beh conn-establisher))]))
+    (start-listening conn-establisher)
+    (bcom (ready-beh conn-establisher))]))
 
     (define (ready-beh conn-establisher)
       (extend-methods
        base-beh
        [(self-location? loc)
-	(same-machine-location? our-location loc)]
+    (same-machine-location? our-location loc)]
        [(connect-to remote-machine)
-	(match remote-machine
-	  (($ <ocapn-machine> 'fake name #f)
-	   (on (<- network 'connect-to name)
-	       (match-lambda
+    (match remote-machine
+      (($ <ocapn-machine> 'fake name #f)
+       (on (<- network 'connect-to name)
+           (match-lambda
                  (('*outgoing-new-conn* me-deq-ch them-enq-ch)
-		  (<- conn-establisher
-		      (make-message-reader me-deq-ch)
-		      (make-message-writer them-enq-ch)
-		      #f)))
-	       #:promise? #t)))]))
+          (<- conn-establisher
+              (make-message-reader me-deq-ch)
+              (make-message-writer them-enq-ch)
+              #f)))
+           #:promise? #t)))]))
     pre-setup-beh)
   (spawn ^netlayer))

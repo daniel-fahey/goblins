@@ -10,7 +10,7 @@
 
 (test-begin "test-fake-netlayer")
 
-(define test-vat (spawn-vat))
+(define test-vat (spawn-vat #:name "test-vat"))
 (define test-channel (make-channel))
 
 ;; Tests for the ^fake-network
