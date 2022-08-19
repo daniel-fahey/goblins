@@ -26,7 +26,7 @@
       (spawn-delivery-agent))
     (define-values (them-enq-ch them-deq-ch them-stop?)
       (spawn-delivery-agent))
-    (spawn-fiber
+    (syscaller-free-fiber
      (lambda ()
        (put-message connection-ch (list '*incoming-new-conn* me-enq-ch them-deq-ch))))
     (list '*outgoing-new-conn* me-deq-ch them-enq-ch)]))
