@@ -187,11 +187,11 @@
   (define (start-listen-thread conn-establisher)
     (define (handle-ocapn-sock-listen)
       ;; TODO: RESUME HERE <=====================================
-      (define-values (ip op)
-        (unix-socket-accept ocapn-sock-listener))
-      (define-values (read-message write-message)
-        (read-write-procs ip op))
-      (<-np-extern conn-establisher read-message write-message #t))
+      (match (accept ocapn-sock-listener)
+        ((client . addr)
+         (define-values (read-message write-message)
+           (read-write-procs client client))
+         (<-np-extern conn-establisher read-message write-message #t))))
     (syscaller-free-fiber
      (lambda ()
        (dynamic-wind
@@ -252,7 +252,7 @@
                              ocapn-sock-path ocapn-sock-listener)
   ;; TODO: Cleanup tor subprocess also.
   (define (do-cleanup)
-    (unix-socket-close-listener ocapn-sock-listener)
+    (close-port ocapn-sock-listener)
     (delete-file ocapn-sock-path))
 
   (define our-location
