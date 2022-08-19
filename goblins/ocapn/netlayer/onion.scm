@@ -248,7 +248,7 @@
                   (define-values (read-message write-message)
                     (read-write-procs sock sock))
                   (<- conn-establisher read-message write-message #f))))
-             (start-conn (connect-vat 'spawn ^start-conn)))
+             (start-conn (connect-vat (lambda () (spawn ^start-conn)))))
         (<- start-conn))]))
   pre-setup-beh)
 
