@@ -60,9 +60,9 @@
    ($ test-network 'register "b" b-new-conn-ch)))
 
 (define a-mycapn
-  (a-vat (lambda () (spawn-mycapn (list a-netlayer)))))
+  (a-vat (lambda () (spawn-mycapn a-netlayer))))
 (define b-mycapn
-  (b-vat (lambda () (spawn-mycapn (list b-netlayer)))))
+  (b-vat (lambda () (spawn-mycapn b-netlayer))))
 
 (define a->b-vow
   (a-vat
