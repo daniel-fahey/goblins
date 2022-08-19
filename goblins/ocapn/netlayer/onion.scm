@@ -80,7 +80,6 @@
 (define (tor-control-connect-unix path)
   (define sock
     (make-client-unix-domain-socket path))
-  (connect sock AF_UNIX path)
   (line-delimited-ports->channels sock sock))
 
 (define (build-path . args)
