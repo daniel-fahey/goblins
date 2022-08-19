@@ -10,7 +10,7 @@
 
 (test-begin "test-fake-netlayer")
 
-(define test-vat (spawn-vat #:name "test-vat"))
+(define test-vat (spawn-vat))
 (define test-channel (make-channel))
 
 ;; Tests for the ^fake-network
@@ -29,19 +29,25 @@
    (define test-connection ($ test-network 'connect-to "test"))
 
    (test-assert "Check we're getting back fibers channels"
-     (and (channel? (car test-connection))
-	  (channel? (cdr test-connection))))
+     (and (eq? (car test-connection) '*outgoing-new-conn*)
+          (channel? (car (cdr test-connection)))
+	      (channel? (car (cdr (cdr  test-connection))))))
 
    (define message (get-message test-channel))
-   (test-equal
-       "Check me->them channel is correct"
-     (car test-connection)
+   (test-eq
+       "Check that we got a new connection symbol"
+     '*incoming-new-conn*
      (car message))
 
    (test-equal
+       "Check me->them channel is correct"
+     (car (cdr test-connection))
+     (car (cdr message)))
+
+   (test-equal
        "Check them->me channel is correct"
-     (cdr test-connection)
-     (cdr message))))
+     (car (cdr (cdr test-connection)))
+     (car (cdr (cdr message))))))
 
 ;; Tests for the ^fake-netlayer
 (define a-vat (spawn-vat))
