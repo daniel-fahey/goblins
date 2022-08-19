@@ -58,8 +58,8 @@
 
             <ocapn-bearer-union>
             ocapn-bearer-union
-
             ocapn-bearer-union?
+            make-ocapn-bearer-union
             ocapn-bearer-union-cert
             ocapn-bearer-union-key-type
             ocapn-bearer-union-private-key
@@ -248,6 +248,6 @@
     (list-ref parts 1))))
 
     (make-ocapn-bearer-union
-     (ocapn-cert (uri->ocapn-machine uri) cert)
+     (make-ocapn-cert (uri->ocapn-machine uri) cert)
      (string->symbol key-type)
      private-key)))

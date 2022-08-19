@@ -34,20 +34,11 @@
 	      (channel? (car (cdr (cdr  test-connection))))))
 
    (define message (get-message test-channel))
-   (test-eq
-       "Check that we got a new connection symbol"
-     '*incoming-new-conn*
-     (car message))
-
-   (test-equal
-       "Check me->them channel is correct"
-     (car (cdr test-connection))
-     (car (cdr message)))
-
-   (test-equal
-       "Check them->me channel is correct"
-     (car (cdr (cdr test-connection)))
-     (car (cdr (cdr message))))))
+   (test-assert
+       "Check we're getting back two fibers channels"
+     (and (eq? (car message) '*incoming-new-conn*)
+          (channel? (car (cdr message)))
+          (channel? (car (cdr (cdr message))))))))
 
 ;; Tests for the ^fake-netlayer
 (define a-vat (spawn-vat))
@@ -105,7 +96,7 @@
 	 #:catch
 	 (lambda (err)
 	   (set! result `(broken ,err))))))
-  (sleep 1)
+  (sleep 2)
   (test-equal
       "Able to enliven a far sturdyref and using it"
     '(fulfilled "Hello Arthur, my name is Bob!")
