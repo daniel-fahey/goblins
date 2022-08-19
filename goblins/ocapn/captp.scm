@@ -1254,8 +1254,8 @@
   (coordinator sessionmeta-coordinator)
   (session-name sessionmeta-session-name))
 
-(define* (spawn-mycapn netlayers
-                       #:key [custom-bootstrap #f])
+(define* (spawn-mycapn #:key [custom-bootstrap #f]
+                       #:rest netlayers)
   (define netlayer-map
     (spawn ^ghash
            (fold
