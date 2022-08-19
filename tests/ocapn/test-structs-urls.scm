@@ -5,31 +5,31 @@
 (test-begin "test-structs-urls")
 
 (define ocapn-m1
-  (ocapn-machine
+  (make-ocapn-machine
    'fake
    "wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"
    #f))
 
 (define ocapn-m1*
-  (ocapn-machine
+  (make-ocapn-machine
    'fake
    "wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"
    #t))
 
 (define ocapn-m2
-  (ocapn-machine
+  (make-ocapn-machine
    'fake
    "yupy8klbgvtxwopxz93oyx5rxtglasaphptdjbb0hqjfvsalsinc9p7g"
    #f))
 
 (define ocapn-sref1
-  (ocapn-sturdyref ocapn-m1 "foobar"))
+  (make-ocapn-sturdyref ocapn-m1 "foobar"))
 
 (define ocapn-c1
-  (ocapn-cert ocapn-m1 "foobar"))
+  (make-ocapn-cert ocapn-m1 "foobar"))
 
 (define ocapn-bu1
-  (ocapn-bearer-union ocapn-c1 'type-of-key "i-am-a-private-key"))
+  (make-ocapn-bearer-union ocapn-c1 'type-of-key "i-am-a-private-key"))
 
 (test-assert
     "Verify ocapn-machine? tests positive when given an ocapn-machine"
