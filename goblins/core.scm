@@ -1700,21 +1700,31 @@
   (define (get-internals)
     (list actormap new-msgs))
 
-  (define (close-up!)
-    (set! closed? #t))
+  (define (set-closed! val)
+    (set! closed? val))
 
-  (values this-syscaller get-internals close-up!))
+  (values this-syscaller get-internals set-closed!))
 
 (define (call-with-fresh-syscaller am proc)
-  (define-values (sys get-sys-internals close-up!)
+  (define-values (sys get-sys-internals set-closed!)
     (fresh-syscaller am))
+  ;; The purpose of closing things is to detect certain kinds of errors
+  ;; where the syscaller is captured and remains open post-execution.
+  ;; However, it's kind of probabalistic to do this at all, since the
+  ;; open/closed nature is temporal... still, this has helped identify
+  ;; some bugs so it's probably worth keeping.
+  ;; However, we now not only close on leaving the dynamic wind, we also
+  ;; open on entering.  The reason is that suspending to the event loop
+  ;; in fibers will close it, even before a turn is over (due to completion
+  ;; or due to an exception).  So we need to re-open on the way back in.
   (dynamic-wind
-    (lambda () #f)
+    (lambda ()
+      (set-closed! #f))
     (lambda ()
       (parameterize ([current-syscaller sys])
         (proc sys get-sys-internals)))
     (lambda ()
-      (close-up!))))
+      (set-closed! #t))))
 
 ;; In case you want to spawn PROC right off of your vat without
 ;; involving the syscaller at all
