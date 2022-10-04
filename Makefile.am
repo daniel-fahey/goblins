@@ -69,7 +69,8 @@ SOURCES = goblins.scm \
           goblins/vrun.scm \
           goblins/core.scm \
           goblins/base-io-ports.scm \
-          goblins/inbox.scm
+          goblins/inbox.scm \
+          tests/utils.scm
 
 TESTS = tests/utils/test-bytes-stuff.scm \
         tests/actor-lib/test-ticker.scm \
