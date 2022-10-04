@@ -14,6 +14,7 @@
 
 (define-module (tests utils)
   #:use-module (goblins)
+  #:use-module (goblins vat)
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:export (resolve-vow-and-return-result))
@@ -27,13 +28,13 @@
       (lambda ()
         (on vow
             (lambda args
-              (spawn-fiber
+              (syscaller-free-fiber
                (lambda ()
                  (put-message results-ch (apply vector 'ok args))))
               'ok)
             #:catch
             (lambda err
-              (spawn-fiber
+              (syscaller-free-fiber
                (lambda ()
                  (put-message results-ch (vector 'err err))))
               'err))))
