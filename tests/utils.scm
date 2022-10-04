@@ -13,13 +13,28 @@
 ;;; limitations under the License.
 
 (define-module (tests utils)
-  #:export (miliseconds-sleep-until))
+  #:use-module (goblins)
+  #:use-module (fibers)
+  #:use-module (fibers channels)
+  #:export (resolve-vow-and-return-result))
 
-(define (miliseconds-sleep-until total-timeout check-interval finished?)
-  (cond ((<= total-timeout 0) #f)
-        ((finished?) #t)
-        (else
-         (usleep (* check-interval 1000))
-         (miliseconds-sleep-until (- total-timeout check-interval)
-                                  check-interval
-                                  finished?))))
+(define (resolve-vow-and-return-result vat goblins-thunk)
+  (run-fibers
+   (lambda ()
+     (define vow (vat goblins-thunk))
+     (define results-ch (make-channel))
+     (vat
+      (lambda ()
+        (on vow
+            (lambda args
+              (spawn-fiber
+               (lambda ()
+                 (put-message results-ch (apply vector 'ok args))))
+              'ok)
+            #:catch
+            (lambda err
+              (spawn-fiber
+               (lambda ()
+                 (put-message results-ch (vector 'err err))))
+              'err))))
+     (get-message results-ch))))
