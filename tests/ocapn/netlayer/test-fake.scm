@@ -4,13 +4,14 @@
   #:use-module (goblins ocapn captp)
   #:use-module (goblins ocapn structs-urls)
   #:use-module (goblins ocapn netlayer fake)
+  #:use-module (tests utils)
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (srfi srfi-64))
 
 (test-begin "test-fake-netlayer")
 
-(define test-vat (spawn-vat))
+(define test-vat (spawn-vat #:name "test-vat"))
 (define test-channel (make-channel))
 
 ;; Tests for the ^fake-network
@@ -41,8 +42,8 @@
           (channel? (car (cdr (cdr message))))))))
 
 ;; Tests for the ^fake-netlayer
-(define a-vat (spawn-vat))
-(define b-vat (spawn-vat))
+(define a-vat (spawn-vat #:name "a-vat"))
+(define b-vat (spawn-vat #:name "b-vat"))
 (define a-new-conn-ch (make-channel))
 (define b-new-conn-ch (make-channel))
 (define a-location (uri->ocapn-machine "ocapn:m.fake.a"))
@@ -86,22 +87,28 @@
 (define bob-locator-sref
   (b-vat (lambda () ($ b-mycapn 'register bob 'fake))))
 
-(let ((result #f))
-  (a-vat
-   (lambda ()
-     (define bob-vow (<- a-mycapn 'enliven bob-locator-sref))
-     (on (<- bob-vow "Arthur")
-     (lambda (response)
-       (set! result `(fulfilled ,response)))
-     #:catch
-     (lambda (err)
-       (set! result `(broken ,err))))))
-  (sleep 2)
+
+
+(let ((result
+       (resolve-vow-and-return-result
+        a-vat
+        (lambda ()
+          (define bob-vow (<- a-mycapn 'enliven bob-locator-sref))
+          (<- bob-vow "Arthur")))))
   (test-equal
-      "Able to enliven a far sturdyref and using it"
-    '(fulfilled "Hello Arthur, my name is Bob!")
+      "Able to enliven a far sturdyref and using it from a->b"
+    #(fulfilled "Hello Arthur, my name is Bob!")
     result))
 
-;; TODO: port the final test over.
+(let ((result
+       (resolve-vow-and-return-result
+        b-vat
+        (lambda ()
+          (define alice-vow (<- b-mycapn 'enliven alice-locator-sref))
+          (<- alice-vow "Ben")))))
+  (test-equal
+      "Able to enliven a far sturdyref and using it form b->a"
+    #(fulfilled "Hello Ben, my name is Alice!")
+    result))
 
 (test-end "test-fake-netlayer")
