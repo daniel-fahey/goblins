@@ -187,7 +187,7 @@
 
 (define (^onion-netlayer bcom our-location ocapn-sock-listener
                          tor-socks-path do-cleanup)
-  (define shutdown-time (make-condition))
+  ;; (define shutdown-time (make-condition))
   (define (start-listen-thread conn-establisher)
     (define (handle-ocapn-sock-listen)
       ;; TODO: RESUME HERE <=====================================
@@ -198,19 +198,28 @@
          (<-np-extern conn-establisher read-message write-message #t))))
     (syscaller-free-fiber
      (lambda ()
-       (dynamic-wind
-         (lambda () 'no-op)
-         (lambda ()
-           (let lp ()
-             (choice-operation
-              ;; If we shutdown, we won't loop
-              shutdown-time
-              ;; Otherwise, if a new connection is ready, let's go
-              (wrap-operation ocapn-sock-listener
-                              (lambda _
-                                (handle-ocapn-sock-listen)
-                                (lp))))))
-         do-cleanup))))
+       ;; (dynamic-wind
+       ;;   (lambda () 'no-op)
+       ;;   (lambda ()
+       ;;     (let lp ()
+       ;;       (choice-operation
+       ;;        ;; If we shutdown, we won't loop
+       ;;        shutdown-time
+       ;;        ;; Otherwise, if a new connection is ready, let's go
+       ;;        (wrap-operation ocapn-sock-listener
+       ;;                        (lambda _
+       ;;                          (handle-ocapn-sock-listen)
+       ;;                          (lp))))))
+       ;;   do-cleanup)
+
+       ;;;; Simplified while we're trying to get this to work.
+       ;; But the dynamic-wind hack above won't work anyway because,
+       ;; well, fibers normally suspends/resumes all the time and
+       ;; this would get triggered incorrectly.  We need new, smarter
+       ;; code for how to shut this down.
+       (let lp ()
+         (handle-ocapn-sock-listen)
+         (lp)))))
 
   (define base-beh
     (methods
