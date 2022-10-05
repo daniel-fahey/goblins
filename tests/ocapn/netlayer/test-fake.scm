@@ -31,7 +31,7 @@
    (test-assert "Check we're getting back fibers channels"
      (and (eq? (car test-connection) '*outgoing-new-conn*)
           (channel? (car (cdr test-connection)))
-	      (channel? (car (cdr (cdr  test-connection))))))
+          (channel? (car (cdr (cdr  test-connection))))))
 
    (define message (get-message test-channel))
    (test-assert
@@ -91,11 +91,11 @@
    (lambda ()
      (define bob-vow (<- a-mycapn 'enliven bob-locator-sref))
      (on (<- bob-vow "Arthur")
-	 (lambda (response)
-	   (set! result `(fulfilled ,response)))
-	 #:catch
-	 (lambda (err)
-	   (set! result `(broken ,err))))))
+     (lambda (response)
+       (set! result `(fulfilled ,response)))
+     #:catch
+     (lambda (err)
+       (set! result `(broken ,err))))))
   (sleep 2)
   (test-equal
       "Able to enliven a far sturdyref and using it"
