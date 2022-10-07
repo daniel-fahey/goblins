@@ -186,7 +186,8 @@
   (values ocapn-sock-path ocapn-sock-listener))
 
 (define (^onion-netlayer bcom our-location ocapn-sock-listener
-                         tor-socks-path do-cleanup)
+                         tor-socks-path do-cleanup
+                         private-key service-id)
   ;; (define shutdown-time (make-condition))
   (define (start-listen-thread conn-establisher)
     (define (handle-ocapn-sock-listen)
@@ -224,7 +225,9 @@
   (define base-beh
     (methods
      [(netlayer-name) 'onion]
-     [(our-location) our-location]))
+     [(our-location) our-location]
+     [(private-key) private-key]
+     [(service-id) service-id]))
 
   ;; State of the netlayer before it gets called with 'setup
   (define pre-setup-beh
@@ -271,9 +274,9 @@
   (define our-location
     (make-ocapn-machine 'onion service-id #f))
 
-  (values (spawn ^onion-netlayer our-location ocapn-sock-listener
-                 tor-socks-path do-cleanup)
-          private-key service-id))
+  (spawn ^onion-netlayer our-location ocapn-sock-listener
+         tor-socks-path do-cleanup
+         private-key service-id))
 
 ;; TODO: I guess this really *should* return one value to its
 ;; continuation, and the pre-setup-beh above should also support
