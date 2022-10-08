@@ -60,6 +60,7 @@ SOURCES = goblins.scm \
           goblins/actor-lib/nonce-registry.scm \
           goblins/actor-lib/cell.scm \
           goblins/actor-lib/common.scm \
+          goblins/actor-lib/facet.scm \
           goblins/actor-lib/ward.scm \
           goblins/actor-lib/swappable.scm \
           goblins/actor-lib/joiners.scm \
@@ -79,7 +80,8 @@ TESTS = tests/utils/test-bytes-stuff.scm \
         tests/actor-lib/test-swappable.scm \
         tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-joiners.scm \
-	      tests/ocapn/marshalling.scm \
+        tests/actor-lib/test-facet.scm \
+        tests/ocapn/marshalling.scm \
         tests/test-vat.scm \
         tests/test-inbox.scm \
         tests/test-ghash.scm \
