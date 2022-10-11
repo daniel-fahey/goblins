@@ -57,6 +57,8 @@
             transactormap-merge!
             transactormap-buffer-merge!
 
+            copy-whactormap
+
             spawn spawn-named
             $ <-np <-
             on
@@ -456,6 +458,18 @@
 ;; TODO: again, confusing (see <actormap>)
 (define make-actormap make-whactormap)
 
+(define (copy-whactormap am)
+  "Copy whactormap AM to a new whactormap with the same contents."
+  (define old-ht (whactormap-data-wht (actormap-data am)))
+  (define new-ht (make-weak-key-hash-table))
+  ;; Update new-ht with all of old-ht's values
+  (hash-for-each (lambda (key val)
+                   (hashq-set! new-ht key val))
+                 old-ht)
+  ;; Return newly made whactormap
+  (_make-actormap whactormap-metatype
+                  (make-whactormap-data new-ht)
+                  (actormap-vat-connector am)))
 
 
 ;; Transactional actormaps
