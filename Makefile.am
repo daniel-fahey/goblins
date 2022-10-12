@@ -43,7 +43,10 @@ SUFFIXES = .scm .go
 	$(AM_V_GEN)$(top_builddir)/pre-inst-env $(GUILE_TOOLS) compile $(GUILE_TARGET) $(GUILE_WARNINGS) -o "$@" "$<"
 
 SOURCES = goblins.scm \
-          goblins/ocapn/netlayer/fake.scm \
+	  goblins/ocapn/netlayer/fake.scm \
+	  goblins/ocapn/netlayer/onion.scm \
+	  goblins/ocapn/netlayer/onion-socks.scm \
+	  goblins/ocapn/netlayer/utils.scm \
           goblins/ocapn/crypto-stubs.scm \
           goblins/ocapn/marshalling.scm \
           goblins/ocapn/structs-urls.scm \
