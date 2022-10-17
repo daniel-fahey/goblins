@@ -21,12 +21,6 @@
   #:use-module (fibers channels)
   #:export (onion-socks5-setup!))
 
-(define (read-bytes p bytes-to-read)
-  (if (<= bytes-to-read 0)
-      (list)
-      (cons (get-message p)
-            (read-bytes p (- bytes-to-read 1)))))
-
 ;; Setups up a basic socks 5 connection
 ;; rfc1928
 ;; NB: This is untested code.
