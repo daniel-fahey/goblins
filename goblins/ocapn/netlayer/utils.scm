@@ -33,7 +33,6 @@
             make-server-unix-domain-socket
             make-client-unix-domain-socket
             ^unix-socket
-            ^unix-socket
             line-delimited-ports->channels))
 
 (define (read-write-procs ip op)
@@ -228,7 +227,6 @@ exist between this time, but they are really extremely unlikely."
      ((read-message) ($ sock-port 'queue-recieve-message))
      ((read-byte) ($ sock-port 'queue-recieve-byte))))
   beh)
-
 (define (line-delimited-ports->channels ip op)
   (define-values (in-enq-ch in-deq-ch in-stop?)
     (spawn-delivery-agent))

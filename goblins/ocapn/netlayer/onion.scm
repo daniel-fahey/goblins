@@ -20,13 +20,9 @@
   #:use-module (ice-9 iconv)
   #:use-module (rnrs bytevectors)
   #:use-module (rnrs io ports)
-  #:use-module (fibers)
   #:use-module (fibers channels)
-  #:use-module (fibers conditions)
-  #:use-module (fibers operations)
   #:use-module (goblins)
   #:use-module (goblins vat)
-  #:use-module (goblins inbox)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins ocapn structs-urls)
   #:use-module (goblins ocapn netlayer utils)
@@ -34,53 +30,6 @@
   #:use-module (goblins contrib syrup)
   #:export (new-onion-netlayer
             restore-onion-netlayer))
-
-(define (line-delimited-ports->channels ip op)
-  (define-values (in-enq-ch in-deq-ch in-stop?)
-    (spawn-delivery-agent))
-  (define-values (out-enq-ch out-deq-ch out-stop?)
-    (spawn-delivery-agent))
-
-  (syscaller-free-fiber
-   (lambda ()
-     ;; Uh, I'm not sure if onion control sockets ever contain utf-8 encoded
-     ;; data... I'm pretty sure no, so "forcing" a latin-1 perspective here
-     (define (_read-char)
-       (match (get-u8 ip)
-         [(? eof-object? eof) eof]
-         [char-int (integer->char char-int)]))
-     (let lp ([buf '()])
-       (match (_read-char)
-         [(? eof-object?) 'done]
-         [#\newline
-          (let ((incoming-str
-                 ;; Reverse and send to input channel current string
-                 (string-trim-both (list->string (reverse buf)) #\return)))
-            (put-message in-enq-ch incoming-str)
-            (lp '()))]  ; safe to recur, handle-event is called in tail position
-         ;; keep on bufferin'
-         [char (lp (cons char buf))]))))
-
-  (syscaller-free-fiber
-   (lambda ()
-     (let lp ()
-       (match (get-message out-deq-ch)
-         ;; we're done
-         ['close
-          (close-input-port ip)
-          (close-output-port op)]
-         [(? string? msg)
-          (display msg op)
-          (display "\r\n" op)
-          (flush-output-port op)
-          (lp)]
-         [(? bytevector? msg)
-          (put-bytevector op msg)
-          (display "\r\n" op)
-          (flush-output-port op)
-          (lp)]))))
-
-  (values in-deq-ch out-enq-ch))
 
 (define (tor-control-connect-unix path)
   (define sock
