@@ -15,6 +15,7 @@
 
 (define-module (goblins ocapn netlayer onion-socks)
   #:use-module (rnrs bytevectors)
+  #:use-module (rnrs io ports)
   #:use-module (ice-9 match)
   #:use-module (ice-9 binary-ports)
   #:use-module (goblins ocapn netlayer utils)
@@ -36,10 +37,10 @@
       (anything-else
        (error
         (format #f "Unsupported authentication method: ~a" anything-else)))))
-
   (put-u8 sock #x05) ;; protocol 5
   (put-u8 sock #x01) ;; method 1.
   (put-u8 sock #x00) ;; no authentication.
+  (flush-output-port sock)
   (read-and-expect-protocol-5)
   (read-and-expect-no-authentication)
 
@@ -58,6 +59,8 @@
     (bytevector-u16-set! port-bv 0 port (endianness big))
     (put-bytevector sock port-bv))
 
+  (flush-output-port sock)
+
   (read-and-expect-protocol-5)
   (match (get-u8 sock)
     (#x00 'ok)
@@ -71,6 +74,7 @@
     (error-number
      (error (format #f "Unassigned socks error... (error: ~a)" error-number))))
 
+  (get-u8 sock) ; reserved, so just eat it
   (match (get-u8 sock)
     ;; Domain
     (#x03
