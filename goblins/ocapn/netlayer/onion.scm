@@ -143,6 +143,10 @@
       ;; TODO: RESUME HERE <=====================================
       (match (accept ocapn-sock-listener)
         ((client . addr)
+         (setvbuf client 'block 1024)
+         ;; (As said in the Fibers manual:)
+         ;; Disable Nagle's algorithm.  We buffer ourselves.
+         (setsockopt client IPPROTO_TCP TCP_NODELAY 1)
          (define-values (read-message write-message)
            (read-write-procs client client))
          (<-np-extern conn-establisher read-message write-message #t))))
