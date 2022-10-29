@@ -48,11 +48,11 @@
     (apply $C extends-actor method args)))
 
 (define-syntax-rule (extend-methods extends method-defns ...)
-  (methods* (match extends
-              ;; we extend procedures as-is
-              ((? procedure?) extends)
-              ;; but wrap actors in procedure that calls them
-              ((? live-refr?)
-               (extend-actor extends))
-              (#f no-such-method))
-            method-defns ...))
+  (let ((extended (match extends
+                    ;; we extend procedures as-is
+                    ((? procedure?) extends)
+                    ;; but wrap actors in procedure that calls them
+                    ((? live-refr?)
+                     (extend-actor extends))
+                    (#f no-such-method))))
+    (methods* extended method-defns ...)))
