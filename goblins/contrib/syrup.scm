@@ -312,7 +312,7 @@
            (bytes-append (string->bytes/latin-1 (number->string obj)) plus-bv)
            (bytes-append (string->bytes/latin-1 (number->string (* obj -1))) minus-bv))]
       ;; Lists are like [<item1><item2><item3>]
-      [(? pair?)
+      [(or (? pair?) '())
        (bytes-append squarebrac-left-bv
                      (apply bytes-append
                             (map encode obj))
