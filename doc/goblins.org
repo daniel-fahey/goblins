@@ -628,7 +628,7 @@ in the latter case:
            (format #t "Got an error: ~a\n" err))
          #:finally
          (lambda ()
-           (display "Whew, it's over!\n")))
+           (display "Whew, it's over!\n"))))
 #+END_SRC
 
 ** Transactions make errors survivable
@@ -644,7 +644,7 @@ and then an error:
 #+BEGIN_SRC scheme
   (define (^borked-cgreeter _bcom our-name)
     (define times-called
-      (spawn ^cell 0))
+      (spawn ^mcell 0))
     (methods
       ((get-times-called)
        ($ times-called 'get))
@@ -743,7 +743,7 @@ Here is an instance of this car factory, which we will call
 #+END_SRC
 
 Since asynchronous message passing with =<-= works across machines,
-it does not matter whether interacitons with =fork-motors are local
+it does not matter whether interacitons with =fork-motors= are local
 or via objects communicating over the network.
 We will treat =fork-motors= as living on machine A, and so the
 following interactions will happen with invocations originating from
