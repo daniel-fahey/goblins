@@ -83,11 +83,18 @@
       ;; Asynchronously set up connection.  Once it's ready, we'll
       ;; return the value from the connection establisher
       ;; (which itself returns the meta-bootstrap-vow)
-      (spawn-fibrous-vow
-       (lambda ()
-         (define connected-port
-           (outgoing-connect-location remote-machine))
-         (define-values (read-message write-message)
-           (read-write-procs connected-port connected-port))
-         (<- conn-establisher read-message write-message #f)))]))
+      (define read-write-message-vow
+        (spawn-fibrous-vow
+         (lambda ()
+           (define connected-port
+             (outgoing-connect-location remote-machine))
+           (define-values (read-message write-message)
+             (read-write-procs connected-port connected-port))
+           (list read-message write-message))))
+
+      (on read-write-message-vow
+          (match-lambda
+            ((read-message write-message)
+             (<- conn-establisher read-message write-message #f)))
+          #:promise? #t)]))
   pre-setup-beh)
