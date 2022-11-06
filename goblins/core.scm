@@ -229,7 +229,7 @@
 ;;;    |    "local" and an object reference on another machine is
 ;;;    |    considered "remote".
 ;;;    |
-;;;    |      .--- Chris: "How about I call this 'hive'?"
+;;;    |      .--- Christine: "How about I call this 'hive'?"
 ;;;    |      |    Ocap community: "We hate that, use 'vat'"
 ;;;    |      |    Everyone else: "What's a 'vat' what a weird name"
 ;;;    |      |
@@ -677,9 +677,9 @@
 ;;;  __________________________  ___________________________
 ;;; |                          ||                           |
 ;;;
-;;;                 .----------------->.    .-->[object]
-;;;                 |                  |    |
-;;;                 |    .--.          |    +-->[local-link]
+;;;                 .----------------->.        [object]
+;;;                 |                  |
+;;;                 |    .--.          |    .-->[local-link]
 ;;;     [naive]-->. |    v  |          |    |            
 ;;;               +>+->[closer]------->'--->+-->[encased]
 ;;;  [question]-->' |       |               |            
