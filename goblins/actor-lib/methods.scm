@@ -26,6 +26,11 @@
     ((_ (method-name method-expr))
      (cons 'method-name method-expr))))
 
+;; TODO: This is *not* a performant version of methods.  It's setting
+;; up an alist... that requires unnecessary list traveral.
+;; Instead we could make this more efficient by having an inlined set
+;; of tests, kind of like how a cond can expand into a set of nested
+;; `if' expressions.
 (define-syntax-rule (methods* fallback method-defn ...)
   (let* ((all-methods (list (expand-method-defn method-defn) ...))
          (this-fallback fallback)
@@ -48,6 +53,9 @@
     (apply $C extends-actor method args)))
 
 (define-syntax-rule (extend-methods extends method-defns ...)
+  ;; We need to capture extended in a an outer let here otherwise
+  ;; it re-runs the extended code every time the procedure returned by
+  ;; methods is invoked
   (let ((extended (match extends
                     ;; we extend procedures as-is
                     ((? procedure?) extends)
