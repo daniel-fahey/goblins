@@ -38,7 +38,8 @@
 (define faceted-wizard
   (actormap-spawn! am ^facet all-powerful-wizard
                    'magic-missile
-                   'flame-tongue))
+                   'flame-tongue
+                   #:sync? #t))
 (test-equal
  (actormap-peek am faceted-wizard 'magic-missile 2)
  "Casts magic missile level 2!")

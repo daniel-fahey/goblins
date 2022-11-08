@@ -18,9 +18,9 @@
   #:export (^facet facet))
 
 (define* (^facet bcom wrap-me
-                 #:key [async? #f]
+                 #:key [sync? #f]
                  #:rest methods)
-  (define $/<- (if async? <- $))
+  (define $/<- (if sync? $ <-))
   (lambda args
     (match args
       [((? symbol? method) args ...)
@@ -30,7 +30,7 @@
       [_ "Requires symbol-based method dispatch"])))
 
 (define* (facet wrap-me
-                #:key [async? #f]
+                #:key [sync? #f]
                 #:rest methods)
   (apply spawn-named (procedure-name wrap-me) ^facet
-         #:async? async? methods))
+         #:sync? sync? methods))
