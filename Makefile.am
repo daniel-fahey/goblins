@@ -8,7 +8,7 @@
 ## No attribution is required and you are free to copy-paste and munge
 ## into your own project.
 
-bin_SCRIPTS = 
+bin_SCRIPTS =
 
 # Handle substitution of fully-expanded Autoconf variables.
 do_subst = $(SED)					\
@@ -47,6 +47,8 @@ SOURCES = goblins.scm \
           goblins/ocapn/marshalling.scm \
           goblins/ocapn/structs-urls.scm \
           goblins/ocapn/captp.scm \
+	  goblins/ocapn/netlayer/base-port.scm \
+	  goblins/ocapn/netlayer/utils.scm \
           goblins/utils/simple-sealers.scm \
           goblins/utils/bytes-stuff.scm \
           goblins/utils/crypto-stuff.scm \
