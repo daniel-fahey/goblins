@@ -47,7 +47,9 @@
             ocapn-bearer-union-key-type
             ocapn-bearer-union-private-key
             marshall::ocapn-bearer-union
-            unmarshall::ocapn-bearer-union))
+            unmarshall::ocapn-bearer-union
+
+            same-machine-location?))
 
 ;; Ocapn machine type URI:
 ;;
@@ -119,3 +121,25 @@
 
 (define-values (marshall::ocapn-bearer-union unmarshall::ocapn-bearer-union)
   (make-marshallers <ocapn-bearer-union> #:name 'ocapn-bearer-union))
+
+(define (ocapn-struct->ocapn-machine ocapn-struct)
+  (match ocapn-struct
+    [(? ocapn-machine?) ocapn-struct]
+    [($ <ocapn-sturdyref> ocapn-machine _sn) ocapn-machine]
+    [($ <ocapn-cert> ocapn-machine _cert) ocapn-machine]
+    [($ <ocapn-bearer-union> ($ <ocapn-cert> ocapn-machine _cert) _key-type _private-key)
+     ocapn-machine]))
+
+
+;; Checks for the equivalence between two ocapn-machine structs
+;; (including ocapn-machines nested in other ocapn-structs),
+;; ignoring hints
+(define (same-machine-location? ocapn-struct1 ocapn-struct2)
+  (define machine1 (ocapn-struct->ocapn-machine ocapn-struct1))
+  (define machine2 (ocapn-struct->ocapn-machine ocapn-struct2))
+  (match-let ((($ <ocapn-machine> m1-transport m1-address _m1-hints)
+               machine1)
+              (($ <ocapn-machine> m2-transport m2-address _m2-hints)
+               machine2))
+    (and (equal? m1-transport m2-transport)
+         (equal? m1-address m2-address))))
