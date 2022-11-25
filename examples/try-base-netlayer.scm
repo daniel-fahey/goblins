@@ -36,6 +36,8 @@
                        incoming-accept outgoing-connect-location))
 
 (define netlayers-dir "/tmp/netlayers")
+(unless (file-exists? netlayers-dir)
+  (mkdir netlayers-dir))
 
 ;;; Evaluate the above, then copy-paste the below to the REPL
 (begin
@@ -66,5 +68,3 @@
   (b-run (on (<- ($ b-mycapn 'enliven alice-sref) "Bob")
              (lambda (greets)
                (pk 'heard-back greets)))))
-
-
