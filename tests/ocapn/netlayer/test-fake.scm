@@ -97,7 +97,7 @@
           (<- bob-vow "Arthur")))))
   (test-equal
       "Able to enliven a far sturdyref and using it from a->b"
-    #(fulfilled "Hello Arthur, my name is Bob!")
+    #(ok "Hello Arthur, my name is Bob!")
     result))
 
 (let ((result
@@ -108,7 +108,7 @@
           (<- alice-vow "Ben")))))
   (test-equal
       "Able to enliven a far sturdyref and using it form b->a"
-    #(fulfilled "Hello Ben, my name is Alice!")
+    #(ok "Hello Ben, my name is Alice!")
     result))
 
 (test-end "test-fake-netlayer")
