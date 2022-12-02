@@ -34,7 +34,6 @@
             marshall::ocapn-machine
             unmarshall::ocapn-machine
 
-
             <ocapn-sturdyref>
             ocapn-sturdyref
             ocapn-sturdyref?
@@ -44,7 +43,6 @@
             ocapn-sturdyref-swiss-num
             marshall::ocapn-sturdyref
             unmarshall::ocapn-sturdyref
-
 
             <ocapn-cert>
             ocapn-cert
@@ -178,20 +176,20 @@
 
 (define string->ocapn-uri
   (let* ((type-pat "[A-z0-9]+")
-   (transport-pat "[A-z0-9]+")
-   (address-pat "[A-z0-9\\.]+")
-   (path-pat ".*")
-   (uri-pat
-    (format #f "ocapn:(~a)\\.(~a)\\.(~a)[\\/]?(~a)"
-      type-pat transport-pat address-pat path-pat))
-   (uri-regex (make-regexp uri-pat)))
+         (transport-pat "[A-z0-9]+")
+         (address-pat "[A-z0-9\\.]+")
+         (path-pat ".*")
+         (uri-pat
+          (format #f "ocapn:(~a)\\.(~a)\\.(~a)[\\/]?(~a)"
+                  type-pat transport-pat address-pat path-pat))
+         (uri-regex (make-regexp uri-pat)))
     (lambda (uri)
       (let ((m (regexp-exec uri-regex uri)))
-  (make-ocapn-uri
-   (string->symbol (match:substring m 1))
-   (string->symbol (match:substring m 2))
-   (match:substring m 3)
-   (match:substring m 4))))))
+        (make-ocapn-uri
+         (string->symbol (match:substring m 1))
+         (string->symbol (match:substring m 2))
+         (match:substring m 3)
+         (match:substring m 4))))))
 
 (define (ocapn-uri->string uri)
   (define machine-address
@@ -244,8 +242,8 @@
       (car union-parts))
     (define-values (key-type private-key)
       (let ((parts (string-split (list-ref union-parts 1) #\.)))
-  (values (list-ref parts 0)
-    (list-ref parts 1))))
+        (values (list-ref parts 0)
+                (list-ref parts 1))))
 
     (make-ocapn-bearer-union
      (make-ocapn-cert (uri->ocapn-machine uri) cert)
