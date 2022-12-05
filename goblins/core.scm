@@ -57,6 +57,8 @@
             transactormap-merge!
             transactormap-buffer-merge!
 
+            copy-whactormap
+
             spawn spawn-named
             $ <-np <-
             on
@@ -229,7 +231,7 @@
 ;;;    |    "local" and an object reference on another machine is
 ;;;    |    considered "remote".
 ;;;    |
-;;;    |      .--- Chris: "How about I call this 'hive'?"
+;;;    |      .--- Christine: "How about I call this 'hive'?"
 ;;;    |      |    Ocap community: "We hate that, use 'vat'"
 ;;;    |      |    Everyone else: "What's a 'vat' what a weird name"
 ;;;    |      |
@@ -456,6 +458,18 @@
 ;; TODO: again, confusing (see <actormap>)
 (define make-actormap make-whactormap)
 
+(define (copy-whactormap am)
+  "Copy whactormap AM to a new whactormap with the same contents."
+  (define old-ht (whactormap-data-wht (actormap-data am)))
+  (define new-ht (make-weak-key-hash-table))
+  ;; Update new-ht with all of old-ht's values
+  (hash-for-each (lambda (key val)
+                   (hashq-set! new-ht key val))
+                 old-ht)
+  ;; Return newly made whactormap
+  (_make-actormap whactormap-metatype
+                  (make-whactormap-data new-ht)
+                  (actormap-vat-connector am)))
 
 
 ;; Transactional actormaps
@@ -677,9 +691,9 @@
 ;;;  __________________________  ___________________________
 ;;; |                          ||                           |
 ;;;
-;;;                 .----------------->.    .-->[object]
-;;;                 |                  |    |
-;;;                 |    .--.          |    +-->[local-link]
+;;;                 .----------------->.        [object]
+;;;                 |                  |
+;;;                 |    .--.          |    .-->[local-link]
 ;;;     [naive]-->. |    v  |          |    |            
 ;;;               +>+->[closer]------->'--->+-->[encased]
 ;;;  [question]-->' |       |               |            
@@ -949,8 +963,24 @@
   (listener listen-request-listener)
   (wants-partial? listen-request-wants-partial?))
 
+;; This kluge is for when we need to forward a message to captp... but
+;; typically also it might have a question-finder for the `to' field...
+;; so we put in this hack to let the code handling the turn/churn know
+;; how to dispatch these since the message might not be addressed to
+;; a normal refr.  This is kind of weird though, because you don't need
+;; this if we have a remote-refr that already has a captp-connector.
+;; It could be that instead we should make another kind of remote-refr
+;; specifically for questions which have not been assigned slots... yet.
+(define-record-type <forward-to-captp>
+  (make-forward-to-captp msg connector)
+  forward-to-captp?
+  (msg forward-to-captp-msg)
+  (connector forward-to-captp-connector))
+
 (define message-or-request-to
   (match-lambda
+    [(? forward-to-captp? forward-me)
+     (message-or-request-to (forward-to-captp-msg forward-me))]
     [(? message? msg) (message-to msg)]
     [(? listen-request? lr) (listen-request-to lr)]
     [(? questioned? qstn) (message-to (questioned-message qstn))]))
@@ -1024,6 +1054,9 @@
     (actormap-vat-connector actormap))
   (define new-msgs '())
 
+  (define (queue-new-msg! new-msg)
+    (set! new-msgs (cons new-msg new-msgs)))
+
   (define closed? #f)
 
   (define (this-syscaller method-id . args)
@@ -1047,6 +1080,9 @@
         [(near-mactor) near-mactor]
         [else (error 'invalid-syscaller-method
                      method-id)]))
+    (when closed?
+      (error "Syscaller closed business while processing:"
+             method-id args))
     (apply method args))
 
   ;; TODO
@@ -1065,7 +1101,7 @@
     (define mactor
       (actormap-ref actormap to-refr))
     (unless mactor
-      (error 'no-such-actor "no actor with this id in this vat: ~a" to-refr))
+      (error 'no-such-actor "no actor with this id in this vat:" to-refr))
     mactor)
 
   ;; call actor's behavior
@@ -1074,18 +1110,15 @@
     ;; vat-connector as us
     (unless (local-refr? to-refr)
       (error 'not-callable
-             "Not a live reference: ~a" to-refr))
+             "Not a live reference:" to-refr))
 
     (unless (eq? (local-refr-vat-connector to-refr)
                  vat-connector)
       (error 'not-callable
-             "Not in the same vat: ~a" to-refr))
+             "Not in the same vat:" to-refr))
 
     (define mactor
       (actormap-ref-or-die to-refr))
-
-    (when closed?
-      (error "Sorry, this syscaller is closed for business!"))
 
     (match mactor
       [(? mactor:object?)
@@ -1175,7 +1208,7 @@
       ;; Not a callable mactor!
       [_other
        (error 'not-callable
-              "Not an encased or object mactor: ~a" mactor)]))
+              "Not an encased or object mactor:" mactor)]))
 
   ;; spawn a new actor
   (define (_spawn constructor args debug-name)
@@ -1196,7 +1229,7 @@
       [(? live-refr? pre-existing-refr)
        pre-existing-refr]
       [_
-       (error 'invalid-actor-handler "Not a procedure or live refr: ~a" initial-behavior)]))
+       (error 'invalid-actor-handler "Not a procedure or live refr:" initial-behavior)]))
 
   (define (spawn-mactor mactor debug-name)
     (actormap-spawn-mactor! actormap mactor debug-name))
@@ -1208,7 +1241,7 @@
          (actormap-ref-or-die promise-id))
        (unless (mactor:unresolved? orig-mactor)
          (error 'resolving-resolved
-                "Attempt to resolve resolved actor: ~a" promise-id))
+                "Attempt to resolve resolved actor:" promise-id))
        (define resolve-to-val
          (unseal-mactor-resolution orig-mactor sealed-val))
 
@@ -1224,6 +1257,7 @@
          (let send-rest ([waiting-messages orig-waiting-messages])
            (match waiting-messages
              ['() _void]
+             ;; TODO: add support for <questioned> here, right?!?!
              [((? message? msg) rest-waiting ...)
               (let ((resolve-me (message-resolve-me msg))
                     (args (message-args msg)))
@@ -1389,12 +1423,12 @@
     (define args (message-args msg))
 
     (unless (near-refr? to-refr)
-      (error 'not-a-near-refr "Not a near refr: ~a" to-refr))
+      (error 'not-a-near-refr "Not a near refr:" to-refr))
 
     ;; Prevent someone trying to throw this vat into an infinite loop
     (when (eq? to-refr resolve-me)
       (error 'same-recipient-and-resolver
-             "Recipient and resolver are the same: ~a" to-refr))
+             "Recipient and resolver are the same:" to-refr))
 
     (let ([call-with-resolution
            (lambda (proc)
@@ -1513,19 +1547,19 @@
                                                     followup-question-finder
                                                     #:captp-connector
                                                     captp-connector)])
-                (captp-connector
-                 'handle-message
-                 (make-questioned (make-message to-question-finder
-                                                followup-question-resolver
-                                                args)
-                                  followup-question-finder))
+                (queue-new-msg! (make-forward-to-captp
+                                 (make-questioned (make-message to-question-finder
+                                                                followup-question-resolver
+                                                                args)
+                                                  followup-question-finder)
+                                 captp-connector))
                 followup-question-promise)]
              ;; Otherwise, we can just send it without any question and return
              ;; void
              [else
-              (captp-connector
-               'handle-message
-               (make-message to-question-finder #f args))
+              (queue-new-msg! (make-forward-to-captp
+                               (make-message to-question-finder #f args)
+                               captp-connector))
               _void])))])))
 
   ;; helper to the below two methods
@@ -1539,7 +1573,7 @@
             (if answer-this-question
                 (make-questioned base-message answer-this-question)
                 base-message)))
-      (set! new-msgs (cons new-message new-msgs))))
+      (queue-new-msg! new-message)))
 
   (define (_<-np to-refr args)
     (_send-message to-refr #f args)
@@ -1686,21 +1720,31 @@
   (define (get-internals)
     (list actormap new-msgs))
 
-  (define (close-up!)
-    (set! closed? #t))
+  (define (set-closed! val)
+    (set! closed? val))
 
-  (values this-syscaller get-internals close-up!))
+  (values this-syscaller get-internals set-closed!))
 
 (define (call-with-fresh-syscaller am proc)
-  (define-values (sys get-sys-internals close-up!)
+  (define-values (sys get-sys-internals set-closed!)
     (fresh-syscaller am))
+  ;; The purpose of closing things is to detect certain kinds of errors
+  ;; where the syscaller is captured and remains open post-execution.
+  ;; However, it's kind of probabalistic to do this at all, since the
+  ;; open/closed nature is temporal... still, this has helped identify
+  ;; some bugs so it's probably worth keeping.
+  ;; However, we now not only close on leaving the dynamic wind, we also
+  ;; open on entering.  The reason is that suspending to the event loop
+  ;; in fibers will close it, even before a turn is over (due to completion
+  ;; or due to an exception).  So we need to re-open on the way back in.
   (dynamic-wind
-    (lambda () #f)
+    (lambda ()
+      (set-closed! #f))
     (lambda ()
       (parameterize ([current-syscaller sys])
         (proc sys get-sys-internals)))
     (lambda ()
-      (close-up!))))
+      (set-closed! #t))))
 
 ;; In case you want to spawn PROC right off of your vat without
 ;; involving the syscaller at all
@@ -1904,7 +1948,7 @@
     [(? live-refr? pre-existing-refr)
      pre-existing-refr]
     [_
-     (error 'invalid-actor-handler "Not a procedure or live refr: ~a" actor-handler)]))
+     (error 'invalid-actor-handler "Not a procedure or live refr:" actor-handler)]))
 
 ;; These two are user-facing procedures.  Thus, they set up
 ;; their own syscaller.
@@ -2161,7 +2205,7 @@
   ;; actormap turn / vat to quiescence
   (churn!)
   ;; And now let's return everything...
-  (let ((send-far-msgs (reverse (car send-far-q))))
+  (let ((send-far-msgs (car send-far-q)))
     (values first-return-val new-am send-far-msgs)))
 
 (define* (actormap-churn-run actormap thunk
@@ -2203,21 +2247,31 @@
      (raise-exception err)]))
 
 (define (dispatch-message msg)
-  (define to-refr (message-or-request-to msg))
   (cond
-   ;; send locally
-   [(local-refr? to-refr)
-    (match (local-refr-vat-connector to-refr)
-      ;; TODO: When messages aren't going to be possible to deliver,
-      ;; we should alert the waiting-on-message
-      [(? procedure? vat-connector)
-       (vat-connector 'handle-message msg)]
-      ;; noplace like nowhere
-      [#f 'no-op])]
-   ;; send remotely
+   ;; See the comment above <forward-to-captp> for why we're kind of
+   ;; duplicating code with the final nested branch of this procedure.
+   [(forward-to-captp? msg)
+    ;; oh this is one of those klugey "forward me" things
+    (let ((real-msg (forward-to-captp-msg msg))
+          (captp-connector (forward-to-captp-connector msg)))
+      (captp-connector 'handle-message real-msg))]
    [else
-    (let ((captp-connector (remote-refr-captp-connector to-refr)))
-      (captp-connector 'handle-message msg))]))
+    ;; okay guess not
+    (let ((to-refr (message-or-request-to msg)))
+      (cond
+       ;; send locally
+       [(local-refr? to-refr)
+        (match (local-refr-vat-connector to-refr)
+          ;; TODO: When messages aren't going to be possible to deliver,
+          ;; we should alert the waiting-on-message
+          [(? procedure? vat-connector)
+           (vat-connector 'handle-message msg)]
+          ;; noplace like nowhere
+          [#f 'no-op])]
+       ;; send remotely
+       [else
+        (let ((captp-connector (remote-refr-captp-connector to-refr)))
+          (captp-connector 'handle-message msg))]))]))
 
 (define (dispatch-messages msgs)
   (for-each dispatch-message msgs))

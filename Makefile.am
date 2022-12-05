@@ -8,7 +8,7 @@
 ## No attribution is required and you are free to copy-paste and munge
 ## into your own project.
 
-bin_SCRIPTS = 
+bin_SCRIPTS =
 
 # Handle substitution of fully-expanded Autoconf variables.
 do_subst = $(SED)					\
@@ -43,10 +43,13 @@ SUFFIXES = .scm .go
 	$(AM_V_GEN)$(top_builddir)/pre-inst-env $(GUILE_TOOLS) compile $(GUILE_TARGET) $(GUILE_WARNINGS) -o "$@" "$<"
 
 SOURCES = goblins.scm \
+          goblins/ocapn/netlayer/fake.scm \
           goblins/ocapn/crypto-stubs.scm \
           goblins/ocapn/marshalling.scm \
           goblins/ocapn/structs-urls.scm \
           goblins/ocapn/captp.scm \
+	  goblins/ocapn/netlayer/base-port.scm \
+	  goblins/ocapn/netlayer/utils.scm \
           goblins/utils/simple-sealers.scm \
           goblins/utils/bytes-stuff.scm \
           goblins/utils/crypto-stuff.scm \
@@ -60,6 +63,7 @@ SOURCES = goblins.scm \
           goblins/actor-lib/nonce-registry.scm \
           goblins/actor-lib/cell.scm \
           goblins/actor-lib/common.scm \
+          goblins/actor-lib/facet.scm \
           goblins/actor-lib/ward.scm \
           goblins/actor-lib/swappable.scm \
           goblins/actor-lib/joiners.scm \
@@ -69,16 +73,20 @@ SOURCES = goblins.scm \
           goblins/vrun.scm \
           goblins/core.scm \
           goblins/base-io-ports.scm \
-          goblins/inbox.scm
+          goblins/inbox.scm \
+          tests/utils.scm
 
 TESTS = tests/utils/test-bytes-stuff.scm \
+        tests/ocapn/netlayer/test-fake.scm \
+        tests/ocapn/test-structs-urls.scm \
         tests/actor-lib/test-ticker.scm \
         tests/actor-lib/test-ward.scm \
         tests/actor-lib/test-common.scm \
         tests/actor-lib/test-swappable.scm \
         tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-joiners.scm \
-	      tests/ocapn/marshalling.scm \
+        tests/actor-lib/test-facet.scm \
+        tests/ocapn/marshalling.scm \
         tests/test-vat.scm \
         tests/test-inbox.scm \
         tests/test-ghash.scm \

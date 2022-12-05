@@ -172,7 +172,7 @@ Keywords:
                   (make-stack #t handle-exn))
                 (display-backtrace stack (current-error-port))
                 (newline (current-error-port))
-                (spawn-fiber
+                (syscaller-free-fiber
                  (lambda ()
                    (put-message return-ch `#(fail ,exn))))
                 (abort))
@@ -187,10 +187,12 @@ Keywords:
                 ;; we have the put-message be run in its own fiber so that if
                 ;; the other side isn't listening for it anymore, the vat
                 ;; itself doesn't end up blocked
-                (spawn-fiber
+                (syscaller-free
                  (lambda ()
-                   (put-message return-ch returned))
-                 scheduler))
+                   (spawn-fiber
+                    (lambda ()
+                      (put-message return-ch returned))
+                    scheduler))))
               (with-exception-handler handle-exn
                 do-run)))))))
     ;; Connect: operations on the vat from the outside
@@ -226,7 +228,11 @@ Keywords:
   ;; to set up parameters, etc
   (define _dynamic-wrap
     (or dynamic-wrap (lambda (proc) (proc))))
-  (_dynamic-wrap (lambda () (spawn-fiber vat-loop scheduler)))
+  (_dynamic-wrap
+   (lambda ()
+     (syscaller-free
+      (lambda ()
+        (spawn-fiber vat-loop scheduler)))))
   running?)
 
 (define* (spawn-vat-proc name #:key

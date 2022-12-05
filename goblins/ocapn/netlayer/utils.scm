@@ -17,8 +17,11 @@
   #:use-module (rnrs io ports)
   #:use-module (ice-9 match)
   #:use-module (ice-9 binary-ports)
+  #:use-module (fibers channels)
+  #:use-module (fibers operations)
   #:use-module (goblins)
   #:use-module (goblins vat)
+  #:use-module (goblins inbox)
   #:use-module (goblins contrib syrup)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib ward)
@@ -29,7 +32,9 @@
             random-tmp-filename
             make-server-unix-domain-socket
             make-client-unix-domain-socket
-            ^unix-socket))
+            ^unix-socket
+            ^unix-socket
+            line-delimited-ports->channels))
 
 (define (read-write-procs ip op)
   (define (read-message unmarshallers)
@@ -223,7 +228,54 @@ exist between this time, but they are really extremely unlikely."
      ((read-message) ($ sock-port 'queue-recieve-message))
      ((read-byte) ($ sock-port 'queue-recieve-byte))))
   beh)
-  
+
+(define (line-delimited-ports->channels ip op)
+  (define-values (in-enq-ch in-deq-ch in-stop?)
+    (spawn-delivery-agent))
+  (define-values (out-enq-ch out-deq-ch out-stop?)
+    (spawn-delivery-agent))
+
+  (syscaller-free-fiber
+   (lambda ()
+     ;; Uh, I'm not sure if onion control sockets ever contain utf-8 encoded
+     ;; data... I'm pretty sure no, so "forcing" a latin-1 perspective here
+     (define (_read-char)
+       (match (get-u8 ip)
+         [(? eof-object? eof) eof]
+         [char-int (integer->char char-int)]))
+     (let lp ([buf '()])
+       (match (_read-char)
+         [(? eof-object?) 'done]
+         [#\newline
+          (let ((incoming-str
+                 ;; Reverse and send to input channel current string
+                 (string-trim-both (list->string (reverse buf)) #\return)))
+            (put-message in-enq-ch incoming-str)
+            (lp '()))]  ; safe to recur, handle-event is called in tail position
+         ;; keep on bufferin'
+         [char (lp (cons char buf))]))))
+
+  (syscaller-free-fiber
+   (lambda ()
+     (let lp ()
+       (match (get-message out-deq-ch)
+         ;; we're done
+         ['close
+          (close-input-port ip)
+          (close-output-port op)]
+         [(? string? msg)
+          (display msg op)
+          (display "\r\n" op)
+          (flush-output-port op)
+          (lp)]
+         [(? bytevector? msg)
+          (put-bytevector op msg)
+          (display "\r\n" op)
+          (flush-output-port op)
+          (lp)]))))
+
+  (values in-deq-ch out-enq-ch))
+
 ;; (define* (line-delimited-port->channel-pair sock)
 ;;   (define keep-going? #t)
 ;;   (define stop (make-condition))

@@ -12,7 +12,7 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (tests actor-lib test-ward)
+(define-module (tests actor-lib test-cell)
   #:use-module (goblins core)
   #:use-module (goblins actor-lib cell)
   #:use-module (srfi srfi-64))

@@ -21,10 +21,10 @@
             enchant
             warden->ward-proc))
 
-;; This module provides a "warding" mechanism... behind the ward is some
-;; interesting behavior an actor might not quite everyone to have access
-;; to.  For every warder there is an associated incanter who can break
-;; through the magical barrier to access that behavior.
+;; This module provides a "warding" mechanism... behind the ward is
+;; some interesting behavior an actor might not quite want everyone to
+;; have access to.  For every warder there is an associated incanter
+;; who can break through the magical barrier to access that behavior.
 ;;
 ;;  - spawn-warding-pair: returns two values (both actors) to its
 ;;    continuation, a warden (who protects behavior) and an incanter (who
@@ -52,6 +52,7 @@
     (ward-sealed val shattered?)
     ward-sealed?
     (val ward-sealed-val)
+    ;; arguably this should be a cell
     (shattered? ward-sealed-shattered? set-ward-sealed-shattered?!))
   (define (seal val)
     (ward-sealed val #f))
@@ -80,7 +81,7 @@
        (make-ward-sealer-triplet)]))
   ;; When invoked, the warden returns either:
   ;;  - #f: if these are not arguments sealed by the sealer, or
-  ;;  - (list kws kw-vals args): the unsealed arguments
+  ;;  - (list args ...): the unsealed arguments
   (define (^warden _bcom)
     (lambda (maybe-sealed-args)
       (and (sealed? maybe-sealed-args)

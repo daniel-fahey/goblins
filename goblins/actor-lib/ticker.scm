@@ -65,28 +65,16 @@
         ;; reset new-ticked
         ($ new-ticked '())
 
-        ;; Now run all ticked objects
-        ;; (@@: The natural iteration makes this not so easy to read.
-        ;;   Maybe it's worth a rewrite for cleanliness?  Dunno.)
+        ;; Now run all ticked objects and keep the survivors
         (define next-tickers
-          (let lp ([to-tick updated-ticked])
-            (match to-tick
-              ['() '()]
-              [(this-ticked . tick-rest)
-               (match this-ticked
-                 [#(ticked-refr ticked-ticky)
-                  (if ($ ticked-ticky 'dead?)
-                      ;; continue, it's dead
-                      (lp tick-rest)
-                      ;; otherwise, let's tick it
+          (filter (match-lambda
+                    [#(ticked-refr ticked-ticky)
+                     (and
+                      (not ($ ticked-ticky 'dead?))
                       (begin
                         (apply $ ticked-refr args)
-                        (if ($ ticked-ticky 'dead?)
-                            ;; well it wasn't dead before, but it is now
-                            (lp tick-rest)
-                            ;; not dead, so let's add it
-                            (cons this-ticked
-                                  (lp tick-rest)))))])])))
+                        (not ($ ticked-ticky 'dead?))))])
+                  updated-ticked))
         (bcom (^ticker bcom next-tickers)))]
      ;; Used for collision detection, etc.
      ;; Similar to the above but with a bit of extra overhead to build up
