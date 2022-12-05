@@ -27,6 +27,7 @@
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer utils)
   #:use-module (goblins ocapn netlayer onion-socks)
+  #:use-module (goblins ocapn netlayer base-port)
   #:use-module (goblins contrib syrup)
   #:export (new-onion-netlayer
             restore-onion-netlayer))
@@ -137,85 +138,24 @@
 (define (^onion-netlayer bcom our-location ocapn-sock-listener
                          tor-socks-path do-cleanup
                          private-key service-id)
-  ;; (define shutdown-time (make-condition))
-  (define (start-listen-thread conn-establisher)
-    (define (handle-ocapn-sock-listen)
-      ;; TODO: RESUME HERE <=====================================
-      (match (accept ocapn-sock-listener)
-        ((client . addr)
-         (setvbuf client 'block 1024)
-         ;; (As said in the Fibers manual:)
-         ;; Disable Nagle's algorithm.  We buffer ourselves.
-         (setsockopt client IPPROTO_TCP TCP_NODELAY 1)
-         (define-values (read-message write-message)
-           (read-write-procs client client))
-         (<-np-extern conn-establisher read-message write-message #t))))
-    (syscaller-free-fiber
-     (lambda ()
-       ;; (dynamic-wind
-       ;;   (lambda () 'no-op)
-       ;;   (lambda ()
-       ;;     (let lp ()
-       ;;       (choice-operation
-       ;;        ;; If we shutdown, we won't loop
-       ;;        shutdown-time
-       ;;        ;; Otherwise, if a new connection is ready, let's go
-       ;;        (wrap-operation ocapn-sock-listener
-       ;;                        (lambda _
-       ;;                          (handle-ocapn-sock-listen)
-       ;;                          (lp))))))
-       ;;   do-cleanup)
-
-       ;;;; Simplified while we're trying to get this to work.
-       ;; But the dynamic-wind hack above won't work anyway because,
-       ;; well, fibers normally suspends/resumes all the time and
-       ;; this would get triggered incorrectly.  We need new, smarter
-       ;; code for how to shut this down.
-       (let lp ()
-         (handle-ocapn-sock-listen)
-         (lp)))))
-
-  (define base-beh
-    (methods
-     [(netlayer-name) 'onion]
-     [(our-location) our-location]
-     [(private-key) private-key]
-     [(service-id) service-id]))
-
-  ;; State of the netlayer before it gets called with 'setup
-  (define pre-setup-beh
-    (extend-methods
-     base-beh
-     ;; The machine is now wiring us up with the appropriate behavior for
-     ;; when a new connection comes in
-     [(setup conn-establisher)
-      (start-listen-thread conn-establisher)
-      ;; Now that we're set up, transition to the main behavior
-      (bcom (ready-beh conn-establisher))]))
-  (define (ready-beh conn-establisher)
-    (extend-methods
-     base-beh
-     [(self-location? loc)
-      (same-machine-location? our-location loc)]
-     [(connect-to remote-machine)
-      (unless (eq? (ocapn-machine-transport remote-machine) 'onion)
-        (error "Not an onion ocapn machine:" remote-machine))
-      (let* ((address (ocapn-machine-address remote-machine))
-             ;; hacky way to start the connection in another thread but with
-             ;; working promise machinery
-             (connect-vat (spawn-vat))
-             (^start-conn
-              (lambda (_bcom)
-                (lambda ()
-                  (define sock (make-client-unix-domain-socket tor-socks-path))
-                  (onion-socks5-setup! sock (string-append address ".onion")
-                                       9045)
-                  (define-values (read-message write-message)
-                    (read-write-procs sock sock))
-                  (<- conn-establisher read-message write-message #f))))
-             (start-conn (connect-vat (lambda () (spawn ^start-conn)))))
-        (<- start-conn))]))
-  pre-setup-beh)
+  (define (incoming-accept)
+    (match (accept ocapn-sock-listener SOCK_NONBLOCK)
+      ((client . addr)
+       (setvbuf client 'block 1024)
+       ;; (As said in the Fibers manual:)
+       ;; Disable Nagle's algorithm.  We buffer ourselves.
+       (setsockopt client IPPROTO_TCP TCP_NODELAY 1)
+       client)))
+  (define (outgoing-connect-location location)
+    (unless (eq? (ocapn-machine-transport location) 'onion)
+      (error "Wrong netlayer! Expected onion" location))
+    (let* ((address (ocapn-machine-address location)))
+      (define sock (make-client-unix-domain-socket tor-socks-path))
+      (onion-socks5-setup! sock (string-append address ".onion")
+                           9045)
+      sock))
+  (^base-port-netlayer bcom our-location
+                       incoming-accept outgoing-connect-location))
 
 (define (_finish-setup-onion private-key service-id tor-socks-path
                              ocapn-sock-path ocapn-sock-listener)
