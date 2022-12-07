@@ -290,9 +290,7 @@
         marshall::mtp:op:start-session
 
         marshall::ocapn-machine
-        marshall::ocapn-sturdyref
-        marshall::ocapn-cert
-        marshall::ocapn-bearer-union))
+        marshall::ocapn-sturdyref))
 
 (define unmarshallers
   (list unmarshall::op:bootstrap
@@ -312,9 +310,7 @@
         unmarshall::mtp:op:start-session
 
         unmarshall::ocapn-machine
-        unmarshall::ocapn-sturdyref
-        unmarshall::ocapn-cert
-        unmarshall::ocapn-bearer-union))
+        unmarshall::ocapn-sturdyref))
 
 ;; Doesn't verify that it's *valid*, just that it's *signed*
 (define (signed-handoff-give? obj)
