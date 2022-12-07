@@ -23,13 +23,7 @@
    #f))
 
 (define ocapn-sref1
-  (make-ocapn-sturdyref ocapn-m1 "foobar"))
-
-(define ocapn-c1
-  (make-ocapn-cert ocapn-m1 "foobar"))
-
-(define ocapn-bu1
-  (make-ocapn-bearer-union ocapn-c1 'type-of-key "i-am-a-private-key"))
+  (make-ocapn-sturdyref ocapn-m1 #vu8(74 174 136 226 211 114 92 53 153 139 168 28 82 26 52 183 107 50 123 83 116 61 247 240 172 189 77 35 75 63 51 162)))
 
 (test-assert
     "Verify ocapn-machine? tests positive when given an ocapn-machine"
@@ -39,22 +33,12 @@
 (test-assert
     "ocapn-struct->ocapn-machine with an ocapn-machine"
   (equal? (ocapn-struct->ocapn-machine ocapn-m1)
-	  ocapn-m1))
+          ocapn-m1))
 
 (test-assert
     "ocapn-struct->ocapn-machine with an ocapn-studyref"
   (equal? (ocapn-struct->ocapn-machine ocapn-sref1)
-	  ocapn-m1))
-
-(test-assert
-    "ocapn-struct->ocapn-machine with an ocapn-cert"
-  (equal? (ocapn-struct->ocapn-machine ocapn-c1)
-	  ocapn-m1))
-
-(test-assert
-    "ocapn-struct->ocapn-machine with an ocapn-cert"
-  (equal? (ocapn-struct->ocapn-machine ocapn-bu1)
-	  ocapn-m1))
+          ocapn-m1))
 
 ;; same-machine-location?
 (test-assert
@@ -72,30 +56,12 @@
 ;; uri->ocapn-*
 (test-assert
     "Verify uri->ocapn-machine produces the correct ocapn-machine"
-  (equal? (uri->ocapn-machine "ocapn:m.fake.wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd")
-	  ocapn-m1))
+  (equal? (string->ocapn-uri "ocapn://m.fake.wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd")
+          ocapn-m1))
 
 (test-assert
     "Verify uri->ocapn-sturdyref produces the correct ocapn-studyref"
-  (equal? (uri->ocapn-sturdyref "ocapn:m.fake.wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd/foobar")
-	  ocapn-sref1))
-
-(test-assert
-    "Verify uri->ocapn-cert produces the correct ocapn-cert"
-  (equal? (uri->ocapn-cert "ocapn:m.fake.wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd/foobar")
-	  ocapn-c1))
-
-(test-assert
-    "Verify uri->ocapn-bearer-union produces the correct ocapn-bearer-union"
-  (equal? (uri->ocapn-bearer-union
-	   (string-append
-	    "ocapn:m.fake.wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd" ;; machine
-	    "/"
-	    "foobar" ;; cert
-	    "/"
-	    "type-of-key" ;; type of key
-	    "."
-	    "i-am-a-private-key")) ;; private key
-	  ocapn-bu1))
+  (equal? (string->ocapn-uri "ocapn://s.fake.wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I")
+          ocapn-sref1))
 
 (test-end "test-structs-urls")
