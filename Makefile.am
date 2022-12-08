@@ -49,7 +49,8 @@ SOURCES = goblins.scm \
 	  goblins/ocapn/netlayer/utils.scm \
           goblins/ocapn/crypto-stubs.scm \
           goblins/ocapn/marshalling.scm \
-          goblins/ocapn/structs-urls.scm \
+          goblins/ocapn/ids.scm \
+          goblins/ocapn/uri.scm \
           goblins/ocapn/captp.scm \
 	  goblins/ocapn/netlayer/base-port.scm \
 	  goblins/ocapn/netlayer/utils.scm \
@@ -81,7 +82,7 @@ SOURCES = goblins.scm \
 
 TESTS = tests/utils/test-bytes-stuff.scm \
         tests/ocapn/netlayer/test-fake.scm \
-        tests/ocapn/test-structs-urls.scm \
+        tests/ocapn/test-ids.scm \
         tests/actor-lib/test-ticker.scm \
         tests/actor-lib/test-ward.scm \
         tests/actor-lib/test-common.scm \

@@ -2,7 +2,7 @@
              (goblins ocapn netlayer base-port)
              (goblins ocapn netlayer utils)
              (goblins ocapn captp)
-             (goblins ocapn structs-urls)
+             (goblins ocapn ids)
              (goblins utils random-name)
              (ice-9 getopt-long)
              (ice-9 match)

@@ -2,7 +2,7 @@
   #:use-module (goblins core)
   #:use-module (goblins vat)
   #:use-module (goblins ocapn captp)
-  #:use-module (goblins ocapn structs-urls)
+  #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer fake)
   #:use-module (tests utils)
   #:use-module (fibers)
@@ -46,8 +46,8 @@
 (define b-vat (spawn-vat #:name "b-vat"))
 (define a-new-conn-ch (make-channel))
 (define b-new-conn-ch (make-channel))
-(define a-location (uri->ocapn-machine "ocapn:m.fake.a"))
-(define b-location (uri->ocapn-machine "ocapn:m.fake.b"))
+(define a-location (string->ocapn-id "ocapn://m.fake.a"))
+(define b-location (string->ocapn-id "ocapn://m.fake.b"))
 
 (define a-netlayer
   (a-vat (lambda () (spawn ^fake-netlayer "a" test-network a-new-conn-ch))))
