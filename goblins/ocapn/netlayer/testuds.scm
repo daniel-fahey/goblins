@@ -17,7 +17,7 @@
   #:use-module (goblins ocapn netlayer base-port)
   #:use-module (goblins ocapn netlayer utils)
   #:use-module (goblins ocapn captp)
-  #:use-module (goblins ocapn structs-urls)
+  #:use-module (goblins ocapn ids)
   #:use-module (goblins utils random-name)
   #:use-module (ice-9 getopt-long)
   #:use-module (ice-9 match)
