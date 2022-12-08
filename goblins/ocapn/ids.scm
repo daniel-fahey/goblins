@@ -12,11 +12,17 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (goblins ocapn structs-urls)
+(define-module (goblins ocapn ids)
   #:use-module (goblins ocapn marshalling)
   #:use-module (goblins utils crypto-stuff)
+  #:use-module (goblins ocapn uri)
+  #:use-module ((web uri)
+                #:select (build-uri
+                          uri-path
+                          uri-host
+                          uri-scheme
+                          uri->string))
   #:use-module (srfi srfi-9)
-  #:use-module (web uri)
   #:use-module (ice-9 match)
   #:export (<ocapn-machine>
             make-ocapn-machine
@@ -24,9 +30,7 @@
             ocapn-machine-transport
             ocapn-machine-address
             ocapn-machine-hints
-            ocapn-struct?
-            ocapn-struct->ocapn-machine
-            same-machine-location?
+            ocapn-id->ocapn-machine
             marshall::ocapn-machine
             unmarshall::ocapn-machine
 
@@ -41,8 +45,11 @@
             marshall::ocapn-sturdyref
             unmarshall::ocapn-sturdyref
 
-            ocapn-uri->string
-            string->ocapn-uri))
+            ocapn-id?
+            same-machine-location?
+            ocapn-id->uri
+            ocapn-id->string
+            string->ocapn-id))
 
 ;; Ocapn machine type URI:
 ;;
@@ -115,21 +122,21 @@
 ;; (define-values (marshall::ocapn-bearer-union unmarshall::ocapn-bearer-union)
 ;;   (make-marshallers <ocapn-bearer-union> #:name 'ocapn-bearer-union))
 
-(define (ocapn-uri? obj)
+(define (ocapn-id? obj)
   (or (ocapn-machine? obj)
       (ocapn-sturdyref? obj)))
 
-(define (ocapn-struct->ocapn-machine ocapn-struct)
-  (match ocapn-struct
-    [(? ocapn-machine?) ocapn-struct]
+(define (ocapn-id->ocapn-machine ocapn-id)
+  (match ocapn-id
+    [(? ocapn-machine?) ocapn-id]
     [($ <ocapn-sturdyref> ocapn-machine _sn) ocapn-machine]))
 
-;; Checks for the equivalence between two ocapn-machine structs
-;; (including ocapn-machines nested in other ocapn-structs),
-;; ignoring hints
-(define (same-machine-location? ocapn-struct1 ocapn-struct2)
-  (define machine1 (ocapn-struct->ocapn-machine ocapn-struct1))
-  (define machine2 (ocapn-struct->ocapn-machine ocapn-struct2))
+;; Checks for the equivalence between two ocapn-machines (including
+;; ocapn-machines that are nested within other ocapn ID structs),
+;; ignoring hints.
+(define (same-machine-location? ocapn-id1 ocapn-id2)
+  (define machine1 (ocapn-id->ocapn-machine ocapn-id1))
+  (define machine2 (ocapn-id->ocapn-machine ocapn-id2))
   (match-let ((($ <ocapn-machine> m1-transport m1-address _m1-hints)
                machine1)
               (($ <ocapn-machine> m2-transport m2-address _m2-hints)
@@ -137,7 +144,7 @@
     (and (equal? m1-transport m2-transport)
          (equal? m1-address m2-address))))
 
-(define (string->ocapn-uri string-uri)
+(define (string->ocapn-id string-uri)
   (define (host->ocapn-machine host)
     (let* ((first-delimiter-position (string-contains host "."))
            (transport (substring host 0 first-delimiter-position))
@@ -150,7 +157,7 @@
      (host->ocapn-machine host)
      (url-base64-decode (string-trim (uri-path uri) #\/))))
 
-  (define (host->ocapn-struct uri)
+  (define (uri->ocapn-id uri)
     (let* ((host (uri-host uri))
            (first-delimiter-position (string-contains host "."))
            (uri-type (substring host 0 first-delimiter-position))
@@ -160,25 +167,32 @@
         ["s" (host->ocapn-sturdyref rest-of-host uri)])))
 
   (unless (string? string-uri)
-    (error "Not a valid OCapN uri:" string-uri))
+    (error "Not a valid OCapN URI:" string-uri))
 
   (let ((uri (string->uri string-uri)))
     (unless (eq? (uri-scheme uri) 'ocapn)
-      (error "Not a valid OCapN uri:" string-uri))
-    (host->ocapn-struct uri)))
+      (error "Not a valid OCapN URI:" string-uri))
+    (uri->ocapn-id uri)))
 
-(define (ocapn-uri->string ocapn-uri)
-  (unless (ocapn-uri? ocapn-uri)
-    (error "Not a OCapN uri" ocapn-uri))
+(define (ocapn-id->uri ocapn-id)
+  (unless (ocapn-id? ocapn-id)
+    (error "Not a OCapN ID" ocapn-id))
 
-  (define string-uri
-    (match ocapn-uri
-      [($ <ocapn-machine> transport address _hints)
-       (string-join (list "m" (symbol->string transport) address) ".")]
-      [($ <ocapn-sturdyref> ($ <ocapn-machine> transport address _hints)
-          swiss-num)
-       (string-append
-        (string-join (list "s" (symbol->string transport) address) ".")
-        "/"
-        (url-base64-encode swiss-num))]))
-  (string-concatenate (list "ocapn://" string-uri)))
+  ;; TODO: For now we have to turn off validation due to bug #35
+  (match ocapn-id
+    [($ <ocapn-machine> transport address _hints)
+     (build-uri
+      'ocapn
+      #:host (string-join (list "m" (symbol->string transport) address) ".")
+      #:validate? #f)]
+
+    [($ <ocapn-sturdyref> ($ <ocapn-machine> transport address _hints)
+        swiss-num)
+     (build-uri
+      'ocapn
+      #:host (string-join (list "s" (symbol->string transport) address) ".")
+      #:path (string-concatenate (list "/" (url-base64-encode swiss-num)))
+      #:validate? #f)]))
+
+(define (ocapn-id->string ocapn-id)
+  (uri->string (ocapn-id->uri ocapn-id)))

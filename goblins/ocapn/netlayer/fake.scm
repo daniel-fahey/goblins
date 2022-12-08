@@ -6,7 +6,7 @@
   #:use-module (goblins inbox)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
-  #:use-module (goblins ocapn structs-urls)
+  #:use-module (goblins ocapn ids)
   #:use-module (goblins contrib syrup)
   #:use-module (ice-9 match)
   #:use-module (ice-9 popen)

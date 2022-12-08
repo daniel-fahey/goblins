@@ -18,7 +18,7 @@
   #:use-module (goblins ghash)
   #:use-module (goblins inbox)
   #:use-module (goblins ocapn marshalling)
-  #:use-module (goblins ocapn structs-urls)
+  #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn crypto-stubs)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
