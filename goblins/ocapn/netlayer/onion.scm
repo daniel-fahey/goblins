@@ -24,7 +24,7 @@
   #:use-module (goblins)
   #:use-module (goblins vat)
   #:use-module (goblins actor-lib methods)
-  #:use-module (goblins ocapn structs-urls)
+  #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer utils)
   #:use-module (goblins ocapn netlayer onion-socks)
   #:use-module (goblins contrib syrup)
