@@ -45,16 +45,9 @@
 (use-modules (goblins ocapn netlayer utils)
              (goblins ocapn netlayer onion-socks))
 
-(define default-tor-socks-path
-  (@@ (goblins ocapn netlayer onion) default-tor-socks-path))
-
 (define (main args)
-  ;; (define a-service-id "gwe2ammpmv4hh5ehkmfeltuz6e4ih6yqsdorxaps7xbb2mk6gf73v2qd")
-  ;; (define a-private-key "ED25519-V3:WDAVx9zQh7Eh4mqbM6izGIF43spjKtS9sMd+pj1XTUICiUz4+slw3w8LZXJXKsKYFRXdNYUGh7GCXcwgIdvFQg==")
   (define-values (a-machine-vat a-onion-netlayer a-mycapn alice alice-sref)
-    (tor-server ;; #:tor-onion-pair
-                ;; (cons a-service-id a-private-key)
-                ))
+    (tor-server))
 
   (format #t "Connect to: ~a\n" (ocapn-id->string alice-sref))
 
