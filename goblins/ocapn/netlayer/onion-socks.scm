@@ -24,7 +24,6 @@
 
 ;; Setups up a basic socks 5 connection
 ;; rfc1928
-;; NB: This is untested code.
 (define (onion-socks5-setup! sock address port)
   (define (read-and-expect-protocol-5)
     (match (get-u8 sock)
