@@ -53,7 +53,6 @@ SOURCES = goblins.scm \
           goblins/ocapn/uri.scm \
           goblins/ocapn/captp.scm \
 	  goblins/ocapn/netlayer/base-port.scm \
-	  goblins/ocapn/netlayer/utils.scm \
           goblins/utils/simple-sealers.scm \
           goblins/utils/bytes-stuff.scm \
           goblins/utils/crypto-stuff.scm \
