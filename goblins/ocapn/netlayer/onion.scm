@@ -142,9 +142,6 @@
     (match (accept ocapn-sock-listener SOCK_NONBLOCK)
       ((client . addr)
        (setvbuf client 'block 1024)
-       ;; (As said in the Fibers manual:)
-       ;; Disable Nagle's algorithm.  We buffer ourselves.
-       ;; (setsockopt client IPPROTO_TCP TCP_NODELAY 1)
        client)))
   (define (outgoing-connect-location location)
     (unless (eq? (ocapn-machine-transport location) 'onion)
