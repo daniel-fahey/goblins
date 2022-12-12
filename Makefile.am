@@ -43,58 +43,58 @@ SUFFIXES = .scm .go
 	$(AM_V_GEN)$(top_builddir)/pre-inst-env $(GUILE_TOOLS) compile $(GUILE_TARGET) $(GUILE_WARNINGS) -o "$@" "$<"
 
 SOURCES = goblins.scm \
-	  goblins/ocapn/netlayer/fake.scm \
-	  goblins/ocapn/netlayer/onion.scm \
-	  goblins/ocapn/netlayer/onion-socks.scm \
-	  goblins/ocapn/netlayer/utils.scm \
-          goblins/ocapn/crypto-stubs.scm \
-          goblins/ocapn/marshalling.scm \
-          goblins/ocapn/ids.scm \
-          goblins/ocapn/uri.scm \
-          goblins/ocapn/captp.scm \
-	  goblins/ocapn/netlayer/base-port.scm \
-          goblins/utils/simple-sealers.scm \
-          goblins/utils/bytes-stuff.scm \
-          goblins/utils/crypto-stuff.scm \
-          goblins/utils/weak-box.scm \
-          goblins/utils/assert-type.scm \
-          goblins/utils/simple-dispatcher.scm \
-          goblins/utils/random-name.scm \
-          goblins/contrib/syrup.scm \
-          goblins/actor-lib/methods.scm \
-          goblins/actor-lib/ticker.scm \
-          goblins/actor-lib/nonce-registry.scm \
           goblins/actor-lib/cell.scm \
           goblins/actor-lib/common.scm \
           goblins/actor-lib/facet.scm \
-          goblins/actor-lib/ward.scm \
-          goblins/actor-lib/swappable.scm \
           goblins/actor-lib/joiners.scm \
-          goblins/ghash.scm \
-          goblins/vat.scm \
-          goblins/default-vat-scheduler.scm \
-          goblins/vrun.scm \
-          goblins/core.scm \
+          goblins/actor-lib/methods.scm \
+          goblins/actor-lib/nonce-registry.scm \
+          goblins/actor-lib/swappable.scm \
+          goblins/actor-lib/ticker.scm \
+          goblins/actor-lib/ward.scm \
           goblins/base-io-ports.scm \
+          goblins/contrib/syrup.scm \
+          goblins/core.scm \
+          goblins/default-vat-scheduler.scm \
+          goblins/ghash.scm \
           goblins/inbox.scm \
+          goblins/ocapn/captp.scm \
+          goblins/ocapn/crypto-stubs.scm \
+          goblins/ocapn/ids.scm \
+          goblins/ocapn/marshalling.scm \
+          goblins/ocapn/netlayer/base-port.scm \
+          goblins/ocapn/netlayer/fake.scm \
+          goblins/ocapn/netlayer/onion-socks.scm \
+          goblins/ocapn/netlayer/onion.scm \
+          goblins/ocapn/netlayer/utils.scm \
+          goblins/ocapn/uri.scm \
+          goblins/utils/assert-type.scm \
+          goblins/utils/bytes-stuff.scm \
+          goblins/utils/crypto-stuff.scm \
+          goblins/utils/random-name.scm \
+          goblins/utils/simple-dispatcher.scm \
+          goblins/utils/simple-sealers.scm \
+          goblins/utils/weak-box.scm \
+          goblins/vat.scm \
+          goblins/vrun.scm \
           tests/utils.scm
 
-TESTS = tests/utils/test-bytes-stuff.scm \
-        tests/ocapn/netlayer/test-fake.scm \
-        tests/ocapn/test-ids.scm \
+TESTS = tests/actor-lib/test-cell.scm \
+        tests/actor-lib/test-common.scm \
+        tests/actor-lib/test-facet.scm \
+        tests/actor-lib/test-joiners.scm \
+        tests/actor-lib/test-swappable.scm \
         tests/actor-lib/test-ticker.scm \
         tests/actor-lib/test-ward.scm \
-        tests/actor-lib/test-common.scm \
-        tests/actor-lib/test-swappable.scm \
-        tests/actor-lib/test-cell.scm \
-        tests/actor-lib/test-joiners.scm \
-        tests/actor-lib/test-facet.scm \
         tests/ocapn/marshalling.scm \
-        tests/test-vat.scm \
-        tests/test-inbox.scm \
-        tests/test-ghash.scm \
+        tests/ocapn/netlayer/test-fake.scm \
+        tests/ocapn/test-ids.scm \
         tests/test-await.scm \
-        tests/test-core.scm
+        tests/test-core.scm \
+        tests/test-ghash.scm \
+        tests/test-inbox.scm \
+        tests/test-vat.scm \
+        tests/utils/test-bytes-stuff.scm
 
 TEST_EXTENSIONS = .scm
 SCM_LOG_DRIVER =                                \
