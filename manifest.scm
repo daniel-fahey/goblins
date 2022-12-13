@@ -8,11 +8,12 @@
 ;; No attribution is required and you are free to copy-paste and munge
 ;; into your own project.
 
-(use-modules (guix packages)
-	     (gnu packages code)
-             (gnu packages guile-xyz)
+(use-modules (gnu packages code)
              (gnu packages emacs)
              (gnu packages emacs-xyz)
+             (gnu packages guile-xyz)
+             (gnu packages tor)
+             (guix packages)
              (ice-9 match)
              (srfi srfi-1))
 
@@ -21,6 +22,7 @@
 (packages->manifest
  (cons*
   lcov
+  tor
   (filter-map
    (match-lambda
      ((_ (? package? package) output) (list package output))
