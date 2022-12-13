@@ -723,7 +723,7 @@
         obj)]
       [(or (? desc:import-promise?) (? desc:import-object?))
        (maybe-install-import! obj)]
-      [(desc:export pos)
+      [($ <desc:export> pos)
        (hashv-ref exports-pos2val pos)]
       ;; TODO: Make guile equivalents of these exceptions
       #;[($ <syrec> 'exn:fail:mystery '())
