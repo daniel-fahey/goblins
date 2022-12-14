@@ -325,7 +325,7 @@
                                (? bytevector? session-side)
                                integer?
                                (? signed-handoff-give?))
-                            (? bytevector? sig))
+                            (? signature-sexp? sig))
      #t]
     [_ #f]))
 
@@ -1151,18 +1151,23 @@
 
     (define (give-handoff-legit? signed-handoff-give)
       (assert-type signed-handoff-give signed-handoff-give?)
-      (match-let* (((desc:sig-envelope (? desc:handoff-give? handoff-give)
-                                       give-sig)
+      (match-let* ((($ <desc:sig-envelope>
+                       (? desc:handoff-give? handoff-give)
+                       (? signature-sexp? give-sig-sexp))
                     signed-handoff-give)
-                   ((desc:handoff-give _give-recipient-encoded-key
-                                       give-exporter-location
-                                       give-session
-                                       give-gifter-side
-                                       _give-gift-id)
+                   (($ <desc:handoff-give>
+                       _give-recipient-encoded-key
+                       give-exporter-location
+                       give-session
+                       give-gifter-side
+                       _give-gift-id)
                     handoff-give)
                    (encoded-handoff-give
                     (syrup-encode handoff-give
-                                  #:marshallers marshallers)))
+                                  #:marshallers marshallers))
+                   (give-sig
+                    (gcrypt:pk-crypto:sexp->canonical-sexp
+                     give-sig-sexp)))
         (and (equal? session-name give-session)
              (equal? give-gifter-side remote-side-name)
              ;; I'm not sure if this one is critical.
@@ -1174,8 +1179,8 @@
 
     (define (full-handoff-legit? signed-handoff-receive)
       (assert-type signed-handoff-receive signed-handoff-receive?)
-      (match-let* (((desc:sig-envelope (and handoff-receive
-                                            (desc:handoff-receive
+      (match-let* ((($ <desc:sig-envelope> (and handoff-receive
+                                            ($ <desc:handoff-receive>
                                              ;; TODO: verify these three where appropriate
                                              ;; (probably not in this session, which is
                                              ;; with the gifter, but with the receiver)
@@ -1183,7 +1188,7 @@
                                              (? bytevector? _handoff-session-side)
                                              (? integer? _this-handoff-count)
                                              signed-handoff-give))
-                                       (? bytevector? receive-sig))
+                                       (? signature-sexp? receive-sig-sexp))
                     signed-handoff-receive)
                    (encoded-handoff-receive
                     (syrup-encode handoff-receive
@@ -1193,7 +1198,10 @@
                      (desc:sig-envelope-signed signed-handoff-give)))
                    (give-recipient-key
                     (gcrypt:pk-crypto:sexp->canonical-sexp
-                     give-recipient-encoded-key)))
+                     give-recipient-encoded-key))
+                   (receive-sig
+                    (gcrypt:pk-crypto:sexp->canonical-sexp
+                     receive-sig-sexp)))
         (and (give-handoff-legit? signed-handoff-give)
              (verify receive-sig encoded-handoff-receive give-recipient-key))))
 
