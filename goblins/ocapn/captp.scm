@@ -1106,7 +1106,7 @@
       (desc:sig-envelope handoff-give handoff-give-sig))
 
     (define (start-retrieve-handoff signed-handoff-give)
-      (assert-type start-retrieve-handoff signed-handoff-give?)
+      (assert-type signed-handoff-give signed-handoff-give?)
       (let ((exporter-location
              (desc:handoff-give-exporter-location
               (desc:sig-envelope-signed signed-handoff-give))))
