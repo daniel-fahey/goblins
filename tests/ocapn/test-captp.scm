@@ -1,5 +1,6 @@
 (use-modules (goblins)
              (goblins vat)
+             (goblins actor-lib joiners)
              (goblins ocapn ids)
              (goblins ocapn captp)
              (goblins ocapn netlayer fake)
@@ -80,13 +81,17 @@
      ;; Bootstrap bob and carol with sturdyrefs
      (define bob-vow ($ a-mycapn 'enliven bob-sref))
      (define carol-vow ($ a-mycapn 'enliven carol-sref))
-     (spawn ^alice bob-vow carol-vow))))
+     ;; The vows need to be resolved for this to perform a handoff
+     (on (all-of bob-vow carol-vow)
+         (lambda (bob-carol-pair)
+           (spawn ^alice (car bob-carol-pair) (car (cdr bob-carol-pair))))
+         #:promise? #t))))
 
 (let ((result
        (resolve-vow-and-return-result
         a-vat
         (lambda ()
-          ($ alice)))))
+          (<- alice)))))
   (test-equal
       "Check Alice on A can handoff Carol on C to Bob on B over CapTP"
     result
