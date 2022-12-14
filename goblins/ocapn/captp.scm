@@ -318,8 +318,6 @@
      #t]
     [_ #f]))
 
-;; TODO:
-
 (define (signed-handoff-receive? obj)
   (match obj
     [($ <desc:sig-envelope> ($ <desc:handoff-receive>
@@ -735,7 +733,6 @@
        (error 'captp-unknown-record-rag "Unknown record tag: ~a"
               unknown-record-tag)]
       [(? signed-handoff-give? sig-envelope-and-handoff)
-       (pk 'found-signed-handoff-give obj sig-envelope-and-handoff)
        ;; We need to send this message to the coordinator, which will
        ;; work with the machine to (hopefully) get it to the right
        ;; destination
