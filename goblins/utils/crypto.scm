@@ -23,9 +23,12 @@
             strong-random-bytes
             url-base64-encode
             url-base64-decode
-            pk-sign
-            pk-verify
-            datum->pk-key))
+            generate-key-pair
+            key-pair->public-key
+            key-pair->private-key
+            sign
+            verify
+            signature-sexp?))
 
 (define (sha256d input)
   (sha256 (sha256 input)))
@@ -48,6 +51,30 @@
 (define (url-base64-decode encoded-b64)
   (base64-decode (pad-b64-string encoded-b64) base64url-alphabet))
 
-(define (pk-sign . args) 'TODO)
-(define (pk-verify . args) 'TODO)
-(define (datum->pk-key . args) 'TODO)
+(define (data->canonical-sexp data)
+  (gcrypt:pk-crypto:sexp->canonical-sexp
+   `(data (flags eddsa) (hash-algo sha512)
+          (value ,data))))
+
+(define (generate-key-pair)
+  (gcrypt:pk-crypto:generate-key
+   (gcrypt:pk-crypto:sexp->canonical-sexp
+    '(genkey (eddsa (curve Ed25519) (flags eddsa))))))
+
+(define (key-pair->private-key keypair)
+  (gcrypt:pk-crypto:find-sexp-token keypair 'private-key))
+(define (key-pair->public-key keypair)
+  (gcrypt:pk-crypto:find-sexp-token keypair 'public-key))
+
+(define (sign data private-key)
+  (gcrypt:pk-crypto:canonical-sexp->sexp
+   (gcrypt:pk-crypto:sign
+    (data->canonical-sexp data)
+    private-key)))
+
+(define (verify signature data public-key)
+  (gcrypt:pk-crypto:verify signature (data->canonical-sexp data) public-key))
+
+(define (signature-sexp? maybe-signature)
+  (and (list? maybe-signature)
+       (eq? (car maybe-signature) 'sig-val)))
