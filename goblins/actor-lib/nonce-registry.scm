@@ -19,7 +19,7 @@
   #:use-module (goblins ghash)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils assert-type)
-  #:use-module (goblins utils crypto-stuff)
+  #:use-module (goblins utils crypto)
   #:export (spawn-nonce-registry-locator-pair
             spawn-nonce-registry-locator-values))
 

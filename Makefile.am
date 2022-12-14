@@ -60,7 +60,6 @@ SOURCES = goblins.scm \
           goblins/ghash.scm \
           goblins/inbox.scm \
           goblins/ocapn/captp.scm \
-          goblins/ocapn/crypto-stubs.scm \
           goblins/ocapn/ids.scm \
           goblins/ocapn/marshalling.scm \
           goblins/ocapn/netlayer/base-port.scm \
@@ -72,7 +71,7 @@ SOURCES = goblins.scm \
           goblins/ocapn/uri.scm \
           goblins/utils/assert-type.scm \
           goblins/utils/bytes-stuff.scm \
-          goblins/utils/crypto-stuff.scm \
+          goblins/utils/crypto.scm \
           goblins/utils/random-name.scm \
           goblins/utils/simple-dispatcher.scm \
           goblins/utils/simple-sealers.scm \
