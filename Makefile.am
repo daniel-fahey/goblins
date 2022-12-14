@@ -89,6 +89,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-ticker.scm \
         tests/actor-lib/test-ward.scm \
         tests/ocapn/marshalling.scm \
+	tests/ocapn/test-captp.scm \
         tests/ocapn/netlayer/test-fake.scm \
         tests/ocapn/test-ids.scm \
         tests/test-await.scm \
