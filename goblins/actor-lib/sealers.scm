@@ -1,3 +1,4 @@
+;;; Copyright 2020-2021 Christine Lemmer-Webber
 ;;; Copyright 2022 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
