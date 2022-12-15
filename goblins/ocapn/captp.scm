@@ -773,7 +773,7 @@
       (listen-to answer-promise resolve-me)
       (values answer-promise answer-resolver)))
 
-  ;; Resolvers that are interested in when this poops out
+  ;; Resolvers that are interested in when we're tearing down
   (define interested-in-sever
     (spawn ^seteq))
 
@@ -788,7 +788,7 @@
      (lambda (interested)
        (<-np interested 'fulfill (list 'severed shutdown-type
                                        reason)))
-     ($C interested-in-sever 'data))
+     ($C interested-in-sever 'as-list))
     (set! interested-in-sever #f))
 
   (define (abort-because reason)
