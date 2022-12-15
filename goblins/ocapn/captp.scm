@@ -19,7 +19,6 @@
   #:use-module (goblins inbox)
   #:use-module (goblins ocapn marshalling)
   #:use-module (goblins ocapn ids)
-  #:use-module (goblins ocapn crypto-stubs)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib nonce-registry)
@@ -30,7 +29,7 @@
   #:use-module (goblins utils simple-sealers)
   #:use-module (goblins utils weak-box)
   #:use-module (goblins utils bytes-stuff)
-  #:use-module (goblins utils crypto-stuff)
+  #:use-module (goblins utils crypto)
   #:use-module (goblins contrib syrup)
   #:use-module (ice-9 match)
   #:use-module (ice-9 vlist)
@@ -40,8 +39,7 @@
   #:use-module (rnrs bytevectors)
   #:use-module (rnrs io ports)
   #:use-module (fibers channels)
-  #:use-module (gcrypt base16) ;; shouldn't need in future.
-  #:use-module (gcrypt pk-crypto)
+  #:use-module ((gcrypt pk-crypto) #:prefix gcrypt:pk-crypto:)
   #:export (spawn-mycapn))
 
 ;;; Some crap to make this work in the port from Racket->Guile
@@ -316,11 +314,9 @@
 (define (signed-handoff-give? obj)
   (match obj
     [($ <desc:sig-envelope> (? desc:handoff-give? handoff-give-cert)
-                            (? bytevector? sig))
+                            (? signature-sexp? sig))
      #t]
     [_ #f]))
-
-;; TODO:
 
 (define (signed-handoff-receive? obj)
   (match obj
@@ -329,7 +325,7 @@
                                (? bytevector? session-side)
                                integer?
                                (? signed-handoff-give?))
-                            (? bytevector? sig))
+                            (? signature-sexp? sig))
      #t]
     [_ #f]))
 
@@ -455,7 +451,7 @@
   (define next-question-pos 0)
   ;; (define next-promise-pos 0)
 
-  (define exports-val2pos (make-hash-table))    ; (eq)  exports[val]:   chosen by us 
+  (define exports-val2pos (make-hash-table))    ; (eq)  exports[val]:   chosen by us
   (define exports-pos2val (make-hash-table))    ; (eqv) exports[pos]:   chosen by us
   ;; TODO: This doesn't make sense if the value isn't wrapped in a weak
   ;;   reference... I think this also needs to go in both directions to work
@@ -938,7 +934,6 @@
              (match msg
                ((? message?)
                 (message-resolve-me msg))
-               
                ))
            (match-let ((($ <message> to resolve-me args)
                         msg))
@@ -982,11 +977,7 @@
 
 (define* (^coordinator bcom router our-location
                        intra-machine-warden intra-machine-incanter
-                       #:key [handoff-key-pair
-			      (generate-key
-			       (sexp->canonical-sexp
-				'(genkey (eddsa (curve Ed25519) (flags eddsa)))))
-                             ]
+                       #:key [handoff-key-pair (generate-key-pair)]
                        ;; #:local-machine-location [local-machine-location #f]
                        )
   ;; counters used to increment how many handoff requests have been
@@ -1004,37 +995,24 @@
   ;;     '(genkey (eddsa (curve Ed25519) (flags eddsa))))))
 
   (define handoff-privkey
-    (find-sexp-token handoff-key-pair 'private-key))
-  
+    (key-pair->private-key handoff-key-pair))
+
   (define handoff-pubkey
-    (find-sexp-token handoff-key-pair 'public-key))
+    (key-pair->public-key handoff-key-pair))
 
   (define (get-handoff-pubkey)
-    (canonical-sexp->sexp handoff-pubkey))
+    (gcrypt:pk-crypto:canonical-sexp->sexp handoff-pubkey))
 
   ;; TODO: maybe the hashing isn't necessary
   (define our-side-name
     (sha256d (syrup-encode (get-handoff-pubkey))))
 
   (define our-location-sig
-    ((lambda ()
-       ;; In the future this probably should be supported in the
-       ;; gcrypt library. This is currently because for eddsa
-       ;; signatures the data needs to look like the below.
-       (define encoded-location
-	 (syrup-encode
-	  (make-syrec* 'my-location our-location)
-	  #:marshallers marshallers))
-       (define encoded-location-b16
-	 (bytevector->base16-string encoded-location))
-       (define data
-	 (string->canonical-sexp
-	  (format #f "(data (flags ~a) (hash-algo \"~a\" (value #~a#)))"
-		  "eddsa"
-		  "sha512"
-		  encoded-location-b16)))
-       (canonical-sexp->sexp
-	(sign data handoff-privkey)))))
+    (let ((encoded-location
+           (syrup-encode
+            (make-syrec* 'my-location our-location)
+            #:marshallers marshallers)))
+      (sign encoded-location handoff-privkey)))
 
   (define core-beh
     (methods
@@ -1105,10 +1083,10 @@
                            gifter-side
                            gift-id))
       (define handoff-give-sig
-        (pk-sign ($C intra-machine-incanter
-                     exported-connector-obj 'get-handoff-privkey)
-                 (syrup-encode handoff-give
-                               #:marshallers marshallers)))
+        (sign (syrup-encode handoff-give
+                            #:marshallers marshallers)
+              ($C intra-machine-incanter
+                  exported-connector-obj 'get-handoff-privkey)))
 
       (define exporter-session-bootstrap
         ($C intra-machine-incanter
@@ -1125,7 +1103,7 @@
       (desc:sig-envelope handoff-give handoff-give-sig))
 
     (define (start-retrieve-handoff signed-handoff-give)
-      (assert-type start-retrieve-handoff signed-handoff-give?)
+      (assert-type signed-handoff-give signed-handoff-give?)
       (let ((exporter-location
              (desc:handoff-give-exporter-location
               (desc:sig-envelope-signed signed-handoff-give))))
@@ -1161,9 +1139,9 @@
                   (desc:handoff-receive session-name our-side-name
                                         our-handoff-count signed-handoff-give))
                  (handoff-receive-sig
-                  (pk-sign handoff-privkey
-                           (syrup-encode handoff-receive
-                                         #:marshallers marshallers)))
+                  (sign (syrup-encode handoff-receive
+                                      #:marshallers marshallers)
+                        handoff-privkey))
                  (signed-handoff-receive
                   (desc:sig-envelope handoff-receive
                                      handoff-receive-sig)))
@@ -1173,18 +1151,23 @@
 
     (define (give-handoff-legit? signed-handoff-give)
       (assert-type signed-handoff-give signed-handoff-give?)
-      (match-let* (((desc:sig-envelope (? desc:handoff-give? handoff-give)
-                                       give-sig)
+      (match-let* ((($ <desc:sig-envelope>
+                       (? desc:handoff-give? handoff-give)
+                       (? signature-sexp? give-sig-sexp))
                     signed-handoff-give)
-                   ((desc:handoff-give _give-recipient-encoded-key
-                                       give-exporter-location
-                                       give-session
-                                       give-gifter-side
-                                       _give-gift-id)
+                   (($ <desc:handoff-give>
+                       _give-recipient-encoded-key
+                       give-exporter-location
+                       give-session
+                       give-gifter-side
+                       _give-gift-id)
                     handoff-give)
                    (encoded-handoff-give
                     (syrup-encode handoff-give
-                                  #:marshallers marshallers)))
+                                  #:marshallers marshallers))
+                   (give-sig
+                    (gcrypt:pk-crypto:sexp->canonical-sexp
+                     give-sig-sexp)))
         (and (equal? session-name give-session)
              (equal? give-gifter-side remote-side-name)
              ;; I'm not sure if this one is critical.
@@ -1192,13 +1175,12 @@
              ;; Probably doesn't hurt; maybe can just leave it until
              ;; we find a reason not to.
              ($C router 'self-location? give-exporter-location)
-             (pk-verify remote-key encoded-handoff-give
-                        give-sig))))
+             (verify give-sig encoded-handoff-give remote-key))))
 
     (define (full-handoff-legit? signed-handoff-receive)
       (assert-type signed-handoff-receive signed-handoff-receive?)
-      (match-let* (((desc:sig-envelope (and handoff-receive
-                                            (desc:handoff-receive
+      (match-let* ((($ <desc:sig-envelope> (and handoff-receive
+                                            ($ <desc:handoff-receive>
                                              ;; TODO: verify these three where appropriate
                                              ;; (probably not in this session, which is
                                              ;; with the gifter, but with the receiver)
@@ -1206,7 +1188,7 @@
                                              (? bytevector? _handoff-session-side)
                                              (? integer? _this-handoff-count)
                                              signed-handoff-give))
-                                       (? bytevector? receive-sig))
+                                       (? signature-sexp? receive-sig-sexp))
                     signed-handoff-receive)
                    (encoded-handoff-receive
                     (syrup-encode handoff-receive
@@ -1215,10 +1197,13 @@
                     (desc:handoff-give-recipient-key
                      (desc:sig-envelope-signed signed-handoff-give)))
                    (give-recipient-key
-                    (datum->pk-key give-recipient-encoded-key 'rkt-public)))
+                    (gcrypt:pk-crypto:sexp->canonical-sexp
+                     give-recipient-encoded-key))
+                   (receive-sig
+                    (gcrypt:pk-crypto:sexp->canonical-sexp
+                     receive-sig-sexp)))
         (and (give-handoff-legit? signed-handoff-give)
-             (pk-verify give-recipient-key encoded-handoff-receive
-                        receive-sig))))
+             (verify receive-sig encoded-handoff-receive give-recipient-key))))
 
     (extend-methods core-beh
       [(get-remote-side-name) remote-side-name]
@@ -1294,7 +1279,7 @@
             (bytevector? x)
             (string? x)))
       ;; In the case of depositing, we're putting a gift at gift-id and an
-      ;; 
+      ;;
       (define (deposit-gift gift-id obj
                             ;; #:manual-drop? [manual-drop? #f]
                             )
@@ -1494,7 +1479,7 @@
               (? ocapn-machine? claimed-remote-location)
               encoded-remote-location-sig)
            (define remote-handoff-pubkey
-             (sexp->canonical-sexp remote-encoded-pubkey))
+             (gcrypt:pk-crypto:sexp->canonical-sexp remote-encoded-pubkey))
            ;; TODO: I guess we didn't know by the time this was opened
            ;;   what the remote location was going to be... that's part of the reason
            ;;   for the start-session message...
@@ -1504,25 +1489,14 @@
            (error (format "Supplied location mismatch. Claimed: ~s Expected: ~s"
            claimed-remote-location remote-location)))
 
-           ;; TODO: this should be factored out to gcrypt (see: sign
-           ;; call)
            (define encoded-location
              (syrup-encode
               (make-syrec* 'my-location claimed-remote-location)
               #:marshallers marshallers))
-           (define encoded-location-b16
-             (bytevector->base16-string encoded-location))
-           (define data
-             (string->canonical-sexp
-              (format #f "(data (flags ~a) (hash-algo \"~a\" (value #~a#)))"
-                      "eddsa"
-                      "sha512"
-                      encoded-location-b16)))
-
            (define remote-location-sig
-             (sexp->canonical-sexp encoded-remote-location-sig))
+             (gcrypt:pk-crypto:sexp->canonical-sexp encoded-remote-location-sig))
 
-           (unless (verify remote-location-sig data remote-handoff-pubkey)
+           (unless (verify remote-location-sig encoded-location remote-handoff-pubkey)
              (error "Location not signed by handoff key"))
 
            ;; TODO: Now we need to do the dial back and verify that
@@ -1568,10 +1542,10 @@
                                  local-bootstrap-obj remote-bootstrap-vow
                                  coordinator session-name))
            _void]))
-      
+
       (define-values (incoming-forwarder incoming-swap)
         (swappable (spawn ^setup-completer)))
-      
+
       ;; Now spawn fibers that read/write to these ports
       (syscaller-free-fiber
        (lambda ()
@@ -1584,7 +1558,7 @@
              [msg
               (<-np-extern incoming-forwarder msg)
               (lp)]))))
-      
+
       (syscaller-free-fiber
        (lambda ()
          (let lp ()
@@ -1602,14 +1576,14 @@
       (send-to-remote (mtp:op:start-session handoff-pubkey
                                             our-location
                                             our-location-sig))
-      
+
       ;; Return the meta-bootstrap-vow, which will be completed as above
       meta-bootstrap-vow]
 
      [self-location? self-location?]
      ;; ... is that it?
      [connect-to-machine retrieve-or-setup-session-vow]
-     
+
      [(install-netlayer netlayer)
       (define netlayer-name ($C netlayer 'netlayer-name))
       (when ($C netlayer-map 'hash-has-key? netlayer-name)

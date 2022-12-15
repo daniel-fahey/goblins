@@ -14,7 +14,7 @@
 
 (define-module (goblins ocapn ids)
   #:use-module (goblins ocapn marshalling)
-  #:use-module (goblins utils crypto-stuff)
+  #:use-module (goblins utils crypto)
   #:use-module (goblins ocapn uri)
   #:use-module ((web uri)
                 #:select (build-uri

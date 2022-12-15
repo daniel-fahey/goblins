@@ -61,7 +61,6 @@ SOURCES = goblins.scm \
           goblins/ghash.scm \
           goblins/inbox.scm \
           goblins/ocapn/captp.scm \
-          goblins/ocapn/crypto-stubs.scm \
           goblins/ocapn/ids.scm \
           goblins/ocapn/marshalling.scm \
           goblins/ocapn/netlayer/base-port.scm \
@@ -73,7 +72,7 @@ SOURCES = goblins.scm \
           goblins/ocapn/uri.scm \
           goblins/utils/assert-type.scm \
           goblins/utils/bytes-stuff.scm \
-          goblins/utils/crypto-stuff.scm \
+          goblins/utils/crypto.scm \
           goblins/utils/random-name.scm \
           goblins/utils/simple-dispatcher.scm \
           goblins/utils/simple-sealers.scm \
@@ -92,6 +91,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-ticker.scm \
         tests/actor-lib/test-ward.scm \
         tests/ocapn/marshalling.scm \
+	tests/ocapn/test-captp.scm \
         tests/ocapn/netlayer/test-fake.scm \
         tests/ocapn/test-ids.scm \
         tests/test-await.scm \

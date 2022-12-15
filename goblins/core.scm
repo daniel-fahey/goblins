@@ -133,7 +133,7 @@
     (seal val)
     sealed?
     (val unseal))
-  (set-record-type-printer! 
+  (set-record-type-printer!
    <seal>
    (lambda (record port)
      (if name
@@ -698,9 +698,9 @@
 ;;;                 .----------------->.        [object]
 ;;;                 |                  |
 ;;;                 |    .--.          |    .-->[local-link]
-;;;     [naive]-->. |    v  |          |    |            
+;;;     [naive]-->. |    v  |          |    |
 ;;;               +>+->[closer]------->'--->+-->[encased]
-;;;  [question]-->' |       |               |            
+;;;  [question]-->' |       |               |
 ;;;                 |       |               '-->[broken]
 ;;;                 '------>'--->[remote-link]    ^
 ;;;                                  |            |
@@ -714,7 +714,7 @@
 ;;;  - Unresolved: A promise that has never been fulfilled or broken.
 ;;;  - Resolved: Either an object with its own handler or a promise which
 ;;;    has been fulfilled to some value/object reference or which has broken.
-;;; 
+;;;
 ;;; and:
 ;;;
 ;;;  - Eventual: Something which *might* eventually transition its state.
@@ -1170,7 +1170,7 @@
            ;; However, users can specifically select for a promise to be returned
            ;; by passing in #:promise? #t.
            (if promise?
-               maybe-on-vow 
+               maybe-on-vow
                '*awaited*))
 
          ;; I guess watching for this guarantees that an immediate call
@@ -1517,7 +1517,7 @@
               ;; we don't resolve the problem here... hence we don't
               ;; use call-with-resolution here either.
               (actormap-set! actormap to-refr
-                             (make-mactor:closer 
+                             (make-mactor:closer
                               unresolved point-to history
                               (cons msg waiting-messages))))
             _void])]
@@ -1603,7 +1603,7 @@
                       (_spawn-promise-values #:question-finder
                                              question-finder
                                              #:captp-connector
-                                             captp-connector)))         
+                                             captp-connector)))
          (_send-message to-refr resolver args
                         #:answer-this-question question-finder)
          promise)]
@@ -1696,7 +1696,7 @@
                  (<-np finally-handler))
                (when return-p-resolver
                  (<-np return-p-resolver resolve-fulfill-command val))])))
-    
+
     (define handle-fulfilled
       (handle-resolution fulfilled-handler 'fulfill))
     (define handle-broken
