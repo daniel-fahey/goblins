@@ -752,7 +752,7 @@ in the latter case:
          (format #t "Got an error: ~a\n" err))
        #:finally
        (lambda ()
-         (display "Whew, it's over!\n")))
+         (display "Whew, it's over!\n"))))
 @end example
 
 @node Transactions make errors survivable
@@ -769,7 +769,7 @@ and then an error:
 @example
 (define (^borked-cgreeter _bcom our-name)
   (define times-called
-    (spawn ^cell 0))
+    (spawn ^mcell 0))
   (methods
     ((get-times-called)
      ($ times-called 'get))
@@ -855,7 +855,7 @@ the company name of the factory:
   (define (^car bcom model color)
     (methods                      ; methods for the ^car
      ((drive)                    ; drive the car
-      (format #t "*Vroom vroom!*  You drive your ~a ~a ~a!"
+      (format #f "*Vroom vroom!*  You drive your ~a ~a ~a!"
               color company-name model))))
   ;; methods for the ^car-factory instance
   (methods                        ; methods for the ^car-factory
@@ -874,7 +874,7 @@ Here is an instance of this car factory, which we will call
 @end example
 
 Since asynchronous message passing with @samp{<-} works across machines,
-it does not matter whether interacitons with =fork-motors are local
+it does not matter whether interacitons with @samp{fork-motors} are local
 or via objects communicating over the network.
 We will treat @samp{fork-motors} as living on machine A, and so the
 following interactions will happen with invocations originating from
@@ -921,9 +921,9 @@ we can simply message @samp{car-vow} directly:
 @example
 ;; Interaction on machine B, communicating with A
 > (b-run
-   (on (<- car-vow 'drive)     ; B->A: send message to future car
+   (on (<- car-vow 'drive)       ; B->A: send message to future car
        (lambda (val)             ; A->B: result of that message
-         (format #f "Heard: ~a\n" val))))
+         (format #t "Heard: ~a\n" val))))
 @end example
 
 While clearly a considerable programming convenience, the other
