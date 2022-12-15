@@ -18,6 +18,7 @@
   #:re-export (live-refr?
                local-refr?
                remote-refr?
+               promise-refr?
                local-object-refr?
                local-promise-refr?
                remote-object-refr?

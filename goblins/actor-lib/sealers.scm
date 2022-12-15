@@ -45,7 +45,7 @@
            (sealed? ($ value))))
 
     (lambda (maybe-sealed)
-      (if (remote-refr? maybe-sealed)
+      (if (promise-refr? maybe-sealed)
           (on maybe-sealed is-sealed? #:promise? #t)
           (is-sealed? maybe-sealed))))
 
