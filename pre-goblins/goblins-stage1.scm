@@ -15,7 +15,7 @@
 ;; STAGE 1: Add:
 ;;  - mactor:object
 ;;  - minimal syscaller
-;;  - S
+;;  - $
 ;;  - actormap-direct-run!
 
 (define-module (pre-goblins stage1)
@@ -191,7 +191,6 @@
                      "~a" method-id)]))
     (apply method args))
 
-  ;; TODO
   (define (near-refr? obj)
     (and (local-refr? obj)
          (eq? (local-refr-vat-connector obj)

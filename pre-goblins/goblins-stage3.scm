@@ -866,7 +866,6 @@
                      "~a" method-id)]))
     (apply method args))
 
-  ;; TODO
   (define (near-refr? obj)
     (and (local-refr? obj)
          (eq? (local-refr-vat-connector obj)
@@ -1604,14 +1603,14 @@
   returned-val)
 
 (define (actormap-reckless-poke! actormap to-refr . args)
-  (define-values (returned-val transactormap _nm)
+  (define-values (returned-val _am _nm)
     (actormap-turn* actormap to-refr args))
   returned-val)
 
 ;; like actormap-run but also returns the new actormap, new-msgs
 (define (actormap-run* actormap thunk)
   (define-values (actor-refr new-actormap)
-    (actormap-spawn (make-transactormap actormap) (lambda (bcom) thunk)))
+    (actormap-spawn (make-transactormap actormap) (lambda (_bcom) thunk)))
   (define-values (returned-val new-actormap2 new-msgs)
     (actormap-turn* (make-transactormap new-actormap) actor-refr '()))
   (values returned-val new-actormap2 new-msgs))
