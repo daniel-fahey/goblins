@@ -16,6 +16,7 @@
   #:export (live-refr?
             local-refr?
             remote-refr?
+            promise-refr?
             local-object-refr?
             local-promise-refr?
             remote-object-refr?
@@ -619,6 +620,9 @@
   remote-promise-refr?
   (captp-connector remote-promise-refr-captp-connector)
   (sealed-pos remote-promise-refr-sealed-pos))
+
+(define (promise-refr? maybe-promise)
+  (or (local-promise-refr? maybe-promise) (remote-promise-refr? maybe-promise)))
 
 (define (remote-refr-captp-connector remote-refr)
   (match remote-refr
