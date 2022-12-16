@@ -778,7 +778,7 @@ systems use), we would end up with something like:
          (lambda (our-car)          ; A->B: car-vow resolved as our-car
            (on (<- our-car 'drive)  ; B->A: now we can message our-car
                (lambda (val)        ; A->B: result of that message
-                 (format #t "Heard: ~a\n" val))))))
+                 (format #f "Heard: ~a\n" val))))))
 #+END_SRC
 
 With promise pipelining, we can simply message the promise of the car
