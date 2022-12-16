@@ -1474,7 +1474,7 @@
               (lambda () (_$ point-to args)))]
             ;; it's not near so we need to pass this along
             [else
-             (_<-np point-to (list resolve-me args))
+             (_send-message point-to resolve-me args)
              _void]))]
         [(? mactor:broken?)
          (_<-np resolve-me (list 'break (mactor:broken-problem orig-mactor)))
