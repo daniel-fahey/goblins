@@ -1,6 +1,7 @@
 (define-module (goblins test-vat)
   #:use-module (goblins)
   #:use-module (goblins vat)
+  #:use-module (goblins actor-lib methods)
   #:use-module (tests utils)
   #:use-module (fibers)
   #:use-module (fibers channels)
@@ -83,7 +84,7 @@
   (lambda (color)
     (define (^car _bcom)
       (lambda ()
-    (format #f "The ~a car says: *vroom vroom*!" color)))
+        (format #f "The ~a car says: *vroom vroom*!" color)))
     (spawn ^car)))
 (define car-factory (run a-vat spawn ^car-factory))
 (let ((result
@@ -161,5 +162,44 @@
     (match result
       (#('err _err) #t)
       (_ #f))))
+
+;;; Literally the version from the Goblins docs
+
+;; Create a "car factory", which makes cars branded with
+;; company-name.
+(define (^car-factory2 bcom company-name)
+  ;; The constructor for cars we will create.
+  (define (^car bcom model color)
+    (methods                      ; methods for the ^car
+     ((drive)                    ; drive the car
+      (format #f "*Vroom vroom!*  You drive your ~a ~a ~a!"
+              color company-name model))))
+  ;; methods for the ^car-factory instance
+  (methods                        ; methods for the ^car-factory
+   ((make-car model color)       ; create a car
+    (spawn ^car model color))))
+
+(define fork-motors
+  (a-vat
+   (lambda ()
+     (spawn ^car-factory2 "Fork"))))
+
+(define car-vow
+  (b-vat
+   (lambda ()
+     (<- fork-motors 'make-car "Explorist" "blue"))))
+
+(define car-pipeline-result
+  (resolve-vow-and-return-result
+   b-vat
+   (lambda ()
+     (on (<- car-vow 'drive)       ; B->A: send message to future car
+         (lambda (val)             ; A->B: result of that message
+           (format #f "Heard: ~a\n" val))
+         #:promise? #t))))
+
+(test-equal "Make sure promise pipelining works, version 2"
+  #(ok "Heard: *Vroom vroom!*  You drive your blue Fork Explorist!\n")
+  car-pipeline-result)
 
 (test-end "test-vat")
