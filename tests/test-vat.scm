@@ -202,4 +202,8 @@
   #(ok "Heard: *Vroom vroom!*  You drive your blue Fork Explorist!\n")
   car-pipeline-result)
 
+(test-equal "Multiple return values from vat invocation"
+  (call-with-values (lambda () (a-vat (lambda () (values 1 2 3)))) list)
+  '(1 2 3))
+
 (test-end "test-vat")

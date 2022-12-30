@@ -246,9 +246,18 @@ over some of the communication aspects of controlling the vat."
     (match-lambda*
       ((or ((? procedure? thunk)) ('run (? procedure? thunk)))
        (define return-ch (make-channel))
-       (put-message control-ch (list 'run thunk return-ch))
+       ;; The user provided thunk is going to be called from within
+       ;; the vat fiber and the result returned via the return
+       ;; channel.  To allow multiple return values, we need to wrap
+       ;; up all of the thunk's return values into a list and send
+       ;; that list through the return channel.  On the caller's
+       ;; thread, the list gets converted back into multiple return
+       ;; values.
+       (define (multi-value-thunk)
+         (call-with-values thunk list))
+       (put-message control-ch (list 'run multi-value-thunk return-ch))
        (match (get-message return-ch)
-         (#('ok val) val)
+         (#('ok vals) (apply values vals))
          (#('fail err) (raise-exception err))))
       (('halt)
        (put-message control-ch 'halt))
