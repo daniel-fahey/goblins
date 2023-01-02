@@ -2195,7 +2195,7 @@
     (match this-result
       [#('ok _result)
        (transactormap-buffer-merge! buffer-am)]
-      [#('fail err) #f])
+      [#('fail err) 'no-op])
     ;; and loop!
     (if (q-empty? churn-q)
         'done
