@@ -125,11 +125,11 @@
   "Spawns a fiber for this vat and returns a channel by which
 you can speak to the vat.
 
+Positional argument:
+ - name: A name, for debugging
+
 Keywords:
  - control-ch: A control channel by which we will speak to this vat
- - fibrous-io?: (DEPRECATED, to be removed soon) whether or not actors
-   suspend to their actor prompt and return a promise when they would
-   have blocked
  - scheduler: The Fibers scheduler this vat and its delivery
    agent (for handling incoming messages) will run on
  - dynamic-wrap: Dynamically wrap the launch of the vat, allowing to
