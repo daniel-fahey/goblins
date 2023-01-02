@@ -288,7 +288,7 @@ over some of the communication aspects of controlling the vat."
 
 (define* (spawn-vat #:key (name #f))
   (let* ((name (or name (generate-random-vat-name)))
-	     (result-ch (make-channel))
+	 (result-ch (make-channel))
          (vat-halt? (make-condition))
          (vat-thread
           (call-with-new-thread
