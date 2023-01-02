@@ -2103,13 +2103,10 @@
          (if resolve-me
              (list (make-message resolve-me #f (list 'break err)))
              '()))
-       ;; TODO: Maybe make clear that this is even more
-       ;;   fundamental error?  Note that the resolver might
-       ;;   not even be resolved.  Goofy approach to that
-       ;;   for now...
        (when error-handler
          (error-handler msg err stack-at-exn))
        (values `#(fail ,err) actormap new-msgs))
+     (define handle-exn-tag (make-prompt-tag 'goblins-turn))
      (define (catch-stack-and-abort-to-prompt err)
        (define stack
          (make-stack #t catch-stack-and-abort-to-prompt))
@@ -2127,7 +2124,6 @@
        (match (get-sys-internals)
          [(new-actormap new-msgs)
           (values `#(ok ,result) new-actormap new-msgs)]))
-     (define handle-exn-tag (make-prompt-tag 'goblins-turn))
      (if catch-errors?
          ;; We're catching errors?  Well, let's capture the stack without
          ;; unwinding, *then* abort to a prompt where it's safe to process
