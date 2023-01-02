@@ -2177,7 +2177,7 @@
     (match msgs
       ('() 'done)
       ((msg next-msgs ...)
-       (queue-messages-appropriately! next-msgs)
+       (queue-messages-appropriately! next-msgs)  ; last message first
        (if (near-msg? msg)
            (enq! churn-q msg)
            (enq! send-far-q msg)))))
