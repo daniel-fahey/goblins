@@ -153,7 +153,7 @@ Keywords:
        (when (atomic-box-ref running?)
          (put-message enq-ch msg)))))
   (define actormap (make-actormap #:vat-connector vat-connector))
-  (define (vat-loop)
+  (define (start-vat-loop)
     ;; Control: operations on the vat from someone who spawned it
     (define handle-vat-control
       ;;      (match-lambda
@@ -232,7 +232,7 @@ Keywords:
    (lambda ()
      (syscaller-free
       (lambda ()
-        (spawn-fiber vat-loop scheduler)))))
+        (spawn-fiber start-vat-loop scheduler)))))
   running?)
 
 (define* (spawn-vat-proc name #:key
