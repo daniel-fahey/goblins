@@ -2144,6 +2144,7 @@
 
 (define* (actormap-churn am msg
                          #:key [catch-errors? #t]
+                         ;; TODO: for consistency, replace with a #:reckless? flag
                          [make-transactormap? #t])
   (define churn-q (make-q))     ; message to churn on here
   ;; This one doesn't really need to be a queue.  Maybe it
@@ -2271,6 +2272,9 @@
           [(? procedure? vat-connector)
            (vat-connector 'handle-message msg)]
           ;; noplace like nowhere
+          ;; TODO: Maybe we should give warnings about this, since
+          ;; delivering messages to actors that can't receive them is...
+          ;; surprising.
           [#f 'no-op])]
        ;; send remotely
        [else
