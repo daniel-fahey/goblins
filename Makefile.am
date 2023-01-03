@@ -80,6 +80,7 @@ SOURCES = goblins.scm \
           goblins/utils/weak-box.scm \
           goblins/vat.scm \
           goblins/vrun.scm \
+          goblins/repl.scm \
           tests/utils.scm
 
 TESTS = tests/actor-lib/test-cell.scm \
