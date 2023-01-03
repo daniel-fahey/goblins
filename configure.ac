@@ -33,4 +33,15 @@ guileobjectdir="${libdir}/guile/$GUILE_EFFECTIVE_VERSION/site-ccache"
 AC_SUBST([guilemoduledir])
 AC_SUBST([guileobjectdir])
 
+AC_ARG_WITH([debug],
+  [AS_HELP_STRING([--with-debug],
+  [Turn off Guile compiler optimizations])],
+  [],
+  [with_debug=no])
+
+AS_IF([test "x$with_debug" != xno],
+  [guile_debug_flags=-O0],
+  [guile_debug_flags=])
+AC_SUBST([guile_debug_flags])
+
 AC_OUTPUT

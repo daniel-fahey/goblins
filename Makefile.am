@@ -38,9 +38,10 @@ $(guile_install_go_files): install-nobase_modDATA
 
 EXTRA_DIST = $(SOURCES) $(NOCOMP_SOURCES)
 GUILE_WARNINGS = -Wunbound-variable -Warity-mismatch -Wformat
+GUILE_DEBUG_FLAGS = @guile_debug_flags@
 SUFFIXES = .scm .go
 .scm.go:
-	$(AM_V_GEN)$(top_builddir)/pre-inst-env $(GUILE_TOOLS) compile $(GUILE_TARGET) $(GUILE_WARNINGS) -o "$@" "$<"
+	$(AM_V_GEN)$(top_builddir)/pre-inst-env $(GUILE_TOOLS) compile $(GUILE_TARGET) $(GUILE_WARNINGS) $(GUILE_DEBUG_FLAGS) -o "$@" "$<"
 
 SOURCES = goblins.scm \
           goblins/actor-lib/cell.scm \
