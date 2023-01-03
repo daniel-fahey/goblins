@@ -2103,13 +2103,10 @@
          (if resolve-me
              (list (make-message resolve-me #f (list 'break err)))
              '()))
-       ;; TODO: Maybe make clear that this is even more
-       ;;   fundamental error?  Note that the resolver might
-       ;;   not even be resolved.  Goofy approach to that
-       ;;   for now...
        (when error-handler
          (error-handler msg err stack-at-exn))
        (values `#(fail ,err) actormap new-msgs))
+     (define handle-exn-tag (make-prompt-tag 'goblins-turn))
      (define (catch-stack-and-abort-to-prompt err)
        (define stack
          (make-stack #t catch-stack-and-abort-to-prompt))
@@ -2127,7 +2124,6 @@
        (match (get-sys-internals)
          [(new-actormap new-msgs)
           (values `#(ok ,result) new-actormap new-msgs)]))
-     (define handle-exn-tag (make-prompt-tag 'goblins-turn))
      (if catch-errors?
          ;; We're catching errors?  Well, let's capture the stack without
          ;; unwinding, *then* abort to a prompt where it's safe to process
@@ -2144,6 +2140,7 @@
 
 (define* (actormap-churn am msg
                          #:key [catch-errors? #t]
+                         ;; TODO: for consistency, replace with a #:reckless? flag
                          [make-transactormap? #t])
   (define churn-q (make-q))     ; message to churn on here
   ;; This one doesn't really need to be a queue.  Maybe it
@@ -2180,7 +2177,7 @@
     (match msgs
       ('() 'done)
       ((msg next-msgs ...)
-       (queue-messages-appropriately! next-msgs)
+       (queue-messages-appropriately! next-msgs)  ; last message first
        (if (near-msg? msg)
            (enq! churn-q msg)
            (enq! send-far-q msg)))))
@@ -2198,7 +2195,7 @@
     (match this-result
       [#('ok _result)
        (transactormap-buffer-merge! buffer-am)]
-      [#('fail err) #f])
+      [#('fail err) 'no-op])
     ;; and loop!
     (if (q-empty? churn-q)
         'done
@@ -2271,6 +2268,9 @@
           [(? procedure? vat-connector)
            (vat-connector 'handle-message msg)]
           ;; noplace like nowhere
+          ;; TODO: Maybe we should give warnings about this, since
+          ;; delivering messages to actors that can't receive them is...
+          ;; surprising.
           [#f 'no-op])]
        ;; send remotely
        [else

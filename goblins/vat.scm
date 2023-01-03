@@ -125,11 +125,11 @@
   "Spawns a fiber for this vat and returns a channel by which
 you can speak to the vat.
 
+Positional argument:
+ - name: A name, for debugging
+
 Keywords:
  - control-ch: A control channel by which we will speak to this vat
- - fibrous-io?: (DEPRECATED, to be removed soon) whether or not actors
-   suspend to their actor prompt and return a promise when they would
-   have blocked
  - scheduler: The Fibers scheduler this vat and its delivery
    agent (for handling incoming messages) will run on
  - dynamic-wrap: Dynamically wrap the launch of the vat, allowing to
@@ -153,7 +153,7 @@ Keywords:
        (when (atomic-box-ref running?)
          (put-message enq-ch msg)))))
   (define actormap (make-actormap #:vat-connector vat-connector))
-  (define (vat-loop)
+  (define (start-vat-loop)
     ;; Control: operations on the vat from someone who spawned it
     (define handle-vat-control
       ;;      (match-lambda
@@ -232,7 +232,7 @@ Keywords:
    (lambda ()
      (syscaller-free
       (lambda ()
-        (spawn-fiber vat-loop scheduler)))))
+        (spawn-fiber start-vat-loop scheduler)))))
   running?)
 
 (define* (spawn-vat-proc name #:key
@@ -297,7 +297,7 @@ over some of the communication aspects of controlling the vat."
 
 (define* (spawn-vat #:key (name #f))
   (let* ((name (or name (generate-random-vat-name)))
-	     (result-ch (make-channel))
+	 (result-ch (make-channel))
          (vat-halt? (make-condition))
          (vat-thread
           (call-with-new-thread
