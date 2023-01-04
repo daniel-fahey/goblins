@@ -155,7 +155,6 @@
 
   (define (uri->ocapn-id uri)
     (let ((path (uri-path uri)))
-      (pk 'path path)
       (cond [(or (string=? path "") (string=? path "/")) (uri->ocapn-machine uri)]
             [(string-prefix? "/s/" path) (uri->ocapn-sturdyref uri)]
             [#t (error "Unknown ocapn URI type" uri)])))
