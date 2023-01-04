@@ -1212,6 +1212,9 @@ Horray!
 
 ** Methods
 
+** Joiners
+
+** Sealers
 
 * COMMENT Design and philosophy
 
