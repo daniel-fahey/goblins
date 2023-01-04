@@ -92,6 +92,8 @@ actor-lib: A standard library of sorts
 
 * Cells::
 * Methods::
+* Joiners::
+* Sealers::
 
 @end detailmenu
 @end menu
@@ -1234,6 +1236,145 @@ manually.
 @node Actormaps
 @section Actormaps
 
+So far we have dealt with vats, but there is a lower level of
+abstraction in Goblins which is called an @samp{actormap}.
+
+The key differences are:
+
+@itemize
+@item
+@strong{vat}: An event loop implementation that runs continuously
+in its own thread.
+Comes pre-built with tooling to handle message passing between
+vats.
+Actually wraps an actormap.
+@item
+@strong{actormap}: The transactional datastructure that vats use.
+But, useful on its own to either build your own event loop
+or as a synchronous one-turn-at-a-time mapping of actor references
+to their current implementations.
+@end itemize
+
+The best way to learn is by doing, so let's make an actormap now:
+
+@example
+(define am (make-actormap))
+@end example
+
+Let's add an actor to it.
+Since cells are simple, let's add one of those.
+
+@example
+(define lunchbox
+  (actormap-spawn! am ^cell))
+@end example
+
+What's in the lunchbox?
+We could take a look with @samp{actormap-peek}:
+
+@example
+> (actormap-peek am lunchbox)
+; => #f
+@end example
+
+An empty lunchbox@dots{} we'd like to eat something later, so how about we
+pack ourselves a nice sandwich by using @samp{actormap-poke}:
+
+@example
+> (actormap-poke! am lunchbox 'peanut-butter-and-jelly)
+> (actormap-peek am lunchbox)
+; => 'peanut-butter-and-jelly
+@end example
+
+What if we tried to look inside the lunchbox with @samp{actormap-poke!}
+instead of @samp{actormap-peek}?
+
+@example
+> (actormap-poke! am lunchbox 'bbq-tofu)
+> (actormap-poke! am lunchbox)
+; => 'bbq-tofu
+@end example
+
+Well that worked just fine.
+What happens if we do both operations with @samp{actormap-peek}?
+
+@example
+> (actormap-peek am lunchbox 'chickpea-salad)
+> (actormap-peek am lunchbox)
+; => 'bbq-tofu
+@end example
+
+What the@dots{}???
+Our lunchbox didn't change!
+
+We said that actormaps were transactional.
+We have gotten a hint of this with the above:
+@samp{actormap-poke!} returns a value and commits any changes.
+@samp{actormap-peek} returns a value and throws any changes away.
+
+Actually, these two functions are just simple conveniences that wrap a
+more powerful (but cumbersome to use) tool, @samp{actormap-turn}:
+
+@example
+> (actormap-turn am lunchbox)
+; => 'bbq-tofu
+; => #<transactormap>
+; => '()
+(actormap-turn am lunchbox 'chickpea-salad)
+; => *unspecified* (not printed)
+; => #<transactormap>
+; => '()
+@end example
+
+@samp{actormap-turn} returns four values to its continuation: a
+return value (if any@dots{} Guile's REPL doesn't print out the unspecified
+value, which is what actually got returned in the second invocation),
+a ``transactormap'', and two lists representing messages
+queued for delivery.
+
+This @samp{#<transactormap>} is interesting@dots{} we haven't mentioned this
+before, but there are really two kinds of actormaps, ``whactormaps''
+(weak-hash actormaps) and ``transactormaps'' (which hold a transaction
+which we can choose whether or not to commit).
+Actually our @samp{am} is a whactormap:
+
+@example
+> am
+; => #<transactormap>
+@end example
+
+It's a weak hashtable which stores the current mutable state of all
+actors.
+
+But we'd like to see about that transactormap@dots{} just running
+@samp{actormap-turn} on its own won't update the lunchbox either:
+
+@example
+> (actormap-turn am lunchbox 'chickpea-salad)
+; => #<transactormap>
+> (actormap-turn am lunchbox)
+@end example
+
+We need to capture the transactormap and commit it.
+
+@example
+> (define-values (_val tr-am _nm)
+    (actormap-turn am lunchbox 'chickpea-salad))
+> tr-am
+; => #<transactormap>
+> (transactormap-merge! tr-am)
+@end example
+
+Now at least our @samp{am} actormap should reflect that we've switched out
+our @samp{'bbq-tofu} sandwich for a @samp{'chickpea-salad} one:
+
+@example
+> (actormap-peek am lunchbox)
+; => 'chickpea-salad  
+@end example
+
+Horray!
+
 @node OCapN
 @section OCapN
 
@@ -1246,6 +1387,8 @@ manually.
 @menu
 * Cells::
 * Methods::
+* Joiners::
+* Sealers::
 @end menu
 
 @node Cells
@@ -1253,6 +1396,12 @@ manually.
 
 @node Methods
 @section Methods
+
+@node Joiners
+@section Joiners
+
+@node Sealers
+@section Sealers
 
 @node Thanks
 @chapter Thanks
