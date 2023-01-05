@@ -15,13 +15,7 @@
 (define-module (goblins ocapn ids)
   #:use-module (goblins ocapn marshalling)
   #:use-module (goblins utils crypto)
-  #:use-module (goblins ocapn uri)
-  #:use-module ((web uri)
-                #:select (build-uri
-                          uri-path
-                          uri-host
-                          uri-scheme
-                          uri->string))
+  #:use-module (web uri)
   #:use-module (srfi srfi-9)
   #:use-module (ice-9 match)
   #:export (<ocapn-machine>
@@ -53,13 +47,13 @@
 
 ;; Ocapn machine type URI:
 ;;
-;;   ocapn://m.<transport>.<transport-address>[.<transport-hints>]
+;;   ocapn://<transport-address>.<transport>[.<transport-hints>]
 ;;
 ;;   <ocapn-machine $transport $transport-address $transport-hints>
 ;;
 ;; . o O (Are hints really a good idea or needed anymore?)
 
-;; EG: "ocapn://m.onion.wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"
+;; EG: "ocapn://wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.onion"
 (define-record-type <ocapn-machine>
   (make-ocapn-machine transport address hints)
   ocapn-machine?
@@ -72,9 +66,9 @@
 
 ;; Ocapn swissnum URI:
 ;;
-;;   ocapn://s.onion.abpoiyaspodyoiapsdyiopbasyop/3cbe8e02-ca27-4699-b2dd-3e284c71fa96
+;;   ocapn://abpoiyaspodyoiapsdyiopbasyop.onion/s/3cbe8e02-ca27-4699-b2dd-3e284c71fa96
 ;;
-;;   ocapn://s.<transport>.<transport-address>/<swiss-num>
+;;   ocapn://<transport-address>.<transport>/s/<swiss-num>
 ;;
 ;;   <ocapn-sturdyref <ocapn-machine $transport $transport-address $transport-hints>
 ;;                    $swiss-num>
@@ -89,7 +83,7 @@
 
 ;; Ocapn certificate URI:
 ;;
-;;   ocapn://c.<transport>.<transport-address>/<cert>
+;;   ocapn://<transport-address>.<transport>/c/<cert>
 ;;
 ;;   <ocapn-cert <ocapn-machine $transport $transport-address $transport-hints>
 ;;               $cert>
@@ -104,7 +98,7 @@
 
 ;; Ocapn bearer certificate union URI:
 ;;
-;;   ocapn://b.<transport>.<transport-address>/<cert>/<key-type>.<private-key>
+;;   ocapn://<transport-address>.<transport>/b/<cert>/<key-type>.<private-key>
 ;;
 ;;   <ocapn-bearer-union <ocapn-cert <ocapn-machine $transport
 ;;                                                  $transport-address
@@ -145,26 +139,25 @@
          (equal? m1-address m2-address))))
 
 (define (string->ocapn-id string-uri)
-  (define (host->ocapn-machine host)
-    (let* ((first-delimiter-position (string-contains host "."))
-           (transport (substring host 0 first-delimiter-position))
-           (address (substring host (+ 1 first-delimiter-position))))
-      ;; TODO: support hints?
-      (make-ocapn-machine (string->symbol transport) address #f)))
+  (define (uri->ocapn-machine uri)
+    ;; TODO: Maybe we need to support hints.
+    (let* ((host (uri-host uri))
+           (final-part (string-rindex host #\.))
+           (transport (string->symbol (substring host (+ 1 final-part))))
+           (address (substring host 0 final-part)))
+      (make-ocapn-machine transport address #f)))
 
-  (define (host->ocapn-sturdyref host uri)
-    (make-ocapn-sturdyref
-     (host->ocapn-machine host)
-     (url-base64-decode (string-trim (uri-path uri) #\/))))
+  (define (uri->ocapn-sturdyref uri)
+    (let ((path (string-trim (uri-path uri) #\/)))
+      (make-ocapn-sturdyref
+       (uri->ocapn-machine uri)
+       (url-base64-decode (substring path (+ 1 (string-index path #\/)))))))
 
   (define (uri->ocapn-id uri)
-    (let* ((host (uri-host uri))
-           (first-delimiter-position (string-contains host "."))
-           (uri-type (substring host 0 first-delimiter-position))
-           (rest-of-host (substring host (+ 1 first-delimiter-position))))
-      (match uri-type
-        ["m" (host->ocapn-machine rest-of-host)]
-        ["s" (host->ocapn-sturdyref rest-of-host uri)])))
+    (let ((path (uri-path uri)))
+      (cond [(or (string=? path "") (string=? path "/")) (uri->ocapn-machine uri)]
+            [(string-prefix? "/s/" path) (uri->ocapn-sturdyref uri)]
+            [#t (error "Unknown ocapn URI type" uri)])))
 
   (unless (string? string-uri)
     (error "Not a valid OCapN URI:" string-uri))
@@ -178,21 +171,18 @@
   (unless (ocapn-id? ocapn-id)
     (error "Not a OCapN ID" ocapn-id))
 
-  ;; TODO: For now we have to turn off validation due to bug #35
   (match ocapn-id
     [($ <ocapn-machine> transport address _hints)
      (build-uri
       'ocapn
-      #:host (string-join (list "m" (symbol->string transport) address) ".")
-      #:validate? #f)]
+      #:host (string-join (list address (symbol->string transport)) "."))]
 
     [($ <ocapn-sturdyref> ($ <ocapn-machine> transport address _hints)
         swiss-num)
      (build-uri
       'ocapn
-      #:host (string-join (list "s" (symbol->string transport) address) ".")
-      #:path (string-concatenate (list "/" (url-base64-encode swiss-num)))
-      #:validate? #f)]))
+      #:host (string-join (list address (symbol->string transport)) ".")
+      #:path (string-append "/s/" (url-base64-encode swiss-num)))]))
 
 (define (ocapn-id->string ocapn-id)
   (uri->string (ocapn-id->uri ocapn-id)))

@@ -70,7 +70,6 @@ SOURCES = goblins.scm \
           goblins/ocapn/netlayer/onion.scm \
           goblins/ocapn/netlayer/testuds.scm \
           goblins/ocapn/netlayer/utils.scm \
-          goblins/ocapn/uri.scm \
           goblins/utils/assert-type.scm \
           goblins/utils/bytes-stuff.scm \
           goblins/utils/crypto.scm \

@@ -46,8 +46,8 @@
 (define b-vat (spawn-vat #:name "b-vat"))
 (define a-new-conn-ch (make-channel))
 (define b-new-conn-ch (make-channel))
-(define a-location (string->ocapn-id "ocapn://m.fake.a"))
-(define b-location (string->ocapn-id "ocapn://m.fake.b"))
+(define a-location (string->ocapn-id "ocapn://a.fake"))
+(define b-location (string->ocapn-id "ocapn://b.fake"))
 
 (define a-netlayer
   (a-vat (lambda () (spawn ^fake-netlayer "a" test-network a-new-conn-ch))))

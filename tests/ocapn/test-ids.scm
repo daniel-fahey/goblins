@@ -56,12 +56,12 @@
 ;; Check string->ocapn-id
 (test-assert
     "Verify string->ocapn-id produces the correct ocapn-machine"
-  (equal? (string->ocapn-id "ocapn://m.fake.4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd")
+  (equal? (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake")
           ocapn-m1))
 
 (test-assert
     "Verify string->ocapn-id produces the correct ocapn-studyref"
-  (equal? (string->ocapn-id "ocapn://s.fake.4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I")
+  (equal? (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake/s/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I")
           ocapn-sref1))
 
 ;; Check ocapn-id->string
@@ -69,12 +69,12 @@
     "ocapn-id->string works for ocapn-machine"
   (string=?
    (ocapn-id->string ocapn-m1)
-   "ocapn://m.fake.4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"))
+   "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake"))
 
 (test-assert
     "ocapn-id->string works for ocapn-studyref"
   (string=?
    (ocapn-id->string ocapn-sref1)
-   "ocapn://s.fake.4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I"))
+   "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake/s/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I"))
 
 (test-end "test-ids")
