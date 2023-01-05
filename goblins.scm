@@ -14,6 +14,7 @@
 
 (define-module (goblins)
   #:use-module (goblins core)
+  #:use-module (goblins repl)
   #:use-module (goblins vat)
   #:re-export (live-refr?
                local-refr?

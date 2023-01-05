@@ -240,4 +240,16 @@
    (car what-i-got)
    'oh-no))
 
+(test-assert "raised exceptions are actormap turn errors"
+  ;; The only way this returns #t is if an actormap turn error is
+  ;; handled.
+  (with-exception-handler (const #t)
+    (lambda ()
+      (actormap-churn-run! am (lambda () (+ 1 "two")))
+      ;; If the actormap churn didn't throw an error and the test
+      ;; made it here, it would fail.
+      #f)
+    #:unwind? #t
+    #:unwind-for-type &actormap-turn-error))
+
 (test-end "test-goblins-core")

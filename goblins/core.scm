@@ -1,4 +1,5 @@
 ;;; Copyright 2019-2022 Christine Lemmer-Webber
+;;; Copyright 2022 David Thompson
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -32,6 +33,9 @@
             actormap-spawn
             actormap-spawn!
             ;; actormap-spawn-mactor!
+
+            &actormap-turn-error
+            actormap-turn-error-stack
 
             actormap-turn*
             actormap-turn
@@ -2082,6 +2086,15 @@
 (define (make-no-op msg)
   (lambda _ _void))
 
+(define &actormap-turn-error
+  (make-exception-type '&actormap-turn-error &error '(stack)))
+
+(define make-actormap-turn-error (record-constructor &actormap-turn-error))
+
+(define actormap-turn-error-stack
+  (exception-accessor &actormap-turn-error
+                      (record-accessor &actormap-turn-error 'stack)))
+
 (define* (actormap-turn-message actormap msg
                                 #:key
                                 [error-handler simple-display-error]
@@ -2103,9 +2116,14 @@
          (if resolve-me
              (list (make-message resolve-me #f (list 'break err)))
              '()))
+       ;; Decorate the original exception with an actormap turn error
+       ;; that captures the stack in which the original exception
+       ;; occurred.
+       (define turn-error
+         (make-exception (make-actormap-turn-error stack-at-exn) err))
        (when error-handler
          (error-handler msg err stack-at-exn))
-       (values `#(fail ,err) actormap new-msgs))
+       (values `#(fail ,turn-error) actormap new-msgs))
      (define handle-exn-tag (make-prompt-tag 'goblins-turn))
      (define (catch-stack-and-abort-to-prompt err)
        (define stack
