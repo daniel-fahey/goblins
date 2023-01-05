@@ -142,16 +142,16 @@
   (define (uri->ocapn-machine uri)
     ;; TODO: Maybe we need to support hints.
     (let* ((host (uri-host uri))
-           (final-part (string-rindex host #\.)))
-      (make-ocapn-machine
-       (string->symbol (substring host (+ 1 final-part)))
-       (substring host 0 final-part)
-       #f)))
+           (final-part (string-rindex host #\.))
+           (transport (string->symbol (substring host (+ 1 final-part))))
+           (address (substring host 0 final-part)))
+      (make-ocapn-machine transport address #f)))
 
   (define (uri->ocapn-sturdyref uri)
-    (make-ocapn-sturdyref
-     (uri->ocapn-machine uri)
-     (url-base64-decode (substring (uri-path uri) 3))))
+    (let ((path (string-trim (uri-path uri) #\/)))
+      (make-ocapn-sturdyref
+       (uri->ocapn-machine uri)
+       (url-base64-decode (substring path (+ 1 (string-index path #\/)))))))
 
   (define (uri->ocapn-id uri)
     (let ((path (uri-path uri)))
@@ -182,7 +182,7 @@
      (build-uri
       'ocapn
       #:host (string-join (list address (symbol->string transport)) ".")
-      #:path (string-concatenate (list "/s/" (url-base64-encode swiss-num))))]))
+      #:path (string-append "/s/" (url-base64-encode swiss-num)))]))
 
 (define (ocapn-id->string ocapn-id)
   (uri->string (ocapn-id->uri ocapn-id)))
