@@ -1398,8 +1398,8 @@ This manual was primarily written by Christine Lemmer-Webber.
 Many of the ideas are borrowed from @uref{http://www.erights.org/talks/thesis/markm-thesis.pdf, Mark Miller's dissertation},
 which is an excellent, if nerdy, read.
 
-Jessica Tallon, Jonathan A@. Rees, and Randy Farmer provided review and
-feedback.
+Jessica Tallon, Jonathan A@. Rees, Randy Farmer, and David Thompson
+provided review and feedback.
 
 @node License
 @chapter License
