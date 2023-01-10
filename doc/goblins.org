@@ -318,20 +318,14 @@ First, let's import Goblins:
 
 (*NOTE*: See [[*TEMPORARY: Live hacking "fix"][TEMPORARY: Live hacking "fix"]] if you haven't.)
 
-Every Goblins actor / object has to live in a vat somewhere.
-So, let's make a vat to play around with:
+Goblins actors live in special event loops called /vats/.
+Let's make a vat to play around with and "enter" it at the REPL:
 
 #+BEGIN_SRC scheme
-  > (define a-vat
-      (spawn-vat))
-  ;; This will make interacting with the vat a bit easier
-  > (define-vat-run a-run a-vat)
+scheme> (define a-vat (spawn-vat))
+scheme> ,enter-vat a-vat
+goblins[1]>
 #+END_SRC
-
-Objects/actors are instantiated with =spawn= and can be synchronously
-invoked with =$= or asynchronously invoked with =<-=.
-All of these operations need to operate within a Goblins-aware context,
-and so =a-run= "bootstraps" some code within the vat.
 
 Now let us implement a friend who will greet us:
 
@@ -347,7 +341,7 @@ Let's give it a try by instantiating an instance of =^greeter= using
 
 #+BEGIN_SRC scheme
  > (define alice
-     (a-run (spawn ^greeter "Alice")))
+     (spawn ^greeter "Alice"))
 #+END_SRC
 
 The first argument to =spawn= is the constructor we will use to make
@@ -361,59 +355,53 @@ We can invoke =alice= by using =$= for a synchronous call-return
 operation:
 
 #+BEGIN_SRC scheme
- > (a-run ($ alice "Alfred"))
- => "Hello Alfred, my name is Alice!"
+goblins[1]> (define alice
+              (spawn ^greeter "Alice"))
+goblins[1]> ($ alice "Alfred")
+; => "Hello Alfred, my name is Alice!"
 #+END_SRC
 
 The first argument to =$= is the object to be invoked, the remaining
 arguments are passed to the "behavior" of the object.
 Thus =your-name= in =^greeter='s behavior procedure is bound to
-="Bob"=.
+="Alfred"=.
 The behavior procedure thus proceeds with formatting and returning the
 greeting string.
 
-** Even easier hacking at the REPL
-
-Here's a  little aside that  can make  your hacking with Goblins more
-enjoyable.
-
-Setting up a vat can be annoying when all you want to do is test
-the code you've written.
-While =define-vat-run= simplifies use a little bit, it's also a bit
-funny.
-
-In "normal" Goblins code we'd just write:
+We can exit the subrepl for =a-vat= with =,q= (the same way as if
+Guile put us in a subrepl to debug an error):
 
 #+BEGIN_SRC scheme
- (define alice
-   (spawn ^greeter "Alice"))
+goblins[1]> ,q
+scheme>
 #+END_SRC
 
-But at the REPL we had to insert this =a-run= thing in the middle:
+As you have probably inferred, Goblins-specific operations such as =$=
+and =spawn= happen within a context (typically a /vat/, though there is
+an even lower-level structure called an /actormap/ which we will see
+more about later).
+However, the subrepl entered by =,enter-vat= is a convenience for
+hacking.
+We can run also run code within =a-vat= like so:
 
 #+BEGIN_SRC scheme
- > (define alice
-     (a-run (spawn ^greeter "Alice")))
+  scheme> (a-vat (lambda () ($ alice "Arthur")))
+  ; => "Hello Arthur, my name is Alice!"
 #+END_SRC
 
-If you just want to write some quick code for experimenting at the
-REPL, we have a comma command which can make your life a bit easier,
-=,vrun= (or =,vr= for short):
-
-#+BEGIN_SRC scheme
- > (use-modules (goblins vrun))
- > ,vrun (define alice (spawn ^greeter "Alice"))
- > ,vrun ($ alice "Bob")
- => "Hello Bob, my name is Alice!"
- > ,vr ($ alice "Bob")    ; same thing
- => "Hello Bob, my name is Alice!"
-#+END_SRC
-
-=,vrun= stands for "vat run", because it's a quick way to test.  It
-tries to be smart and unwrap =define= statements and such like the
-above so that they still can be bound at the REPL.
+Very few operations in Goblins spend time operating on vats directly;
+typically commands like the above only happen when bootstrapping the
+initial set of actors within a vat or when hacking, then the actors
+within the vats do their own thing.
 
 ** State as updating behavior
+
+Re-enter =a-vat='s subrepl if you haven't:
+
+#+BEGIN_SRC scheme
+scheme> ,enter-vat a-vat
+goblins[1]>
+#+END_SRC
 
 Let's introduce a simple cell which stores a value.
 This cell will have two methods:
@@ -434,19 +422,18 @@ arguments, so here we're choosing that if no arguments are provided,
 our cell shares the current value, and if one argument is provided,
 the cell updates itself to become a cell storing the new value.
 
-Let's try it.
 Cells hold values, and so do treasure chests, so let's make
 a treasure chest flavored cell.
 Taking things out and putting them back in is easy:
 
 #+BEGIN_SRC scheme
-  > (define chest
-      (a-run (spawn ^cell "sword")))
-  > (a-run ($ chest))
-  => "sword"
-  > (a-run ($ chest "gold"))
-  > (a-run ($ chest))
-  => "gold" 
+  goblins[1]> (define chest
+                (spawn ^cell "sword"))
+  goblins[1]> ($ chest)
+  ; => "sword"
+  goblins[1]> ($ chest "gold")
+  goblins[1]> ($ chest)
+  ; => "gold" 
 #+END_SRC
 
 Now we can see what =bcom= is: a capability specific to this object
@@ -476,13 +463,13 @@ as a symbol selecting the method, and the rest of the arguments are
 passed to the object:
 
 #+BEGIN_SRC scheme
-  > (define jar
-      (a-run (spawn ^mcell "cookies")))
-  > (a-run ($ jar 'get))
-  => "cookies"
-  > (a-run ($ jar 'set "crumbs"))  
-  > (a-run ($ jar 'get))
-  => "crumbs"
+  goblins[1]> (define jar
+                (spawn ^mcell "cookies"))
+  goblins[1]> ($ jar 'get)
+  ; => "cookies"
+  goblins[1]> ($ jar 'set "crumbs")
+  goblins[1]> ($ jar 'get)
+  ; => "crumbs"
 #+END_SRC
 
 Methods aren't particularly magical... the =methods= macro just
@@ -496,9 +483,9 @@ returns a procedure which is convenient to use for procedure dispatch:
        ((bar arg)
         (list 'called-bar-with arg))))
   > (foo-or-bar 'foo)
-  => called-foo
+  ; => called-foo
   > (foo-or-bar 'bar "meep")
-  => (called-bar-with "meep")
+  ; => (called-bar-with "meep")
 #+END_SRC
 
 So really, =methods= just makes a particularly useful kind of
@@ -535,16 +522,16 @@ The current value of this cell is returned by =get-times-called=
 and is updated every time the =greet= method is called:
 
 #+BEGIN_SRC scheme
-  > (define julius
-      (a-run (spawn ^cgreeter "Julius")))
-  > (a-run ($ julius 'get-times-called))
-  => 0
-  > (a-run ($ julius 'greet "Gaius"))
-  => "[1] Hello Gaius, my name is Julius!"
-  > (a-run ($ julius 'greet "Brutus"))
-  => "[2] Hello Brutus, my name is Julius!"
-  > (a-run ($ julius 'get-times-called))
-  => 2
+  goblins[1]> (define julius
+                (spawn ^cgreeter "Julius"))
+  goblins[1]> ($ julius 'get-times-called)
+  ; => 0
+  goblins[1]> ($ julius 'greet "Gaius")
+  ; => "[1] Hello Gaius, my name is Julius!"
+  goblins[1]> ($ julius 'greet "Brutus")
+  ; => "[2] Hello Brutus, my name is Julius!"
+  goblins[1]> ($ julius 'get-times-called)
+  ; => 2
 #+END_SRC
 
 ** Asynchronous message passing
@@ -554,31 +541,33 @@ synchronously with =$=.
 However, this only works if two objects are both defined on the same
 machine on the network and the same event loop within that machine.
 
-To demonstrate this, let's create a new vat, =b-vat= (as well as a
-=b-run= to make REPL examples a bit easier to demonstrate):
+Now, recall our friend =alice= who we defined on vat A.
+The following works just fine if we're still executing within
+=a-vat='s subrepl context:
 
 #+BEGIN_SRC scheme
-  > (define b-vat
-      (spawn-vat))
-  > (define-vat-run b-run b-vat)
+ goblins[1]> ($ alice "Alfred")
+ => "Hello Alfred, my name is Alice!"
 #+END_SRC
 
-Now, recall our friend =alice= who we defined on vat A.
-The following works just fine:
+But let's exit the =a-vat= subrepl and make =b-vat= and enter that:
 
 #+BEGIN_SRC scheme
- > (a-run ($ alice "Alfred"))
- => "Hello Alfred, my name is Alice!"
+  goblins[1]> ,q
+  scheme> (define b-vat
+            (spawn-vat))
+  scheme> ,enter-vat b-vat
+  goblins[1]>
 #+END_SRC
 
 But since Alice works on A, we cannot synchronously invoke her with
 =$= on vat B:
 
 #+BEGIN_SRC scheme
-> (b-run ($ alice "Bob"))
-;; === Caught error: ===
-;;  message: #<<message> to: #<local-object> resolve-me: #f args: ()>
-;;  exception: ... "Not in the same vat: ~a" #<local-object ^greeter>) ...
+  goblins[1]> ($ alice "Bob")
+  ;; === Caught error: ===
+  ;;  message: #<<message> to: #<local-object> resolve-me: #f args: ()>
+  ;;  exception: ... "Not in the same vat:" #<local-object ^greeter>) ...
 #+END_SRC
 
 This is where =<-= comes in.
@@ -588,8 +577,8 @@ However, unlike invocation with =$=, we do not get back an
 immediate result, we get a promise:
 
 #+BEGIN_SRC scheme
-> (b-run (<- alice "Bob"))
-=> #<promise>
+  goblins[1]> (<- alice "Bob")
+  ; => #<promise>
 #+END_SRC
 
 This promise must be listened to.
@@ -597,38 +586,42 @@ The procedure to listen to promises in Goblins is called
 =on=:
 
 #+BEGIN_SRC scheme
-  > (b-run
-     (on (<- alice "Bob")
-       (lambda (got-back)
-         (format #t "Heard back: ~a\n"
-                 got-back))))
+  goblins[1]> (on (<- alice "Bob")
+                  (lambda (got-back)
+                    (format #t "Heard back: ~a\n"
+                            got-back)))
   ; Prints out, at some point in the future:
   ;   "Heard back: [3] Hello Bob, my name is Alice!"
 #+END_SRC
 
 Not all communication goes as planned, especially in a distributed
 system.
+Consider an object which breaks in the middle of execution, such as
+an instance of =^broken= here:
+
+#+BEGIN_SRC scheme
+  (define (^broken _bcom)
+    (lambda ()
+      (error "Yikes, I broke!")))
+#+END_SRC
+
 =on= also supports the keyword arguments of =#:catch= and =#:finally=,
 which both accept a procedure defining handling errors in the former case
 and code which will run regardless of successful resolution or failure
 in the latter case:
 
 #+BEGIN_SRC scheme
-  > (define (^broken-ben _bcom)
-      (lambda ()
-        (error "Yikes, I broke!")))
-  > (define broken-ben
-      (b-run (spawn ^broken-ben)))
-  > (a-run
-     (on (<- broken-ben)
-         (lambda (what-did-ben-say)
-           (format #t "Ben says: ~a\n" what-did-ben-say))
-         #:catch
-         (lambda (err)
-           (format #t "Got an error: ~a\n" err))
-         #:finally
-         (lambda ()
-           (display "Whew, it's over!\n"))))
+  goblins[1]> (define broken-ben
+                (spawn ^broken-ben))
+  goblins[1]> (on (<- broken-ben)
+                  (lambda (what-did-ben-say)
+                    (format #t "Ben says: ~a\n" what-did-ben-say))
+                  #:catch
+                  (lambda (err)
+                    (format #t "Got an error: ~a\n" err))
+                  #:finally
+                  (lambda ()
+                    (display "Whew, it's over!\n")))
 #+END_SRC
 
 ** Transactions make errors survivable
@@ -663,11 +656,11 @@ and then an error:
 Now let's spawn this friend and invoke it:
 
 #+BEGIN_SRC scheme
-  > (define horatio
-      (a-run (spawn ^borked-cgreeter "Horatio")))
-  > (a-run ($ horatio 'get-times-called))
-  => 0
-  > (a-run ($ horatio 'greet "Hamlet"))
+  goblins[1]> (define horatio
+                (spawn ^borked-cgreeter "Horatio"))
+  goblins[1]> ($ horatio 'get-times-called)
+  ; => 0
+  goblins[1]> ($ horatio 'greet "Hamlet")
   ; pk debug: (before-incr 0)
   ; pk debug: (after-incr 1)
   ; ice-9/boot-9.scm:1685:16: In procedure raise-exception:
@@ -681,8 +674,8 @@ be incremented to 1.
 And yet...
 
 #+BEGIN_SRC scheme
-> (a-run ($ horatio 'get-times-called))
-=> 0
+  goblins[1]> ($ horatio 'get-times-called)
+  ; => 0
 #+END_SRC
 
 We will cover this in greater detail later, but the core idea here
@@ -733,13 +726,12 @@ the company name of the factory:
 #+END_SRC
 
 Here is an instance of this car factory, which we will call
-=fork-motors=:
+=fork-motors=, which we will spawn on =a-vat=:
 
 #+BEGIN_SRC scheme
-  ;; Interaction on machine A
-  > (define fork-motors
-      (a-run
-       (spawn ^car-factory "Fork")))
+  scheme> ,enter a-vat
+  goblins[1]> (define fork-motors
+                (spawn ^car-factory "Fork"))
 #+END_SRC
 
 Since asynchronous message passing with =<-= works across machines,
@@ -755,12 +747,12 @@ shall name =car-vow= (=-vow= being the conventional suffix given
 for promises in Goblins):
 
 #+BEGIN_SRC scheme
+  goblins[1]> ,q
+  scheme> ,enter-vat b-vat
   ;; Interaction on machine B, communicating with fork-motors on A
-  > (define car-vow
-      (b-run
-       (<- fork-motors 'make-car "Explorist" "blue")))
+  goblins[1]> (define car-vow
+                (<- fork-motors 'make-car "Explorist" "blue"))
 #+END_SRC
-
 
 So we have a /promise/ to a future car reference, but not the
 reference itself.
@@ -773,12 +765,11 @@ systems use), we would end up with something like:
 
 #+BEGIN_SRC scheme
   ;; Interaction on machine B, communicating with A
-  > (b-run
-     (on car-vow                    ; B->A: first resolve the car-vow
-         (lambda (our-car)          ; A->B: car-vow resolved as our-car
-           (on (<- our-car 'drive)  ; B->A: now we can message our-car
-               (lambda (val)        ; A->B: result of that message
-                 (format #f "Heard: ~a\n" val))))))
+  goblins[1]> (on car-vow                    ; B->A: first resolve the car-vow
+                  (lambda (our-car)          ; A->B: car-vow resolved as our-car
+                    (on (<- our-car 'drive)  ; B->A: now we can message our-car
+                        (lambda (val)        ; A->B: result of that message
+                          (format #f "Heard: ~a\n" val)))))
 #+END_SRC
 
 With promise pipelining, we can simply message the promise of the car
@@ -789,10 +780,9 @@ we can simply message =car-vow= directly:
 
 #+BEGIN_SRC scheme
   ;; Interaction on machine B, communicating with A
-  > (b-run
-     (on (<- car-vow 'drive)       ; B->A: send message to future car
-         (lambda (val)             ; A->B: result of that message
-           (format #t "Heard: ~a\n" val))))
+  goblins[1]> (on (<- car-vow 'drive)       ; B->A: send message to future car
+                  (lambda (val)             ; A->B: result of that message
+                    (format #t "Heard: ~a\n" val)))
 #+END_SRC
 
 While clearly a considerable programming convenience, the other
