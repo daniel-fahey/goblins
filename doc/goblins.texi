@@ -86,6 +86,7 @@ Objects
 Vats
 
 * Starting and stopping vats::
+* Rolling your own vats::
 
 actor-lib: A standard library of sorts
 
@@ -1179,6 +1180,7 @@ iteration of these docs.  ;)
 
 @menu
 * Starting and stopping vats::
+* Rolling your own vats::
 @end menu
 
 @node Starting and stopping vats
@@ -1187,38 +1189,126 @@ iteration of these docs.  ;)
 @example
 > (define my-vat (spawn-vat))
 > my-vat
-=> #<procedure (vat-controller)>
+=> #<vat izvD0DJT>
 @end example
 
-Running @samp{spawn-vat} returns what's called a ``vat controller''.
-Running with no argument runs some code in the vat, blocking until
-a response is returned@dots{} useful for bootstrapping vats, or
-hacking at the REPL:
+Running @samp{spawn-vat} returns a vat object.  Code can be run within the
+context of a vat using the @samp{call-with-vat} procedure.  This is useful
+for bootstrapping vats, or hacking at the REPL:
 
 @example
 > (define my-vat (spawn-vat))
-=> #<procedure (vat-controller)>
-> (my-vat
-    (lambda ()
-      (define alice (spawn ^greeter "Alice"))
-      ($ alice "Bob")))
+> (call-with-vat my-vat
+   (lambda ()
+     (define alice (spawn ^greeter "Alice"))
+     ($ alice "Bob")))
 => "Hello Alice, my name is Bob!"
 @end example
 
-You can also send it the @samp{'halt} method to stop the vat,
-and @samp{'running?} to check its status:
+For convenience, the @samp{with-vat} macro can be used instead of
+@samp{call-with-vat}.  Here's the above example rewritten to use
+@samp{with-vat}:
 
 @example
-> (my-vat 'halt)
-> (my-vat 'running?)
+> (define my-vat (spawn-vat))
+> (with-vat my-vat
+   (define alice (spawn ^greeter "Alice"))
+   ($ alice "Bob"))
+=> "Hello Alice, my name is Bob!"
+@end example
+
+You can also use the @samp{vat-halt!} procedure to stop the vat, and
+@samp{vat-running?} to check its status:
+
+@example
+> (vat-halt! my-vat)
+> (vat-running? my-vat)
 => #f
 @end example
 
 @strong{NOTE:} In the future, we would like vats to automatically halt when
 no more references exist and thus the vat can do no more work.  The
 Racket version of vats works this way, it would be good for the Guile
-version to do the same.  In the meanwhile, you'll need to use @samp{'halt}
-manually.
+version to do the same.  In the meanwhile, you'll need to call
+@samp{vat-halt!} manually.
+
+@node Rolling your own vats
+@subsection Rolling your own vats
+
+Goblins comes with a built-in vat implementation that is
+general-purpose and useful in most situations.  However, using Goblins
+with a foreign event loop (such as a GUI widget toolkit or game
+engine) calls for a specialized vat that knows how to hook into it.
+The API described below is considered unstable and likely to change in
+future releases of Goblins, so be prepared to update custom vat code
+at a later date.
+
+The @samp{make-vat} constructor is used to make specialized vats.  Below is
+some pseudocode that illustrates the basic pattern:
+
+@example
+> (define (make-custom-vat)
+    (define thread #f)
+    (define (start churn)
+      (define (loop)
+        (churn (dequeue-msg))
+        (loop))
+      (set! thread (call-with-new-thread loop)))
+    (define (halt)
+      (cancel-thread thread))
+    (define (send msg return?)
+      (if return?
+          (enqueue-msg-and-wait-for-result msg)
+          (enqueue-msg msg)))
+    (make-vat #:start start
+              #:halt halt
+              #:send send))
+@end example
+
+How to implement @samp{enqueue-msg}, @samp{enqueue-msg-and-wait-for-result}, and
+@samp{dequeue-msg} depends on the integration target and is left as an
+exercise for the implementer.
+
+Vat implementations must provide three hook procedures to @samp{make-vat}:
+
+@itemize
+@item
+@samp{start}: This procedure starts the vat message processor in the
+desired foreign event loop.  It accepts a @samp{churn} procedure as its
+only argument.  The @samp{churn} procedure accepts a message object and
+processes it using the vat's underlying actormap.
+@item
+@samp{halt}: This procedure stops vat message processing.  It is a thunk,
+meaning that it accepts zero arguments.
+@item
+@samp{send}: This procedure receives a message to process within the vat.
+It accepts two arguments: a message and a boolean flag indicating if
+the result of processing the message needs to be returned to the
+caller.  When the return flag is @samp{#f}, vat implementations can
+simply queue the message for processing and move on.  When it is
+@samp{#t}, however, the vat must arrange to wait and retrieve the
+eventual result of processing the message.
+@end itemize
+
+Custom vat implementations @emph{must} enqueue and dequeue messages in a
+thread-safe manner because incoming messages from other vats may be,
+and likely are, running in a different thread.
+
+The @samp{vat-start!} procedure initiates the processing of messages sent
+to the vat.
+
+@example
+> (define custom-vat (make-custom-vat))
+> (vat-start! custom-vat)
+@end example
+
+Once a custom vat has been started, it can be used as usual:
+
+@example
+> (define alice
+    (with-vat custom-vat
+     (spawn ^greeter "Alice")))
+@end example
 
 @node Actormaps
 @section Actormaps

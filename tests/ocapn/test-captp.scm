@@ -27,65 +27,56 @@
 
 (define test-vat (spawn-vat #:name "test"))
 (define test-network
-  (test-vat
-   (lambda ()
-     (spawn ^fake-network))))
+  (with-vat test-vat
+   (spawn ^fake-network)))
 
 (define (make-new-machine name)
   (define machine-vat (spawn-vat #:name name))
   (define new-conn-ch (make-channel))
-  (test-vat
-   (lambda ()
-     ($ test-network 'register name new-conn-ch)))
+  (with-vat test-vat
+    ($ test-network 'register name new-conn-ch))
   (define location (make-ocapn-machine 'fake name #f))
   (define netlayer
-    (machine-vat
-     (lambda ()
-       (spawn ^fake-netlayer name test-network new-conn-ch))))
+    (with-vat machine-vat
+     (spawn ^fake-netlayer name test-network new-conn-ch)))
   (define mycapn
-    (machine-vat
-     (lambda ()
-       (spawn-mycapn netlayer))))
+    (with-vat machine-vat
+     (spawn-mycapn netlayer)))
   (values machine-vat netlayer mycapn))
 
 ;; Spawn bob on b
 (define-values (b-vat b-netlayer b-mycapn)
   (make-new-machine "b"))
 (define bob
-  (b-vat
-   (lambda ()
-     (spawn ^bob))))
+  (with-vat b-vat
+    (spawn ^bob)))
 (define bob-sref
-  (b-vat
-   (lambda ()
-     ($ b-mycapn 'register bob 'fake))))
+  (with-vat b-vat
+   ($ b-mycapn 'register bob 'fake)))
 
 ;; Spawn carol on c
 (define-values (c-vat c-netlayer c-mycapn)
   (make-new-machine "c"))
 (define carol
-  (c-vat
-   (lambda ()
-     (spawn ^carol))))
+  (with-vat c-vat
+   (spawn ^carol)))
 (define carol-sref
-  (c-vat
-   (lambda ()
-     ($ c-mycapn 'register carol 'fake))))
+  (with-vat c-vat
+   ($ c-mycapn 'register carol 'fake)))
 
 ;; Spawn alice on a with a reference to carol and bob
 (define-values (a-vat a-netlayer a-mycapn)
   (make-new-machine "a"))
 (define alice
-  (a-vat
-   (lambda ()
-     ;; Bootstrap bob and carol with sturdyrefs
-     (define bob-vow ($ a-mycapn 'enliven bob-sref))
-     (define carol-vow ($ a-mycapn 'enliven carol-sref))
-     ;; The vows need to be resolved for this to perform a handoff
-     (on (all-of bob-vow carol-vow)
-         (lambda (bob-carol-pair)
-           (spawn ^alice (car bob-carol-pair) (car (cdr bob-carol-pair))))
-         #:promise? #t))))
+  (with-vat a-vat
+    ;; Bootstrap bob and carol with sturdyrefs
+    (define bob-vow ($ a-mycapn 'enliven bob-sref))
+    (define carol-vow ($ a-mycapn 'enliven carol-sref))
+    ;; The vows need to be resolved for this to perform a handoff
+    (on (all-of bob-vow carol-vow)
+        (lambda (bob-carol-pair)
+          (spawn ^alice (car bob-carol-pair) (car (cdr bob-carol-pair))))
+        #:promise? #t)))
 
 (let ((result
        (resolve-vow-and-return-result
@@ -104,10 +95,15 @@
         (format #f "a ~a ~a ~a goes ~a!" color brand model noise)))
     (spawn ^car)))
 
-(let* ((fork-factory (a-vat (lambda () (spawn ^kw-car-factory "fork"))))
-       (fork-factory-sref (a-vat (lambda () ($ a-mycapn 'register fork-factory 'fake))))
-       (fork-factory-vow (b-vat (lambda () (<- b-mycapn 'enliven fork-factory-sref))))
-       (red-explorist-vow (b-vat (lambda () (<- fork-factory-vow "explorist" #:color "red" #:noise "vrooom"))))
+(let* ((fork-factory (with-vat a-vat
+                       (spawn ^kw-car-factory "fork")))
+       (fork-factory-sref (with-vat a-vat
+                            ($ a-mycapn 'register fork-factory 'fake)))
+       (fork-factory-vow (with-vat b-vat
+                           (<- b-mycapn 'enliven fork-factory-sref)))
+       (red-explorist-vow (with-vat b-vat
+                            (<- fork-factory-vow "explorist"
+                                #:color "red" #:noise "vrooom")))
        (result
         (resolve-vow-and-return-result
          b-vat

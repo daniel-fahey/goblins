@@ -27,11 +27,21 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 threads)
-  #:export (spawn-vat-fiber
-            spawn-vat-proc
+  #:use-module (srfi srfi-9)
+  #:use-module (srfi srfi-9 gnu)
+  #:export (make-vat
+            vat?
+            vat-name
+            vat-running?
+            vat-halt!
+            vat-start!
+            call-with-vat
+            with-vat
+            make-fibrous-vat
+            spawn-fibrous-vat
             spawn-vat
-            syscaller-free-fiber
 
+            syscaller-free-fiber
             spawn-fibrous-vow
             fibrous
 
@@ -116,154 +126,184 @@
 (define (generate-random-vat-name)
   (random-name 8))
 
-;; TODO: An explicit 'halt message isn't as ideal as vats which auto-gc.
-;; But that is probably possible... we could possibly set up a fializer
-;; that is attached to the vat-control-ch and vat-connector of this vat.
-(define* (spawn-vat-fiber name #:key (control-ch (make-channel))
-                          (scheduler (default-vat-scheduler))
-                          (dynamic-wrap port-redirect-dynamic-wrap))
-  "Spawns a fiber for this vat and returns a channel by which
-you can speak to the vat.
+(define-record-type <vat>
+  (%make-vat name actormap running start-proc halt-proc send-proc)
+  vat?
+  (name vat-name)
+  (actormap vat-actormap)
+  (running vat-running)
+  (start-proc vat-start-proc)
+  (halt-proc vat-halt-proc)
+  (send-proc vat-send-proc))
 
-Positional argument:
- - name: A name, for debugging
+(define (print-vat vat port)
+  (format port "#<vat ~a>" (vat-name vat)))
 
-Keywords:
- - control-ch: A control channel by which we will speak to this vat
- - scheduler: The Fibers scheduler this vat and its delivery
-   agent (for handling incoming messages) will run on
- - dynamic-wrap: Dynamically wrap the launch of the vat, allowing to
-   set parameters, etc.  By default redirects current-output-port and
-   current-error-port back to their defaults to prevent Geiser evaluation
-   screwing up things up."
-  (define running? (make-atomic-box #t))
-  (define-values (enq-ch deq-ch stop?)
-    (spawn-delivery-agent #:scheduler scheduler))
-  ;; TODO: Maybe the vat connectors can just be channels sometimes?
-  ;; That would simplify this dramatically.  In fact if 'handle-message
-  ;; remains the only message, it could just be the enq-ch?
-  ;; Oh, except the ability to not block if running? is disabled is kinda
-  ;; key, huh!
-  (define vat-connector
-    (match-lambda*
+(set-record-type-printer! <vat> print-vat)
+
+(define* (make-vat #:key (name (generate-random-vat-name))
+                   start halt send)
+  "Return a new vat named NAME.  Vat behavior is determined by three
+event hooks:
+
+START: A procedure that starts the vat process, presumably in a new
+thread or other non-blocking manner. Accepts one argument: a procedure
+which takes a message as its one argument and churns the underlying
+actormap for the vat.
+
+HALT: A thunk that stops the vat process.
+
+SEND: A procedure that accepts a message to handle within the vat
+process and a boolean flag indicating if the message result needs to
+be returned to the sender or not."
+  (define running? (make-atomic-box #f))
+  (define (vat-connector . args)
+    (match args
       (('handle-message msg)
        ;; TODO: We should indicate to the procedure which calls this that
        ;; the attempt to send the message failed... so, return an 'ok
        ;; or 'failed message here?
        (when (atomic-box-ref running?)
-         (put-message enq-ch msg)))))
-  (define actormap (make-actormap #:vat-connector vat-connector))
-  (define (start-vat-loop)
-    ;; Control: operations on the vat from someone who spawned it
-    (define handle-vat-control
-      ;;      (match-lambda
-      (lambda (arg)
-        (match arg
-          ('halt
-           (atomic-box-set! running? #f))
-          (('run thunk return-ch)
-           (call/ec
-            (lambda (abort)
-              ;; Yes, we also have slightly similar but almost the same error
-              ;; handling here as a bit lower, because we want to return the
-              ;; exception to the REPL in case things fail here
-              (define (handle-exn exn)
-                (define stack
-                  (make-stack #t handle-exn))
-                (display-backtrace stack (current-error-port))
-                (newline (current-error-port))
-                (syscaller-free-fiber
-                 (lambda ()
-                   (put-message return-ch `#(fail ,exn))))
-                (abort))
-              (define (do-run)
-                (define-values (returned new-actormap new-msgs)
-                  (actormap-churn-run actormap thunk))
-                (dispatch-messages new-msgs)
-                (match returned
-                  [#('ok rval)
-                   (transactormap-merge! new-actormap)]
-                  [_ #f])
-                ;; we have the put-message be run in its own fiber so that if
-                ;; the other side isn't listening for it anymore, the vat
-                ;; itself doesn't end up blocked
-                (syscaller-free
-                 (lambda ()
-                   (spawn-fiber
-                    (lambda ()
-                      (put-message return-ch returned))
-                    scheduler))))
-              (with-exception-handler handle-exn
-                do-run)))))))
-    ;; Connect: operations on the vat from the outside
-    (define (handle-incoming-message msg)
-      (define-values (returned new-actormap new-msgs)
-        (actormap-churn actormap msg))
-      (dispatch-messages new-msgs)
-      (match returned
-        [#('ok rval)
-         (transactormap-merge! new-actormap)]
-        [_ #f]))
-    ;; And now loop doing this...
-    (while (atomic-box-ref running?)     ; ... unless it's time to stop
-      (call/ec
-       (lambda (abort)
-         ;; Error handling in case one of these goes badly...
-         (define (handle-exn exn)
-           (define stack
-             (make-stack #t handle-exn))
-           (display-backtrace stack (current-error-port))
-           (newline (current-error-port))
-           (abort))
-         ;; Actually run operation
-         (define (handle-op)
-           (perform-operation
-            (choice-operation (wrap-operation (get-operation control-ch)
-                                              handle-vat-control)
-                              (wrap-operation (get-operation deq-ch)
-                                              handle-incoming-message))))
-         (with-exception-handler handle-exn
-           handle-op)))))
-  ;; Wrap vat spawning in "ambient advice", allowing an opportunity
-  ;; to set up parameters, etc
-  (define _dynamic-wrap
-    (or dynamic-wrap (lambda (proc) (proc))))
-  (_dynamic-wrap
-   (lambda ()
-     (syscaller-free
-      (lambda ()
-        (spawn-fiber start-vat-loop scheduler)))))
-  running?)
+         (send msg #f)))))
+  (define am (make-actormap #:vat-connector vat-connector))
+  (%make-vat name am running? start halt send))
 
-(define* (spawn-vat-proc name #:key
-                         (control-ch (make-channel))
-                         (dynamic-wrap port-redirect-dynamic-wrap))
-  "Like spawn-vat-fiber except returns a convenient procedure which abstracts
-over some of the communication aspects of controlling the vat."
-  (define running?
-    (spawn-vat-fiber name #:control-ch control-ch))
-  (define vat-controller
-    (match-lambda*
-      ((or ((? procedure? thunk)) ('run (? procedure? thunk)))
-       (define return-ch (make-channel))
-       ;; The user provided thunk is going to be called from within
-       ;; the vat fiber and the result returned via the return
-       ;; channel.  To allow multiple return values, we need to wrap
-       ;; up all of the thunk's return values into a list and send
-       ;; that list through the return channel.  On the caller's
-       ;; thread, the list gets converted back into multiple return
-       ;; values.
-       (define (multi-value-thunk)
-         (call-with-values thunk list))
-       (put-message control-ch (list 'run multi-value-thunk return-ch))
-       (match (get-message return-ch)
-         (#('ok vals) (apply values vals))
-         (#('fail err) (raise-exception err))))
-      (('halt)
-       (put-message control-ch 'halt))
-      (('running?)
-       (atomic-box-ref running?))))
-  vat-controller)
+(define (vat-running? vat)
+  "Return #t if VAT is currently running."
+  (atomic-box-ref (vat-running vat)))
+
+(define (vat-halt! vat)
+  "Stop processing turns for VAT."
+  (atomic-box-set! (vat-running vat) #f)
+  ((vat-halt-proc vat)))
+
+(define (vat-start! vat)
+  "Start processing turns for VAT."
+  (define running? (vat-running vat))
+  (define actormap (vat-actormap vat))
+  (define (maybe-merge returned am)
+    (match returned
+      [#('ok rval)
+       (transactormap-merge! am)]
+      [_ #f]))
+  (define (call-with-error-handling thunk handler)
+    (call/ec
+     (lambda (abort)
+       (define (handle-error exn)
+         (define stack (make-stack #t handle-error))
+         (display-backtrace stack (current-error-port))
+         (newline (current-error-port))
+         (abort (handler exn)))
+       (with-exception-handler handle-error thunk))))
+  (define (churn msg)
+    (call-with-error-handling
+     (lambda ()
+       (define-values (returned new-actormap new-msgs)
+         (actormap-churn actormap msg))
+       (dispatch-messages new-msgs)
+       (maybe-merge returned new-actormap)
+       returned)
+     (lambda (exn)
+       `#(fail ,exn))))
+  (unless (atomic-box-ref running?)
+    (atomic-box-set! running? #t)
+    ((vat-start-proc vat) churn)))
+
+(define (vat-send vat msg)
+  ((vat-send-proc vat) msg #t))
+
+(define (call-with-vat vat thunk)
+  "Run THUNK in the context of VAT and return the resulting values."
+  (if (vat-running? vat)
+      (let ((am (vat-actormap vat)))
+        ;; The user provided thunk is going to be called
+        ;; asynchronously within a vat turn, likely in another thread,
+        ;; which makes handling multiple return values tricky.  To
+        ;; make things easy for vat implementations, we wrap up all of
+        ;; the original thunk's return values into a list so there's
+        ;; only a single value to pass back.  Here in the caller's
+        ;; thread, the list gets converted back into multiple return
+        ;; values.
+        (define (multi-value-thunk)
+          (call-with-values thunk list))
+        ;; Spawn a throwaway actor whose behavior is just to apply the
+        ;; thunk.
+        (define refr (actormap-spawn! am (lambda (_bcom) multi-value-thunk)))
+        (match (vat-send vat (make-message refr #f '()))
+          (#('ok vals) (apply values vals))
+          (#('fail err) (raise-exception err))))
+      (error "vat is not running" vat)))
+
+(define-syntax-rule (with-vat vat body ...)
+  (call-with-vat vat (lambda () body ...)))
+
+(define* (make-fibrous-vat #:key (name (generate-random-vat-name))
+                           (scheduler (default-vat-scheduler))
+                           (dynamic-wrap port-redirect-dynamic-wrap))
+  (define done? (make-condition))
+  (define-values (enq-ch deq-ch stop?)
+    (spawn-delivery-agent #:scheduler scheduler))
+  (define (start churn)
+    (define (handle-message args)
+      (match args
+        ((msg return-ch)
+         ;; We have the put-message be run in its own fiber so that if
+         ;; the other side isn't listening for it anymore, the vat
+         ;; itself doesn't end up blocked.
+         (syscaller-free-fiber
+          (lambda ()
+            (put-message return-ch (churn msg)))))
+        (msg
+         (churn msg))))
+    (define (loop)
+      ;; This loop will repeatedly handle a new message or detect if
+      ;; the 'done?' condition has been signalled.  The message
+      ;; handler will churn the vat and loop.  The loop terminates
+      ;; when the 'done?' condition is signalled.
+      (and (perform-operation
+            (choice-operation (wrap-operation (get-operation deq-ch)
+                                              (lambda (args)
+                                                (handle-message args)
+                                                #t))
+                              (wrap-operation (wait-operation done?)
+                                              (lambda () #f))))
+           (loop)))
+    ;; So much nesting you might think a bird wrote this.
+    (call-with-new-thread
+     (lambda ()
+       (run-fibers
+        (lambda ()
+          (dynamic-wrap
+           (lambda ()
+             (syscaller-free
+              (lambda ()
+                (spawn-fiber loop scheduler)
+                (wait done?))))))))))
+  (define (halt)
+    (signal-condition! done?)
+    *unspecified*)
+  (define (send msg return?)
+    (if return?
+        (let ((return-ch (make-channel)))
+          (put-message enq-ch (list msg return-ch))
+          (get-message return-ch))
+        (put-message enq-ch msg)))
+  (make-vat #:name name
+            #:start start
+            #:halt halt
+            #:send send))
+
+(define* (spawn-fibrous-vat #:key (name (generate-random-vat-name))
+                            (scheduler (default-vat-scheduler))
+                            (dynamic-wrap port-redirect-dynamic-wrap))
+  (let ((vat (make-fibrous-vat #:name name
+                               #:scheduler scheduler
+                               #:dynamic-wrap dynamic-wrap)))
+    (vat-start! vat)
+    vat))
+
+(define* (spawn-vat #:key (name (generate-random-vat-name)))
+  (spawn-fibrous-vat #:name name))
 
 (define (syscaller-free-fiber thunk)
   (syscaller-free
@@ -295,22 +335,6 @@ over some of the communication aspects of controlling the vat."
 (define-syntax-rule (fibrous body ...)
   (spawn-fibrous-vow (lambda () body ...)))
 
-(define* (spawn-vat #:key (name #f))
-  (let* ((name (or name (generate-random-vat-name)))
-	 (result-ch (make-channel))
-         (vat-halt? (make-condition))
-         (vat-thread
-          (call-with-new-thread
-           (lambda ()
-             (run-fibers
-              (lambda ()
-                (define a-vat (spawn-vat-proc name))
-                (put-message result-ch a-vat)
-                (wait vat-halt?))))))
-         (new-vat  ; vat controller procedure
-          (get-message result-ch)))
-    new-vat))
-
 (define-syntax define-vat-run
   (syntax-rules ()
     ((define-vat-run vat-run-id vat)
@@ -319,8 +343,7 @@ over some of the communication aspects of controlling the vat."
        (define-syntax vat-run-id
          (syntax-rules ::: ()
                        ((_ body :::)
-                        (this-vat (lambda ()
-                                    body :::)))))))
+                        (with-vat this-vat body :::))))))
     ((define-vat-run vat-run-id)
      (define-vat-run vat-run-id (spawn-vat)))))
 

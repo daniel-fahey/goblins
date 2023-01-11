@@ -12,31 +12,26 @@
 (test-begin "test-vat")
 
 (define a-vat (spawn-vat))
-(define-vat-run a-run a-vat)
 
 (define (^friendo _bcom)
   (lambda ()
     'hello))
 
 (define my-friend
-  (a-vat
-   (lambda () (spawn ^friendo))))
-
-(test-eq
-    "Check define-vat-run works"
-  'hello
-  (a-run ($ my-friend)))
+  (with-vat a-vat
+    (spawn ^friendo)))
 
 (define (^counter bcom n)
   (lambda ()
     (bcom (^counter bcom (+ n 1)) n)))
 
 (define a-counter
-  (a-vat
-   (lambda () (spawn ^counter 0))))
+  (with-vat a-vat
+   (spawn ^counter 0)))
 
 (define (run vat op . rest)
-  (vat (lambda () (apply op rest))))
+  (with-vat vat
+    (apply op rest)))
 
 (test-eq (run a-vat $ a-counter) 0)
 (test-eq (run a-vat $ a-counter) 1)
@@ -180,14 +175,12 @@
     (spawn ^car model color))))
 
 (define fork-motors
-  (a-vat
-   (lambda ()
-     (spawn ^car-factory2 "Fork"))))
+  (with-vat a-vat
+   (spawn ^car-factory2 "Fork")))
 
 (define car-vow
-  (b-vat
-   (lambda ()
-     (<- fork-motors 'make-car "Explorist" "blue"))))
+  (with-vat b-vat
+   (<- fork-motors 'make-car "Explorist" "blue")))
 
 (define car-pipeline-result
   (resolve-vow-and-return-result
@@ -203,7 +196,10 @@
   car-pipeline-result)
 
 (test-equal "Multiple return values from vat invocation"
-  (call-with-values (lambda () (a-vat (lambda () (values 1 2 3)))) list)
+  (call-with-values (lambda ()
+                      (with-vat a-vat
+                       (values 1 2 3)))
+    list)
   '(1 2 3))
 
 (test-end "test-vat")

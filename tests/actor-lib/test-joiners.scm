@@ -30,20 +30,19 @@
         (error "Freaking out about non-even number! (as expected)"))))
 
 (define double-evens
-  (a-vat (lambda () (spawn  ^double-evens))))
+  (with-vat a-vat (spawn  ^double-evens)))
 
 (define (run-joiner-get-result joiner . nums)
   (define result #f)
-  (a-vat
-   (lambda ()
-     (define evens-vows
-       (map (lambda (num) (<- double-evens num)) nums))
-     (on (apply joiner evens-vows)
-         (lambda (val)
-           (set! result `(fulfilled ,val)))
-         #:catch
-         (lambda (err)
-           (set! result `(broken ,err))))))
+  (with-vat a-vat
+   (define evens-vows
+     (map (lambda (num) (<- double-evens num)) nums))
+   (on (apply joiner evens-vows)
+       (lambda (val)
+         (set! result `(fulfilled ,val)))
+       #:catch
+       (lambda (err)
+         (set! result `(broken ,err)))))
   (sleep 1)
   result)
 
