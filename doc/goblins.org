@@ -1158,7 +1158,7 @@ Actually our =am= is a whactormap:
 
 #+BEGIN_SRC scheme
   > am
-  ; => #<transactormap>
+  ; => #<whactormap>
 #+END_SRC
 
 It's a weak hashtable which stores the current mutable state of all
