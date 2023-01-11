@@ -1169,8 +1169,13 @@ But we'd like to see about that transactormap... just running
 
 #+BEGIN_SRC scheme
   > (actormap-turn am lunchbox 'chickpea-salad)
+  ; => *unspecified* (not printed)
   ; => #<transactormap>
+  ; => '()
   > (actormap-turn am lunchbox)
+  ; => 'bbq-tofu
+  ; => #<transactormap>
+  ; => '()
 #+END_SRC
 
 We need to capture the transactormap and commit it.
