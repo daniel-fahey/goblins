@@ -61,7 +61,6 @@ A high level view of Goblins
 Tutorial
 
 * A simple greeter::
-* Even easier hacking at the REPL::
 * State as updating behavior::
 * Methods aren't essential, but they are useful: Methods aren't essential but they are useful. 
 * Objects which contain objects::
@@ -92,6 +91,8 @@ actor-lib: A standard library of sorts
 
 * Cells::
 * Methods::
+* Joiners::
+* Sealers::
 
 @end detailmenu
 @end menu
@@ -416,7 +417,6 @@ enhancing an already powerful distributed programming paradigm.
 
 @menu
 * A simple greeter::
-* Even easier hacking at the REPL::
 * State as updating behavior::
 * Methods aren't essential, but they are useful: Methods aren't essential but they are useful. 
 * Objects which contain objects::
@@ -437,20 +437,14 @@ First, let's import Goblins:
 
 (@strong{NOTE}: See @ref{TEMPORARY Live hacking ``fix''} if you haven't.)
 
-Every Goblins actor / object has to live in a vat somewhere.
-So, let's make a vat to play around with:
+Goblins actors live in special event loops called @emph{vats}.
+Let's make a vat to play around with and ``enter'' it at the REPL:
 
 @example
-> (define a-vat
-    (spawn-vat))
-;; This will make interacting with the vat a bit easier
-> (define-vat-run a-run a-vat)
+scheme> (define a-vat (spawn-vat))
+scheme> ,enter-vat a-vat
+goblins[1]>
 @end example
-
-Objects/actors are instantiated with @samp{spawn} and can be synchronously
-invoked with @samp{$} or asynchronously invoked with @samp{<-}.
-All of these operations need to operate within a Goblins-aware context,
-and so @samp{a-run} ``bootstraps'' some code within the vat.
 
 Now let us implement a friend who will greet us:
 
@@ -466,7 +460,7 @@ Let's give it a try by instantiating an instance of @samp{^greeter} using
 
 @example
 > (define alice
-    (a-run (spawn ^greeter "Alice")))
+    (spawn ^greeter "Alice"))
 @end example
 
 The first argument to @samp{spawn} is the constructor we will use to make
@@ -480,61 +474,54 @@ We can invoke @samp{alice} by using @samp{$} for a synchronous call-return
 operation:
 
 @example
-> (a-run ($ alice "Alfred"))
-=> "Hello Alfred, my name is Alice!"
+goblins[1]> (define alice
+              (spawn ^greeter "Alice"))
+goblins[1]> ($ alice "Alfred")
+; => "Hello Alfred, my name is Alice!"
 @end example
 
 The first argument to @samp{$} is the object to be invoked, the remaining
 arguments are passed to the ``behavior'' of the object.
 Thus @samp{your-name} in @samp{^greeter}'s behavior procedure is bound to
-@samp{"Bob"}.
+@samp{"Alfred"}.
 The behavior procedure thus proceeds with formatting and returning the
 greeting string.
 
-@node Even easier hacking at the REPL
-@section Even easier hacking at the REPL
-
-Here's a  little aside that  can make  your hacking with Goblins more
-enjoyable.
-
-Setting up a vat can be annoying when all you want to do is test
-the code you've written.
-While @samp{define-vat-run} simplifies use a little bit, it's also a bit
-funny.
-
-In ``normal'' Goblins code we'd just write:
+We can exit the subrepl for @samp{a-vat} with @samp{,q} (the same way as if
+Guile put us in a subrepl to debug an error):
 
 @example
-(define alice
-  (spawn ^greeter "Alice"))
+goblins[1]> ,q
+scheme>
 @end example
 
-But at the REPL we had to insert this @samp{a-run} thing in the middle:
+As you have probably inferred, Goblins-specific operations such as @samp{$}
+and @samp{spawn} happen within a context (typically a @emph{vat}, though there is
+an even lower-level structure called an @emph{actormap} which we will see
+more about later).
+However, the subrepl entered by @samp{,enter-vat} is a convenience for
+hacking.
+We can run also run code within @samp{a-vat} like so:
 
 @example
-> (define alice
-    (a-run (spawn ^greeter "Alice")))
+scheme> (a-vat (lambda () ($ alice "Arthur")))
+; => "Hello Arthur, my name is Alice!"
 @end example
 
-If you just want to write some quick code for experimenting at the
-REPL, we have a comma command which can make your life a bit easier,
-@samp{,vrun} (or @samp{,vr} for short):
-
-@example
-> (use-modules (goblins vrun))
-> ,vrun (define alice (spawn ^greeter "Alice"))
-> ,vrun ($ alice "Bob")
-=> "Hello Bob, my name is Alice!"
-> ,vr ($ alice "Bob")    ; same thing
-=> "Hello Bob, my name is Alice!"
-@end example
-
-@samp{,vrun} stands for ``vat run'', because it's a quick way to test.  It
-tries to be smart and unwrap @samp{define} statements and such like the
-above so that they still can be bound at the REPL@.
+Very few operations in Goblins spend time operating on vats directly;
+typically commands like the above only happen when bootstrapping the
+initial set of actors within a vat or when hacking, then the actors
+within the vats do their own thing.
 
 @node State as updating behavior
 @section State as updating behavior
+
+Re-enter @samp{a-vat}'s subrepl if you haven't:
+
+@example
+scheme> ,enter-vat a-vat
+goblins[1]>
+@end example
 
 Let's introduce a simple cell which stores a value.
 This cell will have two methods:
@@ -555,19 +542,18 @@ arguments, so here we're choosing that if no arguments are provided,
 our cell shares the current value, and if one argument is provided,
 the cell updates itself to become a cell storing the new value.
 
-Let's try it.
 Cells hold values, and so do treasure chests, so let's make
 a treasure chest flavored cell.
 Taking things out and putting them back in is easy:
 
 @example
-> (define chest
-    (a-run (spawn ^cell "sword")))
-> (a-run ($ chest))
-=> "sword"
-> (a-run ($ chest "gold"))
-> (a-run ($ chest))
-=> "gold" 
+goblins[1]> (define chest
+              (spawn ^cell "sword"))
+goblins[1]> ($ chest)
+; => "sword"
+goblins[1]> ($ chest "gold")
+goblins[1]> ($ chest)
+; => "gold" 
 @end example
 
 Now we can see what @samp{bcom} is: a capability specific to this object
@@ -598,13 +584,13 @@ as a symbol selecting the method, and the rest of the arguments are
 passed to the object:
 
 @example
-> (define jar
-    (a-run (spawn ^mcell "cookies")))
-> (a-run ($ jar 'get))
-=> "cookies"
-> (a-run ($ jar 'set "crumbs"))  
-> (a-run ($ jar 'get))
-=> "crumbs"
+goblins[1]> (define jar
+              (spawn ^mcell "cookies"))
+goblins[1]> ($ jar 'get)
+; => "cookies"
+goblins[1]> ($ jar 'set "crumbs")
+goblins[1]> ($ jar 'get)
+; => "crumbs"
 @end example
 
 Methods aren't particularly magical@dots{} the @samp{methods} macro just
@@ -618,9 +604,9 @@ returns a procedure which is convenient to use for procedure dispatch:
      ((bar arg)
       (list 'called-bar-with arg))))
 > (foo-or-bar 'foo)
-=> called-foo
+; => called-foo
 > (foo-or-bar 'bar "meep")
-=> (called-bar-with "meep")
+; => (called-bar-with "meep")
 @end example
 
 So really, @samp{methods} just makes a particularly useful kind of
@@ -658,16 +644,16 @@ The current value of this cell is returned by @samp{get-times-called}
 and is updated every time the @samp{greet} method is called:
 
 @example
-> (define julius
-    (a-run (spawn ^cgreeter "Julius")))
-> (a-run ($ julius 'get-times-called))
-=> 0
-> (a-run ($ julius 'greet "Gaius"))
-=> "[1] Hello Gaius, my name is Julius!"
-> (a-run ($ julius 'greet "Brutus"))
-=> "[2] Hello Brutus, my name is Julius!"
-> (a-run ($ julius 'get-times-called))
-=> 2
+goblins[1]> (define julius
+              (spawn ^cgreeter "Julius"))
+goblins[1]> ($ julius 'get-times-called)
+; => 0
+goblins[1]> ($ julius 'greet "Gaius")
+; => "[1] Hello Gaius, my name is Julius!"
+goblins[1]> ($ julius 'greet "Brutus")
+; => "[2] Hello Brutus, my name is Julius!"
+goblins[1]> ($ julius 'get-times-called)
+; => 2
 @end example
 
 @node Asynchronous message passing
@@ -678,31 +664,33 @@ synchronously with @samp{$}.
 However, this only works if two objects are both defined on the same
 machine on the network and the same event loop within that machine.
 
-To demonstrate this, let's create a new vat, @samp{b-vat} (as well as a
-@samp{b-run} to make REPL examples a bit easier to demonstrate):
+Now, recall our friend @samp{alice} who we defined on vat A@.
+The following works just fine if we're still executing within
+@samp{a-vat}'s subrepl context:
 
 @example
-> (define b-vat
-    (spawn-vat))
-> (define-vat-run b-run b-vat)
+goblins[1]> ($ alice "Alfred")
+=> "Hello Alfred, my name is Alice!"
 @end example
 
-Now, recall our friend @samp{alice} who we defined on vat A@.
-The following works just fine:
+But let's exit the @samp{a-vat} subrepl and make @samp{b-vat} and enter that:
 
 @example
-> (a-run ($ alice "Alfred"))
-=> "Hello Alfred, my name is Alice!"
+goblins[1]> ,q
+scheme> (define b-vat
+          (spawn-vat))
+scheme> ,enter-vat b-vat
+goblins[1]>
 @end example
 
 But since Alice works on A, we cannot synchronously invoke her with
 @samp{$} on vat B:
 
 @example
-> (b-run ($ alice "Bob"))
+goblins[1]> ($ alice "Bob")
 ;; === Caught error: ===
 ;;  message: #<<message> to: #<local-object> resolve-me: #f args: ()>
-;;  exception: ... "Not in the same vat: ~a" #<local-object ^greeter>) ...
+;;  exception: ... "Not in the same vat:" #<local-object ^greeter>) ...
 @end example
 
 This is where @samp{<-} comes in.
@@ -712,8 +700,8 @@ However, unlike invocation with @samp{$}, we do not get back an
 immediate result, we get a promise:
 
 @example
-> (b-run (<- alice "Bob"))
-=> #<promise>
+goblins[1]> (<- alice "Bob")
+; => #<promise>
 @end example
 
 This promise must be listened to.
@@ -721,38 +709,42 @@ The procedure to listen to promises in Goblins is called
 @samp{on}:
 
 @example
-> (b-run
-   (on (<- alice "Bob")
-     (lambda (got-back)
-       (format #t "Heard back: ~a\n"
-               got-back))))
+goblins[1]> (on (<- alice "Bob")
+                (lambda (got-back)
+                  (format #t "Heard back: ~a\n"
+                          got-back)))
 ; Prints out, at some point in the future:
 ;   "Heard back: [3] Hello Bob, my name is Alice!"
 @end example
 
 Not all communication goes as planned, especially in a distributed
 system.
+Consider an object which breaks in the middle of execution, such as
+an instance of @samp{^broken} here:
+
+@example
+(define (^broken _bcom)
+  (lambda ()
+    (error "Yikes, I broke!")))
+@end example
+
 @samp{on} also supports the keyword arguments of @samp{#:catch} and @samp{#:finally},
 which both accept a procedure defining handling errors in the former case
 and code which will run regardless of successful resolution or failure
 in the latter case:
 
 @example
-> (define (^broken-ben _bcom)
-    (lambda ()
-      (error "Yikes, I broke!")))
-> (define broken-ben
-    (b-run (spawn ^broken-ben)))
-> (a-run
-   (on (<- broken-ben)
-       (lambda (what-did-ben-say)
-         (format #t "Ben says: ~a\n" what-did-ben-say))
-       #:catch
-       (lambda (err)
-         (format #t "Got an error: ~a\n" err))
-       #:finally
-       (lambda ()
-         (display "Whew, it's over!\n"))))
+goblins[1]> (define broken-ben
+              (spawn ^broken-ben))
+goblins[1]> (on (<- broken-ben)
+                (lambda (what-did-ben-say)
+                  (format #t "Ben says: ~a\n" what-did-ben-say))
+                #:catch
+                (lambda (err)
+                  (format #t "Got an error: ~a\n" err))
+                #:finally
+                (lambda ()
+                  (display "Whew, it's over!\n")))
 @end example
 
 @node Transactions make errors survivable
@@ -788,11 +780,11 @@ and then an error:
 Now let's spawn this friend and invoke it:
 
 @example
-> (define horatio
-    (a-run (spawn ^borked-cgreeter "Horatio")))
-> (a-run ($ horatio 'get-times-called))
-=> 0
-> (a-run ($ horatio 'greet "Hamlet"))
+goblins[1]> (define horatio
+              (spawn ^borked-cgreeter "Horatio"))
+goblins[1]> ($ horatio 'get-times-called)
+; => 0
+goblins[1]> ($ horatio 'greet "Hamlet")
 ; pk debug: (before-incr 0)
 ; pk debug: (after-incr 1)
 ; ice-9/boot-9.scm:1685:16: In procedure raise-exception:
@@ -806,8 +798,8 @@ be incremented to 1.
 And yet@dots{}
 
 @example
-> (a-run ($ horatio 'get-times-called))
-=> 0
+goblins[1]> ($ horatio 'get-times-called)
+; => 0
 @end example
 
 We will cover this in greater detail later, but the core idea here
@@ -864,13 +856,12 @@ the company name of the factory:
 @end example
 
 Here is an instance of this car factory, which we will call
-@samp{fork-motors}:
+@samp{fork-motors}, which we will spawn on @samp{a-vat}:
 
 @example
-;; Interaction on machine A
-> (define fork-motors
-    (a-run
-     (spawn ^car-factory "Fork")))
+scheme> ,enter a-vat
+goblins[1]> (define fork-motors
+              (spawn ^car-factory "Fork"))
 @end example
 
 Since asynchronous message passing with @samp{<-} works across machines,
@@ -886,12 +877,12 @@ shall name @samp{car-vow} (@samp{-vow} being the conventional suffix given
 for promises in Goblins):
 
 @example
+goblins[1]> ,q
+scheme> ,enter-vat b-vat
 ;; Interaction on machine B, communicating with fork-motors on A
-> (define car-vow
-    (b-run
-     (<- fork-motors 'make-car "Explorist" "blue")))
+goblins[1]> (define car-vow
+              (<- fork-motors 'make-car "Explorist" "blue"))
 @end example
-
 
 So we have a @emph{promise} to a future car reference, but not the
 reference itself.
@@ -904,12 +895,11 @@ systems use), we would end up with something like:
 
 @example
 ;; Interaction on machine B, communicating with A
-> (b-run
-   (on car-vow                    ; B->A: first resolve the car-vow
-       (lambda (our-car)          ; A->B: car-vow resolved as our-car
-         (on (<- our-car 'drive)  ; B->A: now we can message our-car
-             (lambda (val)        ; A->B: result of that message
-               (format #f "Heard: ~a\n" val))))))
+goblins[1]> (on car-vow                    ; B->A: first resolve the car-vow
+                (lambda (our-car)          ; A->B: car-vow resolved as our-car
+                  (on (<- our-car 'drive)  ; B->A: now we can message our-car
+                      (lambda (val)        ; A->B: result of that message
+                        (format #f "Heard: ~a\n" val)))))
 @end example
 
 With promise pipelining, we can simply message the promise of the car
@@ -920,10 +910,9 @@ we can simply message @samp{car-vow} directly:
 
 @example
 ;; Interaction on machine B, communicating with A
-> (b-run
-   (on (<- car-vow 'drive)       ; B->A: send message to future car
-       (lambda (val)             ; A->B: result of that message
-         (format #t "Heard: ~a\n" val))))
+goblins[1]> (on (<- car-vow 'drive)       ; B->A: send message to future car
+                (lambda (val)             ; A->B: result of that message
+                  (format #t "Heard: ~a\n" val)))
 @end example
 
 While clearly a considerable programming convenience, the other
@@ -1234,6 +1223,150 @@ manually.
 @node Actormaps
 @section Actormaps
 
+So far we have dealt with vats, but there is a lower level of
+abstraction in Goblins which is called an @samp{actormap}.
+
+The key differences are:
+
+@itemize
+@item
+@strong{vat}: An event loop implementation that runs continuously
+in its own thread.
+Comes pre-built with tooling to handle message passing between
+vats.
+Actually wraps an actormap.
+@item
+@strong{actormap}: The transactional datastructure that vats use.
+But, useful on its own to either build your own event loop
+or as a synchronous one-turn-at-a-time mapping of actor references
+to their current implementations.
+@end itemize
+
+The best way to learn is by doing, so let's make an actormap now:
+
+@example
+(define am (make-actormap))
+@end example
+
+Let's add an actor to it.
+Since cells are simple, let's add one of those.
+
+@example
+(define lunchbox
+  (actormap-spawn! am ^cell))
+@end example
+
+What's in the lunchbox?
+We could take a look with @samp{actormap-peek}:
+
+@example
+> (actormap-peek am lunchbox)
+; => #f
+@end example
+
+An empty lunchbox@dots{} we'd like to eat something later, so how about we
+pack ourselves a nice sandwich by using @samp{actormap-poke}:
+
+@example
+> (actormap-poke! am lunchbox 'peanut-butter-and-jelly)
+> (actormap-peek am lunchbox)
+; => 'peanut-butter-and-jelly
+@end example
+
+What if we tried to look inside the lunchbox with @samp{actormap-poke!}
+instead of @samp{actormap-peek}?
+
+@example
+> (actormap-poke! am lunchbox 'bbq-tofu)
+> (actormap-poke! am lunchbox)
+; => 'bbq-tofu
+@end example
+
+Well that worked just fine.
+What happens if we do both operations with @samp{actormap-peek}?
+
+@example
+> (actormap-peek am lunchbox 'chickpea-salad)
+> (actormap-peek am lunchbox)
+; => 'bbq-tofu
+@end example
+
+What the@dots{}???
+Our lunchbox didn't change!
+
+We said that actormaps were transactional.
+We have gotten a hint of this with the above:
+@samp{actormap-poke!} returns a value and commits any changes.
+@samp{actormap-peek} returns a value and throws any changes away.
+
+Actually, these two functions are just simple conveniences that wrap a
+more powerful (but cumbersome to use) tool, @samp{actormap-turn}:
+
+@example
+> (actormap-turn am lunchbox)
+; => 'bbq-tofu
+; => #<transactormap>
+; => '()
+(actormap-turn am lunchbox 'chickpea-salad)
+; => *unspecified* (not printed)
+; => #<transactormap>
+; => '()
+@end example
+
+@samp{actormap-turn} returns three values to its continuation: a
+return value (if any@dots{} Guile's REPL doesn't print out the unspecified
+value, which is what actually got returned in the second invocation),
+a ``transactormap'', and a list representing messages
+queued for delivery.
+
+This @samp{#<transactormap>} is interesting@dots{} we haven't mentioned this
+before, but there are really two kinds of actormaps, ``whactormaps''
+(weak-hash actormaps) and ``transactormaps'' (which hold a transaction
+which we can choose whether or not to commit).
+Actually our @samp{am} is a whactormap:
+
+@example
+> am
+; => #<whactormap>
+@end example
+
+It's a weak hashtable which stores the current mutable state of all
+actors.
+
+But we'd like to see about that transactormap@dots{} just running
+@samp{actormap-turn} on its own won't update the lunchbox either:
+
+@example
+> (actormap-turn am lunchbox 'chickpea-salad)
+; => *unspecified* (not printed)
+; => #<transactormap>
+; => '()
+> (actormap-turn am lunchbox)
+; => 'bbq-tofu
+; => #<transactormap>
+; => '()
+@end example
+
+We need to capture the transactormap and commit it.
+
+@example
+> (define-values (_val tr-am _nm)
+    (actormap-turn am lunchbox 'chickpea-salad))
+> tr-am
+; => #<transactormap>
+> (transactormap-merge! tr-am)
+@end example
+
+Now at least our @samp{am} actormap should reflect that we've switched out
+our @samp{'bbq-tofu} sandwich for a @samp{'chickpea-salad} one:
+
+@example
+> (actormap-peek am lunchbox)
+; => 'chickpea-salad
+@end example
+
+Horray!
+
 @node OCapN
 @section OCapN
 
@@ -1246,6 +1379,8 @@ manually.
 @menu
 * Cells::
 * Methods::
+* Joiners::
+* Sealers::
 @end menu
 
 @node Cells
@@ -1253,6 +1388,12 @@ manually.
 
 @node Methods
 @section Methods
+
+@node Joiners
+@section Joiners
+
+@node Sealers
+@section Sealers
 
 @node Thanks
 @chapter Thanks
@@ -1262,8 +1403,8 @@ This manual was primarily written by Christine Lemmer-Webber.
 Many of the ideas are borrowed from @uref{http://www.erights.org/talks/thesis/markm-thesis.pdf, Mark Miller's dissertation},
 which is an excellent, if nerdy, read.
 
-Jessica Tallon, Jonathan A@. Rees, and Randy Farmer provided review and
-feedback.
+Jessica Tallon, Jonathan A@. Rees, Randy Farmer, and David Thompson
+provided review and feedback.
 
 @node License
 @chapter License
