@@ -1144,10 +1144,10 @@ more powerful (but cumbersome to use) tool, =actormap-turn=:
   ; => '()
 #+END_SRC
 
-=actormap-turn= returns four values to its continuation: a
+=actormap-turn= returns three values to its continuation: a
 return value (if any... Guile's REPL doesn't print out the unspecified
 value, which is what actually got returned in the second invocation),
-a "transactormap", and two lists representing messages
+a "transactormap", and a list representing messages
 queued for delivery.
 
 This =#<transactormap>= is interesting... we haven't mentioned this
