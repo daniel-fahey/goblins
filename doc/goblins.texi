@@ -1313,10 +1313,10 @@ more powerful (but cumbersome to use) tool, @samp{actormap-turn}:
 ; => '()
 @end example
 
-@samp{actormap-turn} returns four values to its continuation: a
+@samp{actormap-turn} returns three values to its continuation: a
 return value (if any@dots{} Guile's REPL doesn't print out the unspecified
 value, which is what actually got returned in the second invocation),
-a ``transactormap'', and two lists representing messages
+a ``transactormap'', and a list representing messages
 queued for delivery.
 
 This @samp{#<transactormap>} is interesting@dots{} we haven't mentioned this
@@ -1327,7 +1327,7 @@ Actually our @samp{am} is a whactormap:
 
 @example
 > am
-; => #<transactormap>
+; => #<whactormap>
 @end example
 
 It's a weak hashtable which stores the current mutable state of all
@@ -1338,8 +1338,13 @@ But we'd like to see about that transactormap@dots{} just running
 
 @example
 > (actormap-turn am lunchbox 'chickpea-salad)
+; => *unspecified* (not printed)
 ; => #<transactormap>
+; => '()
 > (actormap-turn am lunchbox)
+; => 'bbq-tofu
+; => #<transactormap>
+; => '()
 @end example
 
 We need to capture the transactormap and commit it.
