@@ -689,6 +689,8 @@
            ($C coordinator 'make-handoff-base-cert obj)]))]
       [(? void?)
        (make-syrec* 'void)]
+      [(? keyword?)
+       (make-syrec* 'kw-arg (keyword->symbol obj))]
       ;; TODO: Supply more machine-crossing exception types here
       ;; TODO: Add guile equivalents of exceptions
       #;[(? exn:fail?)
@@ -726,6 +728,8 @@
        (make-mystery-fail)]
       [($ <syrec> 'void '())
        _void]
+      [($ <syrec> 'kw-arg keyword)
+       (symbol->keyword keyword)]
       ;; unserialize user-defined records
       [($ <syrec> 'user-record (list record-tag record-args))
        (make-syrec record-tag record-args)]
