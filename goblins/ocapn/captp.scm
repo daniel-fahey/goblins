@@ -728,7 +728,7 @@
        (make-mystery-fail)]
       [($ <syrec> 'void '())
        _void]
-      [($ <syrec> 'kw-arg keyword)
+      [($ <syrec> 'kw-arg `(,keyword))
        (symbol->keyword keyword)]
       ;; unserialize user-defined records
       [($ <syrec> 'user-record (list record-tag record-args))
