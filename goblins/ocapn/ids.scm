@@ -17,6 +17,7 @@
   #:use-module (goblins utils crypto)
   #:use-module (web uri)
   #:use-module (srfi srfi-9)
+  #:use-module (srfi srfi-9 gnu)
   #:use-module (ice-9 match)
   #:export (<ocapn-machine>
             make-ocapn-machine
@@ -64,6 +65,14 @@
 (define-values (marshall::ocapn-machine unmarshall::ocapn-machine)
   (make-marshallers <ocapn-machine> #:name 'ocapn-machine))
 
+;; ocapn machines give the capability to access the machine, these shouldn't be
+;; leaked in tracebacks.
+(set-record-type-printer!
+ <ocapn-machine>
+ (lambda (machine port)
+   (format port "#<ocapn-machine transport: ~a address: *redacted*>"
+           (ocapn-machine-transport machine))))
+
 ;; Ocapn swissnum URI:
 ;;
 ;;   ocapn://abpoiyaspodyoiapsdyiopbasyop.onion/s/3cbe8e02-ca27-4699-b2dd-3e284c71fa96
@@ -80,6 +89,14 @@
 
 (define-values (marshall::ocapn-sturdyref unmarshall::ocapn-sturdyref)
   (make-marshallers <ocapn-sturdyref> #:name 'ocapn-sturdyref))
+
+;; ocapn sturdyref give the capability to access the object, these shouldn't be
+;; leaked in tracebacks.
+(set-record-type-printer!
+ <ocapn-sturdyref>
+ (lambda (sturdyref port)
+   (format port "#<ocapn-sturdyref machine: ~a swiss-num: *redacted*>"
+           (ocapn-sturdyref-machine sturdyref))))
 
 ;; Ocapn certificate URI:
 ;;
