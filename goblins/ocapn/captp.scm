@@ -690,7 +690,7 @@
       [(? void?)
        (make-syrec* 'void)]
       [(? keyword?)
-       (make-syrec* 'kw-arg (keyword->symbol obj))]
+       (make-syrec* 'kw (keyword->symbol obj))]
       ;; TODO: Supply more machine-crossing exception types here
       ;; TODO: Add guile equivalents of exceptions
       #;[(? exn:fail?)
@@ -728,7 +728,7 @@
        (make-mystery-fail)]
       [($ <syrec> 'void '())
        _void]
-      [($ <syrec> 'kw-arg `(,keyword))
+      [($ <syrec> 'kw `(,keyword))
        (symbol->keyword keyword)]
       ;; unserialize user-defined records
       [($ <syrec> 'user-record (list record-tag record-args))
