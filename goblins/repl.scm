@@ -20,7 +20,8 @@
   #:use-module (system repl debug)
   #:use-module (system repl repl)
   #:use-module (system vm loader)
-  #:use-module (goblins core))
+  #:use-module (goblins core)
+  #:use-module (goblins vat))
 
 ;; This code is based on error-string in (system repl
 ;; exception-handling) and adapted to work with Guile's new exception
@@ -77,7 +78,7 @@
     (call-with-goblins-debugger
      goblins-language
      (lambda ()
-       (vat 'run compiled-thunk))))
+       (call-with-vat vat compiled-thunk))))
   ;; The Goblins language is just Scheme with a special evaluator that
   ;; does vat magic.
   (define goblins-language

@@ -1021,40 +1021,120 @@ iteration of these docs.  ;)
 #+BEGIN_SRC scheme
   > (define my-vat (spawn-vat))
   > my-vat
-  => #<procedure (vat-controller)>
+  => #<vat izvD0DJT>
 #+END_SRC
 
-Running =spawn-vat= returns what's called a "vat controller".
-Running with no argument runs some code in the vat, blocking until
-a response is returned... useful for bootstrapping vats, or
-hacking at the REPL:
+Running =spawn-vat= returns a vat object.  Code can be run within the
+context of a vat using the =call-with-vat= procedure.  This is useful
+for bootstrapping vats, or hacking at the REPL:
 
 #+BEGIN_SRC scheme
   > (define my-vat (spawn-vat))
-  => #<procedure (vat-controller)>
-  > (my-vat
-      (lambda ()
-        (define alice (spawn ^greeter "Alice"))
-        ($ alice "Bob")))
+  > (call-with-vat my-vat
+     (lambda ()
+       (define alice (spawn ^greeter "Alice"))
+       ($ alice "Bob")))
   => "Hello Alice, my name is Bob!"
 #+END_SRC
 
-You can also send it the ='halt= method to stop the vat,
-and ='running?= to check its status:
+For convenience, the =with-vat= macro can be used instead of
+=call-with-vat=.  Here's the above example rewritten to use
+=with-vat=:
 
 #+BEGIN_SRC scheme
-  > (my-vat 'halt)
-  > (my-vat 'running?)
+  > (define my-vat (spawn-vat))
+  > (with-vat my-vat
+     (define alice (spawn ^greeter "Alice"))
+     ($ alice "Bob"))
+  => "Hello Alice, my name is Bob!"
+#+END_SRC
+
+You can also use the =vat-halt!= procedure to stop the vat, and
+=vat-running?= to check its status:
+
+#+BEGIN_SRC scheme
+  > (vat-halt! my-vat)
+  > (vat-running? my-vat)
   => #f
 #+END_SRC
 
 *NOTE:* In the future, we would like vats to automatically halt when
 no more references exist and thus the vat can do no more work.  The
 Racket version of vats works this way, it would be good for the Guile
-version to do the same.  In the meanwhile, you'll need to use ='halt=
-manually.
+version to do the same.  In the meanwhile, you'll need to call
+=vat-halt!= manually.
 
-*** COMMENT Rolling your own vats
+*** Rolling your own vats
+
+Goblins comes with a built-in vat implementation that is
+general-purpose and useful in most situations.  However, using Goblins
+with a foreign event loop (such as a GUI widget toolkit or game
+engine) calls for a specialized vat that knows how to hook into it.
+The API described below is considered unstable and likely to change in
+future releases of Goblins, so be prepared to update custom vat code
+at a later date.
+
+The =make-vat= constructor is used to make specialized vats.  Below is
+some pseudocode that illustrates the basic pattern:
+
+#+BEGIN_SRC scheme
+  > (define (make-custom-vat)
+      (define thread #f)
+      (define (start churn)
+        (define (loop)
+          (churn (dequeue-msg))
+          (loop))
+        (set! thread (call-with-new-thread loop)))
+      (define (halt)
+        (cancel-thread thread))
+      (define (send msg return?)
+        (if return?
+            (enqueue-msg-and-wait-for-result msg)
+            (enqueue-msg msg)))
+      (make-vat #:start start
+                #:halt halt
+                #:send send))
+#+END_SRC
+
+How to implement =enqueue-msg=, =enqueue-msg-and-wait-for-result=, and
+=dequeue-msg= depends on the integration target and is left as an
+exercise for the implementer.
+
+Vat implementations must provide three hook procedures to =make-vat=:
+
+- =start=: This procedure starts the vat message processor in the
+  desired foreign event loop.  It accepts a =churn= procedure as its
+  only argument.  The =churn= procedure accepts a message object and
+  processes it using the vat's underlying actormap.
+- =halt=: This procedure stops vat message processing.  It is a thunk,
+  meaning that it accepts zero arguments.
+- =send=: This procedure receives a message to process within the vat.
+  It accepts two arguments: a message and a boolean flag indicating if
+  the result of processing the message needs to be returned to the
+  caller.  When the return flag is =#f=, vat implementations can
+  simply queue the message for processing and move on.  When it is
+  =#t=, however, the vat must arrange to wait and retrieve the
+  eventual result of processing the message.
+
+Custom vat implementations /must/ enqueue and dequeue messages in a
+thread-safe manner because incoming messages from other vats may be,
+and likely are, running in a different thread.
+
+The =vat-start!= procedure initiates the processing of messages sent
+to the vat.
+
+#+BEGIN_SRC scheme
+  > (define custom-vat (make-custom-vat))
+  > (vat-start! custom-vat)
+#+END_SRC
+
+Once a custom vat has been started, it can be used as usual:
+
+#+BEGIN_SRC scheme
+  > (define alice
+      (with-vat custom-vat
+       (spawn ^greeter "Alice")))
+#+END_SRC
 
 ** Actormaps
 

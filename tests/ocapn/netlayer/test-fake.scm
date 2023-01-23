@@ -16,30 +16,30 @@
 
 ;; Tests for the ^fake-network
 (define test-network
-  (test-vat 'run (lambda () (spawn ^fake-network))))
+  (with-vat test-vat
+    (spawn ^fake-network)))
 
 (test-error
  "Check connecting to a non-existing network fails"
  #t
- (test-vat 'run (lambda () ($ test-network 'connect-to "does-not-exist"))))
+ (with-vat test-vat
+   ($ test-network 'connect-to "does-not-exist")))
 
-(test-vat
- 'run
- (lambda ()
-   ($ test-network 'register "test" test-channel)
-   (define test-connection ($ test-network 'connect-to "test"))
+(with-vat test-vat
+ ($ test-network 'register "test" test-channel)
+ (define test-connection ($ test-network 'connect-to "test"))
 
-   (test-assert "Check we're getting back fibers channels"
-     (and (eq? (car test-connection) '*outgoing-new-conn*)
-          (channel? (car (cdr test-connection)))
-          (channel? (car (cdr (cdr  test-connection))))))
+ (test-assert "Check we're getting back fibers channels"
+   (and (eq? (car test-connection) '*outgoing-new-conn*)
+        (channel? (car (cdr test-connection)))
+        (channel? (car (cdr (cdr  test-connection))))))
 
-   (define message (get-message test-channel))
-   (test-assert
-       "Check we're getting back two fibers channels"
-     (and (eq? (car message) '*incoming-new-conn*)
-          (channel? (car (cdr message)))
-          (channel? (car (cdr (cdr message))))))))
+ (define message (get-message test-channel))
+ (test-assert
+     "Check we're getting back two fibers channels"
+   (and (eq? (car message) '*incoming-new-conn*)
+        (channel? (car (cdr message)))
+        (channel? (car (cdr (cdr message)))))))
 
 ;; Tests for the ^fake-netlayer
 (define a-vat (spawn-vat #:name "a-vat"))
@@ -50,42 +50,45 @@
 (define b-location (string->ocapn-id "ocapn://b.fake"))
 
 (define a-netlayer
-  (a-vat (lambda () (spawn ^fake-netlayer "a" test-network a-new-conn-ch))))
+  (with-vat a-vat
+    (spawn ^fake-netlayer "a" test-network a-new-conn-ch)))
 (define b-netlayer
-  (b-vat (lambda () (spawn ^fake-netlayer "b" test-network b-new-conn-ch))))
+  (with-vat b-vat
+    (spawn ^fake-netlayer "b" test-network b-new-conn-ch)))
 
-(test-vat
- (lambda ()
-   ($ test-network 'register "a" a-new-conn-ch)
-   ($ test-network 'register "b" b-new-conn-ch)))
+(with-vat test-vat
+ ($ test-network 'register "a" a-new-conn-ch)
+ ($ test-network 'register "b" b-new-conn-ch))
 
 (define a-mycapn
-  (a-vat (lambda () (spawn-mycapn a-netlayer))))
+  (with-vat a-vat (spawn-mycapn a-netlayer)))
 (define b-mycapn
-  (b-vat (lambda () (spawn-mycapn b-netlayer))))
+  (with-vat b-vat (spawn-mycapn b-netlayer)))
 
 (define a->b-vow
-  (a-vat
-   (lambda ()
-     ($ a-mycapn 'connect-to-machine b-location))))
+  (with-vat a-vat
+   ($ a-mycapn 'connect-to-machine b-location)))
 (define b->a-vow
-  (b-vat
-   (lambda ()
-     ($ b-mycapn 'connect-to-machine a-location))))
+  (with-vat b-vat
+   ($ b-mycapn 'connect-to-machine a-location)))
 
 (define (^greeter _bcom my-name)
   (lambda (your-name)
     (format #f "Hello ~a, my name is ~a!" your-name my-name)))
 
 (define alice
-  (a-vat (lambda () (spawn ^greeter "Alice"))))
+  (with-vat a-vat
+    (spawn ^greeter "Alice")))
 (define bob
-  (b-vat (lambda () (spawn ^greeter "Bob"))))
+  (with-vat b-vat
+    (spawn ^greeter "Bob")))
 
 (define alice-locator-sref
-  (a-vat (lambda () ($ a-mycapn 'register alice 'fake))))
+  (with-vat a-vat
+    ($ a-mycapn 'register alice 'fake)))
 (define bob-locator-sref
-  (b-vat (lambda () ($ b-mycapn 'register bob 'fake))))
+  (with-vat b-vat
+    ($ b-mycapn 'register bob 'fake)))
 
 
 

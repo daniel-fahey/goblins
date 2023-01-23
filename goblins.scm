@@ -75,5 +75,13 @@
                spawn-promise-cons
                spawn-promise-values
 
+               make-vat
+               vat?
+               vat-name
+               vat-running?
+               vat-halt!
+               vat-start!
+               call-with-vat
+               with-vat
                spawn-vat
                define-vat-run))
