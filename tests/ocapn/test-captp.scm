@@ -97,4 +97,24 @@
     result
     #(ok "Hi Carol, I'm Bob")))
 
+(define (^kw-car-factory _bcom brand)
+  (lambda* (model #:key (color #f) (noise #f))
+    (define (^car _bcom)
+      (lambda ()
+        (format #f "a ~a ~a ~a goes ~a!" color brand model noise)))
+    (spawn ^car)))
+
+(let* ((fork-factory (a-vat (lambda () (spawn ^kw-car-factory "fork"))))
+       (fork-factory-sref (a-vat (lambda () ($ a-mycapn 'register fork-factory 'fake))))
+       (fork-factory-vow (b-vat (lambda () (<- b-mycapn 'enliven fork-factory-sref))))
+       (red-explorist-vow (b-vat (lambda () (<- fork-factory-vow "explorist" #:color "red" #:noise "vrooom"))))
+       (result
+        (resolve-vow-and-return-result
+         b-vat
+         (lambda ()
+           (<- red-explorist-vow)))))
+  (test-equal "Sending keyword arguments over CapTP"
+    result
+    #(ok "a red fork explorist goes vrooom!")))
+
 (test-end "test-captp")
