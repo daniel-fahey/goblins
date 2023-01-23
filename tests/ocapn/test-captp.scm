@@ -107,14 +107,14 @@
 (let* ((fork-factory (a-vat (lambda () (spawn ^kw-car-factory "fork"))))
        (fork-factory-sref (a-vat (lambda () ($ a-mycapn 'register fork-factory 'fake))))
        (fork-factory-vow (b-vat (lambda () (<- b-mycapn 'enliven fork-factory-sref))))
-       (red-explorer-vow (b-vat (lambda () (<- fork-factory-vow "explorer" #:color "red" #:noise "vrooom"))))
+       (red-explorist-vow (b-vat (lambda () (<- fork-factory-vow "explorist" #:color "red" #:noise "vrooom"))))
        (result
         (resolve-vow-and-return-result
          b-vat
          (lambda ()
-           (<- red-explorer-vow)))))
+           (<- red-explorist-vow)))))
   (test-equal "Sending keyword arguments over CapTP"
     result
-    #(ok "a red fork explorer goes vrooom!")))
+    #(ok "a red fork explorist goes vrooom!")))
 
 (test-end "test-captp")
