@@ -49,10 +49,8 @@
   (run a-vat spawn ^counter-poker a-counter))
 (test-eq (run a-vat $ a-counter) 6)
 (run a-vat $ counter-poker)
-(usleep 50000)
 (test-eq (run a-vat $ a-counter) 8)
 (run a-vat $ counter-poker)
-(usleep 50000)
 (test-eq (run a-vat $ a-counter) 10)
 
 ;; Inter-vat communication
