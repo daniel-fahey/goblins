@@ -1466,6 +1466,10 @@ Horray!
 @node actor-lib A standard library of sorts
 @chapter actor-lib: A standard library of sorts
 
+The Goblins actor library, in the @samp{(goblins actor-lib ...)} module
+namespace, provides implementations for a variety of common actor
+model patterns.
+
 @menu
 * Cells::
 * Methods::
@@ -1476,14 +1480,177 @@ Horray!
 @node Cells
 @section Cells
 
+The @samp{(goblins actor-lib cell)} module provides a very handy actor
+called a ``cell.''  Cells are used to store arbitrary data.
+
+New cells are created with the constructor @samp{^cell}:
+
+@example
+> (define chest (spawn ^cell 'gold))
+@end example
+
+The current value of a cell can be retrieved by sending an empty
+message to the cell:
+
+@example
+> ($ chest)
+=> gold
+@end example
+
+The value of a cell can be changed by sending a message containing the
+new value:
+
+@example
+> ($ chest 'sword)
+> ($ chest)
+=> sword
+@end example
+
 @node Methods
 @section Methods
+
+The @samp{(goblins actor-lib methods)} module provides a simple,
+single-dispatch method system for actor behaviors.
+
+Here's a constructor for an actor that can say hello or goodbye:
+
+@example
+> (define (^hello-goodbye _bcom)
+    (methods
+     ((say-hello name)
+      (format #f "Hello, ~a!" name))
+     ((say-goodbye name)
+      (format #f "Goodbye, ~a!" name))))
+@end example
+
+The @samp{methods} macro is used to describe a collection of messages that
+an actor accepts.  The first argument of the message is used to
+dispatch the proper behavior for handling that message.
+
+Let's try it out:
+
+@example
+> (define hello-goodbye (spawn ^hello-goodbye))
+> ($ hello-goodbye 'say-hello "Alice")
+=> "Hello, Alice!"
+> ($ hello-goodbye 'say-goodbye "Alice")
+=> "Goodbye, Alice!"
+@end example
 
 @node Joiners
 @section Joiners
 
+The @samp{(goblins actor-lib joiners)} module provides a means of combining
+the results of many promises.
+
+The @samp{all-of} procedure returns a new promise that waits for all of the
+given promises to resolve before resolving itself.  This is very
+useful when we need to wait for several asynchronous operations to
+complete successfully before moving on.
+
+To demonstrate this, we'll use a very useless actor that waits for
+awhile before returning the same thing it received:
+
+@example
+> (define (^procrastinator _bcom delay)
+    (lambda (x)
+      (sleep delay)
+      x))
+@end example
+
+We can use @samp{all-of} to wait for all procrastinators to finish
+procrastinating before writing some output:
+
+@example
+> (define a-vat (spawn-vat))
+> (define b-vat (spawn-vat))
+> (define c-vat (spawn-vat))
+> (define p1 (with-vat b-vat (spawn ^procrastinator 1)))
+> (define p2 (with-vat c-vat (spawn ^procrastinator 2)))
+> (with-vat a-vat
+    (on (all-of (<- p1 'foo) (<- p2 'bar))
+        (lambda (items)
+          (display items)
+          (newline))))
+; (foo bar)
+@end example
+
+@strong{Note}: Currently, @samp{all-of} calls the resolution procedure with a list
+as its only argument.  In a future release of Goblins we intend to
+call the resolution procedure with multiple arguments, one for each
+promise passed to @samp{all-of}.
+
 @node Sealers
 @section Sealers
+
+The @samp{(goblins actor-lib sealers)} module provides a mechanism for
+ensuring the authenticity of data.  Using sealers, data can be hidden
+within a wrapper and marked with a unique brand to produce a sealed
+object.  A sealed object can be checked to verify that it has been
+marked with the expected brand.  An authentic sealed object can then
+be unsealed to reveal the data within.  Sealers and unsealers are
+analagous to public key cryptography where sealing resembles
+encryption, unsealing resembles decryption, and the brand check
+predicate resembles signature verification.  However, sealers work
+without any cryptography at all!
+
+Sealers are comprised of three distinct capabilities: the sealer, the
+unsealer, and the brand check.  Using separate capabilities allows for
+fine-grained privilege management.  For example, an actor that only
+has the brand check capability cannot seal or unseal data.
+
+Imagine a scenario where we are protecting lunchtime meals using
+sealers and unsealers. Our rival, who wishes to sabotage us, does the
+same:
+
+@example
+> (define-values (our-lunch:seal our-lunch:unseal our-can?)
+    (spawn-sealer-triplet))
+> (define-values (rival-lunch:seal rival-lunch:unseal rival-can?)
+    (spawn-sealer-triplet))
+@end example
+
+Calling the @samp{spawn-sealer-triplet} procedure returns three new actors
+representing the seal, unseal, and check capabilities.  We give our
+customer the unsealer, the delivery driver the brand predicate, and we
+keep the sealer to ourselves so no one else can brand their lunch as
+ours.
+
+A value can be sealed by sending it as a message to the sealer.  Let's
+put some fried rice in a can by sending a message to the sealer:
+
+@example
+> ($ our-lunch:seal 'fried-rice)
+=> #<local-object sealed-value>
+@end example
+
+The contents of sealed cans are private and cannot be seen by
+inspecting the sealed object.
+
+Our customer wants some chickpea salad, so we seal some for them:
+
+@example
+> (define chickpea-lunch ($ our-lunch:seal 'chickpea-salad))
+@end example
+
+Our truck driver is able to check that the food they are to deliver
+really is from us (we have a reputation to uphold!) by sending a
+message to the brand predicate:
+
+@example
+> ($ our-can? chickpea-lunch)
+=> #t
+> ($ our-can? ($ rival-lunch:seal 'melted-ice-cream))
+=> #f
+@end example
+
+The customer is able to open up their can by sending it to the
+unsealer:
+
+@example
+> ($ our-lunch:unseal chickpea-lunch)
+=> chickpea-salad
+@end example
 
 @node Thanks
 @chapter Thanks
