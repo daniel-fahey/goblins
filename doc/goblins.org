@@ -1276,7 +1276,7 @@ our ='bbq-tofu= sandwich for a ='chickpea-salad= one:
 Horray!
 
 ** OCapN
-** Persistence
+** COMMENT Persistence
 
 * actor-lib: A standard library of sorts
 

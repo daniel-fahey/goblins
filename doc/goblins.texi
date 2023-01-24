@@ -75,7 +75,6 @@ API
 * Vats::
 * Actormaps::
 * OCapN::
-* Persistence::
 
 Objects
 
@@ -976,7 +975,6 @@ importing:
 * Vats::
 * Actormaps::
 * OCapN::
-* Persistence::
 @end menu
 
 @node Objects
@@ -1456,9 +1454,6 @@ Horray!
 
 @node OCapN
 @section OCapN
-
-@node Persistence
-@section Persistence
 
 @node actor-lib A standard library of sorts
 @chapter actor-lib: A standard library of sorts
