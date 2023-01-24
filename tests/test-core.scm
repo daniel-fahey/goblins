@@ -161,6 +161,32 @@
 (test-equal (actormap-poke! am a-ctr) 2)
 (test-equal (actormap-peek am a-ctr) 3)
 
+;; Copy of the cell code from cell.scm.  Simplifies some
+;; tests.
+
+;; Constructor for a cell.  Takes an optional initial value, defaults
+;; to false.
+(define* (^cell bcom #:optional val)
+  (case-lambda
+    ;; Called with no arguments; return the current value
+    [() val]
+    ;; Called with one argument, we become a version of ourselves
+    ;; with this new value
+    [(new-val)
+     (bcom (^cell bcom new-val))]))
+
+(define (^spawns-during-constructor bcom)
+  (define a-cell
+    (spawn ^cell 'foo))
+  (lambda ()
+    (list 'got ($ a-cell))))
+(define sdc
+  (actormap-spawn! am ^spawns-during-constructor))
+
+(test-equal "Spawn when we actormap-spawn(!) (yo dawg)"
+  (actormap-peek am sdc)
+  '(got foo))
+
 ;; Make sure using <-np queues a message
 (test-eqv "a single message gets queued"
   (let-values (((_returned tam msgs)
