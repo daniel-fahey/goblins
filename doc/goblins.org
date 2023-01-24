@@ -1009,12 +1009,9 @@ The promise will be resolved as follows:
 ** Vats
 
 In order to start programming with Goblins, you will need to boot up a
-vat somewhere.
-
-In general, Goblins uses [[https://github.com/wingo/fibers/][Fibers]] to implement vats.  However, it is
-intended that users should be able to roll their own vats should they
-have "unusual" event loop needs.  More on how to do this in a future
-iteration of these docs.  ;)
+vat somewhere.  In general, Goblins uses [[https://github.com/wingo/fibers/][Fibers]] to implement vats.
+However, you can also roll your own vats should you have "unusual"
+event loop needs ([[*Rolling your own vats][Rolling your own vats]].)
 
 *** Starting and stopping vats
 

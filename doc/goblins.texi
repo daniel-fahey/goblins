@@ -1171,12 +1171,9 @@ may even be the original exception).
 @section Vats
 
 In order to start programming with Goblins, you will need to boot up a
-vat somewhere.
-
-In general, Goblins uses @uref{https://github.com/wingo/fibers/, Fibers} to implement vats.  However, it is
-intended that users should be able to roll their own vats should they
-have ``unusual'' event loop needs.  More on how to do this in a future
-iteration of these docs.  ;)
+vat somewhere.  In general, Goblins uses @uref{https://github.com/wingo/fibers/, Fibers} to implement vats.
+However, you can also roll your own vats should you have ``unusual''
+event loop needs (@ref{Rolling your own vats}.)
 
 @menu
 * Starting and stopping vats::
