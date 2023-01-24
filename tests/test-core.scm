@@ -20,6 +20,65 @@
 
 (test-begin "test-goblins-core")
 
+;;; actormap low-level behavior tests
+;;; =================================
+
+(define-syntax-rule (snarf id ...)
+  (begin
+    (define id
+      (@@ (goblins core) id))
+    ...))
+
+(snarf make-local-object-refr
+       whactormap-set!
+       whactormap-ref
+       transactormap-set!
+       transactormap-ref
+       transactormap-merged?)
+
+;; set up actormap base with beeper and booper
+(define actormap-base (make-whactormap))
+(define beeper-refr (make-local-object-refr 'beeper #f))
+(define (beeper-proc . args)
+  'beep)
+(whactormap-set! actormap-base beeper-refr beeper-proc)
+(define booper-refr (make-local-object-refr 'booper #f))
+(define (booper-proc . args)
+  'boop)
+(whactormap-set! actormap-base booper-refr booper-proc)
+(define blepper-refr (make-local-object-refr 'blepper #f))
+(define (blepper-proc . args)
+  'blep)
+(whactormap-set! actormap-base blepper-refr blepper-proc)
+
+(define tam1
+  (make-transactormap actormap-base))
+(define bipper-refr (make-local-object-refr 'bipper #f))
+(define (bipper-proc . args)
+  'bippity)
+(transactormap-set! tam1 bipper-refr bipper-proc)
+(define (booper-proc2 . args)
+  'boop2)
+(transactormap-set! tam1 booper-refr booper-proc2)
+(define (blepper-proc2 . args)
+  'blep2)
+(transactormap-set! tam1 blepper-refr blepper-proc2)
+(test-eq bipper-proc
+  (transactormap-ref tam1 bipper-refr))
+(test-eq beeper-proc
+  (transactormap-ref tam1 beeper-refr))
+(test-eq booper-proc2
+  (transactormap-ref tam1 booper-refr))
+(test-eq blepper-proc2
+  (transactormap-ref tam1 blepper-refr))
+(test-eq booper-proc
+  (whactormap-ref actormap-base booper-refr))
+(test-assert (not (transactormap-merged? tam1)))
+
+
+;;; actormap interface tests
+;;; ========================
+
 (define am (make-whactormap))
 
 (define (^greeter _bcom my-name)
