@@ -1275,7 +1275,305 @@ our ='bbq-tofu= sandwich for a ='chickpea-salad= one:
 
 Horray!
 
-** OCapN
+** OCapN: The Object Capabilities Network
+
+[[https://github.com/ocapn/ocapn][OCapN]] stands for "Object Capability Network" and is a suite of
+protocols for communication between distributed, networked objects.
+In other words, it's how Goblins actors can talk to actors running on
+another computer.
+
+OCapN uses the [[http://erights.org/elib/distrib/captp/index.html][Capability Transport Protocol (CapTP)]] as the core
+protocol for enabling distributed programming in a mutually suspicious
+network.  It originated in the [[http://www.erights.org/][E programming language]] but has since
+appeared in [[https://capnproto.org/][Cap'N Proto]], [[http://waterken.sourceforge.net/][Waterken]], [[https://agoric.com/][Agoric]]'s [[https://github.com/Agoric/agoric-sdk/tree/master/packages/SwingSet][SwingSet]], and now Goblins.
+
+*CAUTION*: CapTP support is still in its early days.  Please do not
+rely on the protocol being stable at this time.
+
+*** CapTP: The Capability Transport Protocol
+
+OCapN's CapTP has an abstract "netlayer" interface, allowing
+communication over many different protocols ranging from Tor Onion
+Services to IBC to I2P to libp2p to perhaps carrier pigeons with
+backpacks full of encrypted MicroSD cards.  Currently, Goblins only
+supports the Tor Onion Services netlayer.
+
+Benefits of CapTP:
+
+- Invocation of remote objects resembles the same as with local
+  objects.  You can use =<-= and =on= which means that any most
+  programs that were even originally designed mostly for local-only
+  computing naturally scale out to a networked environment.
+- All this is done while mostly hiding the abstraction of the
+  networked protocol from the user.
+- Object capability security is upheld.  A remote machine cannot make
+  use of any capability that has not been handed to it.
+- Live object references between CapTP endpoints are incredibly cheap,
+  merely represented as integers on each side.  This keeps message
+  sizes small and efficient.
+- CapTP provides (acyclic) distributed garbage collection.  Remote
+  machines can indicate when they no longer need an object and the
+  machine locally containing that reference can reclaim it if
+  appropriate.
+- Promise pipelining means that messages can be sent to the resolution
+  of a promise before that resolution actually occurs.  Over the
+  network this is represented as a pipeline of messages.  This can
+  reduce round trips significantly, which is a big win.
+
+  #+BEGIN_QUOTE
+  Machines grow faster and memories grow larger.  But the speed of
+  light is constant and New York is not getting any closer to
+  Tokyo.
+
+   --- Mark S. Miller
+  #+END_QUOTE
+- CapTP is written independently of network transport abstractions.
+  It can be run over local unix domain sockets, an OpenSSL connection,
+  Tor Onion Services, or something custom.  CapTP operates under the
+  assumption of secure pairwise channels; the layer which provides the
+  pairwise channels is called "MachineTP" and can be written in a
+  variety of ways.  A simple MachineTP abstraction is provided, but
+  presently still requires some manual wiring.  (In the future, even
+  simpler abstractions will be provided which cover most user needs.)
+
+All of these combine into an efficient and powerful protocol that,
+most powerfully of all, the author of Goblins programs mostly need not
+think too much about.  This circumvents the usual years and years of
+careful message structure coordination and standardization for many
+kinds of distributed programs, which can simply be written as normal
+Goblins programs rather than bespoke protocols.
+
+Limitations of CapTP:
+
+- Goblins' CapTP provides /acyclic/ distributed garbage collection.
+  Cycles between servers are not automatically recognized.  Full
+  [[http://erights.org/history/original-e/dgc/][cycle-collecting distributed garbage collection]] has been written,
+  but requires special cooperation from the garbage collector that we
+  don't have access to in Guile (or in most languages).
+- Goblins' CapTP does not do anything about memory usage or resource
+  management on its own.  (Features for this will come as Spritely
+  sub-projects in the future.)
+- While CapTP in theory routes capabilities to specific remote
+  objects, since the network is mutually suspicious we can't assume
+  that the remote end isn't conspiring some way to hand those
+  capabilities to other objects that we don't expect.  The right way
+  to think about this from an object capability perspective is that a
+  remote misbehaving machine is equivalent to a misbehaving object
+  with the surface area of the entire machine.
+- *TEMPORARY*: The API is heavily in flux.
+
+*** Launching a Tor daemon for Goblins
+
+In order for Goblins' Onion Service netlayer to work, it needs to talk
+to a Tor daemon.  Goblins can set up and manage the Onion Services
+itself once it connects to the Tor daemon.  So far it seems like
+running a single Goblins tor process "as your user" and letting
+various Goblins processes connect to it is the easiest option.
+
+Here's an example config file template (replace =<user>= with your
+actual username):
+
+#+BEGIN_SRC text
+  DataDirectory /home/<user>/.cache/goblins/tor/data/
+  SocksPort unix:/home/<user>/.cache/goblins/tor/tor-socks-sock RelaxDirModeCheck
+  ControlSocket unix:/home/<user>/.cache/goblins/tor/tor-control-sock RelaxDirModeCheck
+  Log notice file /home/<user>/.cache/goblins/tor/tor-log.txt}|
+#+END_SRC
+
+Write this configuration to =~/.config/goblins/tor-config.txt=.
+
+Create the necessary cache directory:
+
+#+BEGIN_SRC sh
+  mkdir -p ~/.cache/goblins/tor/data
+#+END_SRC
+
+Now launch the Tor daemon:
+
+#+BEGIN_SRC sh
+  tor -f ~/.config/goblins/tor-config.txt
+#+END_SRC
+
+*** Example: Two Goblins programs chatting over CapTP via Tor
+
+Before diving into API details, let's take a look at a couple of small
+example programs to demonstrate that this stuff works.
+
+Here's our client script named =captp-alice.scm=:
+
+#+BEGIN_SRC scheme
+  (use-modules (fibers conditions)
+               (fibers operations)
+               (goblins)
+               (goblins ocapn ids)
+               (goblins ocapn captp)
+               (goblins ocapn netlayer onion)
+               (ice-9 match))
+
+  ;; Create a CapTP router using Tor Onion Services.
+  (define machine-vat (spawn-vat))
+  (define mycapn
+    (with-vat machine-vat
+      (spawn-mycapn (new-onion-netlayer))))
+
+  ;; Convert the command-line argument into a sturdyref for Bob.
+  (define bob-uri
+    (match (command-line)
+      ((_ uri) uri)))
+  (define bob-sref (string->ocapn-id bob-uri))
+
+  ;; Create a vat for Alice and enliven Bob.
+  (define a-vat (spawn-vat))
+  (define bob-vow
+    (with-vat a-vat
+      (<- mycapn 'enliven bob-sref)))
+
+  ;; Send a message to Bob and print the response.
+  (define done? (make-condition))
+  (with-vat a-vat
+    (on (<- bob-vow "Alice")
+        (lambda (response)
+          (format #t "Alice heard back: ~a" response)
+          (signal-condition! done?))))
+
+  ;; Wait until Alice has received a response before exiting.
+  (perform-operation (wait-operation done?))
+ #+END_SRC
+
+Traditionally, Alice talks to Bob.  So, now we need Bob.  Save the
+following server script as =captp-bob.scm=:
+
+#+BEGIN_SRC scheme
+  (use-modules (fibers conditions)
+               (fibers operations)
+               (goblins)
+               (goblins ocapn ids)
+               (goblins ocapn captp)
+               (goblins ocapn netlayer onion))
+
+  ;; Bob is going to be a greeter that says hello to other people.
+  (define (^greeter _bcom our-name)
+    (lambda (your-name)
+      (format #f "Hello ~a, my name is ~a!" your-name our-name)))
+
+  ;; Create Bob in their own vat.
+  (define b-vat (spawn-vat))
+  (define bob (with-vat b-vat (spawn ^greeter "Bob")))
+
+  ;; Create a CapTP router using Tor Onion Services.
+  (define machine-vat (spawn-vat))
+  (define mycapn
+    (with-vat machine-vat
+      (spawn-mycapn (new-onion-netlayer))))
+
+  ;; Create a sturdyref for Bob and print it.
+  (define bob-sref
+    (with-vat machine-vat
+      ($ mycapn 'register bob 'onion)))
+  (format #t "Bob's sturdyref: ~a"
+          (ocapn-id->string bob-sref))
+
+  ;; Hold the process open indefinitely.
+  (perform-operation (wait-operation (make-condition)))
+#+END_SRC
+
+Okay, let’s try it out!  Open up two terminals, and in the first one
+run:
+
+#+BEGIN_SRC sh
+  guile captp-bob.scm
+#+END_SRC
+
+This will print out a captp "sturdyref" URI to the terminal.  Copy it
+and paste it in the second terminal as the argument to =guile
+captp-alice.scm=:
+
+#+BEGIN_SRC sh
+  guile captp-alice.scm <STURDYREF-GOES-HERE>
+#+END_SRC
+
+Tor Onion Services can take awhile to establish, but after a short
+wait you should see:
+
+#+BEGIN_SRC text
+  Bob heard back: Hello Bob, my name is Alice!
+#+END_SRC
+
+If you see the same output then your connection succeeded!  Yay!  In
+the next sections we will get into the details of how to use the CapTP
+API.
+
+*** Using the CapTP API
+
+Goblins uses an actor to communicate over CapTP.  This actor can be
+spawned using the =spawn-mycapn= procedure from the =(goblins ocapn
+captp)= module:
+
+#+BEGIN_SRC scheme
+  > (define mycapn (spawn-mycapn netlayer))
+#+END_SRC
+
+Where =netlayer= refers to a CapTP netlayer object.  See the next
+section for details on available netlayers.
+
+Local actors need to be registered so that they can receive messages
+over CapTP.  Registering an actor generates a CapTP identifier for
+that actor:
+
+#+BEGIN_SRC scheme
+  > (define alice (spawn ^greeter "Alice"))
+  > (define alice-captp-id ($ mycapn 'register alice 'onion))
+#+END_SRC
+
+To use this actor on another machine, that machine needs a "sturdyref"
+to the actor.  A sturdyref is a special URI that uniquely identifies
+the actor on the network.  The =ocapn-id->string= procedure from the
+=(goblins ocapn ids)= module can generate such a URI:
+
+#+BEGIN_SRC scheme
+  > (ocapn-id->string community-sref)
+  => "ocapn://jv4arqqwntmxs3rljkx3ao5bucci37rxxb575vypovntyve76mmyf4ad.onion/s/nGxw4_p6s91IF-R5r6MMYsZzoByODX46MV7AWTApX5s"
+#+END_SRC
+
+To generate a Guile URI object instead of a string, use
+=ocapn-id->uri= instead.
+
+On the other machine, the sturdyref can be "enlivened" to create a
+promise that, when resolved, yields a remote object:
+
+#+BEGIN_SRC scheme
+  > (define vow ($ mycapn 'enliven "ocapn://..."))
+  > vow
+  => #<local-promise>
+  > (on vow
+        (lambda (obj)
+          (display obj)
+          (newline)))
+  ; #<remote-object>
+#+END_SRC
+
+Sending messages to remote objects using =<-= looks the same as
+sending messages to local objects.  The message will be transparently
+sent over CapTP to the remote object!
+
+*** Netlayers
+
+**** Tor Onion Services
+
+Assuming a Tor daemon is running, a Goblins Onion netlayer can be
+created using the =new-onion-netlayer= procedure from the =(goblins
+ocapn netlayer onion)= module:
+
+#+BEGIN_SRC scheme
+  > (define onion-netlayer (new-onion-netlayer))
+#+END_SRC
+
+That netlayer can then be used to spawn an OCapN router actor:
+
+#+BEGIN_SRC scheme
+  > (define mycapn (spawn-mycapn onion-netlayer))
+#+END_SRC
+
 ** COMMENT Persistence
 
 * actor-lib: A standard library of sorts
