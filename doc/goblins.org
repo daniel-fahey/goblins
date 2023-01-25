@@ -113,19 +113,19 @@ in response to a message, an "actor" can:
 (b) create a finite number of new actors; or
 (c) designate the behavior to be used for the next message it receives.
 However, Goblins supports both synchronous call-return invocation of
-actors within the same event loop via =$= and asynchronous message
-sends via =<-=.  Arguably the true "classic actor" model only supports
+actors within the same event loop via ~$~ and asynchronous message
+sends via ~<-~.  Arguably the true "classic actor" model only supports
 the latter.
 
 * Getting started
 
 ** Installing Goblins
 
-You'll need to install =guile-goblins=.  Either use [[https://guix.gnu.org/][Guix]] or use your
-standard GNU/Linux distro's package for =guile-goblins= (if it exists)
+You'll need to install ~guile-goblins~.  Either use [[https://guix.gnu.org/][Guix]] or use your
+standard GNU/Linux distro's package for ~guile-goblins~ (if it exists)
 or even better yet run Guix as your standard distro.
 
-See the =HACKING= and =README= files with git checkouts / release
+See the ~HACKING~ and ~README~ files with git checkouts / release
 tarballs otherwise to install.
 
 ** Setup for hacking on Goblins
@@ -154,11 +154,11 @@ manual.
 ** TEMPORARY: Live hacking "fix"
 
 The traditional way to hack Guile is to use Geiser, both evaluating
-from some =foo.scm= file/buffer with more "permanent" code via, for
-example, the =C-x C-e= / =C-x C-b= / =C-x C-k= commands to evaluate an
+from some ~foo.scm~ file/buffer with more "permanent" code via, for
+example, the ~C-x C-e~ / ~C-x C-b~ / ~C-x C-k~ commands to evaluate an
 expression, evaluate a whole buffer, or compile a buffer's content,
 and switching back and forth between that and the (usually called
-=*Geiser Guile REPL*=) experimental-hacking-and-debugging REPL.
+~*Geiser Guile REPL*~) experimental-hacking-and-debugging REPL.
 
 This works with Goblins, but Geiser does some things to temporarily
 redirect output/error ports when doing the file/buffer oriented
@@ -173,7 +173,7 @@ first execute:
   > (use-modules (goblins))
 #+END_SRC
 
-... from the =*Geiser Guile REPL*=.  Otherwise vats may mysteriously
+... from the ~*Geiser Guile REPL*~.  Otherwise vats may mysteriously
 "hang".  We know this is an annoyance!  It'll be fixed soon!
 
 
@@ -205,23 +205,23 @@ to communicate with each other:
 
 In the above diagram, we see:
 
- - Two machines (=Machine 1= and =Machine 2=, running separately from
+ - Two machines (~Machine 1~ and ~Machine 2~, running separately from
    each other, but connected to each other over the network via OCapN
    and CapTP.
 
- - =Vat A= and =Vat B= are event loops which live on =Machine 1=,
-   and =Vat C= is an event loop which live son =Machine 2=.
+ - ~Vat A~ and ~Vat B~ are event loops which live on ~Machine 1~,
+   and ~Vat C~ is an event loop which live son ~Machine 2~.
 
  - The individual objects (represented by circles) live in /vats/,
-   aka event loops which contain objects.  =Alice= and
-   =Alfred= live in =Vat A=, =Bob= lives in =Vat B=, and =Carol= and
-   =Carlos= live on =Vat C=.  (While we've given these objects
+   aka event loops which contain objects.  ~Alice~ and
+   ~Alfred~ live in ~Vat A~, ~Bob~ lives in ~Vat B~, and ~Carol~ and
+   ~Carlos~ live on ~Vat C~.  (While we've given these objects
    human-like names, they're just Goblins objects.)
 
  - The arrows between the objects represent references these objects
-   have to each other.  =Alice= has references to both =Alfred= and
-   =Bob=.  =Bob= has a reference to =Carol=.  =Carlos= has a reference
-   to =Bob=.
+   have to each other.  ~Alice~ has references to both ~Alfred~ and
+   ~Bob~.  ~Bob~ has a reference to ~Carol~.  ~Carlos~ has a reference
+   to ~Bob~.
 
  - Two objects which are in the same vat are considered /near/ each
    other, and thus can invoke each other synchronously, whereas any
@@ -260,7 +260,7 @@ invocations in a manner familiar to most sequential programming
 languages used by most programmers today.  Aside from being
 a somewhat more convenient way to program, sequential invocation
 is desirable because of cheap /transactionality/, which we shall
-expand on more later.  In Goblins, we use the =$= operator
+expand on more later.  In Goblins, we use the ~$~ operator
 to perform synchronous operations.
 
 Both /near/ and /far/ objects are able to invoke each other
@@ -270,7 +270,7 @@ generally matter whether or not a /far/ object is running within the
 same OS process or machine or one somewhere else on the
 network for most programming tasks; asynchronous
 message passing works the same either way.  In Goblins, we use the
-=<-= operator to perform asynchronous operations.
+~<-~ operator to perform asynchronous operations.
 # [fn:classic-actors] [fn:session-severance]
 
 For both programmer convenience and for networked efficiency, Goblins
@@ -336,22 +336,22 @@ Now let us implement a friend who will greet us:
             your-name our-name)))
 #+END_SRC
 
-Let's give it a try by instantiating an instance of =^greeter= using
-=spawn= and assign her to the variable =alice=:
+Let's give it a try by instantiating an instance of ~^greeter~ using
+~spawn~ and assign her to the variable ~alice~:
 
 #+BEGIN_SRC scheme
  > (define alice
      (spawn ^greeter "Alice"))
 #+END_SRC
 
-The first argument to =spawn= is the constructor we will use to make
-our Goblins object, in this case =^greeter=.
+The first argument to ~spawn~ is the constructor we will use to make
+our Goblins object, in this case ~^greeter~.
 The remaining arguments will be passed to the constructor,
 along with an implicit argument which can be used to change object
-behavior called =bcom= (pronounced "become").
-Thus ="Alice"= maps to =our-name=.
+behavior called ~bcom~ (pronounced "become").
+Thus ~"Alice"~ maps to ~our-name~.
 
-We can invoke =alice= by using =$= for a synchronous call-return
+We can invoke ~alice~ by using ~$~ for a synchronous call-return
 operation:
 
 #+BEGIN_SRC scheme
@@ -361,14 +361,14 @@ goblins[1]> ($ alice "Alfred")
 ; => "Hello Alfred, my name is Alice!"
 #+END_SRC
 
-The first argument to =$= is the object to be invoked, the remaining
+The first argument to ~$~ is the object to be invoked, the remaining
 arguments are passed to the "behavior" of the object.
-Thus =your-name= in =^greeter='s behavior procedure is bound to
-="Alfred"=.
+Thus ~your-name~ in ~^greeter~'s behavior procedure is bound to
+~"Alfred"~.
 The behavior procedure thus proceeds with formatting and returning the
 greeting string.
 
-We can exit the subrepl for =a-vat= with =,q= (the same way as if
+We can exit the subrepl for ~a-vat~ with ~,q~ (the same way as if
 Guile put us in a subrepl to debug an error):
 
 #+BEGIN_SRC scheme
@@ -376,13 +376,13 @@ goblins[1]> ,q
 scheme>
 #+END_SRC
 
-As you have probably inferred, Goblins-specific operations such as =$=
-and =spawn= happen within a context (typically a /vat/, though there is
+As you have probably inferred, Goblins-specific operations such as ~$~
+and ~spawn~ happen within a context (typically a /vat/, though there is
 an even lower-level structure called an /actormap/ which we will see
 more about later).
-However, the subrepl entered by =,enter-vat= is a convenience for
+However, the subrepl entered by ~,enter-vat~ is a convenience for
 hacking.
-We can run also run code within =a-vat= like so:
+We can run also run code within ~a-vat~ like so:
 
 #+BEGIN_SRC scheme
   scheme> (a-vat (lambda () ($ alice "Arthur")))
@@ -396,7 +396,7 @@ within the vats do their own thing.
 
 ** State as updating behavior
 
-Re-enter =a-vat='s subrepl if you haven't:
+Re-enter ~a-vat~'s subrepl if you haven't:
 
 #+BEGIN_SRC scheme
 scheme> ,enter-vat a-vat
@@ -405,7 +405,7 @@ goblins[1]>
 
 Let's introduce a simple cell which stores a value.
 This cell will have two methods:
-='get= retrieves the current value, and ='set= replaces
+~'get~ retrieves the current value, and ~'set~ replaces
 the current value with a new value.
 
 #+BEGIN_SRC scheme
@@ -417,7 +417,7 @@ the current value with a new value.
      (bcom (^cell bcom new-val)))))
 #+END_SRC
 
-=case-lambda= allows for dispatching depending on the number of
+~case-lambda~ allows for dispatching depending on the number of
 arguments, so here we're choosing that if no arguments are provided,
 our cell shares the current value, and if one argument is provided,
 the cell updates itself to become a cell storing the new value.
@@ -433,19 +433,19 @@ Taking things out and putting them back in is easy:
   ; => "sword"
   goblins[1]> ($ chest "gold")
   goblins[1]> ($ chest)
-  ; => "gold" 
+  ; => "gold"
 #+END_SRC
 
-Now we can see what =bcom= is: a capability specific to this object
+Now we can see what ~bcom~ is: a capability specific to this object
 instance which allows it to change its behavior!
-(For this reason, =bcom= is pronounced "become"!)
+(For this reason, ~bcom~ is pronounced "become"!)
 
 ** Methods aren't essential, but they are useful
 
 The most common way to select different sub-behaviors isn't by the
 number of arguments though.
 It's much more common to have "methods" that are selected by name.
-We can use the =methods= macro to do just that:
+We can use the ~methods~ macro to do just that:
 
 #+BEGIN_SRC scheme
 (use-modules (goblins actor-lib methods))
@@ -458,7 +458,7 @@ We can use the =methods= macro to do just that:
     (bcom (^mcell bcom new-val)))))
 #+END_SRC
 
-The use of =^mcell= is similar, but now we pass in a first argument
+The use of ~^mcell~ is similar, but now we pass in a first argument
 as a symbol selecting the method, and the rest of the arguments are
 passed to the object:
 
@@ -472,7 +472,7 @@ passed to the object:
   ; => "crumbs"
 #+END_SRC
 
-Methods aren't particularly magical... the =methods= macro just
+Methods aren't particularly magical... the ~methods~ macro just
 returns a procedure which is convenient to use for procedure dispatch:
 
 #+BEGIN_SRC scheme
@@ -488,7 +488,7 @@ returns a procedure which is convenient to use for procedure dispatch:
   ; => (called-bar-with "meep")
 #+END_SRC
 
-So really, =methods= just makes a particularly useful kind of
+So really, ~methods~ just makes a particularly useful kind of
 behavior procedure for us, one which takes a first argument for
 the method name, grabs the rest of the arguments, and then applies
 them to the relevant method.
@@ -498,7 +498,7 @@ them to the relevant method.
 Objects can also contain and define other object references, including
 in their outer constructor procedure.
 
-Here is the definition of a "counting greeter" we call =^cgreeter=:
+Here is the definition of a "counting greeter" we call ~^cgreeter~:
 
 #+BEGIN_SRC scheme
 (define (^cgreeter _bcom our-name)
@@ -516,10 +516,10 @@ Here is the definition of a "counting greeter" we call =^cgreeter=:
             your-name our-name))))
 #+END_SRC
 
-As we can see near the top, =times-called= is instantiated as an
-=^cell= like the one we defined earlier.
-The current value of this cell is returned by =get-times-called=
-and is updated every time the =greet= method is called:
+As we can see near the top, ~times-called~ is instantiated as an
+~^cell~ like the one we defined earlier.
+The current value of this cell is returned by ~get-times-called~
+and is updated every time the ~greet~ method is called:
 
 #+BEGIN_SRC scheme
   goblins[1]> (define julius
@@ -537,20 +537,20 @@ and is updated every time the =greet= method is called:
 ** Asynchronous message passing
 
 We have shown that the behavior of objects may be invoked
-synchronously with =$=.
+synchronously with ~$~.
 However, this only works if two objects are both defined on the same
 machine on the network and the same event loop within that machine.
 
-Now, recall our friend =alice= who we defined on vat A.
+Now, recall our friend ~alice~ who we defined on vat A.
 The following works just fine if we're still executing within
-=a-vat='s subrepl context:
+~a-vat~'s subrepl context:
 
 #+BEGIN_SRC scheme
  goblins[1]> ($ alice "Alfred")
  => "Hello Alfred, my name is Alice!"
 #+END_SRC
 
-But let's exit the =a-vat= subrepl and make =b-vat= and enter that:
+But let's exit the ~a-vat~ subrepl and make ~b-vat~ and enter that:
 
 #+BEGIN_SRC scheme
   goblins[1]> ,q
@@ -561,7 +561,7 @@ But let's exit the =a-vat= subrepl and make =b-vat= and enter that:
 #+END_SRC
 
 But since Alice works on A, we cannot synchronously invoke her with
-=$= on vat B:
+~$~ on vat B:
 
 #+BEGIN_SRC scheme
   goblins[1]> ($ alice "Bob")
@@ -570,10 +570,10 @@ But since Alice works on A, we cannot synchronously invoke her with
   ;;  exception: ... "Not in the same vat:" #<local-object ^greeter>) ...
 #+END_SRC
 
-This is where =<-= comes in.
-In contrast to =$=, =<-= can be used against objects which live
+This is where ~<-~ comes in.
+In contrast to ~$~, ~<-~ can be used against objects which live
 anywhere, even on remote machines.
-However, unlike invocation with =$=, we do not get back an
+However, unlike invocation with ~$~, we do not get back an
 immediate result, we get a promise:
 
 #+BEGIN_SRC scheme
@@ -583,7 +583,7 @@ immediate result, we get a promise:
 
 This promise must be listened to.
 The procedure to listen to promises in Goblins is called
-=on=:
+~on~:
 
 #+BEGIN_SRC scheme
   goblins[1]> (on (<- alice "Bob")
@@ -597,7 +597,7 @@ The procedure to listen to promises in Goblins is called
 Not all communication goes as planned, especially in a distributed
 system.
 Consider an object which breaks in the middle of execution, such as
-an instance of =^broken= here:
+an instance of ~^broken~ here:
 
 #+BEGIN_SRC scheme
   (define (^broken _bcom)
@@ -605,7 +605,7 @@ an instance of =^broken= here:
       (error "Yikes, I broke!")))
 #+END_SRC
 
-=on= also supports the keyword arguments of =#:catch= and =#:finally=,
+~on~ also supports the keyword arguments of ~#:catch~ and ~#:finally~,
 which both accept a procedure defining handling errors in the former case
 and code which will run regardless of successful resolution or failure
 in the latter case:
@@ -631,7 +631,7 @@ But with many moving parts, accomplishing this can be difficult.
 
 However, Goblins makes our life easier.
 To see how, let's intentionally insert a couple of print debugging
-lines (with =pk=, which is pronounced and means "peek")
+lines (with ~pk~, which is pronounced and means "peek")
 and then an error:
 
 #+BEGIN_SRC scheme
@@ -669,7 +669,7 @@ Now let's spawn this friend and invoke it:
 #+END_SRC
 
 Whoops!  Looks like something went wrong!
-We can see from the =pk= debugging that the =times-called= cell should
+We can see from the ~pk~ debugging that the ~times-called~ cell should
 be incremented to 1.
 And yet...
 
@@ -679,7 +679,7 @@ And yet...
 #+END_SRC
 
 We will cover this in greater detail later, but the core idea here
-is that synchronous operations run with =$= are all done together
+is that synchronous operations run with ~$~ are all done together
 as one transaction.
 If an unhandled error occurs, any state changes resulting from
 synchronous operations within that transaction will simply not
@@ -726,7 +726,7 @@ the company name of the factory:
 #+END_SRC
 
 Here is an instance of this car factory, which we will call
-=fork-motors=, which we will spawn on =a-vat=:
+~fork-motors~, which we will spawn on ~a-vat~:
 
 #+BEGIN_SRC scheme
   scheme> ,enter a-vat
@@ -734,16 +734,16 @@ Here is an instance of this car factory, which we will call
                 (spawn ^car-factory "Fork"))
 #+END_SRC
 
-Since asynchronous message passing with =<-= works across machines,
-it does not matter whether interacitons with =fork-motors= are local
+Since asynchronous message passing with ~<-~ works across machines,
+it does not matter whether interacitons with ~fork-motors~ are local
 or via objects communicating over the network.
-We will treat =fork-motors= as living on machine A, and so the
+We will treat ~fork-motors~ as living on machine A, and so the
 following interactions will happen with invocations originating from
 machine B.
 
-Let's send a message to =fork-motors= invoking the ='make-car= method,
+Let's send a message to ~fork-motors~ invoking the ~'make-car~ method,
 receiving back a promise for the car which will be made, which we
-shall name =car-vow= (=-vow= being the conventional suffix given
+shall name ~car-vow~ (~-vow~ being the conventional suffix given
 for promises in Goblins):
 
 #+BEGIN_SRC scheme
@@ -775,8 +775,8 @@ systems use), we would end up with something like:
 With promise pipelining, we can simply message the promise of the car
 directly.
 The first benefit can be observed from code compactness, in that
-we do not need to do an =on= of =car-vow= to later message =our-car=,
-we can simply message =car-vow= directly:
+we do not need to do an ~on~ of ~car-vow~ to later message ~our-car~,
+we can simply message ~car-vow~ directly:
 
 #+BEGIN_SRC scheme
   ;; Interaction on machine B, communicating with A
@@ -845,18 +845,18 @@ control over transactional operations.
 
 *** Spawning objects
 
-Objects can be spawned with the =spawn= operator:
+Objects can be spawned with the ~spawn~ operator:
 
 #+BEGIN_SRC scheme
   (spawn CONSTRUCTOR ARGS ...)
   ;=> <local-refr>
 #+END_SRC
 
-where =CONSTRUCTOR= is a procedure which itself returns a procedure
+where ~CONSTRUCTOR~ is a procedure which itself returns a procedure
 representing an object's current behavior.
-The =CONSTRUCTOR= is implicitly passed a first argument, traditionally
-labeled =bcom=, which can be used to change an object's behavior.
-The =ARGS= are passed as the remaining arguments to the constructor.
+The ~CONSTRUCTOR~ is implicitly passed a first argument, traditionally
+labeled ~bcom~, which can be used to change an object's behavior.
+The ~ARGS~ are passed as the remaining arguments to the constructor.
 
 So for example, let's say we have the following constructor:
 
@@ -875,15 +875,15 @@ And so...
   (define some-cell (spawn ^cell 42))
 #+END_SRC
 
-will bind =val= to =42=.
+will bind ~val~ to ~42~.
 
-Let's look at the =bcom= argument in depth.
+Let's look at the ~bcom~ argument in depth.
 This is a capability which allows the actor to change its own behavior.
-It must be called in a tail position, since =bcom= actually returns
+It must be called in a tail position, since ~bcom~ actually returns
 a datastructure demonstrating that this object is choosing to change
 its value (part of Goblins' quasi-functional design.)
 
-=bcom= also can take a second argument, which will be returned from
+~bcom~ also can take a second argument, which will be returned from
 the object's invocation as a return value, allowing for both an object
 change its own behavior and return a value at the same time during an
 invocation.
@@ -923,13 +923,13 @@ Now, playing around at the REPL, we can see how this works:
   => "Sadly, your glass appears to be empty!"
 #+END_SRC
 
-As you can see above, =bcom= is also a handy way to construct state
-machines, as =^drink= moves from drinkable to empty as it is consumed.
+As you can see above, ~bcom~ is also a handy way to construct state
+machines, as ~^drink~ moves from drinkable to empty as it is consumed.
 
 *** Synchronous invocation
 
 To synchronously invoke two objects within the same vat / actormap,
-use =$=:
+use ~$~:
 
 #+BEGIN_SRC scheme
   ($ near-object args ...)
@@ -937,12 +937,12 @@ use =$=:
 #+END_SRC
 
 Provide a synchronous call against the current message handler of
-=NEAR-REFR=, which must be a /near/ =live-refr?=
+~NEAR-REFR~, which must be a /near/ ~live-refr?~
 in the same vat as the currently running actor context.
 The value returned is that which is returned by the
-current behavior of =NEAR-REFR= upon invocation (or, if
-=NEAR-REFR= chose to =bcom= something else, the second
-argument passed to its =bcom=, or is =unspecified?= if not provided.)
+current behavior of ~NEAR-REFR~ upon invocation (or, if
+~NEAR-REFR~ chose to ~bcom~ something else, the second
+argument passed to its ~bcom~, or is ~unspecified?~ if not provided.)
 
 *** Asynchronous invocation
 
@@ -951,19 +951,19 @@ argument passed to its =bcom=, or is =unspecified?= if not provided.)
   ;=> <local-promise>
 #+END_SRC
 
-Like =$=, but called asynchronously and returns a /promise/,
-which may be handled with =on=.
-Unlike =$=, =<-= is not limited to only /near/ objects;
+Like ~$~, but called asynchronously and returns a /promise/,
+which may be handled with ~on~.
+Unlike ~$~, ~<-~ is not limited to only /near/ objects;
 interaction with /far/ actors are permitted as well.
 
 #+BEGIN_SRC scheme
   (<-np [actor-refr live-refr?] [arg any/c] ...)
 #+END_SRC
 
-Like =<-= but does not return (or require the overhead of) a
+Like ~<-~ but does not return (or require the overhead of) a
 promise.
-=<-np= is effectively an optimization; where promises are not
-needed, using =<-np= over =<-= is a good idea.
+~<-np~ is effectively an optimization; where promises are not
+needed, using ~<-np~ over ~<-~ is a good idea.
 
 #+BEGIN_SRC scheme
 (on vow
@@ -973,36 +973,36 @@ needed, using =<-np= over =<-= is a good idea.
     [#:promise? #f])
 #+END_SRC
 
-Sets up promise handlers for =vow=, which is typically a
-=live-refr?= to a /promise/ but may be anything.
+Sets up promise handlers for ~vow~, which is typically a
+~live-refr?~ to a /promise/ but may be anything.
 
-=fulfilled-handler=, =broken-handler=, and =finally-handler=
+~fulfilled-handler~, ~broken-handler~, and ~finally-handler~
 all, if specified, may be either a procedure (the most common case)
-which is run when =vow= becomes resolved, or a reference to an
+which is run when ~vow~ becomes resolved, or a reference to an
 actor that should be messaged when the promise is resolved with the
 same arguments that would be passed to an equivalent procedure.
-As their names suggest, =fulfilled-handler= will run if a promise is
+As their names suggest, ~fulfilled-handler~ will run if a promise is
 fulfilled and takes one argument, the fulfilled value.
-=broken-handler= will run if a promise is broken and takes one
+~broken-handler~ will run if a promise is broken and takes one
 argument, the error value.
-=finally-handler= will run when a promise is resolved, no matter the
+~finally-handler~ will run when a promise is resolved, no matter the
 outcome and is called with no arguments.
 
-If =#:promise?= is set to =#t=, then =on=
+If ~#:promise?~ is set to ~#t~, then ~on~
 will itself return a promise.
 The promise will be resolved as follows:
 
- - If =vow= is fulfilled and =fulfilled-handler= is not
-   provided, the promise returned will share =vow='s resolution.
- - If =vow= is broken and =broken-handler= is not
-   provided, the promise returned will share =vow='s broken result.
- - If =vow= is fulfilled and =fulfilled-handler= is provided,
-   the resolution will be whatever is returned from =fulfilled-handler=,
-   unless =fulfilled-handler= raises an error, in which case the promise
+ - If ~vow~ is fulfilled and ~fulfilled-handler~ is not
+   provided, the promise returned will share ~vow~'s resolution.
+ - If ~vow~ is broken and ~broken-handler~ is not
+   provided, the promise returned will share ~vow~'s broken result.
+ - If ~vow~ is fulfilled and ~fulfilled-handler~ is provided,
+   the resolution will be whatever is returned from ~fulfilled-handler~,
+   unless ~fulfilled-handler~ raises an error, in which case the promise
    will be broken with its error-value set to this exception.
- - If =vow= is broken and =broken-handler= is provided,
-   the resolution will be whatever is returned from =broken-handler=,
-   unless =broken-handler= raises an error, in which case the promise
+ - If ~vow~ is broken and ~broken-handler~ is provided,
+   the resolution will be whatever is returned from ~broken-handler~,
+   unless ~broken-handler~ raises an error, in which case the promise
    will be broken with its error-value set to this exception (which
    may even be the original exception).
 
@@ -1021,8 +1021,8 @@ event loop needs ([[*Rolling your own vats][Rolling your own vats]].)
   => #<vat izvD0DJT>
 #+END_SRC
 
-Running =spawn-vat= returns a vat object.  Code can be run within the
-context of a vat using the =call-with-vat= procedure.  This is useful
+Running ~spawn-vat~ returns a vat object.  Code can be run within the
+context of a vat using the ~call-with-vat~ procedure.  This is useful
 for bootstrapping vats, or hacking at the REPL:
 
 #+BEGIN_SRC scheme
@@ -1034,9 +1034,9 @@ for bootstrapping vats, or hacking at the REPL:
   => "Hello Alice, my name is Bob!"
 #+END_SRC
 
-For convenience, the =with-vat= macro can be used instead of
-=call-with-vat=.  Here's the above example rewritten to use
-=with-vat=:
+For convenience, the ~with-vat~ macro can be used instead of
+~call-with-vat~.  Here's the above example rewritten to use
+~with-vat~:
 
 #+BEGIN_SRC scheme
   > (define my-vat (spawn-vat))
@@ -1046,8 +1046,8 @@ For convenience, the =with-vat= macro can be used instead of
   => "Hello Alice, my name is Bob!"
 #+END_SRC
 
-You can also use the =vat-halt!= procedure to stop the vat, and
-=vat-running?= to check its status:
+You can also use the ~vat-halt!~ procedure to stop the vat, and
+~vat-running?~ to check its status:
 
 #+BEGIN_SRC scheme
   > (vat-halt! my-vat)
@@ -1059,7 +1059,7 @@ You can also use the =vat-halt!= procedure to stop the vat, and
 no more references exist and thus the vat can do no more work.  The
 Racket version of vats works this way, it would be good for the Guile
 version to do the same.  In the meanwhile, you'll need to call
-=vat-halt!= manually.
+~vat-halt!~ manually.
 
 *** Rolling your own vats
 
@@ -1071,7 +1071,7 @@ The API described below is considered unstable and likely to change in
 future releases of Goblins, so be prepared to update custom vat code
 at a later date.
 
-The =make-vat= constructor is used to make specialized vats.  Below is
+The ~make-vat~ constructor is used to make specialized vats.  Below is
 some pseudocode that illustrates the basic pattern:
 
 #+BEGIN_SRC scheme
@@ -1093,31 +1093,31 @@ some pseudocode that illustrates the basic pattern:
                 #:send send))
 #+END_SRC
 
-How to implement =enqueue-msg=, =enqueue-msg-and-wait-for-result=, and
-=dequeue-msg= depends on the integration target and is left as an
+How to implement ~enqueue-msg~, ~enqueue-msg-and-wait-for-result~, and
+~dequeue-msg~ depends on the integration target and is left as an
 exercise for the implementer.
 
-Vat implementations must provide three hook procedures to =make-vat=:
+Vat implementations must provide three hook procedures to ~make-vat~:
 
-- =start=: This procedure starts the vat message processor in the
-  desired foreign event loop.  It accepts a =churn= procedure as its
-  only argument.  The =churn= procedure accepts a message object and
+- ~start~: This procedure starts the vat message processor in the
+  desired foreign event loop.  It accepts a ~churn~ procedure as its
+  only argument.  The ~churn~ procedure accepts a message object and
   processes it using the vat's underlying actormap.
-- =halt=: This procedure stops vat message processing.  It is a thunk,
+- ~halt~: This procedure stops vat message processing.  It is a thunk,
   meaning that it accepts zero arguments.
-- =send=: This procedure receives a message to process within the vat.
+- ~send~: This procedure receives a message to process within the vat.
   It accepts two arguments: a message and a boolean flag indicating if
   the result of processing the message needs to be returned to the
-  caller.  When the return flag is =#f=, vat implementations can
+  caller.  When the return flag is ~#f~, vat implementations can
   simply queue the message for processing and move on.  When it is
-  =#t=, however, the vat must arrange to wait and retrieve the
+  ~#t~, however, the vat must arrange to wait and retrieve the
   eventual result of processing the message.
 
 Custom vat implementations /must/ enqueue and dequeue messages in a
 thread-safe manner because incoming messages from other vats may be,
 and likely are, running in a different thread.
 
-The =vat-start!= procedure initiates the processing of messages sent
+The ~vat-start!~ procedure initiates the processing of messages sent
 to the vat.
 
 #+BEGIN_SRC scheme
@@ -1136,7 +1136,7 @@ Once a custom vat has been started, it can be used as usual:
 ** Actormaps
 
 So far we have dealt with vats, but there is a lower level of
-abstraction in Goblins which is called an =actormap=.
+abstraction in Goblins which is called an ~actormap~.
 
 The key differences are:
 
@@ -1165,7 +1165,7 @@ Since cells are simple, let's add one of those.
 #+END_SRC
 
 What's in the lunchbox?
-We could take a look with =actormap-peek=:
+We could take a look with ~actormap-peek~:
 
 #+BEGIN_SRC scheme
   > (actormap-peek am lunchbox)
@@ -1173,7 +1173,7 @@ We could take a look with =actormap-peek=:
 #+END_SRC
 
 An empty lunchbox... we'd like to eat something later, so how about we
-pack ourselves a nice sandwich by using =actormap-poke=:
+pack ourselves a nice sandwich by using ~actormap-poke~:
 
 #+BEGIN_SRC scheme
   > (actormap-poke! am lunchbox 'peanut-butter-and-jelly)
@@ -1181,8 +1181,8 @@ pack ourselves a nice sandwich by using =actormap-poke=:
   ; => 'peanut-butter-and-jelly
 #+END_SRC
 
-What if we tried to look inside the lunchbox with =actormap-poke!=
-instead of =actormap-peek=?
+What if we tried to look inside the lunchbox with ~actormap-poke!~
+instead of ~actormap-peek~?
 
 #+BEGIN_SRC scheme
   > (actormap-poke! am lunchbox 'bbq-tofu)
@@ -1191,7 +1191,7 @@ instead of =actormap-peek=?
 #+END_SRC
 
 Well that worked just fine.
-What happens if we do both operations with =actormap-peek=?
+What happens if we do both operations with ~actormap-peek~?
 
 #+BEGIN_SRC scheme
   > (actormap-peek am lunchbox 'chickpea-salad)
@@ -1204,11 +1204,11 @@ Our lunchbox didn't change!
 
 We said that actormaps were transactional.
 We have gotten a hint of this with the above:
-=actormap-poke!= returns a value and commits any changes.
-=actormap-peek= returns a value and throws any changes away.
+~actormap-poke!~ returns a value and commits any changes.
+~actormap-peek~ returns a value and throws any changes away.
 
 Actually, these two functions are just simple conveniences that wrap a
-more powerful (but cumbersome to use) tool, =actormap-turn=:
+more powerful (but cumbersome to use) tool, ~actormap-turn~:
 
 #+BEGIN_SRC scheme
   > (actormap-turn am lunchbox)
@@ -1221,17 +1221,17 @@ more powerful (but cumbersome to use) tool, =actormap-turn=:
   ; => '()
 #+END_SRC
 
-=actormap-turn= returns three values to its continuation: a
+~actormap-turn~ returns three values to its continuation: a
 return value (if any... Guile's REPL doesn't print out the unspecified
 value, which is what actually got returned in the second invocation),
 a "transactormap", and a list representing messages
 queued for delivery.
 
-This =#<transactormap>= is interesting... we haven't mentioned this
+This ~#<transactormap>~ is interesting... we haven't mentioned this
 before, but there are really two kinds of actormaps, "whactormaps"
 (weak-hash actormaps) and "transactormaps" (which hold a transaction
 which we can choose whether or not to commit).
-Actually our =am= is a whactormap:
+Actually our ~am~ is a whactormap:
 
 #+BEGIN_SRC scheme
   > am
@@ -1242,7 +1242,7 @@ It's a weak hashtable which stores the current mutable state of all
 actors.
 
 But we'd like to see about that transactormap... just running
-=actormap-turn= on its own won't update the lunchbox either:
+~actormap-turn~ on its own won't update the lunchbox either:
 
 #+BEGIN_SRC scheme
   > (actormap-turn am lunchbox 'chickpea-salad)
@@ -1265,8 +1265,8 @@ We need to capture the transactormap and commit it.
   > (transactormap-merge! tr-am)
 #+END_SRC
 
-Now at least our =am= actormap should reflect that we've switched out
-our ='bbq-tofu= sandwich for a ='chickpea-salad= one:
+Now at least our ~am~ actormap should reflect that we've switched out
+our ~'bbq-tofu~ sandwich for a ~'chickpea-salad~ one:
 
 #+BEGIN_SRC scheme
   > (actormap-peek am lunchbox)
@@ -1301,7 +1301,7 @@ supports the Tor Onion Services netlayer.
 Benefits of CapTP:
 
 - Invocation of remote objects resembles the same as with local
-  objects.  You can use =<-= and =on= which means that any most
+  objects.  You can use ~<-~ and ~on~ which means that any most
   programs that were even originally designed mostly for local-only
   computing naturally scale out to a networked environment.
 - All this is done while mostly hiding the abstraction of the
@@ -1370,7 +1370,7 @@ itself once it connects to the Tor daemon.  So far it seems like
 running a single Goblins tor process "as your user" and letting
 various Goblins processes connect to it is the easiest option.
 
-Here's an example config file template (replace =<user>= with your
+Here's an example config file template (replace ~<user>~ with your
 actual username):
 
 #+BEGIN_SRC text
@@ -1380,7 +1380,7 @@ actual username):
   Log notice file /home/<user>/.cache/goblins/tor/tor-log.txt}|
 #+END_SRC
 
-Write this configuration to =~/.config/goblins/tor-config.txt=.
+Write this configuration to ~~/.config/goblins/tor-config.txt~.
 
 Create the necessary cache directory:
 
@@ -1399,7 +1399,7 @@ Now launch the Tor daemon:
 Before diving into API details, let's take a look at a couple of small
 example programs to demonstrate that this stuff works.
 
-Here's our client script named =captp-alice.scm=:
+Here's our client script named ~captp-alice.scm~:
 
 #+BEGIN_SRC scheme
   (use-modules (fibers conditions)
@@ -1444,7 +1444,7 @@ Here's our client script named =captp-alice.scm=:
  #+END_SRC
 
 Traditionally, Alice talks to Bob.  So, now we need Bob.  Save the
-following server script as =captp-bob.scm=:
+following server script as ~captp-bob.scm~:
 
 #+BEGIN_SRC scheme
   (use-modules (fibers conditions)
@@ -1491,8 +1491,8 @@ run:
 #+END_SRC
 
 This will print out a captp "sturdyref" URI to the terminal.  Copy it
-and paste it in the second terminal as the argument to =guile
-captp-alice.scm=:
+and paste it in the second terminal as the argument to ~guile
+captp-alice.scm~:
 
 #+BEGIN_SRC sh
   guile captp-alice.scm <STURDYREF-GOES-HERE>
@@ -1512,14 +1512,14 @@ API.
 *** Using the CapTP API
 
 Goblins uses an actor to communicate over CapTP.  This actor can be
-spawned using the =spawn-mycapn= procedure from the =(goblins ocapn
-captp)= module:
+spawned using the ~spawn-mycapn~ procedure from the ~(goblins ocapn
+captp)~ module:
 
 #+BEGIN_SRC scheme
   > (define mycapn (spawn-mycapn netlayer))
 #+END_SRC
 
-Where =netlayer= refers to a CapTP netlayer object.  See the next
+Where ~netlayer~ refers to a CapTP netlayer object.  See the next
 section for details on available netlayers.
 
 Local actors need to be registered so that they can receive messages
@@ -1533,8 +1533,8 @@ that actor:
 
 To use this actor on another machine, that machine needs a "sturdyref"
 to the actor.  A sturdyref is a special URI that uniquely identifies
-the actor on the network.  The =ocapn-id->string= procedure from the
-=(goblins ocapn ids)= module can generate such a URI:
+the actor on the network.  The ~ocapn-id->string~ procedure from the
+~(goblins ocapn ids)~ module can generate such a URI:
 
 #+BEGIN_SRC scheme
   > (ocapn-id->string community-sref)
@@ -1542,7 +1542,7 @@ the actor on the network.  The =ocapn-id->string= procedure from the
 #+END_SRC
 
 To generate a Guile URI object instead of a string, use
-=ocapn-id->uri= instead.
+~ocapn-id->uri~ instead.
 
 On the other machine, the sturdyref can be "enlivened" to create a
 promise that, when resolved, yields a remote object:
@@ -1558,7 +1558,7 @@ promise that, when resolved, yields a remote object:
   ; #<remote-object>
 #+END_SRC
 
-Sending messages to remote objects using =<-= looks the same as
+Sending messages to remote objects using ~<-~ looks the same as
 sending messages to local objects.  The message will be transparently
 sent over CapTP to the remote object!
 
@@ -1589,8 +1589,8 @@ To install the object at a given swiss num, get the nonce registry. This is an o
 **** Tor Onion Services
 
 Assuming a Tor daemon is running, a Goblins Onion netlayer can be
-created using the =new-onion-netlayer= procedure from the =(goblins
-ocapn netlayer onion)= module:
+created using the ~new-onion-netlayer~ procedure from the ~(goblins
+ocapn netlayer onion)~ module:
 
 #+BEGIN_SRC scheme
   > (define-values (onion-netlayer private-key service-id)
@@ -1603,7 +1603,7 @@ That netlayer can then be used to spawn an OCapN router actor:
   > (define mycapn (spawn-mycapn onion-netlayer))
 #+END_SRC
 
-Each time =new-onion-netlayer= is called it generates a new =private-key=  and =service-id=. If you wish for these to persist, these needs to be stored (securely, as anyone with them has the capability to host at them) and call =restore-onion-netlayer= providing them. An example of this is:
+Each time ~new-onion-netlayer~ is called it generates a new ~private-key~  and ~service-id~. If you wish for these to persist, these needs to be stored (securely, as anyone with them has the capability to host at them) and call ~restore-onion-netlayer~ providing them. An example of this is:
 
 #+BEGIN_SRC scheme
   > (define-values (onion-netlayer _private-key _service-id)
@@ -1614,16 +1614,16 @@ Each time =new-onion-netlayer= is called it generates a new =private-key=  and =
 
 * actor-lib: A standard library of sorts
 
-The Goblins actor library, in the =(goblins actor-lib ...)= module
+The Goblins actor library, in the ~(goblins actor-lib ...)~ module
 namespace, provides implementations for a variety of common actor
 model patterns.
 
 ** Cells
 
-The =(goblins actor-lib cell)= module provides a very handy actor
+The ~(goblins actor-lib cell)~ module provides a very handy actor
 called a "cell."  Cells are used to store arbitrary data.
 
-New cells are created with the constructor =^cell=:
+New cells are created with the constructor ~^cell~:
 
 #+BEGIN_SRC scheme
   > (define chest (spawn ^cell 'gold))
@@ -1648,7 +1648,7 @@ new value:
 
 ** Methods
 
-The =(goblins actor-lib methods)= module provides a simple,
+The ~(goblins actor-lib methods)~ module provides a simple,
 single-dispatch method system for actor behaviors.
 
 Here's a constructor for an actor that can say hello or goodbye:
@@ -1662,7 +1662,7 @@ Here's a constructor for an actor that can say hello or goodbye:
         (format #f "Goodbye, ~a!" name))))
 #+END_SRC
 
-The =methods= macro is used to describe a collection of messages that
+The ~methods~ macro is used to describe a collection of messages that
 an actor accepts.  The first argument of the message is used to
 dispatch the proper behavior for handling that message.
 
@@ -1678,10 +1678,10 @@ Let's try it out:
 
 ** Joiners
 
-The =(goblins actor-lib joiners)= module provides a means of combining
+The ~(goblins actor-lib joiners)~ module provides a means of combining
 the results of many promises.
 
-The =all-of= procedure returns a new promise that waits for all of the
+The ~all-of~ procedure returns a new promise that waits for all of the
 given promises to resolve before resolving itself.  This is very
 useful when we need to wait for several asynchronous operations to
 complete successfully before moving on.
@@ -1696,7 +1696,7 @@ awhile before returning the same thing it received:
         x))
 #+END_SRC
 
-We can use =all-of= to wait for all procrastinators to finish
+We can use ~all-of~ to wait for all procrastinators to finish
 procrastinating before writing some output:
 
 #+BEGIN_SRC scheme
@@ -1713,14 +1713,14 @@ procrastinating before writing some output:
   ; (foo bar)
 #+END_SRC
 
-*Note*: Currently, =all-of= calls the resolution procedure with a list
+*Note*: Currently, ~all-of~ calls the resolution procedure with a list
 as its only argument.  In a future release of Goblins we intend to
 call the resolution procedure with multiple arguments, one for each
-promise passed to =all-of=.
+promise passed to ~all-of~.
 
 ** Sealers
 
-The =(goblins actor-lib sealers)= module provides a mechanism for
+The ~(goblins actor-lib sealers)~ module provides a mechanism for
 ensuring the authenticity of data.  Using sealers, data can be hidden
 within a wrapper and marked with a unique brand to produce a sealed
 object.  A sealed object can be checked to verify that it has been
@@ -1747,7 +1747,7 @@ same:
       (spawn-sealer-triplet))
 #+END_SRC
 
-Calling the =spawn-sealer-triplet= procedure returns three new actors
+Calling the ~spawn-sealer-triplet~ procedure returns three new actors
 representing the seal, unseal, and check capabilities.  We give our
 customer the unsealer, the delivery driver the brand predicate, and we
 keep the sealer to ourselves so no one else can brand their lunch as
@@ -1818,7 +1818,7 @@ provided review and feedback.
 
 * License
 
-/(C) 2019-2022 Christine Lemmer-Webber, the Spritely Institute, and other contributors.  See =AUTHORS= for details./
+/(C) 2019-2022 Christine Lemmer-Webber, the Spritely Institute, and other contributors.  See ~AUTHORS~ for details./
 
 /Both Spritely Goblins and this manual are released under the terms of the following license:/
 
