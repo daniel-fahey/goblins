@@ -217,4 +217,39 @@
     list)
   '(1 2 3))
 
+(define (try-far-on-promise . resolve-args)
+  (define fulfilled-val #f)
+  (define broken-val #f)
+  (define finally-ran? #f)
+  (define a-promise-and-resolver
+    (call-with-vat a-vat spawn-promise-cons))
+  (define a-promise (car a-promise-and-resolver))
+  (define a-resolver (cdr a-promise-and-resolver))
+  (with-vat b-vat
+    (on a-promise
+        (lambda (val)
+          (set! fulfilled-val val))
+        #:catch
+        (lambda (err)
+          (set! broken-val err))
+        #:finally
+        (lambda ()
+          (set! finally-ran? #t))))
+  (with-vat a-vat
+    (apply $ a-resolver resolve-args))
+  ;; This one we do use sleeping for because we're coordinating
+  ;; across vats.  Sleep for 300ms.
+  (usleep 300000)
+  (list fulfilled-val broken-val finally-ran?))
+
+(test-equal
+ "On subscription w/ fulfillment to promise on another vat"
+ '(yay #f #t)
+ (try-far-on-promise 'fulfill 'yay))
+
+(test-equal
+ "On subscription w/ breakage to promise on another vat"
+ '(#f oh-no #t)
+ (try-far-on-promise 'break 'oh-no))
+
 (test-end "test-vat")
