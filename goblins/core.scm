@@ -102,7 +102,13 @@
             make-remote-promise-refr
             local-object-refr-debug-name
             remote-refr-captp-connector
-            remote-refr-sealed-pos)
+            remote-refr-sealed-pos
+
+            near-promise-broken?
+            near-promise-settled?
+            near-settled-promise-value
+            near-promise-resolved?
+            near-resolved-promise-value)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (srfi srfi-11)
@@ -930,13 +936,52 @@
   (and (live-refr? obj)
        (not (near-refr? obj))))
 
+(define (near-promise-broken? promise-refr)
+  (mactor:broken? (near-mactor promise-refr)))
 
-;; ;; Dangerous and dynamic... not intended to be exposed outside of here
-;; ;; at this time, anyway.
-;; ;; Used to implement some promise-introspection methods...
-;; (define (near-mactor refr)
-;;   (-> near-refr? any/c)
-;;   ((current-syscaller) 'near-mactor refr))
+(define* (near-promise-settled? promise-refr #:key [broken-ok? #t])
+  (match (near-mactor promise-refr)
+    [(or (? mactor:local-link?) (? mactor:encased?))
+     #t]
+    [(? mactor:broken?)
+     broken-ok?]
+    [_ #f]))
+
+(define (near-settled-promise-value promise-refr)
+  (define mactor (near-mactor promise-refr))
+  (match mactor
+    [(? mactor:local-link?)
+     (mactor:local-link-point-to mactor)]
+    [(? mactor:encased?)
+     (mactor:encased-val mactor)]
+    [(? mactor:broken?)
+     (raise-exception (mactor:broken-problem mactor))]))
+
+(define* (near-promise-resolved? promise-refr #:key [broken-ok? #t])
+  (match (near-mactor promise-refr)
+    [(or (? mactor:local-link?) (? mactor:encased?))
+     #t]
+    [(? mactor:broken?)
+     broken-ok?]
+    [_ #f]))
+
+(define (near-resolved-promise-value promise-refr)
+  (define mactor (near-mactor promise-refr))
+  (match mactor
+    [(? mactor:local-link?)
+     (mactor:local-link-point-to mactor)]
+    [(? mactor:remote-link?)
+     (mactor:remote-link-point-to mactor)]
+    [(? mactor:encased?)
+     (mactor:encased-val mactor)]
+    [(? mactor:broken?)
+     (raise-exception (mactor:broken-problem mactor))]))
+
+;; Dangerous and dynamic... not intended to be exposed outside of here
+;; at this time, anyway.
+;; Used to implement some promise-introspection methods...
+(define (near-mactor refr)
+  ((current-syscaller) 'near-mactor refr))
 
 
 

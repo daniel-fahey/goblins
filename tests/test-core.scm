@@ -378,16 +378,14 @@
  "Using `on' against a resolved refr returns that refr"
  on-resolved-bob-arg bob)
 
-;;; TODO next
+(snarf near-settled-promise-value)
 
-;; (snarf near-settled-promise-value)
-
-;; (test-eq
-;;  "near-settled-promise-value can extract local-refr value"
-;;  (actormap-run
-;;   am (lambda ()
-;;        (near-settled-promise-value bob-vow)))
-;;  bob)
+(test-eq
+ "near-settled-promise-value can extract local-refr value"
+ (actormap-run
+  am (lambda ()
+       (near-settled-promise-value bob-vow)))
+ bob)
 
 (define encase-vow-and-resolver
   (actormap-run! am spawn-promise-cons))
