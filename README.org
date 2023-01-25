@@ -17,8 +17,38 @@ It's very early, so I'd caution against using it for anything
 
 * Getting Goblins
 
-Hopefully get it from your distro.  It might be under the =guile-goblins=
-package.  We should be appearing in [[https://guix.gnu.org/][Guix]] soon, at least.
+** Using a package manager
+
+Goblins is available in the following distributions:
+
+*** GNU Guix
+
+Run =guix install guile-goblins=
+
+** Building from a release tarball
+
+If you're reading this file after downloading and extracting a release
+tarball, then these build instructions are for you!
+
+Build requirements:
+
+- [[https://www.gnu.org/software/guile/][GNU Guile]] >= 3.0
+- [[https://notabug.org/cwebber/guile-gcrypt][guile-gcrypt]] >= 0.3.0
+- [[https://github.com/wingo/fibers][guile-fibers]] >= 1.1.0
+
+Additional runtime requirements:
+
+- [[https://www.torproject.org/][Tor]] (any recent version) if you plan to use Onion netlayers
+
+Goblins uses the GNU build system.  Once the required dependencies
+have been installed, Goblins can be built by running the following
+commands:
+
+#+BEGIN_SRC sh
+  ./configure
+  make
+  sudo make install
+#+END_SRC
 
 * Contributing
 
