@@ -1,4 +1,4 @@
-;;; Copyright 2019-2022 Christine Lemmer-Webber
+;;; Copyright 2019-2023 Christine Lemmer-Webber
 ;;; Copyright 2022 David Thompson
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
