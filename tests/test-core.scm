@@ -36,6 +36,11 @@
        transactormap-ref
        transactormap-merged?)
 
+(define-syntax-rule (quietly body ...)
+  (parameterize ((current-output-port (%make-void-port "w"))
+                 (current-error-port (%make-void-port "w")))
+    body ...))
+
 ;; set up actormap base with beeper and booper
 (define actormap-base (make-whactormap))
 (define beeper-refr (make-local-object-refr 'beeper #f))
@@ -226,17 +231,18 @@
     (error "oh YIKES")))
 
 (let ((on-result #f))
-  (actormap-churn-run
-   am
-   (lambda ()
-     (define exploder (spawn ^explodable))
-     (on (<- exploder)
-         (lambda (heard)
-           (set! on-result `(heard-back ,heard)))
-         #:catch
-         (lambda (exn)
-           (set! on-result `(error ,exn))))))
-  (test-equal "`on' handler success case"
+  (quietly
+   (actormap-churn-run
+    am
+    (lambda ()
+      (define exploder (spawn ^explodable))
+      (on (<- exploder)
+          (lambda (heard)
+            (set! on-result `(heard-back ,heard)))
+          #:catch
+          (lambda (exn)
+            (set! on-result `(error ,exn)))))))
+  (test-equal "`on' handler failure case"
     (match on-result
       [('error _err) #t]
       [_ #f])
@@ -278,21 +284,22 @@
   make-car)
 
 (let ((on-result #f))
-  (actormap-churn-run!
-   am
-   (lambda ()
-     (define fork-motors
-       (spawn ^lessgood-car-factory "Forked"))
-     (define car-vow
-       (<- fork-motors "Exploder" "red"))
-     (define drive-noise-vow
-       (<- car-vow))
-     (on drive-noise-vow
-         (lambda (heard)
-           (set! on-result `(heard-back ,heard)))
-         #:catch
-         (lambda (err)
-           (set! on-result `(err ,err))))))
+  (quietly
+   (actormap-churn-run!
+    am
+    (lambda ()
+      (define fork-motors
+        (spawn ^lessgood-car-factory "Forked"))
+      (define car-vow
+        (<- fork-motors "Exploder" "red"))
+      (define drive-noise-vow
+        (<- car-vow))
+      (on drive-noise-vow
+          (lambda (heard)
+            (set! on-result `(heard-back ,heard)))
+          #:catch
+          (lambda (err)
+            (set! on-result `(err ,err)))))))
   (test-assert "Errors propagate through a promise pipeline"
     (match on-result
       (('err _err) #t)
@@ -300,26 +307,27 @@
 
 ;; And here's the other variant of promise pipelining breakage
 (let ([what-i-got #f])
-  (actormap-churn-run!
-   am (lambda ()
-        (define (^broken-actor _bcom)
-          (lambda _
-            (error "I am error")))
-        (define (^returns-actor _bcom return-me)
-          (lambda ()
-            return-me))
-        (define broken-actor
-          (spawn ^broken-actor))
-        (define returns-broken-actor
-          (spawn ^returns-actor broken-actor))
-        (define broken-actor-vow
-          (<- returns-broken-actor))
-        (on (<- broken-actor-vow)
-            (lambda (v)
-              (set! what-i-got `(yeah ,v)))
-            #:catch
-            (lambda (e)
-              (set! what-i-got `(oh-no ,e))))))
+  (quietly
+   (actormap-churn-run!
+    am (lambda ()
+         (define (^broken-actor _bcom)
+           (lambda _
+             (error "I am error")))
+         (define (^returns-actor _bcom return-me)
+           (lambda ()
+             return-me))
+         (define broken-actor
+           (spawn ^broken-actor))
+         (define returns-broken-actor
+           (spawn ^returns-actor broken-actor))
+         (define broken-actor-vow
+           (<- returns-broken-actor))
+         (on (<- broken-actor-vow)
+             (lambda (v)
+               (set! what-i-got `(yeah ,v)))
+             #:catch
+             (lambda (e)
+               (set! what-i-got `(oh-no ,e)))))))
   (test-equal
    "Errors propagate through a promise pipeline, other version"
    (car what-i-got)
@@ -330,11 +338,296 @@
   ;; handled.
   (with-exception-handler (const #t)
     (lambda ()
-      (actormap-churn-run! am (lambda () (+ 1 "two")))
+      (quietly (actormap-churn-run! am (lambda () (+ 1 "two"))))
       ;; If the actormap churn didn't throw an error and the test
       ;; made it here, it would fail.
       #f)
     #:unwind? #t
     #:unwind-for-type &actormap-turn-error))
+
+(define bob (actormap-spawn! am ^cell "Hi, I'm bob!"))
+(define bob-promise-and-resolver
+  (actormap-run! am spawn-promise-cons))
+
+(define bob-vow (car bob-promise-and-resolver))
+(define bob-resolver (cdr bob-promise-and-resolver))
+
+(snarf mactor:local-link?)
+
+(actormap-poke! am bob-resolver 'fulfill bob)
+(test-assert
+ "Promise resolves to local-link"
+ (mactor:local-link? (whactormap-ref am bob-vow)))
+(test-equal
+ "Resolved local-link acts as what it resolves to"
+ (actormap-peek am bob-vow)
+ "Hi, I'm bob!")
+(actormap-poke! am bob-vow "Hi, I'm bobby!")
+(test-equal
+ "Resolved local-link can change original"
+ (actormap-peek am bob)
+ "Hi, I'm bobby!")
+
+(define on-resolved-bob-arg #f)
+(actormap-churn-run!
+ am (lambda ()
+      (on bob-vow
+          (lambda (v)
+            (set! on-resolved-bob-arg v)))))
+(test-equal
+ "Using `on' against a resolved refr returns that refr"
+ on-resolved-bob-arg bob)
+
+;;; TODO next
+
+;; (snarf near-settled-promise-value)
+
+;; (test-eq
+;;  "near-settled-promise-value can extract local-refr value"
+;;  (actormap-run
+;;   am (lambda ()
+;;        (near-settled-promise-value bob-vow)))
+;;  bob)
+
+(define encase-vow-and-resolver
+  (actormap-run! am spawn-promise-cons))
+
+(define encase-me-vow
+  (car encase-vow-and-resolver))
+(define encase-me-resolver
+  (cdr encase-vow-and-resolver))
+(actormap-poke! am encase-me-resolver 'fulfill 'encase-me)
+(test-eq
+ "extracting encased value via actormap-peek"
+ (actormap-peek am encase-me-vow)
+ 'encase-me)
+(test-eq
+ "extracting encased value via $"
+ (actormap-run am (lambda () ($ encase-me-vow)))
+ 'encase-me)
+
+(define on-resolved-encased-arg #f)
+(actormap-churn-run!
+ am (lambda ()
+      (on encase-me-vow
+          (lambda (v)
+            (set! on-resolved-encased-arg v)))))
+(test-equal
+ "Using `on' against a resolved refr returns that refr"
+ on-resolved-encased-arg 'encase-me)
+
+
+;; Tests for propagation of resolutions
+(define (try-out-on actormap . resolve-args)
+  ;; Run on against a promise, store the results
+  ;; in the following cells
+  (define resolved-cells
+    (actormap-churn-run!
+     actormap
+     (lambda ()
+       (define fulfilled-cell (spawn ^cell #f))
+       (define broken-cell (spawn ^cell #f))
+       (define finally-cell (spawn ^cell #f))
+       (define-values (a-vow a-resolver)
+         (spawn-promise-values))
+       (on a-vow
+           (lambda args
+             ($ fulfilled-cell args))
+           #:catch
+           (lambda args
+             ($ broken-cell args))
+           #:finally
+           (lambda ()
+             ($ finally-cell #t)))
+       (apply <-np a-resolver resolve-args)
+       (list fulfilled-cell broken-cell finally-cell))))
+  (map (lambda (cell)
+         (actormap-peek actormap cell))
+       resolved-cells))
+
+(test-equal
+ "Fulfilling a promise with on"
+ (try-out-on am 'fulfill 'how-fulfilling)
+ '((how-fulfilling) #f #t))
+
+(test-equal
+ "Breaking a promise with on"
+ (try-out-on am 'break 'i-am-broken)
+ '(#f (i-am-broken) #t))
+
+(define (spawn-const val)
+  (spawn (lambda _ (lambda _ val))))
+(define (spawn-proc proc)
+  (spawn (lambda _ proc)))
+
+(let ([what-i-got #f])
+  (actormap-churn-run!
+   am (lambda ()
+        (on (<- (spawn-const 'i-am-foo))
+            (lambda (v)
+              (set! what-i-got `(yeah ,v)))
+            #:catch
+            (lambda (e)
+              (set! what-i-got `(oh-no ,e))))))
+  (test-equal
+   "<- returns a listen'able promise"
+   what-i-got
+   '(yeah i-am-foo)))
+
+(let ([what-i-got #f])
+  (quietly
+   (actormap-churn-run!
+    am (lambda ()
+         (on (<- (spawn-proc
+                  (lambda _
+                    (error "I am error"))))
+             (lambda (v)
+               (set! what-i-got `(yeah ,v)))
+             #:catch
+             (lambda (e)
+               (set! what-i-got `(oh-no ,e)))))))
+  (test-equal
+   "<- promise breaks as expected"
+   (car what-i-got)
+   'oh-no))
+
+(let ([what-i-got #f])
+  (actormap-churn-run!
+   am (lambda ()
+        (define foo (spawn-const 'i-am-foo))
+        (on (<- (<- (spawn-proc (lambda _ foo))))
+            (lambda (v)
+              (set! what-i-got `(yeah ,v)))
+            #:catch
+            (lambda (e)
+              (set! what-i-got `(oh-no ,e))))))
+  (test-equal
+   "basic promise pipelining"
+   what-i-got
+   '(yeah i-am-foo)))
+
+(let ([what-i-got #f])
+  (quietly
+   (actormap-churn-run!
+    am (lambda ()
+         (define fatal-foo
+           (spawn-proc
+            (lambda _
+              (error "I am error"))))
+         (on (<- (<- (spawn-proc (lambda _ fatal-foo))))
+             (lambda (v)
+               (set! what-i-got `(yeah ,v)))
+             #:catch
+             (lambda (e)
+               (set! what-i-got `(oh-no ,e)))))))
+  (test-equal
+   "basic promise contagion"
+   (car what-i-got)
+   'oh-no))
+
+(test-equal
+ "Passing #:promise? to `on` returns a promise that is resolved"
+ (actormap-peek
+  am
+  (actormap-churn-run!
+   am (lambda ()
+        (define doubler (spawn (lambda (bcom)
+                                 (lambda (x)
+                                   (* x 2)))))
+        (define the-on-promise
+          (on (<- doubler 3)
+              (lambda (x)
+                (format #f "got: ~a" x))
+              #:catch
+              (lambda (e)
+                "uhoh")
+              #:promise? #t))
+        the-on-promise)))
+ "got: 6")
+
+(let ([what-i-got #f]
+      [finally-also-ran? #f])
+  (actormap-churn-run!
+   am
+   (lambda ()
+     (on 42
+         (lambda (val)
+           (set! what-i-got (format #f "got: ~a" val)))
+         #:finally
+         (lambda ()
+           (set! finally-also-ran? #t)))))
+  (test-equal
+   "A non-promise value passed to `on` merely resolves to that value"
+   what-i-got
+   "got: 42")
+  (test-assert
+   "#:finally also runs in case of non-promise value passed to `on`"
+   finally-also-ran?))
+
+;; verify listen-to works
+(define (try-out-listen-to . resolve-args)
+  (let ([resolved-val #f]
+        [resolved-err #f])
+    (actormap-churn-run!
+     am
+     (lambda ()
+       (define promise-and-resolver (actormap-run! am spawn-promise-cons))
+       (define some-promise (car promise-and-resolver))
+       (define some-resolver (cdr promise-and-resolver))
+       (listen-to some-promise
+                  (spawn
+                   (lambda (bcom)
+                     (match-lambda*
+                       [('fulfill val)
+                        (set! resolved-val `(fulfilled ,val))]
+                       [('break err)
+                        (set! resolved-err `(broken ,err))]))))
+       (apply $ some-resolver resolve-args)))
+    (list resolved-val resolved-err)))
+(test-equal
+ "listen-to works with a fulfilled promise"
+ (try-out-listen-to 'fulfill 'yay)
+ '((fulfilled yay) #f))
+(test-equal
+ "listen-to works with a broken promise"
+ (try-out-listen-to 'break 'oh-no)
+ '(#f (broken oh-no)))
+
+
+(define (try-promise-to-promise . resolve-args)
+  (let ([result #f]
+        [finally-ran? #f])
+    (actormap-churn-run!
+     am
+     (lambda ()
+       (define-values (listen-to-promise listen-to-resolver)
+         (spawn-promise-values))
+       (define-values (middle-promise middle-resolver)
+         (spawn-promise-values))
+       (define-values (gets-the-answer-promise gets-the-answer-resolver)
+         (spawn-promise-values))
+       (on listen-to-promise
+           (lambda (val)
+             (set! result `(got-val ,val)))
+           #:catch
+           (lambda (err)
+             (set! result `(got-err ,err)))
+           #:finally
+           (lambda ()
+             (set! finally-ran? #t)))
+       (<-np listen-to-resolver 'fulfill middle-promise)
+       (<-np middle-resolver 'fulfill gets-the-answer-promise)
+       (apply <-np gets-the-answer-resolver resolve-args)))
+    (list result finally-ran?)))
+
+(test-equal
+ "Promise fulfilled to promise itself gets fulfillment"
+ (try-promise-to-promise 'fulfill 'yay)
+ '((got-val yay) #t))
+
+(test-equal
+ "Promise fulfilled to promise has broken promise contagion"
+ (try-promise-to-promise 'break 'yikes)
+ '((got-err yikes) #t))
 
 (test-end "test-goblins-core")
