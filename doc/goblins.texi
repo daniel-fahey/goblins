@@ -27,10 +27,9 @@
 
 This is the manual for @uref{https://spritelyproject.org/#goblins,
 Spritely Goblins}, a distributed object programming environment.
-Spritely Goblins is a project of the
-@uref{https://spritely.institute/, Spritely Institute} and is built to
-be the core layer for building Spritely's broader decentralized
-networking technologies.
+Spritely Goblins is mantained by 
+@uref{https://spritely.institute/, Spritely Networked Communities Institute} and is built to
+be the core layer for building broader decentralized networking technologies.
 
 Both this manual and Guile Goblins itself are released under Apache
 v2.  See @ref{License} for more information.
@@ -108,7 +107,7 @@ actor-lib: A standard library of sorts
 @node What is Goblins?
 @chapter What is Goblins?
 
-@uref{https://spritelyproject.org/#goblins, Spritely Goblins} is a distributed object programming environment.
+@uref{https://spritely.institute/goblins/, Goblins} is a distributed object programming environment.
 Features:
 
 @itemize
@@ -179,8 +178,8 @@ already the ultimate security mechanism} (ie, normal argument-passing
 in programs, if taken seriously/purely, is already all the security
 system we need).
 
-Spritely is a wider project to advance decentralized networking
-infrastructure, particularly as it pertains to social networks.
+Spritely Networked Communities Institute was created to advance decentralized
+networking infrastructure, particularly as it pertains to social networks.
 Goblins is the heart of the system, on which other layers are built.
 At the time of writing, two key versions of Goblins are supported, the
 @uref{https://docs.racket-lang.org/goblins/index.html, Racket version
