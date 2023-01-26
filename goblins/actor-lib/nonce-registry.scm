@@ -28,13 +28,13 @@
 
 (define (^nonce-registry bcom)
   (let next-self ([ht ghash-null])
-    (methods
-     [(register refr)
+    (define* (register refr #:optional provided-swiss-num)
       (assert-type refr live-refr?)
-      (let* ((swiss-num (make-swiss-num))
+      (let* ((swiss-num (or provided-swiss-num (make-swiss-num)))
              (new-ht (ghash-set ht swiss-num refr)))
-        (bcom (next-self new-ht)
-              swiss-num))]
+        (bcom (next-self new-ht) swiss-num)))
+    (methods
+     [register register]
      [fetch
       (case-lambda
         [(swiss-num)

@@ -1412,9 +1412,12 @@ Here's our client script named =captp-alice.scm=:
 
   ;; Create a CapTP router using Tor Onion Services.
   (define machine-vat (spawn-vat))
+  (define-values (onion-netlayer private-key service-id)
+    (with-vat machine-vat
+      (new-onion-netlayer))
   (define mycapn
     (with-vat machine-vat
-      (spawn-mycapn (new-onion-netlayer))))
+      (spawn-mycapn onion-netlayer)))
 
   ;; Convert the command-line argument into a sturdyref for Bob.
   (define bob-uri
@@ -1462,9 +1465,12 @@ following server script as =captp-bob.scm=:
 
   ;; Create a CapTP router using Tor Onion Services.
   (define machine-vat (spawn-vat))
+  (define-values (onion-netlayer private-key service-id)
+    (with-vat machine-vat
+      (new-onion-netlayer))
   (define mycapn
     (with-vat machine-vat
-      (spawn-mycapn (new-onion-netlayer))))
+      (spawn-mycapn onion-netlayer)))
 
   ;; Create a sturdyref for Bob and print it.
   (define bob-sref
@@ -1556,6 +1562,28 @@ Sending messages to remote objects using =<-= looks the same as
 sending messages to local objects.  The message will be transparently
 sent over CapTP to the remote object!
 
+**** Keeping a persistant sturdyref for an object
+When an object is registered, it is given a "swiss num" (object specific part of the sturdyref). This can be extracted from the ocapn id:
+
+#+BEGIN_SRC scheme
+  > (define swiss-num (ocapn-sturdyref-swiss-num alice-captp-id))
+  > swiss-num
+  => #vu8(156 108 112 227 250 122 179 221 72 23 228 121 175 163 12 98 198 115 160 28 142 13 126 58 49 94 192 89 48 41 95 155)
+#+END_SRC
+
+Often it is desirable to have an object have a persistant sturdyref between sessions, to do this, you need do two things:
+
+- Register the object at a specific swiss num
+- Restore the netlayer (see the netlayer secion)
+
+To install the object at a given swiss num, get the nonce registry. This is an object which holds all of the swiss nums to each registered object in mycapn. The following is how this can be done:
+
+#+BEGIN_SRC scheme
+  > (define registry ($ mycapn 'get-registry)) ;; nonce registry
+  > (define alice-captp-id ($ registry 'register alice swiss-num))
+#+END_SRC
+
+
 *** Netlayers
 
 **** Tor Onion Services
@@ -1565,13 +1593,21 @@ created using the =new-onion-netlayer= procedure from the =(goblins
 ocapn netlayer onion)= module:
 
 #+BEGIN_SRC scheme
-  > (define onion-netlayer (new-onion-netlayer))
+  > (define-values (onion-netlayer private-key service-id)
+      (new-onion-netlayer))
 #+END_SRC
 
 That netlayer can then be used to spawn an OCapN router actor:
 
 #+BEGIN_SRC scheme
   > (define mycapn (spawn-mycapn onion-netlayer))
+#+END_SRC
+
+Each time =new-onion-netlayer= is called it generates a new =private-key=  and =service-id=. If you wish for these to persist, these needs to be stored (securely, as anyone with them has the capability to host at them) and call =restore-onion-netlayer= providing them. An example of this is:
+
+#+BEGIN_SRC scheme
+  > (define-values (onion-netlayer _private-key _service-id)
+      (restore-onion-netlayer private-key service-id))
 #+END_SRC
 
 ** COMMENT Persistence
