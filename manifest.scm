@@ -21,6 +21,8 @@
 
 (packages->manifest
  (cons*
+  guile-lib
+  guile-syntax-highlight
   lcov
   tor
   (filter-map
