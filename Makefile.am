@@ -126,7 +126,6 @@ EXTRA_DIST += README.org \
               HACKING \
               COPYING \
               LICENSE.txt \
-              doc/goblins.org \
               AUTHORS \
               NEWS \
               AUTHORS \
