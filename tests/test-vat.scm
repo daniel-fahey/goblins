@@ -14,7 +14,6 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-
 (define-module (goblins test-vat)
   #:use-module (goblins)
   #:use-module (goblins vat)
@@ -22,6 +21,15 @@
   #:use-module (tests utils)
   #:use-module (fibers)
   #:use-module (fibers channels)
+  #:use-module ((fibers conditions)
+                #:select (make-condition
+                          wait-operation
+                          signal-condition!))
+  #:use-module ((fibers operations)
+                #:select (choice-operation
+                          perform-operation))
+  #:use-module ((fibers timers)
+                #:select (sleep-operation))
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-64))
@@ -225,6 +233,7 @@
     (call-with-vat a-vat spawn-promise-cons))
   (define a-promise (car a-promise-and-resolver))
   (define a-resolver (cdr a-promise-and-resolver))
+  (define done? (make-condition))
   (with-vat b-vat
     (on a-promise
         (lambda (val)
@@ -234,12 +243,16 @@
           (set! broken-val err))
         #:finally
         (lambda ()
-          (set! finally-ran? #t))))
+          (set! finally-ran? #t)
+          (signal-condition! done?))))
   (with-vat a-vat
     (apply $ a-resolver resolve-args))
-  ;; This one we do use sleeping for because we're coordinating
-  ;; across vats.  Sleep for 300ms.
-  (usleep 300000)
+  ;; Wait until the operation has finished, or one second has
+  ;; passed (if this is taking longer than a second that's really
+  ;; troubling!)
+  (perform-operation (choice-operation
+                      (wait-operation done?)
+                      (sleep-operation 1)))
   (list fulfilled-val broken-val finally-ran?))
 
 (test-equal
