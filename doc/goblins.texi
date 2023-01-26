@@ -25,7 +25,7 @@
 @node Top
 @top Spritely Goblins
 
-This is the manual for @uref{https://spritelyproject.org/#goblins,
+This is the manual for @uref{https://spritely.institute/goblins/,
 Spritely Goblins}, a distributed object programming environment.
 Spritely Goblins is mantained by 
 @uref{https://spritely.institute/, Spritely Networked Communities Institute} and is built to
