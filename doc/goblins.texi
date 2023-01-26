@@ -74,8 +74,7 @@ API
 * Objects::
 * Vats::
 * Actormaps::
-* OCapN::
-* Persistence::
+* OCapN The Object Capabilities Network::
 
 Objects
 
@@ -87,6 +86,14 @@ Vats
 
 * Starting and stopping vats::
 * Rolling your own vats::
+
+OCapN: The Object Capabilities Network
+
+* CapTP The Capability Transport Protocol::
+* Launching a Tor daemon for Goblins::
+* Example Two Goblins programs chatting over CapTP via Tor::
+* Using the CapTP API::
+* Netlayers::
 
 actor-lib: A standard library of sorts
 
@@ -975,8 +982,7 @@ importing:
 * Objects::
 * Vats::
 * Actormaps::
-* OCapN::
-* Persistence::
+* OCapN The Object Capabilities Network::
 @end menu
 
 @node Objects
@@ -1171,12 +1177,9 @@ may even be the original exception).
 @section Vats
 
 In order to start programming with Goblins, you will need to boot up a
-vat somewhere.
-
-In general, Goblins uses @uref{https://github.com/wingo/fibers/, Fibers} to implement vats.  However, it is
-intended that users should be able to roll their own vats should they
-have ``unusual'' event loop needs.  More on how to do this in a future
-iteration of these docs.  ;)
+vat somewhere.  In general, Goblins uses @uref{https://github.com/wingo/fibers/, Fibers} to implement vats.
+However, you can also roll your own vats should you have ``unusual''
+event loop needs (@ref{Rolling your own vats}.)
 
 @menu
 * Starting and stopping vats::
@@ -1457,14 +1460,345 @@ our @samp{'bbq-tofu} sandwich for a @samp{'chickpea-salad} one:
 
 Horray!
 
-@node OCapN
-@section OCapN
+@node OCapN The Object Capabilities Network
+@section OCapN: The Object Capabilities Network
 
-@node Persistence
-@section Persistence
+@uref{https://github.com/ocapn/ocapn, OCapN} stands for ``Object Capability Network'' and is a suite of
+protocols for communication between distributed, networked objects.
+In other words, it's how Goblins actors can talk to actors running on
+another computer.
+
+OCapN uses the @uref{http://erights.org/elib/distrib/captp/index.html, Capability Transport Protocol (CapTP)} as the core
+protocol for enabling distributed programming in a mutually suspicious
+network.  It originated in the @uref{http://www.erights.org/, E programming language} but has since
+appeared in @uref{https://capnproto.org/, Cap'N Proto}, @uref{http://waterken.sourceforge.net/, Waterken}, @uref{https://agoric.com/, Agoric}'s @uref{https://github.com/Agoric/agoric-sdk/tree/master/packages/SwingSet, SwingSet}, and now Goblins.
+
+@strong{CAUTION}: CapTP support is still in its early days.  Please do not
+rely on the protocol being stable at this time.
+
+@menu
+* CapTP The Capability Transport Protocol::
+* Launching a Tor daemon for Goblins::
+* Example Two Goblins programs chatting over CapTP via Tor::
+* Using the CapTP API::
+* Netlayers::
+@end menu
+
+@node CapTP The Capability Transport Protocol
+@subsection CapTP: The Capability Transport Protocol
+
+OCapN's CapTP has an abstract ``netlayer'' interface, allowing
+communication over many different protocols ranging from Tor Onion
+Services to IBC to I2P to libp2p to perhaps carrier pigeons with
+backpacks full of encrypted MicroSD cards.  Currently, Goblins only
+supports the Tor Onion Services netlayer.
+
+Benefits of CapTP:
+
+@itemize
+@item
+Invocation of remote objects resembles the same as with local
+objects.  You can use @samp{<-} and @samp{on} which means that any most
+programs that were even originally designed mostly for local-only
+computing naturally scale out to a networked environment.
+@item
+All this is done while mostly hiding the abstraction of the
+networked protocol from the user.
+@item
+Object capability security is upheld.  A remote machine cannot make
+use of any capability that has not been handed to it.
+@item
+Live object references between CapTP endpoints are incredibly cheap,
+merely represented as integers on each side.  This keeps message
+sizes small and efficient.
+@item
+CapTP provides (acyclic) distributed garbage collection.  Remote
+machines can indicate when they no longer need an object and the
+machine locally containing that reference can reclaim it if
+appropriate.
+@item
+Promise pipelining means that messages can be sent to the resolution
+of a promise before that resolution actually occurs.  Over the
+network this is represented as a pipeline of messages.  This can
+reduce round trips significantly, which is a big win.
+
+@quotation
+Machines grow faster and memories grow larger.  But the speed of
+light is constant and New York is not getting any closer to
+Tokyo.
+
+--- Mark S@. Miller
+
+@end quotation
+@item
+CapTP is written independently of network transport abstractions.
+It can be run over local unix domain sockets, an OpenSSL connection,
+Tor Onion Services, or something custom.  CapTP operates under the
+assumption of secure pairwise channels; the layer which provides the
+pairwise channels is called ``MachineTP'' and can be written in a
+variety of ways.  A simple MachineTP abstraction is provided, but
+presently still requires some manual wiring.  (In the future, even
+simpler abstractions will be provided which cover most user needs.)
+@end itemize
+
+All of these combine into an efficient and powerful protocol that,
+most powerfully of all, the author of Goblins programs mostly need not
+think too much about.  This circumvents the usual years and years of
+careful message structure coordination and standardization for many
+kinds of distributed programs, which can simply be written as normal
+Goblins programs rather than bespoke protocols.
+
+Limitations of CapTP:
+
+@itemize
+@item
+Goblins' CapTP provides @emph{acyclic} distributed garbage collection.
+Cycles between servers are not automatically recognized.  Full
+@uref{http://erights.org/history/original-e/dgc/, cycle-collecting distributed garbage collection} has been written,
+but requires special cooperation from the garbage collector that we
+don't have access to in Guile (or in most languages).
+@item
+Goblins' CapTP does not do anything about memory usage or resource
+management on its own.  (Features for this will come as Spritely
+sub-projects in the future.)
+@item
+While CapTP in theory routes capabilities to specific remote
+objects, since the network is mutually suspicious we can't assume
+that the remote end isn't conspiring some way to hand those
+capabilities to other objects that we don't expect.  The right way
+to think about this from an object capability perspective is that a
+remote misbehaving machine is equivalent to a misbehaving object
+with the surface area of the entire machine.
+@item
+@strong{TEMPORARY}: The API is heavily in flux.
+@end itemize
+
+@node Launching a Tor daemon for Goblins
+@subsection Launching a Tor daemon for Goblins
+
+In order for Goblins' Onion Service netlayer to work, it needs to talk
+to a Tor daemon.  Goblins can set up and manage the Onion Services
+itself once it connects to the Tor daemon.  So far it seems like
+running a single Goblins tor process ``as your user'' and letting
+various Goblins processes connect to it is the easiest option.
+
+Here's an example config file template (replace @samp{<user>} with your
+actual username):
+
+@example
+DataDirectory /home/<user>/.cache/goblins/tor/data/
+SocksPort unix:/home/<user>/.cache/goblins/tor/tor-socks-sock RelaxDirModeCheck
+ControlSocket unix:/home/<user>/.cache/goblins/tor/tor-control-sock RelaxDirModeCheck
+Log notice file /home/<user>/.cache/goblins/tor/tor-log.txt@}|
+@end example
+
+Write this configuration to @samp{~/.config/goblins/tor-config.txt}.
+
+Create the necessary cache directory:
+
+@example
+mkdir -p ~/.cache/goblins/tor/data
+@end example
+
+Now launch the Tor daemon:
+
+@example
+tor -f ~/.config/goblins/tor-config.txt
+@end example
+
+@node Example Two Goblins programs chatting over CapTP via Tor
+@subsection Example: Two Goblins programs chatting over CapTP via Tor
+
+Before diving into API details, let's take a look at a couple of small
+example programs to demonstrate that this stuff works.
+
+Here's our client script named @samp{captp-alice.scm}:
+
+@example
+(use-modules (fibers conditions)
+             (fibers operations)
+             (goblins)
+             (goblins ocapn ids)
+             (goblins ocapn captp)
+             (goblins ocapn netlayer onion)
+             (ice-9 match))
+
+;; Create a CapTP router using Tor Onion Services.
+(define machine-vat (spawn-vat))
+(define mycapn
+  (with-vat machine-vat
+    (spawn-mycapn (new-onion-netlayer))))
+
+;; Convert the command-line argument into a sturdyref for Bob.
+(define bob-uri
+  (match (command-line)
+    ((_ uri) uri)))
+(define bob-sref (string->ocapn-id bob-uri))
+
+;; Create a vat for Alice and enliven Bob.
+(define a-vat (spawn-vat))
+(define bob-vow
+  (with-vat a-vat
+    (<- mycapn 'enliven bob-sref)))
+
+;; Send a message to Bob and print the response.
+(define done? (make-condition))
+(with-vat a-vat
+  (on (<- bob-vow "Alice")
+      (lambda (response)
+        (format #t "Alice heard back: ~a" response)
+        (signal-condition! done?))))
+
+;; Wait until Alice has received a response before exiting.
+(perform-operation (wait-operation done?))
+@end example
+
+Traditionally, Alice talks to Bob.  So, now we need Bob.  Save the
+following server script as @samp{captp-bob.scm}:
+
+@example
+(use-modules (fibers conditions)
+             (fibers operations)
+             (goblins)
+             (goblins ocapn ids)
+             (goblins ocapn captp)
+             (goblins ocapn netlayer onion))
+
+;; Bob is going to be a greeter that says hello to other people.
+(define (^greeter _bcom our-name)
+  (lambda (your-name)
+    (format #f "Hello ~a, my name is ~a!" your-name our-name)))
+
+;; Create Bob in their own vat.
+(define b-vat (spawn-vat))
+(define bob (with-vat b-vat (spawn ^greeter "Bob")))
+
+;; Create a CapTP router using Tor Onion Services.
+(define machine-vat (spawn-vat))
+(define mycapn
+  (with-vat machine-vat
+    (spawn-mycapn (new-onion-netlayer))))
+
+;; Create a sturdyref for Bob and print it.
+(define bob-sref
+  (with-vat machine-vat
+    ($ mycapn 'register bob 'onion)))
+(format #t "Bob's sturdyref: ~a"
+        (ocapn-id->string bob-sref))
+
+;; Hold the process open indefinitely.
+(perform-operation (wait-operation (make-condition)))
+@end example
+
+Okay, let’s try it out!  Open up two terminals, and in the first one
+run:
+
+@example
+guile captp-bob.scm
+@end example
+
+This will print out a captp ``sturdyref'' URI to the terminal.  Copy it
+and paste it in the second terminal as the argument to @samp{guile
+captp-alice.scm}:
+
+@example
+guile captp-alice.scm <STURDYREF-GOES-HERE>
+@end example
+
+Tor Onion Services can take awhile to establish, but after a short
+wait you should see:
+
+@example
+Bob heard back: Hello Bob, my name is Alice!
+@end example
+
+If you see the same output then your connection succeeded!  Yay!  In
+the next sections we will get into the details of how to use the CapTP
+API@.
+
+@node Using the CapTP API
+@subsection Using the CapTP API
+
+Goblins uses an actor to communicate over CapTP@.  This actor can be
+spawned using the @samp{spawn-mycapn} procedure from the @samp{(goblins ocapn
+captp)} module:
+
+@example
+> (define mycapn (spawn-mycapn netlayer))
+@end example
+
+Where @samp{netlayer} refers to a CapTP netlayer object.  See the next
+section for details on available netlayers.
+
+Local actors need to be registered so that they can receive messages
+over CapTP@.  Registering an actor generates a CapTP identifier for
+that actor:
+
+@example
+> (define alice (spawn ^greeter "Alice"))
+> (define alice-captp-id ($ mycapn 'register alice 'onion))
+@end example
+
+To use this actor on another machine, that machine needs a ``sturdyref''
+to the actor.  A sturdyref is a special URI that uniquely identifies
+the actor on the network.  The @samp{ocapn-id->string} procedure from the
+@samp{(goblins ocapn ids)} module can generate such a URI:
+
+@example
+> (ocapn-id->string community-sref)
+=> "ocapn://jv4arqqwntmxs3rljkx3ao5bucci37rxxb575vypovntyve76mmyf4ad.onion/s/nGxw4_p6s91IF-R5r6MMYsZzoByODX46MV7AWTApX5s"
+@end example
+
+To generate a Guile URI object instead of a string, use
+@samp{ocapn-id->uri} instead.
+
+On the other machine, the sturdyref can be ``enlivened'' to create a
+promise that, when resolved, yields a remote object:
+
+@example
+> (define vow ($ mycapn 'enliven "ocapn://..."))
+> vow
+=> #<local-promise>
+> (on vow
+      (lambda (obj)
+        (display obj)
+        (newline)))
+; #<remote-object>
+@end example
+
+Sending messages to remote objects using @samp{<-} looks the same as
+sending messages to local objects.  The message will be transparently
+sent over CapTP to the remote object!
+
+@node Netlayers
+@subsection Netlayers
+
+@enumerate
+@item
+@anchor{Tor Onion Services}Tor Onion Services
+
+
+Assuming a Tor daemon is running, a Goblins Onion netlayer can be
+created using the @samp{new-onion-netlayer} procedure from the @samp{(goblins
+ocapn netlayer onion)} module:
+
+@example
+> (define onion-netlayer (new-onion-netlayer))
+@end example
+
+That netlayer can then be used to spawn an OCapN router actor:
+
+@example
+> (define mycapn (spawn-mycapn onion-netlayer))
+@end example
+@end enumerate
 
 @node actor-lib A standard library of sorts
 @chapter actor-lib: A standard library of sorts
+
+The Goblins actor library, in the @samp{(goblins actor-lib ...)} module
+namespace, provides implementations for a variety of common actor
+model patterns.
 
 @menu
 * Cells::
@@ -1476,14 +1810,177 @@ Horray!
 @node Cells
 @section Cells
 
+The @samp{(goblins actor-lib cell)} module provides a very handy actor
+called a ``cell.''  Cells are used to store arbitrary data.
+
+New cells are created with the constructor @samp{^cell}:
+
+@example
+> (define chest (spawn ^cell 'gold))
+@end example
+
+The current value of a cell can be retrieved by sending an empty
+message to the cell:
+
+@example
+> ($ chest)
+=> gold
+@end example
+
+The value of a cell can be changed by sending a message containing the
+new value:
+
+@example
+> ($ chest 'sword)
+> ($ chest)
+=> sword
+@end example
+
 @node Methods
 @section Methods
+
+The @samp{(goblins actor-lib methods)} module provides a simple,
+single-dispatch method system for actor behaviors.
+
+Here's a constructor for an actor that can say hello or goodbye:
+
+@example
+> (define (^hello-goodbye _bcom)
+    (methods
+     ((say-hello name)
+      (format #f "Hello, ~a!" name))
+     ((say-goodbye name)
+      (format #f "Goodbye, ~a!" name))))
+@end example
+
+The @samp{methods} macro is used to describe a collection of messages that
+an actor accepts.  The first argument of the message is used to
+dispatch the proper behavior for handling that message.
+
+Let's try it out:
+
+@example
+> (define hello-goodbye (spawn ^hello-goodbye))
+> ($ hello-goodbye 'say-hello "Alice")
+=> "Hello, Alice!"
+> ($ hello-goodbye 'say-goodbye "Alice")
+=> "Goodbye, Alice!"
+@end example
 
 @node Joiners
 @section Joiners
 
+The @samp{(goblins actor-lib joiners)} module provides a means of combining
+the results of many promises.
+
+The @samp{all-of} procedure returns a new promise that waits for all of the
+given promises to resolve before resolving itself.  This is very
+useful when we need to wait for several asynchronous operations to
+complete successfully before moving on.
+
+To demonstrate this, we'll use a very useless actor that waits for
+awhile before returning the same thing it received:
+
+@example
+> (define (^procrastinator _bcom delay)
+    (lambda (x)
+      (sleep delay)
+      x))
+@end example
+
+We can use @samp{all-of} to wait for all procrastinators to finish
+procrastinating before writing some output:
+
+@example
+> (define a-vat (spawn-vat))
+> (define b-vat (spawn-vat))
+> (define c-vat (spawn-vat))
+> (define p1 (with-vat b-vat (spawn ^procrastinator 1)))
+> (define p2 (with-vat c-vat (spawn ^procrastinator 2)))
+> (with-vat a-vat
+    (on (all-of (<- p1 'foo) (<- p2 'bar))
+        (lambda (items)
+          (display items)
+          (newline))))
+; (foo bar)
+@end example
+
+@strong{Note}: Currently, @samp{all-of} calls the resolution procedure with a list
+as its only argument.  In a future release of Goblins we intend to
+call the resolution procedure with multiple arguments, one for each
+promise passed to @samp{all-of}.
+
 @node Sealers
 @section Sealers
+
+The @samp{(goblins actor-lib sealers)} module provides a mechanism for
+ensuring the authenticity of data.  Using sealers, data can be hidden
+within a wrapper and marked with a unique brand to produce a sealed
+object.  A sealed object can be checked to verify that it has been
+marked with the expected brand.  An authentic sealed object can then
+be unsealed to reveal the data within.  Sealers and unsealers are
+analagous to public key cryptography where sealing resembles
+encryption, unsealing resembles decryption, and the brand check
+predicate resembles signature verification.  However, sealers work
+without any cryptography at all!
+
+Sealers are comprised of three distinct capabilities: the sealer, the
+unsealer, and the brand check.  Using separate capabilities allows for
+fine-grained privilege management.  For example, an actor that only
+has the brand check capability cannot seal or unseal data.
+
+Imagine a scenario where we are protecting lunchtime meals using
+sealers and unsealers. Our rival, who wishes to sabotage us, does the
+same:
+
+@example
+> (define-values (our-lunch:seal our-lunch:unseal our-can?)
+    (spawn-sealer-triplet))
+> (define-values (rival-lunch:seal rival-lunch:unseal rival-can?)
+    (spawn-sealer-triplet))
+@end example
+
+Calling the @samp{spawn-sealer-triplet} procedure returns three new actors
+representing the seal, unseal, and check capabilities.  We give our
+customer the unsealer, the delivery driver the brand predicate, and we
+keep the sealer to ourselves so no one else can brand their lunch as
+ours.
+
+A value can be sealed by sending it as a message to the sealer.  Let's
+put some fried rice in a can by sending a message to the sealer:
+
+@example
+> ($ our-lunch:seal 'fried-rice)
+=> #<local-object sealed-value>
+@end example
+
+The contents of sealed cans are private and cannot be seen by
+inspecting the sealed object.
+
+Our customer wants some chickpea salad, so we seal some for them:
+
+@example
+> (define chickpea-lunch ($ our-lunch:seal 'chickpea-salad))
+@end example
+
+Our truck driver is able to check that the food they are to deliver
+really is from us (we have a reputation to uphold!) by sending a
+message to the brand predicate:
+
+@example
+> ($ our-can? chickpea-lunch)
+=> #t
+> ($ our-can? ($ rival-lunch:seal 'melted-ice-cream))
+=> #f
+@end example
+
+The customer is able to open up their can by sending it to the
+unsealer:
+
+@example
+> ($ our-lunch:unseal chickpea-lunch)
+=> chickpea-salad
+@end example
 
 @node Thanks
 @chapter Thanks
