@@ -13,5 +13,4 @@ unit-tests:
   script:
     - guix shell -m manifest.scm -- sh ./bootstrap.sh
     - guix shell -m manifest.scm -- ./configure
-    - guix shell -m manifest.scm -- make
     - guix shell -m manifest.scm -- make distcheck
