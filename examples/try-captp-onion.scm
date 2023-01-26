@@ -15,17 +15,14 @@
 
 (define* (setup-tor-mycapn #:optional tor-onion-pair)
   (define vat (spawn-vat #:name 'ocapn))
-  (define onion-netlayer
-    (vat
-     (lambda ()
-       (match tor-onion-pair
-         ((service-id . private-key)
-          (restore-onion-netlayer service-id private-key))
-         (#f (new-onion-netlayer))))))
+  (define-values (onion-netlayer private-key service-id)
+    (with-vat vat
+     (match tor-onion-pair
+       ((service-id . private-key)
+        (restore-onion-netlayer private-key service-id))
+       (#f (new-onion-netlayer)))))
   (define mycapn
-    (vat
-     (lambda ()
-       (spawn-mycapn onion-netlayer))))
+    (with-vat vat (spawn-mycapn onion-netlayer)))
   (values vat onion-netlayer mycapn))
 
 (define* (tor-server #:key (greeter-name "Alice")
@@ -33,12 +30,9 @@
   (define-values (machine-vat onion-netlayer mycapn)
     (setup-tor-mycapn tor-onion-pair))
   (define alice
-    (machine-vat
-     (lambda () (spawn ^greeter greeter-name))))
+    (with-vat machine-vat (spawn ^greeter greeter-name)))
   (define alice-sref
-    (machine-vat
-     (lambda ()
-       ($ mycapn 'register alice 'onion))))
+    (with-vat machine-vat ($ mycapn 'register alice 'onion)))
   (values machine-vat onion-netlayer mycapn alice alice-sref))
 
 (use-modules (fibers conditions))
