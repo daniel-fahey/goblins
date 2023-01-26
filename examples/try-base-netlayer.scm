@@ -29,14 +29,14 @@
   (define a-loc (with-vat a-vat ($ a-nl 'our-location)))
   (define b-loc (with-vat b-vat ($ b-nl 'our-location)))
   (with-vat a-vat
-            (on ($ a-mycapn 'connect-to-machine b-loc)
-                (lambda (loc)
-                  (pk 'horray-connected-to loc)))))
+    (on ($ a-mycapn 'connect-to-machine b-loc)
+        (lambda (loc)
+          (pk 'horray-connected-to loc)))))
 
 ;; And if you're bold enough to try sturdyrefs, try this too
 (begin
   (define alice-sref (with-vat a-vat ($ a-mycapn 'register alice 'testuds)))
   (with-vat b-vat
-            (on (<- ($ b-mycapn 'enliven alice-sref) "Bob")
-                (lambda (greets)
-                  (pk 'heard-back greets)))))
+    (on (<- ($ b-mycapn 'enliven alice-sref) "Bob")
+        (lambda (greets)
+          (pk 'heard-back greets)))))
