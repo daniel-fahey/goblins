@@ -164,9 +164,11 @@
   (define our-location
     (make-ocapn-machine 'onion service-id #f))
 
-  (spawn ^onion-netlayer our-location ocapn-sock-listener
-         tor-socks-path do-cleanup
-         private-key service-id))
+  (values
+   (spawn ^onion-netlayer our-location ocapn-sock-listener
+          tor-socks-path do-cleanup
+          private-key service-id)
+   private-key service-id))
 
 ;; TODO: I guess this really *should* return one value to its
 ;; continuation, and the pre-setup-beh above should also support
@@ -183,7 +185,7 @@
                        ocapn-sock-path ocapn-sock-listener))
 
 (define* (restore-onion-netlayer
-          service-id private-key
+          private-key service-id
           #:key [tor-control-path default-tor-control-path]
           [tor-socks-path default-tor-socks-path]
           [tor-ocapn-socks-dir default-tor-ocapn-socks-dir])
