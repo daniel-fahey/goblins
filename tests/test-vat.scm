@@ -1,3 +1,19 @@
+;;; Copyright 2019-2023 Christine Lemmer-Webber
+;;; Copyright 2022-2023 David Thompson
+;;; Copyright 2022 Jessica Tallon
+;;;
+;;; Licensed under the Apache License, Version 2.0 (the "License");
+;;; you may not use this file except in compliance with the License.
+;;; You may obtain a copy of the License at
+;;;
+;;;    http://www.apache.org/licenses/LICENSE-2.0
+;;;
+;;; Unless required by applicable law or agreed to in writing, software
+;;; distributed under the License is distributed on an "AS IS" BASIS,
+;;; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;;; See the License for the specific language governing permissions and
+;;; limitations under the License.
+
 (define-module (goblins test-vat)
   #:use-module (goblins)
   #:use-module (goblins vat)
@@ -5,6 +21,15 @@
   #:use-module (tests utils)
   #:use-module (fibers)
   #:use-module (fibers channels)
+  #:use-module ((fibers conditions)
+                #:select (make-condition
+                          wait-operation
+                          signal-condition!))
+  #:use-module ((fibers operations)
+                #:select (choice-operation
+                          perform-operation))
+  #:use-module ((fibers timers)
+                #:select (sleep-operation))
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-64))
@@ -199,5 +224,45 @@
                        (values 1 2 3)))
     list)
   '(1 2 3))
+
+(define (try-far-on-promise . resolve-args)
+  (define fulfilled-val #f)
+  (define broken-val #f)
+  (define finally-ran? #f)
+  (define a-promise-and-resolver
+    (call-with-vat a-vat spawn-promise-cons))
+  (define a-promise (car a-promise-and-resolver))
+  (define a-resolver (cdr a-promise-and-resolver))
+  (define done? (make-condition))
+  (with-vat b-vat
+    (on a-promise
+        (lambda (val)
+          (set! fulfilled-val val))
+        #:catch
+        (lambda (err)
+          (set! broken-val err))
+        #:finally
+        (lambda ()
+          (set! finally-ran? #t)
+          (signal-condition! done?))))
+  (with-vat a-vat
+    (apply $ a-resolver resolve-args))
+  ;; Wait until the operation has finished, or one second has
+  ;; passed (if this is taking longer than a second that's really
+  ;; troubling!)
+  (perform-operation (choice-operation
+                      (wait-operation done?)
+                      (sleep-operation 1)))
+  (list fulfilled-val broken-val finally-ran?))
+
+(test-equal
+ "On subscription w/ fulfillment to promise on another vat"
+ '(yay #f #t)
+ (try-far-on-promise 'fulfill 'yay))
+
+(test-equal
+ "On subscription w/ breakage to promise on another vat"
+ '(#f oh-no #t)
+ (try-far-on-promise 'break 'oh-no))
 
 (test-end "test-vat")
