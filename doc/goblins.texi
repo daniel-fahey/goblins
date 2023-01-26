@@ -2033,7 +2033,8 @@ unsealer:
 @node Thanks
 @chapter Thanks
 
-This manual was primarily written by Christine Lemmer-Webber.
+This manual was primarily written by Christine Lemmer-Webber with
+additional text by Jessica Tallon and David Thompson.
 
 Many of the ideas are borrowed from
 @uref{http://www.erights.org/talks/thesis/markm-thesis.pdf, Mark
@@ -2045,8 +2046,9 @@ provided review and feedback.
 @node License
 @chapter License
 
-@emph{(C) 2019-2022 Christine Lemmer-Webber, the Spritely Institute,
-and other contributors.  See @file{AUTHORS} for details.}
+@emph{(C) 2019-2023 Christine Lemmer-Webber, David Thompson, Jessica
+Tallon, the Spritely Institute, and other contributors.  See
+@file{AUTHORS} for details.}
 
 @emph{Both Spritely Goblins and this manual are released under the
 terms of the following license:}
