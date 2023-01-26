@@ -118,6 +118,8 @@ AM_TESTS_ENVIRONMENT = abs_top_srcdir="$(abs_top_srcdir)"
 
 info_TEXINFOS = doc/goblins.texi
 dvi: # Don't build dvi docs
+html-local:
+	$(GUILE) --no-auto-compile doc/build-html.scm
 
 EXTRA_DIST += README.org \
               README \
