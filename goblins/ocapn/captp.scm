@@ -33,6 +33,7 @@
   #:use-module (goblins contrib syrup)
   #:use-module (ice-9 match)
   #:use-module (ice-9 vlist)
+  #:use-module (ice-9 exceptions)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-9)
@@ -357,6 +358,13 @@
   (cmd-send-gc-export export-pos)
   cmd-send-gc-export?
   (export-pos cmd-send-gc-export-export-pos))
+
+;; We don't want to leak information about exceptions across CapTP boundries.
+;; Eventually we want to have specific intentional error sharing across CapTP,
+;; but until then we emit a mystery exception without additional information.
+;; Leaking data is a security issue.
+(define &mystery-exception (make-exception-type 'mystery &external-error '()))
+(define make-mystery-exception (record-constructor &mystery-exception))
 
 (define (setup-captp-conn send-to-remote
                           ;; coordinates between multiple captp connections:
@@ -691,9 +699,7 @@
        (make-syrec* 'void)]
       [(? keyword?)
        (make-syrec* 'kw (keyword->symbol obj))]
-      ;; TODO: Supply more machine-crossing exception types here
-      ;; TODO: Add guile equivalents of exceptions
-      #;[(? exn:fail?)
+      [(? error?)
        (make-syrec* 'exn:fail:mystery)]
       ;; And here's the general-purpose record that users can use
       ;; for whatever purpose is appropriate
@@ -723,9 +729,11 @@
        (maybe-install-import! obj)]
       [($ <desc:export> pos)
        (hashv-ref exports-pos2val pos)]
-      ;; TODO: Make guile equivalents of these exceptions
-      #;[($ <syrec> 'exn:fail:mystery '())
-       (make-mystery-fail)]
+      [($ <syrec> 'exn:fail:mystery '())
+       (make-exception
+        (make-mystery-exception)
+        (make-exception-with-message "Unknown error occured with remote object")
+        (make-exception-with-irritants '()))]
       [($ <syrec> 'void '())
        _void]
       [($ <syrec> 'kw `(,keyword))
