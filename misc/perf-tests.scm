@@ -14,7 +14,8 @@
 
 (define-module (goblins-perf-test)
   #:use-module (goblins core)
-  #:use-module (ice-9 match))
+  #:use-module (ice-9 match)
+  #:use-module (ice-9 curried-definitions))
 
 (define (repeat n thunk)
   (let lp ([i n])
@@ -49,6 +50,9 @@
                ($ friend 'self)
                'no-op)))))
 
+(define (^simple-actor bcom)
+  (lambda ()
+    'hello))
 
 ;;; In Racket, 2019-10-29
 ;; perf-tests.rkt> (call-a-lot)
@@ -162,6 +166,94 @@
       n
       (lambda ()
         (spawn-named 'foo ^simple-actor))))))
+
+
+;;; Racket, 2019-10-29
+;; perf-tests.rkt> (set!-a-lot)
+;; cpu time: 1106 real time: 1105 gc time: 13
+
+;;; Guile, 2023-01-07
+;; scheme@(goblins-perf-test)> ,time (set!-a-lot)
+;; 0.478929s real time, 1.266432s run time.  0.887123s spent in GC.
+
+;; So, Guile seems faster on this one, again excluding GC.
+;; (Why there's so much GC still, I have no idea?  Worth investigating...)
+
+(define* (set!-a-lot #:optional [actormap (make-whactormap)]
+                     #:key [num-actors 1000]
+                     [iterations 1000])
+  (define (^incrementing-actor bcom)
+    (define i 0)
+    (lambda ()
+      (define old-i i)
+      (set! i (1+ i))
+      old-i))
+  (define i-as
+    (do ((i 0 (1+ i))
+         (l '() (cons (actormap-spawn! actormap ^incrementing-actor)
+                      l)))
+        ((= i num-actors) l)))
+  (do ((i 0 (1+ i)))
+      ((= i iterations))
+    (actormap-run!
+     actormap
+     (lambda ()
+       (for-each $ i-as)))))
+
+;;; Racket: 2021-07-17
+;; perf-tests.rkt> (send-a-lot)
+;; cpu time: 12261 real time: 12261 gc time: 257
+;; perf-tests.rkt> (send-a-lot #:promise? #t)
+;; cpu time: 50629 real time: 50631 gc time: 2482
+;;
+;; So that's about 81.5k messages per second when using <-np,
+;; about 20k messages per second when using <-
+;;
+;; perf-tests.rkt> (send-a-lot #:spawn-cell? #t)
+;; cpu time: 19289 real time: 19289 gc time: 550
+;;
+;; So, not that much bigger of an increase when "merely" spawning a
+;; cell.  Promises with <- seem to be expensive.  I do wonder if
+;; there's room for optimization somewhere.
+
+;;; Guile: 2023-01-07
+;;
+;; scheme@(goblins-perf-test)> ,time (send-a-lot)
+;; $8 = #(ok #<unspecified>)
+;; 3.361616s real time, 13.404054s run time.  11.498390s spent in GC.
+;;
+;; scheme@(goblins-perf-test)> ,time (send-a-lot #:promise? #t)
+;; $9 = #(ok #<unspecified>)
+;; 84.676490s real time, 304.517632s run time.  253.822021s spent in GC.
+;;
+;; scheme@(goblins-perf-test)> ,time (send-a-lot #:spawn-cell? #t)
+;; $10 = #(ok #<unspecified>)
+;; 59.090220s real time, 178.360456s run time.  141.607579s spent in GC.
+
+;; Whoa so ok, these are a lot worse off in Guile land than they were
+;; in Racket land it seems...
+
+(define* (send-a-lot #:key [promise? #f]
+                     [iterations 1000000]
+                     [spawn-cell? #f])
+  (define am (make-actormap))
+  (define (^cell bcom val)
+    (case-lambda
+      [() val]
+      [(v) (bcom (^cell bcom v))]))
+  (actormap-churn-run
+   am
+   (lambda ()
+     (define ((^self-looper bcom) n)
+       (when spawn-cell?
+         (spawn ^cell 8))
+       (when (not (zero? n))
+         ((if promise? <- <-np)
+          self-looper (1- n)))
+       'another-one-done)
+     (define self-looper (spawn ^self-looper))
+     (<-np self-looper iterations))))
+
 
 
 
