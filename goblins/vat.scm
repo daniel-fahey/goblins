@@ -320,8 +320,9 @@ be returned to the sender or not."
         (define (handle-exn exn)
           (define stack
             (make-stack #t handle-exn))
-          (display-backtrace stack (current-error-port))
-          (newline (current-error-port))
+          (display "Error in spawn-fibrous-vow:\n" (current-error-port))
+          (format (current-error-port) "~a\n" exn)
+          ((@@ (goblins core) display-backtrace*) stack)
           (<-np-extern resolver 'break exn)
           (abort))
         (define (run-and-send)
