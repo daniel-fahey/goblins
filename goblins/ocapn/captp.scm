@@ -359,6 +359,13 @@
   cmd-send-gc-export?
   (export-pos cmd-send-gc-export-export-pos))
 
+;; We don't want to leak information about exceptions across CapTP boundries.
+;; Eventually we want to have specific intentional error sharing across CapTP,
+;; but until then we emit a mystery exception without additional information.
+;; Leaking data is a security issue.
+(define &mystery-exception (make-exception-type 'mystery &external-error '()))
+(define make-mystery-exception (record-constructor &mystery-exception))
+
 (define (setup-captp-conn send-to-remote
                           ;; coordinates between multiple captp connections:
                           ;; handoffs, etc.
@@ -700,13 +707,6 @@
        (make-syrec* 'user-record record-tag record-args)]
       [_ obj]))
 
-  ;; We don't want to leak information about exceptions across CapTP boundries.
-  ;; Eventually we want to have specific intentional error sharing across CapTP,
-  ;; but until then we emit a mystery exception without additional information.
-  ;; Leaking data is a security issue.
-  (define &mystery-exception (make-exception-type 'mystrey &external-error '()))
-  (define make-mystery-exception (record-constructor &mystery-exception))
-
   (define (incoming-post-unmarshall! obj)
     (match obj
       [(obj ...)
@@ -732,7 +732,8 @@
       [($ <syrec> 'exn:fail:mystery '())
        (make-exception
         (make-mystery-exception)
-        (make-exception-with-message "Unknown error occured with remote object"))]
+        (make-exception-with-message "Unknown error occured with remote object")
+        (make-exception-with-irritants '()))]
       [($ <syrec> 'void '())
        _void]
       [($ <syrec> 'kw `(,keyword))
