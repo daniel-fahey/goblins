@@ -2120,14 +2120,41 @@
 (define while-handling-listen-header
   "While handling listen request")
 
+(define (display-backtrace* stack)
+  ;; When displaying a backtrace in fibers, it's possible that
+  ;; terminal-width in (system repl debug) will throw an error trying
+  ;; to call (string->number #f) because the COLUMNS environment
+  ;; variable isn't set.  We're not entirely sure why this happens,
+  ;; but to work around it we set COLUMNS to Guile's own default of 72
+  ;; if it hasn't been set already.
+  (unless (getenv "COLUMNS")
+    (setenv "COLUMNS" "72"))
+  ;; Fibers >= 1.1.0 has a bug that causes backtrace printing to hang
+  ;; and CPU usage to go to 100%, so until that's fixed we don't want
+  ;; to print backtraces.  Fibers doesn't have a way to check its
+  ;; version, so as a crude check we see if (fibers internal) exists,
+  ;; because it was a module that was present in fibers 1.0.0 but not
+  ;; in later releases.  We don't want to call resolve-interface here
+  ;; because it throws an exception if the module can't be found, so
+  ;; instead we use resolve-module which creates a new fresh module
+  ;; that isn't linked to the file system if no such module exists on
+  ;; the load path.
+  (if (module-filename (resolve-module '(fibers internal)))
+      (begin
+        (display-backtrace stack (current-error-port))
+        (newline (current-error-port)))
+      (begin
+        (display "Backtrace omitted due to a bug in guile-fibers!\n"
+                 (current-error-port))
+        (display "See https://github.com/wingo/fibers/issues/76 for details.\n"
+                 (current-error-port)))))
+
 (define (simple-display-error msg err stack)
   (newline (current-error-port))
   (display ";; === Caught error: ===\n" (current-error-port))
   (format (current-error-port) ";;  message: ~s\n" msg)
   (format (current-error-port) ";;  exception: ~s\n" err)
-  #;((error-display-handler) (exn-message err) err)
-  (display-backtrace stack (current-error-port))
-  (newline (current-error-port)))
+  (display-backtrace* stack))
 
 (define (make-no-op msg)
   (lambda _ _void))
