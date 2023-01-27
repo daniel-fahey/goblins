@@ -33,6 +33,7 @@
   #:use-module (goblins contrib syrup)
   #:use-module (ice-9 match)
   #:use-module (ice-9 vlist)
+  #:use-module (ice-9 exceptions)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-9)
@@ -691,9 +692,7 @@
        (make-syrec* 'void)]
       [(? keyword?)
        (make-syrec* 'kw (keyword->symbol obj))]
-      ;; TODO: Supply more machine-crossing exception types here
-      ;; TODO: Add guile equivalents of exceptions
-      #;[(? exn:fail?)
+      [(? error?)
        (make-syrec* 'exn:fail:mystery)]
       ;; And here's the general-purpose record that users can use
       ;; for whatever purpose is appropriate
@@ -723,9 +722,8 @@
        (maybe-install-import! obj)]
       [($ <desc:export> pos)
        (hashv-ref exports-pos2val pos)]
-      ;; TODO: Make guile equivalents of these exceptions
-      #;[($ <syrec> 'exn:fail:mystery '())
-       (make-mystery-fail)]
+      [($ <syrec> 'exn:fail:mystery '())
+       (make-exception-type 'mystry &exception '())]
       [($ <syrec> 'void '())
        _void]
       [($ <syrec> 'kw `(,keyword))
