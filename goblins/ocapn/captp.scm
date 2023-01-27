@@ -700,6 +700,13 @@
        (make-syrec* 'user-record record-tag record-args)]
       [_ obj]))
 
+  ;; We don't want to leak information about exceptions across CapTP boundries.
+  ;; Eventually we want to have specific intentional error sharing across CapTP,
+  ;; but until then we emit a mystery exception without additional information.
+  ;; Leaking data is a security issue.
+  (define &mystery-exception (make-exception-type 'mystrey &external-error '()))
+  (define make-mystery-exception (record-constructor &mystery-exception))
+
   (define (incoming-post-unmarshall! obj)
     (match obj
       [(obj ...)
@@ -723,7 +730,9 @@
       [($ <desc:export> pos)
        (hashv-ref exports-pos2val pos)]
       [($ <syrec> 'exn:fail:mystery '())
-       (make-exception-type 'mystry &exception '())]
+       (make-exception
+        (make-mystery-exception)
+        (make-exception-with-message "Unknown error occured with remote object"))]
       [($ <syrec> 'void '())
        _void]
       [($ <syrec> 'kw `(,keyword))
