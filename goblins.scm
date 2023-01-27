@@ -61,7 +61,7 @@
                transactormap-merge!
                transactormap-buffer-merge!
 
-               spawn spawn-named
+               spawn-named
                $
                <-np <-
                on
@@ -84,4 +84,10 @@
                call-with-vat
                with-vat
                spawn-vat
-               define-vat-run))
+               define-vat-run)
+  #:replace (spawn))
+
+;; In order to replace a core binding with #:replace in define-module,
+;; it can't be re-exported.  To get around this, we assign spawn to a
+;; local variable in this module.
+(define spawn (@ (goblins core) spawn))

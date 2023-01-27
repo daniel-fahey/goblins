@@ -110,6 +110,7 @@
             near-settled-promise-value
             near-promise-resolved?
             near-resolved-promise-value)
+  #:replace (spawn)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (srfi srfi-11)
