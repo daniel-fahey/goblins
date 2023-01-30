@@ -14,3 +14,7 @@ unit-tests:
     - guix shell -m manifest.scm -- sh ./bootstrap.sh
     - guix shell -m manifest.scm -- ./configure
     - guix shell -m manifest.scm -- make distcheck
+    # Check we can build the HTML docs
+    - guix shell -m manifest.scm -- make html
+    # Test the guix package
+    - guix build --rounds=2 -f guix.scm
