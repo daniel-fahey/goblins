@@ -137,6 +137,8 @@ EXTRA_DIST += README.org \
               .gitlab-ci.yml \
               build-aux/test-driver.scm \
               doc/apache-2.0.texi \
+              doc/goblins.css \
+              doc/build-html.scm \
               $(TESTS)
 
 ACLOCAL_AMFLAGS = -I m4
