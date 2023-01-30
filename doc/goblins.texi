@@ -186,11 +186,6 @@ At the time of writing, two key versions of Goblins are supported, the
 of Goblins}, and the @uref{https://www.gnu.org/software/guile/, Guile}
 version.  This manual is for the Guile edition of Spritely Goblins.
 
-This manual is also very, very incomplete in this early release.
-Please see the @uref{https://docs.racket-lang.org/goblins/, manual for
-the Racket version of Goblins} manual, most of which applies to the
-Guile version too.
-
 @node Getting started
 @chapter Getting started
 
