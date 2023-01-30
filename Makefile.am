@@ -130,6 +130,7 @@ EXTRA_DIST += README.org \
               NEWS \
               AUTHORS \
               ChangeLog \
+              bootstrap.sh \
               guix.scm \
               coverage.scm \
               manifest.scm \
