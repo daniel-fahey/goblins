@@ -55,6 +55,8 @@
 (define _spawn-promise-values
   (@@ (goblins core) _spawn-promise-values))
 
+(define captp-version 0.1)
+
 
 ;; This should be better documented, and will when it becomes more of
 ;; a "standardized protocol" as opposed to a "bespoke implementation".
@@ -252,8 +254,9 @@
 
 ;; machinetp operations/descriptions
 (define-record-type <mtp:op:start-session>
-  (mtp:op:start-session handoff-pubkey acceptable-location acceptable-location-sig)
+  (mtp:op:start-session captp-version handoff-pubkey acceptable-location acceptable-location-sig)
   mtp:op:start-session?
+  (captp-version mtp:op:start-session-captp-version)
   (handoff-pubkey mtp:op:start-session-handoff-pubkey)
   ;; a sig-envelope signed by handoff-pubkey with a <my-location $location-data>
   (acceptable-location mtp:op:start-session-acceptable-location)
@@ -1482,6 +1485,7 @@
           ;;   before it gets here?  Ie, at this stage, we're already
           ;;   "confident" this is from the right location
           [($ <mtp:op:start-session>
+              remote-captp-version
               remote-encoded-pubkey
               ;; TODO: We want to restores something like the below, which
               ;;   is what the racket version expects, or at least unify the
@@ -1490,6 +1494,13 @@
                  ('eddsa 'public 'ed25519 _))
               (? ocapn-machine? claimed-remote-location)
               encoded-remote-location-sig)
+
+           ;; Check we are speaking the same language!
+           (unless (= remote-captp-version captp-version)
+             (error (format #f "CapTP version is incompatible (our version: ~a, remote version: ~a)"
+                            captp-version
+                            remote-captp-version)))
+
            (define remote-handoff-pubkey
              (gcrypt:pk-crypto:sexp->canonical-sexp remote-encoded-pubkey))
            ;; TODO: I guess we didn't know by the time this was opened
@@ -1585,7 +1596,8 @@
 
       ;; Now we'll need to send our side of the start-session and get the
       ;; other side... which will be handled by the ^setup-completer above
-      (send-to-remote (mtp:op:start-session handoff-pubkey
+      (send-to-remote (mtp:op:start-session captp-version
+                                            handoff-pubkey
                                             our-location
                                             our-location-sig))
 
