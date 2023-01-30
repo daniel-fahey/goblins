@@ -35,11 +35,6 @@ within the context of a specific vat.  Errors generated within a vat
 while evaluating an expression are propagated to the REPL for
 debugging.
 
-**** New (goblins actor-lib joiners) module
-
-This module provides the handy =all-of= procedure.  See the manual for
-details.
-
 **** Expanded documentation
 
 Much of the API surface has now been documented, including several
