@@ -1,6 +1,62 @@
 #+TITLE: Guile Goblins NEWS – history of user-visible changes
 
 * Releases
+** v0.10
+
+*** New features and improvements
+
+**** OCapN support and interoperability with Racket Goblins
+
+Guile Goblins has been updated to speak the OCapN protocol, finally
+allowing Guile users to be able to easily make awesome
+object-capability-secure peer-to-peer programs!  Furthermore, the
+OCapN implementation is compatible with Racket Goblins, allowing both
+flavors of Goblins to interopate with each other.
+
+**** Vats are now record types supporting custom event loops
+
+Vat objects used to be procedures that could be passed various
+arguments to interact with the underlying fiber managing the vat.
+Now, vat objects are a SRFI-9 record type and can be inspected using
+procedures like =vat-name=.  =call-with-vat=/=with-vat= provide the
+new interface for applying thunks within a vat.
+
+Additionally, the default fibers vat implementation has been separated
+from the core vat code, allowing custom vats to be implemented on top
+of other asynchronous event loops.
+
+See the manual for full details.
+
+**** New ,enter-vat REPL meta-command
+
+The new =,enter-vat= meta-command, which is automatically added to
+REPLs when the =(goblins)= module is imported, allows evaluating code
+within the context of a specific vat.  Errors generated within a vat
+while evaluating an expression are propagated to the REPL for
+debugging.
+
+**** New (goblins actor-lib joiners) module
+
+This module provides the handy =all-of= procedure.  See the manual for
+details.
+
+**** Expanded documentation
+
+Much of the API surface has now been documented, including several
+actor-lib modules and the OCapN API.  Additional examples and
+instructions for setting up the Tor daemon have been added, as well.
+
+*** Bug fixes
+
+*** Known issues
+
+**** Fibers and backtrace printing
+
+guile-fibers >= 1.1.0 has a bug related to exception handling that
+causes backtrace printing to fail.  Goblins has worked around this by
+omitting backtrace printing in certain situations.  See
+https://github.com/wingo/fibers/issues/76 for more information.
+
 ** v0.6
 
 This is the first release of Spritely Goblins on Guile.
