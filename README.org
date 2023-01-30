@@ -23,7 +23,16 @@ Goblins is available in the following distributions:
 
 *** GNU Guix
 
-Run =guix install guile-goblins=
+#+BEGIN_SRC sh
+guix install guile-goblins
+#+END_SRC
+
+*** Homebrew (MacOS)
+
+#+BEGIN_SRC sh
+brew tap aconchillo/guile
+brew install guile-goblins
+#+END_SRC
 
 ** Building from a release tarball
 
