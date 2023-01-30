@@ -1,0 +1,172 @@
+/* Copyright 2023 Christine Lemmer-Webber */
+/* Copyright 2023 David Thompson */
+
+/* Licensed under the Apache License, Version 2.0 (the "License"); */
+/* you may not use this file except in compliance with the License. */
+/* You may obtain a copy of the License at */
+
+/*    http://www.apache.org/licenses/LICENSE-2.0 */
+
+/* Unless required by applicable law or agreed to in writing, software */
+/* distributed under the License is distributed on an "AS IS" BASIS, */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. */
+/* See the License for the specific language governing permissions and */
+/* limitations under the License. */
+
+@font-face {
+    font-family: 'VT323';
+    font-style: normal;
+    src: url('https://spritely.institute/static/fonts/vt323/VT323-Regular.ttf');
+}
+
+@font-face {
+    font-family: 'Sahitya';
+    font-style: normal;
+    src: url('https://spritely.institute/static/fonts/sahitya/Sahitya-Regular.ttf');
+}
+
+@font-face {
+    font-family: 'Sahitya';
+    font-style: normal;
+    font-weight: bold;
+    src: url('https://spritely.institute/static/fonts/sahitya/Sahitya-Bold.ttf');
+}
+
+@font-face {
+    font-family: 'PT Serif';
+    font-style: normal;
+    src: url('https://spritely.institute/static/fonts/pt_serif/PTSerif-Regular.ttf');
+}
+
+@font-face {
+    font-family: 'PT Serif';
+    font-style: normal;
+    font-weight: bold;
+    src: url('https://spritely.institute/static/fonts/pt_serif/PTSerif-Bold.ttf');
+}
+
+@font-face {
+    font-family: 'PT Serif';
+    font-style: italic;
+    src: url('https://spritely.institute/static/fonts/pt_serif/PTSerif-Italic.ttf');
+}
+
+@font-face {
+    font-family: 'PT Serif';
+    font-style: italic;
+    font-weight: bold;
+    src: url('https://spritely.institute/static/fonts/pt_serif/PTSerif-BoldItalic.ttf');
+}
+
+@font-face {
+    font-family: 'Inconsolata';
+    font-style: normal;
+    font-weight: 400;
+    src: url('https://spritely.institute/static/fonts/inconsolata/Inconsolata-Regular.ttf');
+}
+
+@font-face {
+    font-family: 'Inconsolata';
+    font-style: normal;
+    font-weight: 700;
+    src: url('https://spritely.institute/static/fonts/inconsolata/Inconsolata-Bold.ttf');
+}
+
+body {
+    font-family: 'PT Serif',Times,Times New Roman,serif;
+    background-color: #fcf9fd;
+    color: #060606;
+    font-size: 18px;
+    line-height: 140%;
+    text-rendering: optimizeLegibility;
+    margin: 0 auto;
+}
+
+@media (min-width: 1140px) {
+    body {
+        max-width: 52rem;
+    }
+}
+
+@media (min-width: 800px) and (max-width: 1140px) {
+    body {
+        max-width: 52rem;
+    }
+}
+
+@media (max-width: 800px) {
+    body {
+        margin: 1rem;
+    }
+}
+
+a {
+    color: #a576d4;
+    text-decoration: none;
+    transition: text-shadow .22s;
+}
+
+a:hover {
+    text-shadow: 0px 0px 2px #cfccd4;
+}
+
+a:visited {
+    color: #8f5ac4;
+    text-decoration: none;
+}
+
+samp, code {
+    font-family: "Inconsolata",monospace;
+    background-color: #eee;
+}
+
+blockquote {
+    padding-left: 2rem;
+    border-left: 5px solid #ddd;
+    font-style: italic;
+}
+
+pre.example, pre.lisp {
+    font-family: "Inconsolata",monospace;
+    font-size: 90%;
+    line-height: 110%;
+    min-width: 100%;
+    max-width: 100%;
+    padding: 1rem;
+    background-color: #110e13;
+    color: #deeed6;
+    border-radius: 4px;
+    display: inline-block;
+    overflow: scroll;
+}
+
+.footnote h5 {
+    font-weight: normal;
+}
+
+/* Syntax Highlighting */
+
+.syntax-special, .syntax-element {
+    color: #8e6da6;
+    font-weight: bold;
+}
+
+.syntax-symbol {
+    color: #e0ceed;
+}
+
+.syntax-string {
+    color: #95e454;
+}
+
+.syntax-keyword, .syntax-attribute {
+    color: #e5786d;
+}
+
+.syntax-comment {
+    color: #999;
+}
+
+.syntax-open, .syntax-close {
+    color: #00768b;
+}
