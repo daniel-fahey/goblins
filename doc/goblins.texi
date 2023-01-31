@@ -1615,7 +1615,7 @@ Here's our client script named @file{captp-alice.scm}:
 (define machine-vat (spawn-vat))
 (define-values (onion-netlayer private-key service-id)
   (with-vat machine-vat
-    (new-onion-netlayer))
+    (new-onion-netlayer)))
 (define mycapn
   (with-vat machine-vat
     (spawn-mycapn onion-netlayer)))
@@ -1668,7 +1668,7 @@ following server script as @file{captp-bob.scm}:
 (define machine-vat (spawn-vat))
 (define-values (onion-netlayer private-key service-id)
   (with-vat machine-vat
-    (new-onion-netlayer))
+    (new-onion-netlayer)))
 (define mycapn
   (with-vat machine-vat
     (spawn-mycapn onion-netlayer)))
@@ -1787,7 +1787,7 @@ between sessions, to do this, you need do two things:
 @item
 Register the object at a specific swiss num
 @item
-Restore the netlayer (see the netlayer secion)
+Restore the netlayer (see the netlayer section)
 @end itemize
 
 To install the object at a given swiss num, get the nonce
