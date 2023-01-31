@@ -128,7 +128,6 @@ blockquote {
 
 pre.example, pre.lisp {
     font-family: "Inconsolata",monospace;
-    font-size: 90%;
     line-height: 110%;
     min-width: 100%;
     max-width: 100%;
