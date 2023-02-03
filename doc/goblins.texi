@@ -570,7 +570,8 @@ that are selected by name.  We can use the @code{methods} macro to do
 just that:
 
 @lisp
-(use-modules (goblins actor-lib methods))
+(use-modules (goblins)
+             (goblins actor-lib methods))
 
 (define* (^mcell bcom #:optional [val #f])
   (methods
