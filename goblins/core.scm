@@ -31,6 +31,8 @@
             make-transactormap
             make-whactormap
 
+            actormap-vat-connector
+
             actormap-spawn
             actormap-spawn!
             ;; actormap-spawn-mactor!
