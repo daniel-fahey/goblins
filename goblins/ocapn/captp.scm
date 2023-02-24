@@ -398,7 +398,7 @@
       [(or (? message?) (? questioned?))
        (<-np-extern internal-handler
                     (cmd-send-message msg))]
-      [($ <listen-request> to-refr listener wants-partial?)
+      [($ <listen-request> _ to-refr listener wants-partial?)
        (<-np-extern internal-handler
                     (cmd-send-listen to-refr listener
                                      wants-partial?))])

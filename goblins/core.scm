@@ -92,7 +92,9 @@
 
             <listen-request>
             make-listen-request listen-request?
-            listen-request-to listen-request-listener
+            listen-request-from-vat
+            listen-request-to
+            listen-request-listener
             listen-request-wants-partial?
 
             message-who-wants-response
@@ -1016,8 +1018,9 @@
 
 ;; Sent in the same way as <message>, but does listen requests specifically
 (define-record-type <listen-request>
-  (make-listen-request to listener wants-partial?)
+  (make-listen-request from-vat to listener wants-partial?)
   listen-request?
+  (from-vat listen-request-from-vat)
   (to listen-request-to)
   (listener listen-request-listener)
   (wants-partial? listen-request-wants-partial?))
@@ -1671,7 +1674,7 @@
     (match to-refr
       [(? live-refr?)
        (let ([listen-req
-              (make-listen-request to-refr listener wants-partial?)])
+              (make-listen-request vat-connector to-refr listener wants-partial?)])
          (set! new-msgs (cons listen-req new-msgs)))]
       [val (<-np listener 'fulfill val)]))
 
