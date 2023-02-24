@@ -29,8 +29,11 @@
   #:use-module (ice-9 threads)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
-  #:export (make-vat
+  #:export (all-vats
+            lookup-vat
+            make-vat
             vat?
+            vat-id
             vat-name
             vat-running?
             vat-halt!
@@ -123,12 +126,10 @@
                  (current-error-port %base-error-port))
     (proc)))
 
-(define (generate-random-vat-name)
-  (random-name 8))
-
 (define-record-type <vat>
-  (%make-vat name actormap running start-proc halt-proc send-proc)
+  (%make-vat id name actormap running start-proc halt-proc send-proc)
   vat?
+  (id vat-id)
   (name vat-name)
   (actormap vat-actormap)
   (running vat-running)
@@ -137,12 +138,39 @@
   (send-proc vat-send-proc))
 
 (define (print-vat vat port)
-  (format port "#<vat ~a>" (vat-name vat)))
+  (format port "#<vat id: ~a name: ~a>"
+          (vat-id vat) (vat-name vat)))
 
 (set-record-type-printer! <vat> print-vat)
 
-(define* (make-vat #:key (name (generate-random-vat-name))
-                   start halt send)
+;; A global table of vats keyed by id.
+(define *vats* (make-weak-value-hash-table))
+
+(define (all-vats)
+  (hash-map->list (lambda (k v) v) *vats*))
+
+(define (lookup-vat id)
+  (hashv-ref *vats* id))
+
+(define register-vat!
+  (let ((mutex (make-mutex)))
+    (lambda (vat)
+      (with-mutex mutex
+        (hashv-set! *vats* (vat-id vat) vat)))))
+
+;; A global id counter for vats.
+(define *vat-id-counter* (make-atomic-box 0))
+
+(define (next-vat-id)
+  (let* ((id (atomic-box-ref *vat-id-counter*)))
+    ;; If the atomic box was updated in another thread then the id
+    ;; we've just generated is no good and the counter will not be
+    ;; updated.  Loop until we get a good one.
+    (if (eq? (atomic-box-compare-and-swap! *vat-id-counter* id (+ id 1)) id)
+        id
+        (next-vat-id))))
+
+(define* (make-vat #:key name start halt send)
   "Return a new vat named NAME.  Vat behavior is determined by three
 event hooks:
 
@@ -166,7 +194,9 @@ be returned to the sender or not."
        (when (atomic-box-ref running?)
          (send msg #f)))))
   (define am (make-actormap #:vat-connector vat-connector))
-  (%make-vat name am running? start halt send))
+  (define vat (%make-vat (next-vat-id) name am running? start halt send))
+  (register-vat! vat)
+  vat)
 
 (define (vat-running? vat)
   "Return #t if VAT is currently running."
@@ -237,7 +267,7 @@ be returned to the sender or not."
 (define-syntax-rule (with-vat vat body ...)
   (call-with-vat vat (lambda () body ...)))
 
-(define* (make-fibrous-vat #:key (name (generate-random-vat-name))
+(define* (make-fibrous-vat #:key name
                            (scheduler (default-vat-scheduler))
                            (dynamic-wrap port-redirect-dynamic-wrap))
   (define done? (make-condition))
@@ -293,7 +323,7 @@ be returned to the sender or not."
             #:halt halt
             #:send send))
 
-(define* (spawn-fibrous-vat #:key (name (generate-random-vat-name))
+(define* (spawn-fibrous-vat #:key name
                             (scheduler (default-vat-scheduler))
                             (dynamic-wrap port-redirect-dynamic-wrap))
   (let ((vat (make-fibrous-vat #:name name
@@ -302,7 +332,7 @@ be returned to the sender or not."
     (vat-start! vat)
     vat))
 
-(define* (spawn-vat #:key (name (generate-random-vat-name)))
+(define* (spawn-vat #:key name)
   (spawn-fibrous-vat #:name name))
 
 (define (syscaller-free-fiber thunk)

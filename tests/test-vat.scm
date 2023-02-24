@@ -38,6 +38,12 @@
 
 (define a-vat (spawn-vat))
 
+(test-eq "Lookup vat by id"
+  (lookup-vat (vat-id a-vat)) a-vat)
+
+(test-equal "List vats"
+  (all-vats) (list a-vat))
+
 (define (^friendo _bcom)
   (lambda ()
     'hello))

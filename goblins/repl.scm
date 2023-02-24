@@ -21,7 +21,8 @@
   #:use-module (system repl repl)
   #:use-module (system vm loader)
   #:use-module (goblins core)
-  #:use-module (goblins vat))
+  #:use-module (goblins vat)
+  #:use-module (ice-9 match))
 
 ;; This code is based on error-string in (system repl
 ;; exception-handling) and adapted to work with Guile's new exception
@@ -94,6 +95,24 @@
                    #:make-default-environment
                    (language-make-default-environment scheme)))
   goblins-language)
+
+(define-meta-command ((vats goblins) repl)
+  "vats
+Display a list of vats."
+  (match (sort (all-vats)
+               (lambda (a b)
+                 (< (vat-id a) (vat-id b))))
+    (()
+     (format #t "No vats.\n"))
+    (vats
+     (format #t "id\tstatus\tname\n")
+     (format #t "--\t------\t----\n")
+     (for-each (lambda (vat)
+                 (let ((id (vat-id vat))
+                       (name (or (vat-name vat) ""))
+                       (status (if (vat-running? vat) "running" "stopped")))
+                   (format #t "~a\t~a\t~a\n" id status name)))
+               vats))))
 
 (define-meta-command ((enter-vat goblins) repl exp)
   "enter-vat vat
