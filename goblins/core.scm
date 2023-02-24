@@ -110,6 +110,7 @@
             make-remote-object-refr
             make-remote-promise-refr
             local-object-refr-debug-name
+            local-refr-vat-connector
             remote-refr-captp-connector
             remote-refr-sealed-pos
 
