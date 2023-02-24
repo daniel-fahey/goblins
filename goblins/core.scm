@@ -97,6 +97,7 @@
             listen-request-listener
             listen-request-wants-partial?
 
+            message-or-request-from-vat
             message-or-request-to
             message-who-wants-response
 
@@ -1039,6 +1040,14 @@
   forward-to-captp?
   (msg forward-to-captp-msg)
   (connector forward-to-captp-connector))
+
+(define message-or-request-from-vat
+  (match-lambda
+    [(? forward-to-captp? forward-me)
+     (message-or-request-from-vat (forward-to-captp-msg forward-me))]
+    [(? message? msg) (message-from-vat msg)]
+    [(? listen-request? lr) (listen-request-from-vat lr)]
+    [(? questioned? qstn) (message-from-vat (questioned-message qstn))]))
 
 (define message-or-request-to
   (match-lambda
