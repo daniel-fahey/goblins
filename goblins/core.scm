@@ -97,6 +97,7 @@
             listen-request-listener
             listen-request-wants-partial?
 
+            message-or-request-to
             message-who-wants-response
 
             syscaller-free
