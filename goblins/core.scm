@@ -2362,7 +2362,7 @@
      ;; re-raise exception
      (raise-exception err)]))
 
-(define (dispatch-message msg)
+(define* (dispatch-message msg #:optional (timestamp 0))
   (cond
    ;; See the comment above <forward-to-captp> for why we're kind of
    ;; duplicating code with the final nested branch of this procedure.
@@ -2381,7 +2381,7 @@
           ;; TODO: When messages aren't going to be possible to deliver,
           ;; we should alert the waiting-on-message
           [(? procedure? vat-connector)
-           (vat-connector 'handle-message msg)]
+           (vat-connector 'handle-message timestamp msg)]
           ;; noplace like nowhere
           ;; TODO: Maybe we should give warnings about this, since
           ;; delivering messages to actors that can't receive them is...
