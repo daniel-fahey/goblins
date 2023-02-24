@@ -81,7 +81,9 @@
             ;; TODO: separate this out!
             <message>
             make-message message?
-            message-to message-resolve-me
+            message-from-vat
+            message-to
+            message-resolve-me
             message-args
 
             <questioned>
@@ -992,8 +994,10 @@
 
 ;; These are the main things that get sent as the toplevel of a turn in a vat!
 (define-record-type <message>
-  (make-message to resolve-me args)
+  (make-message from-vat to resolve-me args)
   message?
+  ;; which vat connector the message came from
+  (from-vat message-from-vat)
   ;; who's receiving the message (the invoked actor)
   (to message-to)
   ;; who's interested in the result (a resolver)
@@ -1548,7 +1552,7 @@
             (cond
              [(near-refr? point-to)
               ;; (We don't use call-with-resolution because the next one will!)
-              (_handle-message (make-message point-to resolve-me args))]
+              (_handle-message (make-message vat-connector point-to resolve-me args))]
              [else
               ;; Otherwise, we need to forward this message to the appropriate
               ;; vat
@@ -1603,7 +1607,8 @@
                                                     #:captp-connector
                                                     captp-connector)])
                 (queue-new-msg! (make-forward-to-captp
-                                 (make-questioned (make-message to-question-finder
+                                 (make-questioned (make-message vat-connector
+                                                                to-question-finder
                                                                 followup-question-resolver
                                                                 args)
                                                   followup-question-finder)
@@ -1613,7 +1618,7 @@
              ;; void
              [else
               (queue-new-msg! (make-forward-to-captp
-                               (make-message to-question-finder #f args)
+                               (make-message vat-connector to-question-finder #f args)
                                captp-connector))
               _void])))])))
 
@@ -1623,7 +1628,7 @@
     (unless (live-refr? to-refr)
       (error 'send-message
              "Don't know how to send a message to:" to-refr))
-    (let* ((base-message (make-message to-refr resolve-me args))
+    (let* ((base-message (make-message vat-connector to-refr resolve-me args))
            (new-message
             (if answer-this-question
                 (make-questioned base-message answer-this-question)
@@ -1836,17 +1841,18 @@
   (sys '<-np refr args))
 
 (define (<-np-extern to-refr . args)
-  (define msg (make-message to-refr #f args))
   (match to-refr
     [(? local-refr?)
      (let ((vat-connector (local-refr-vat-connector to-refr)))
        (unless vat-connector
          (error "Can't use <-np-extern on local-refr with no vat-connector"))
-       (vat-connector 'handle-message msg)
+       (vat-connector 'handle-message 0
+                      (make-message vat-connector to-refr #f args))
        _void)]
     [(? remote-refr?)
      (let ((captp-connector (remote-refr-captp-connector to-refr)))
-       (captp-connector 'handle-message msg)
+       (captp-connector 'handle-message
+                        (make-message captp-connector to-refr #f args))
        _void)]))
 
 ;; Listen to a promise
@@ -2188,7 +2194,7 @@
          (message-who-wants-response msg))
        (define new-msgs
          (if resolve-me
-             (list (make-message resolve-me #f (list 'break err)))
+             (list (make-message (sys 'vat-connector) resolve-me #f (list 'break err)))
              '()))
        ;; Decorate the original exception with an actormap turn error
        ;; that captures the stack in which the original exception
@@ -2303,10 +2309,11 @@
 
 (define* (actormap-churn-run actormap thunk
                              #:key [catch-errors? #t])
+  (define vat-connector (actormap-vat-connector actormap))
   (define-values (actor-refr new-actormap)
     (actormap-spawn actormap (lambda (_bcom) thunk)))
   (define-values (returned-val _nam new-msgs)
-    (actormap-churn new-actormap (make-message actor-refr #f '())
+    (actormap-churn new-actormap (make-message vat-connector actor-refr #f '())
                     #:catch-errors? catch-errors?
                     #:make-transactormap? #f))  ; reuses new-actormap
   (values returned-val new-actormap new-msgs))
