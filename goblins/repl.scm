@@ -83,9 +83,8 @@
   ;; The Goblins language is just Scheme with a special evaluator that
   ;; does vat magic.
   (define goblins-language
-    ;; TODO: Change #:name argument to incorporate the vat name once
-    ;; that information is easy to obtain.
-    (make-language #:name "goblins"
+    (make-language #:name (format #f "goblins/~a"
+                                  (or (vat-name vat) (vat-id vat)))
                    #:title "Goblins"
                    #:reader (language-reader scheme)
                    #:compilers (language-compilers scheme)
