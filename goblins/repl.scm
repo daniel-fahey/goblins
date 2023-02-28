@@ -114,8 +114,15 @@ Display a list of vats."
                    (format #t "~a\t~a\t~a\n" id status name)))
                vats))))
 
+(define (maybe-lookup-vat x)
+  (if (vat? x) x (lookup-vat x)))
+
 (define-meta-command ((enter-vat goblins) repl exp)
   "enter-vat vat
 Enter a sub-REPL where all expressions are evaluated within VAT."
-  (start-interpreted-repl
-   (make-goblins-language (repl-eval repl exp))))
+  (let ((vat (maybe-lookup-vat (repl-eval repl exp))))
+    (if (vat? vat)
+        (parameterize ((current-vat vat))
+          (start-interpreted-repl
+           (make-goblins-language vat)))
+        (format #t "Not a vat: ~s" vat))))
