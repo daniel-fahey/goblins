@@ -1,4 +1,4 @@
-;;; Copyright 2022 David Thompson
+;;; Copyright 2022-2023 David Thompson
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
   #:use-module (system vm loader)
   #:use-module (goblins core)
   #:use-module (goblins vat)
+  #:use-module (ice-9 exceptions)
   #:use-module (ice-9 match))
 
 ;; This code is based on error-string in (system repl
@@ -83,9 +84,8 @@
   ;; The Goblins language is just Scheme with a special evaluator that
   ;; does vat magic.
   (define goblins-language
-    ;; TODO: Change #:name argument to incorporate the vat name once
-    ;; that information is easy to obtain.
-    (make-language #:name "goblins"
+    (make-language #:name (format #f "goblins/~a"
+                                  (or (vat-name vat) (vat-id vat)))
                    #:title "Goblins"
                    #:reader (language-reader scheme)
                    #:compilers (language-compilers scheme)
@@ -96,6 +96,13 @@
                    (language-make-default-environment scheme)))
   goblins-language)
 
+(define current-vat (make-parameter #f))
+
+(define-syntax-rule (when-in-vat body ...)
+  (if (vat? (current-vat))
+      (begin body ...)
+      (format #t "Not in a vat.  Use ,enter-vat first.\n")))
+
 (define-meta-command ((vats goblins) repl)
   "vats
 Display a list of vats."
@@ -105,17 +112,188 @@ Display a list of vats."
     (()
      (format #t "No vats.\n"))
     (vats
-     (format #t "id\tstatus\tname\n")
-     (format #t "--\t------\t----\n")
+     (format #t "id\tstatus\tlogging\tname\n")
+     (format #t "--\t------\t-------\t----\n")
      (for-each (lambda (vat)
                  (let ((id (vat-id vat))
                        (name (or (vat-name vat) ""))
-                       (status (if (vat-running? vat) "running" "stopped")))
-                   (format #t "~a\t~a\t~a\n" id status name)))
+                       (status (if (vat-running? vat) "running" "stopped"))
+                       (logging (if (vat-logging? vat) "enabled" "disabled")))
+                   (format #t "~a\t~a\t~a\t~a\n"
+                           id status logging name)))
                vats))))
+
+(define (maybe-lookup-vat x)
+  (if (vat? x) x (lookup-vat x)))
 
 (define-meta-command ((enter-vat goblins) repl exp)
   "enter-vat vat
 Enter a sub-REPL where all expressions are evaluated within VAT."
-  (start-interpreted-repl
-   (make-goblins-language (repl-eval repl exp))))
+  (let ((vat (maybe-lookup-vat (repl-eval repl exp))))
+    (if (vat? vat)
+        (parameterize ((current-vat vat))
+          (start-interpreted-repl
+           (make-goblins-language vat)))
+        (format #t "Not a vat: ~s" vat))))
+
+;; Symbolic representation of a vat event for the purpose of printing.
+(define (vat-event->list event)
+  (let ((msg (vat-event-message event)))
+    (cons (if (vat-send-event? event)
+              'send
+              'receive)
+          (cond
+           ((listen-request? msg)
+            `(listen ,(message-or-request-to msg)))
+           ((questioned? msg)
+            `(question ,(message-or-request-to msg)))
+           (else
+            (cons (message-to msg) (message-args msg)))))))
+
+(define-meta-command ((vat-tail goblins) repl #:optional (n 10))
+  "vat-tail [N]
+Display the most recent N messages in the current vat."
+  (when-in-vat
+   (let* ((vat (current-vat))
+          (len (vat-log-length vat)))
+     (let loop ((i (max (- len n) 0))
+                (prev-churn #f))
+       (unless (= i len)
+         (let* ((event (vat-log-ref vat i))
+                (churn (vat-event-churn event)))
+           (unless (eq? churn prev-churn)
+             (format #t "Churn ~a:\n" churn))
+           (format #t "  ~a: ~s\n"
+                   (vat-event-timestamp event)
+                   (vat-event->list event))
+           (loop (+ i 1) churn)))))))
+
+(define-meta-command ((vat-trace goblins) repl #:optional timestamp)
+  "vat-trace [TIMESTAMP]
+Display a backtrace of events starting from TIMESTAMP in the current vat."
+  (define (print-churn-id event)
+    (format #t "  Churn ~a:\n" (vat-event-churn event)))
+  (define (print-event event prev-event)
+    (let ((vat-connector (vat-event-connector event))
+          (prev-vat-connector (and prev-event (vat-event-connector prev-event)))
+          (prev-churn (and prev-event (vat-event-churn prev-event))))
+      (cond
+       ((not (eq? vat-connector prev-vat-connector))
+        (format #t "In vat ~a:\n" (vat-connector 'name))
+        (print-churn-id event))
+       ((not (= (vat-event-churn event) prev-churn))
+        (print-churn-id event)))
+      (format #t "    ~a: ~s\n"
+              (vat-event-timestamp event)
+              (vat-event->list event))))
+  (when-in-vat
+   (let* ((vat (current-vat))
+          (timestamp (or timestamp (vat-clock vat)))
+          (event (vat-log-ref-by-time vat timestamp)))
+     (let loop ((events (reverse (vat-event-trace event)))
+                (prev-event #f))
+       (match events
+         (() *unspecified*)
+         ((event . rest)
+          (print-event event prev-event)
+          (loop rest event)))))))
+
+(define-meta-command ((vat-tree goblins) repl #:optional timestamp)
+  "vat-tree [TIMESTAMP]
+Display a tree view of events starting at TIMESTAMP in the current vat."
+  (define (print-event event depth last?)
+    (let* ((type (vat-event-type event))
+           (msg (vat-event-message event))
+           (to (message-or-request-to msg))
+           (vat-connector (vat-event-connector event))
+           (whitespace-depth (- depth 1))
+           (whitespace (if (> whitespace-depth 0)
+                           (make-string (* whitespace-depth 4) #\space)
+                           ""))
+           (indent (if (> depth 0)
+                       (string-append whitespace
+                                      (if last? "└" "├")
+                                      "─► ")
+                       "")))
+      (format #t "~aVat ~a, ~a: ~s\n"
+              indent
+              (vat-connector 'name)
+              (vat-event-timestamp event)
+              (vat-event->list event))))
+  (when-in-vat
+   (let* ((vat (current-vat))
+          (event (vat-log-ref-by-time vat (or timestamp (vat-clock vat)))))
+     (let loop ((nodes (vat-event-tree event))
+                (depth 0))
+       (match nodes
+         (() #t)
+         (((event (children ...)) . rest)
+          (print-event event depth (null? rest))
+          (loop children (+ depth 1))
+          (loop rest depth))
+         ((event . rest)
+          (print-event event depth (null? rest))
+          (loop rest depth)))))))
+
+(define-meta-command ((vat-errors goblins) repl)
+  "vat-errors
+Display a list of errors that have occurred in the current vat."
+  (define (print-error event exception)
+    (let* ((stack (actormap-turn-error-stack exception))
+           (frame (stack-ref stack 0)))
+      (format #t "At churn ~a, event ~a, file ~a:\n  In procedure ~a: ~a\n"
+              (vat-event-churn event)
+              (vat-event-timestamp event)
+              (match (frame-source frame)
+                ((_ file-name line . column)
+                 (format #f "~a:~a:~a"
+                         (if file-name
+                             (basename file-name)
+                             "unknown")
+                         line column))
+                (_ "unknown"))
+              (or (frame-procedure-name frame)
+                  "unknown")
+              (if (and (exception-with-message? exception)
+                       (exception-with-irritants? exception))
+                  (apply format #f (exception-message exception)
+                         (exception-irritants exception))
+                  ""))))
+  (when-in-vat
+   (let ((vat (current-vat)))
+     ;; Sort errors by timestamp.
+     (match (sort (vat-log-errors vat)
+                  (match-lambda*
+                    (((a . _) (b . _))
+                     (< (vat-event-timestamp a)
+                        (vat-event-timestamp b)))))
+       (()
+        (format #t "No errors.\n"))
+       (errors
+        (for-each (match-lambda
+                    ((event . e)
+                     (print-error event e)))
+                  errors))))))
+
+(define-meta-command ((vat-debug goblins) repl timestamp)
+  "vat-debug [TIMESTAMP]
+Debug error associated with the event at TIMESTAMP."
+  (when-in-vat
+   (let* ((vat (current-vat))
+          (event (vat-log-ref-by-time vat timestamp))
+          (exception (vat-log-error-for-event vat event)))
+     (if exception
+         (enter-debugger (current-language) exception)
+         (format #t "No error at event ~a" timestamp)))))
+
+(define-meta-command ((vat-peek-past goblins) repl timestamp refr . args)
+  "vat-peek-past TIMESTAMP REFR [ARGS ...]
+Send ARGS to REFR using historical actormap state at TIMESTAMP."
+  (when-in-vat
+   (let* ((vat (current-vat))
+          (event (vat-log-ref-by-time vat timestamp)))
+     (if event
+         (format #t "~s\n"
+                 (apply actormap-peek (vat-event-snapshot event)
+                        (repl-eval repl `(list ,refr ,@args))))
+         (format #t "no vat event with timestamp ~a\n" timestamp)))))

@@ -31,6 +31,8 @@
             make-transactormap
             make-whactormap
 
+            actormap-vat-connector
+
             actormap-spawn
             actormap-spawn!
             ;; actormap-spawn-mactor!
@@ -81,7 +83,9 @@
             ;; TODO: separate this out!
             <message>
             make-message message?
-            message-to message-resolve-me
+            message-from-vat
+            message-to
+            message-resolve-me
             message-args
 
             <questioned>
@@ -90,9 +94,13 @@
 
             <listen-request>
             make-listen-request listen-request?
-            listen-request-to listen-request-listener
+            listen-request-from-vat
+            listen-request-to
+            listen-request-listener
             listen-request-wants-partial?
 
+            message-or-request-from-vat
+            message-or-request-to
             message-who-wants-response
 
             syscaller-free
@@ -102,6 +110,7 @@
             make-remote-object-refr
             make-remote-promise-refr
             local-object-refr-debug-name
+            local-refr-vat-connector
             remote-refr-captp-connector
             remote-refr-sealed-pos
 
@@ -992,8 +1001,10 @@
 
 ;; These are the main things that get sent as the toplevel of a turn in a vat!
 (define-record-type <message>
-  (make-message to resolve-me args)
+  (make-message from-vat to resolve-me args)
   message?
+  ;; which vat connector the message came from
+  (from-vat message-from-vat)
   ;; who's receiving the message (the invoked actor)
   (to message-to)
   ;; who's interested in the result (a resolver)
@@ -1012,8 +1023,9 @@
 
 ;; Sent in the same way as <message>, but does listen requests specifically
 (define-record-type <listen-request>
-  (make-listen-request to listener wants-partial?)
+  (make-listen-request from-vat to listener wants-partial?)
   listen-request?
+  (from-vat listen-request-from-vat)
   (to listen-request-to)
   (listener listen-request-listener)
   (wants-partial? listen-request-wants-partial?))
@@ -1031,6 +1043,14 @@
   forward-to-captp?
   (msg forward-to-captp-msg)
   (connector forward-to-captp-connector))
+
+(define message-or-request-from-vat
+  (match-lambda
+    [(? forward-to-captp? forward-me)
+     (message-or-request-from-vat (forward-to-captp-msg forward-me))]
+    [(? message? msg) (message-from-vat msg)]
+    [(? listen-request? lr) (listen-request-from-vat lr)]
+    [(? questioned? qstn) (message-from-vat (questioned-message qstn))]))
 
 (define message-or-request-to
   (match-lambda
@@ -1548,7 +1568,7 @@
             (cond
              [(near-refr? point-to)
               ;; (We don't use call-with-resolution because the next one will!)
-              (_handle-message (make-message point-to resolve-me args))]
+              (_handle-message (make-message vat-connector point-to resolve-me args))]
              [else
               ;; Otherwise, we need to forward this message to the appropriate
               ;; vat
@@ -1603,7 +1623,8 @@
                                                     #:captp-connector
                                                     captp-connector)])
                 (queue-new-msg! (make-forward-to-captp
-                                 (make-questioned (make-message to-question-finder
+                                 (make-questioned (make-message vat-connector
+                                                                to-question-finder
                                                                 followup-question-resolver
                                                                 args)
                                                   followup-question-finder)
@@ -1613,7 +1634,7 @@
              ;; void
              [else
               (queue-new-msg! (make-forward-to-captp
-                               (make-message to-question-finder #f args)
+                               (make-message vat-connector to-question-finder #f args)
                                captp-connector))
               _void])))])))
 
@@ -1623,7 +1644,7 @@
     (unless (live-refr? to-refr)
       (error 'send-message
              "Don't know how to send a message to:" to-refr))
-    (let* ((base-message (make-message to-refr resolve-me args))
+    (let* ((base-message (make-message vat-connector to-refr resolve-me args))
            (new-message
             (if answer-this-question
                 (make-questioned base-message answer-this-question)
@@ -1666,7 +1687,7 @@
     (match to-refr
       [(? live-refr?)
        (let ([listen-req
-              (make-listen-request to-refr listener wants-partial?)])
+              (make-listen-request vat-connector to-refr listener wants-partial?)])
          (set! new-msgs (cons listen-req new-msgs)))]
       [val (<-np listener 'fulfill val)]))
 
@@ -1836,17 +1857,18 @@
   (sys '<-np refr args))
 
 (define (<-np-extern to-refr . args)
-  (define msg (make-message to-refr #f args))
   (match to-refr
     [(? local-refr?)
      (let ((vat-connector (local-refr-vat-connector to-refr)))
        (unless vat-connector
          (error "Can't use <-np-extern on local-refr with no vat-connector"))
-       (vat-connector 'handle-message msg)
+       (vat-connector 'handle-message 0
+                      (make-message vat-connector to-refr #f args))
        _void)]
     [(? remote-refr?)
      (let ((captp-connector (remote-refr-captp-connector to-refr)))
-       (captp-connector 'handle-message msg)
+       (captp-connector 'handle-message
+                        (make-message captp-connector to-refr #f args))
        _void)]))
 
 ;; Listen to a promise
@@ -2188,7 +2210,7 @@
          (message-who-wants-response msg))
        (define new-msgs
          (if resolve-me
-             (list (make-message resolve-me #f (list 'break err)))
+             (list (make-message (sys 'vat-connector) resolve-me #f (list 'break err)))
              '()))
        ;; Decorate the original exception with an actormap turn error
        ;; that captures the stack in which the original exception
@@ -2303,10 +2325,11 @@
 
 (define* (actormap-churn-run actormap thunk
                              #:key [catch-errors? #t])
+  (define vat-connector (actormap-vat-connector actormap))
   (define-values (actor-refr new-actormap)
     (actormap-spawn actormap (lambda (_bcom) thunk)))
   (define-values (returned-val _nam new-msgs)
-    (actormap-churn new-actormap (make-message actor-refr #f '())
+    (actormap-churn new-actormap (make-message vat-connector actor-refr #f '())
                     #:catch-errors? catch-errors?
                     #:make-transactormap? #f))  ; reuses new-actormap
   (values returned-val new-actormap new-msgs))
@@ -2339,7 +2362,7 @@
      ;; re-raise exception
      (raise-exception err)]))
 
-(define (dispatch-message msg)
+(define* (dispatch-message msg #:optional (timestamp 0))
   (cond
    ;; See the comment above <forward-to-captp> for why we're kind of
    ;; duplicating code with the final nested branch of this procedure.
@@ -2358,7 +2381,7 @@
           ;; TODO: When messages aren't going to be possible to deliver,
           ;; we should alert the waiting-on-message
           [(? procedure? vat-connector)
-           (vat-connector 'handle-message msg)]
+           (vat-connector 'handle-message timestamp msg)]
           ;; noplace like nowhere
           ;; TODO: Maybe we should give warnings about this, since
           ;; delivering messages to actors that can't receive them is...

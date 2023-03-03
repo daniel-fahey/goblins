@@ -398,7 +398,7 @@
       [(or (? message?) (? questioned?))
        (<-np-extern internal-handler
                     (cmd-send-message msg))]
-      [($ <listen-request> to-refr listener wants-partial?)
+      [($ <listen-request> _ to-refr listener wants-partial?)
        (<-np-extern internal-handler
                     (cmd-send-listen to-refr listener
                                      wants-partial?))])
@@ -916,7 +916,7 @@
                 (values msg #f)]
                [($ <questioned> msg answer-this-question)
                 (values msg (question-finder->question-pos! answer-this-question))]))
-           (match-let ((($ <message> to resolve-me args)
+           (match-let ((($ <message> _ to resolve-me args)
                         real-msg))
              (define deliver-msg
                (if resolve-me
@@ -950,7 +950,7 @@
                ((? message?)
                 (message-resolve-me msg))
                ))
-           (match-let ((($ <message> to resolve-me args)
+           (match-let ((($ <message> _ to resolve-me args)
                         msg))
              (when resolve-me
                (<-np resolve-me 'break (captp-session-severed))))]

@@ -16,7 +16,9 @@
 
 (define-module (goblins test-vat)
   #:use-module (goblins)
+  #:use-module (goblins core)
   #:use-module (goblins vat)
+  #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
   #:use-module (tests utils)
   #:use-module (fibers)
@@ -270,5 +272,179 @@
  "On subscription w/ breakage to promise on another vat"
  '(#f oh-no #t)
  (try-far-on-promise 'break 'oh-no))
+
+;; Vat event log tests
+
+(let ((t (vat-clock a-vat)))
+  (test-eqv "Handling a near message increments the clock"
+    (+ t 1)
+    (begin
+      (with-vat a-vat 'boop)
+      (vat-clock a-vat))))
+
+(let ((t (vat-clock a-vat)))
+  (test-eqv "Handling a far message syncs the clock before incrementing"
+    (+ t 7)
+    (let ((msg (make-message 'fake-vat my-friend #f '())))
+      ((vat-connector a-vat) 'handle-message (+ t 5) msg)
+      ;; Making a no-op call into the vat to ensure that the prior
+      ;; message has been processed.
+      (with-vat a-vat 'boop)
+      (vat-clock a-vat))))
+
+(test-eqv "No events are recorded when logging is disabled"
+  0
+  (begin
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #f)
+    (with-vat a-vat 'boop)
+    (vat-log-length a-vat)))
+
+(test-eqv "Events are recorded when logging is enabled"
+  1
+  (begin
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    (with-vat a-vat 'boop)
+    (vat-log-length a-vat)))
+
+(test-assert "Events can be looked up by log index"
+  (begin
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+
+    (with-vat a-vat 'boop)
+    (vat-event? (vat-log-ref a-vat 0))))
+
+(test-assert "Events can be looked up by timestamp"
+  (let ((t (vat-clock a-vat)))
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    (with-vat a-vat 'boop)
+    (vat-event? (vat-log-ref-by-time a-vat (+ t 1)))))
+
+(test-assert "Events can be looked up by message"
+  (let ((t (vat-clock a-vat))
+        (msg (make-message 'fake-vat my-friend #f '())))
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    ((vat-connector a-vat) 'handle-message t msg)
+    ;; Making a no-op call into the vat to ensure that the prior
+    ;; message has been processed.
+    (with-vat a-vat 'boop)
+    (vat-event? (vat-log-ref-by-message a-vat msg))))
+
+(test-assert "The previous event in a churn can be looked up"
+  (let ((t (vat-clock a-vat)))
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    (with-vat a-vat ;; (+ t 1)
+      (<- my-friend) ;; (+ t 2)
+      (<- my-friend)) ;; (+ t 3)
+    (let ((prev (vat-log-ref-by-time a-vat (+ t 2)))
+          (event (vat-log-ref-by-time a-vat (+ t 3))))
+      (and (vat-event? prev)
+           (vat-event? event)
+           (eq? prev (vat-log-ref-previous a-vat event))))))
+
+(test-assert "The next event in a churn can be looked up"
+  (let ((t (vat-clock a-vat)))
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    (with-vat a-vat ;; (+ t 1)
+      (<- my-friend) ;; (+ t 2)
+      (<- my-friend)) ;; (+ t 3)
+    (let ((event (vat-log-ref-by-time a-vat (+ t 2)))
+          (next (vat-log-ref-by-time a-vat (+ t 3))))
+      (and (vat-event? event)
+           (vat-event? next)
+           (eq? next (vat-log-ref-next a-vat event))))))
+
+(test-assert "Errors associated with events can be looked up"
+  (let ((t (vat-clock a-vat)))
+    (define (handle-error e)
+      (let ((event (vat-log-ref-by-time a-vat (+ t 1))))
+        (eq? e (vat-log-error-for-event a-vat event))))
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    (with-exception-handler handle-error
+      (lambda ()
+        (with-vat a-vat
+          (+ 1 "two")))
+      #:unwind? #t
+      #:unwind-for-type &actormap-turn-error)))
+
+(test-eq "Historical actormap state can be queried via event snapshots"
+  'gold
+  (let ((t (vat-clock a-vat))
+        (chest (with-vat a-vat (spawn ^cell)))) ;; (+ t 1)
+    (with-vat a-vat ;; (+ t 2)
+      (<-np chest 'gold)) ;; (+ t 3)
+    (with-vat a-vat ;; (+ t 4)
+      (<-np chest 'sword)) ;; (+ t 5)
+    (let ((event (vat-log-ref-by-time a-vat (+ t 4))))
+      (actormap-peek (vat-event-snapshot event) chest))))
+
+(test-assert "Event log activation order backtrace across vats"
+  (begin
+    (vat-log-clear! a-vat)
+    (vat-log-clear! b-vat)
+    (set-vat-logging! a-vat #t)
+    (set-vat-logging! b-vat #t)
+    (let* ((counter (with-vat b-vat (spawn ^counter 0)))
+           (done? (make-condition))
+           (t (vat-clock a-vat))
+           (vow (with-vat a-vat ;; (+ t 1)
+                  (on (<- counter)
+                      #:finally (lambda ()
+                                  (signal-condition! done?))))))
+      ;; Wait for the promise to resolve.
+      (perform-operation (choice-operation
+                          (wait-operation done?)
+                          (sleep-operation 1)))
+      ;; Get the backtrace of the promise resolution event and verify
+      ;; that the initial event is the with-vat message.  The trace
+      ;; has to go from vat A -> B -> A to get this result.
+      (let* ((finally-event (vat-log-ref-by-time a-vat (vat-clock a-vat))))
+        (eq? (vat-log-ref-by-time a-vat (+ t 1))
+             (car (reverse (vat-event-trace finally-event))))))))
+
+(test-assert "Event log message order tree across vats"
+  (begin
+    (vat-log-clear! a-vat)
+    (vat-log-clear! b-vat)
+    (set-vat-logging! a-vat #t)
+    (set-vat-logging! b-vat #t)
+    (let* ((counter (with-vat b-vat (spawn ^counter 0)))
+           (done? (make-condition))
+           (t (vat-clock a-vat))
+           (vow (with-vat a-vat ;; (+ t 1)
+                  (on (<- counter)
+                      #:finally (lambda ()
+                                  (signal-condition! done?))))))
+      ;; Wait for the promise to resolve.
+      (perform-operation (choice-operation
+                          (wait-operation done?)
+                          (sleep-operation 1)))
+      ;; Get the tree of the promise resolution event and verify that
+      ;; the first event at depth 0 is the with-vat message.  The
+      ;; trace has to go from vat A -> B -> A to get this result.
+      (let* ((finally-event (vat-log-ref-by-time a-vat (vat-clock a-vat))))
+        (eq? (vat-log-ref-by-time a-vat (+ t 1))
+             (car (vat-event-tree finally-event)))))))
+
+;; Running this test last since it messes with the log size.
+(test-assert "The event log can be resized"
+  (let ((t (vat-clock a-vat)))
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    (with-vat a-vat 'beep) ;; (+ t 1)
+    (with-vat a-vat 'boop) ;; (+ t 2)
+    (vat-log-resize! a-vat 1)
+    (and (= (vat-log-length a-vat) 1)
+         ;; Event doesn't fit in resized log and is dropped.
+         (not (vat-log-ref-by-time a-vat (+ t 1)))
+         ;; The last event is still there, though.
+         (vat-event? (vat-log-ref-by-time a-vat (+ t 2))))))
 
 (test-end "test-vat")
