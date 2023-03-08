@@ -23,7 +23,38 @@
   #:use-module (goblins core)
   #:use-module (goblins vat)
   #:use-module (ice-9 exceptions)
-  #:use-module (ice-9 match))
+  #:use-module (ice-9 match)
+  #:use-module (srfi srfi-9))
+
+;; This type stores a vat event trace (as a vector rather than a list)
+;; and an index into that vector, for the purpose of moving up/down
+;; the trace like we're used to with stack frames.
+(define-record-type <vat-debug>
+  (make-vat-debug trace index)
+  vat-debug?
+  (trace vat-debug-trace)
+  (index vat-debug-index set-vat-debug-index!))
+
+(define (vat-debug-max-index debug)
+  (- (vector-length (vat-debug-trace debug)) 1))
+
+(define (vat-debug-bottom? debug)
+  (= (vat-debug-index debug) 0))
+
+(define (vat-debug-top? debug)
+  (= (vat-debug-index debug)
+     (vat-debug-max-index debug)))
+
+(define (vat-debug-current-event debug)
+  (vector-ref (vat-debug-trace debug) (vat-debug-index debug)))
+
+(define (vat-debug-up! debug)
+  (set-vat-debug-index! debug
+                        (min (+ (vat-debug-index debug) 1)
+                             (vat-debug-max-index debug))))
+
+(define (vat-debug-down! debug)
+  (set-vat-debug-index! debug (max (- (vat-debug-index debug) 1) 0)))
 
 ;; This code is based on error-string in (system repl
 ;; exception-handling) and adapted to work with Guile's new exception
