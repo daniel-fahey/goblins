@@ -283,7 +283,7 @@ Debug error associated with the event at TIMESTAMP."
           (event (vat-log-ref-by-time vat timestamp))
           (exception (vat-log-error-for-event vat event)))
      (if exception
-         (enter-debugger (current-language) exception)
+         (enter-debugger (repl-language repl) exception)
          (format #t "No error at event ~a" timestamp)))))
 
 (define-meta-command ((vat-peek-past goblins) repl timestamp refr . args)
