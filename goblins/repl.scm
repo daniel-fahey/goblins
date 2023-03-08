@@ -24,6 +24,7 @@
   #:use-module (goblins vat)
   #:use-module (ice-9 exceptions)
   #:use-module (ice-9 match)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9))
 
 ;; This type stores a vat event trace (as a vector rather than a list)
@@ -229,9 +230,24 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
               (vat-event->list event))))
   (when-in-vat
    (let* ((vat (current-vat))
-          (timestamp (or timestamp (vat-clock vat)))
-          (event (vat-log-ref-by-time vat timestamp)))
-     (let loop ((events (reverse (vat-event-trace event)))
+          (debug (current-vat-debug))
+          (trace (cond
+                  ;; User provided a timestamp.
+                  ((number? timestamp)
+                   (vat-event-trace
+                    (vat-log-ref-by-time vat timestamp)))
+                  ;; No timestamp provided, but we are in a debugger,
+                  ;; so use the current debugging trace narrowed to
+                  ;; the current debug index.
+                  (debug
+                   (drop (vector->list (vat-debug-trace debug))
+                         (vat-debug-index debug)))
+                  ;; No timestamp provided and we are not in a
+                  ;; debugger, use the current vat timestamp.
+                  (else
+                   (vat-event-trace
+                    (vat-log-ref-by-time vat (vat-clock vat)))))))
+     (let loop ((events (reverse trace))
                 (prev-event #f))
        (match events
          (() *unspecified*)
