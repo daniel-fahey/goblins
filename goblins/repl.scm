@@ -56,6 +56,13 @@
 (define (vat-debug-down! debug)
   (set-vat-debug-index! debug (max (- (vat-debug-index debug) 1) 0)))
 
+(define current-vat-debug (make-parameter #f))
+
+(define-syntax-rule (when-in-vat-debugger body ...)
+  (if (vat-debug? (current-vat-debug))
+      (begin body ...)
+      (format #t "Not currently debugging a vat error.\n")))
+
 ;; This code is based on error-string in (system repl
 ;; exception-handling) and adapted to work with Guile's new exception
 ;; objects.
@@ -331,3 +338,31 @@ Send ARGS to REFR using historical actormap state at TIMESTAMP."
                  (apply actormap-peek (vat-event-snapshot event)
                         (repl-eval repl `(list ,refr ,@args))))
          (format #t "no vat event with timestamp ~a\n" timestamp)))))
+(define (print-current-vat-debug-event debug)
+  (let ((event (vat-debug-current-event debug)))
+    (format #t "Vat ~a, event ~a: ~s\n"
+            ((vat-event-connector event) 'name)
+            (vat-event-timestamp event)
+            (vat-event->list event))))
+
+(define-meta-command ((vat-up goblins) repl)
+  "vat-up
+Move to the previous event in the current vat debug trace."
+  (when-in-vat-debugger
+   (let ((debug (current-vat-debug)))
+     (if (vat-debug-top? debug)
+         (format #t "Already at oldest event.\n")
+         (begin
+           (vat-debug-up! debug)
+           (print-current-vat-debug-event debug))))))
+
+(define-meta-command ((vat-down goblins) repl)
+  "vat-down
+Move to the next event in the current vat debug trace."
+  (when-in-vat-debugger
+   (let ((debug (current-vat-debug)))
+     (if (vat-debug-bottom? debug)
+         (format #t "Already at most recent event.\n")
+         (begin
+           (vat-debug-down! debug)
+           (print-current-vat-debug-event debug))))))
