@@ -360,6 +360,20 @@
            (vat-event? next)
            (eq? next (vat-log-ref-next a-vat event))))))
 
+(test-assert "Event information can be obtained from vat errors"
+  (let ((t (vat-clock a-vat)))
+    (define (handle-error e)
+      (let ((event (vat-log-ref-by-time a-vat (+ t 1))))
+        (eq? event (vat-turn-error-event e))))
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    (with-exception-handler handle-error
+      (lambda ()
+        (with-vat a-vat
+          (+ 1 "two")))
+      #:unwind? #t
+      #:unwind-for-type &vat-turn-error)))
+
 (test-assert "Errors associated with events can be looked up"
   (let ((t (vat-clock a-vat)))
     (define (handle-error e)
@@ -372,7 +386,7 @@
         (with-vat a-vat
           (+ 1 "two")))
       #:unwind? #t
-      #:unwind-for-type &actormap-turn-error)))
+      #:unwind-for-type &vat-turn-error)))
 
 (test-eq "Historical actormap state can be queried via event snapshots"
   'gold
