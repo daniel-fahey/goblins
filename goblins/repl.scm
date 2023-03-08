@@ -78,24 +78,27 @@
 (define (enter-debugger language e)
   (let* ((stack (narrow-stack->vector (actormap-turn-error-stack e) 0))
          (msg (error-message stack e))
+         (event (vat-turn-error-event e))
+         (trace (list->vector (vat-event-trace event)))
          (debug (make-debug stack 0 msg)))
-    ;; Mimicking Guile's debugger welcome message because starting a
-    ;; debug REPL doesn't do it!
-    (format #t "~a\n" msg)
-    (format #t "Entering a new prompt. ")
-    (format #t "Type `,bt' for a backtrace or `,q' to continue.\n")
-    (start-interpreted-repl language #:debug debug)
-    ;; The previous procedure returns the empty list, which would get
-    ;; printed as a return value when the sub-repl is exited.  That's
-    ;; a bit weird, so force the return value to be unspecified
-    ;; instead.
-    *unspecified*))
+    (parameterize ((current-vat-debug (make-vat-debug trace 0)))
+      ;; Mimicking Guile's debugger welcome message because starting a
+      ;; debug REPL doesn't do it!
+      (format #t "~a\n" msg)
+      (format #t "Entering a new prompt. ")
+      (format #t "Type `,bt' for a backtrace or `,q' to continue.\n")
+      (start-interpreted-repl language #:debug debug)
+      ;; The previous procedure returns the empty list, which would get
+      ;; printed as a return value when the sub-repl is exited.  That's
+      ;; a bit weird, so force the return value to be unspecified
+      ;; instead.
+      *unspecified*)))
 
 (define (call-with-goblins-debugger language thunk)
   (with-exception-handler (lambda (e) (enter-debugger language e))
     thunk
     #:unwind? #t
-    #:unwind-for-type &actormap-turn-error))
+    #:unwind-for-type &vat-turn-error))
 
 ;; We make a language object per-vat so that we can evaluate
 ;; expressions in the context of a specific vat without having to
