@@ -737,7 +737,7 @@ successful resolution or failure in the latter case:
 
 @lisp
 goblins[1]> (define broken-ben
-              (spawn ^broken-ben))
+              (spawn ^broken))
 goblins[1]> (on (<- broken-ben)
                 (lambda (what-did-ben-say)
                   (format #t "Ben says: ~a\n" what-did-ben-say))
