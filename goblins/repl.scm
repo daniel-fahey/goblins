@@ -343,17 +343,6 @@ Debug error associated with the event at TIMESTAMP."
          (enter-debugger (repl-language repl) exception)
          (format #t "No error at event ~a" timestamp)))))
 
-(define-meta-command ((vat-peek-past goblins) repl timestamp refr . args)
-  "vat-peek-past TIMESTAMP REFR [ARGS ...]
-Send ARGS to REFR using historical actormap state at TIMESTAMP."
-  (when-in-vat
-   (let* ((vat (current-vat))
-          (event (vat-log-ref-by-time vat timestamp)))
-     (if event
-         (format #t "~s\n"
-                 (apply actormap-peek (vat-event-snapshot event)
-                        (repl-eval repl `(list ,refr ,@args))))
-         (format #t "no vat event with timestamp ~a\n" timestamp)))))
 (define (print-current-vat-debug-event debug)
   (let ((event (vat-debug-current-event debug)))
     (format #t "Vat ~a, event ~a: ~s\n"
@@ -382,3 +371,13 @@ Move to the next event in the current vat debug trace."
          (begin
            (vat-debug-down! debug)
            (print-current-vat-debug-event debug))))))
+
+(define-meta-command ((vat-peek goblins) repl refr . args)
+  "vat-peek REFR [ARGS ...]
+Send ARGS to REFR using the snapshot for the current debugger event."
+  (when-in-vat-debugger
+   (let ((debug (current-vat-debug)))
+     (let ((event (vat-debug-current-event debug)))
+       (format #t "~s\n"
+               (apply actormap-peek (vat-event-snapshot event)
+                      (repl-eval repl `(list ,refr ,@args))))))))
