@@ -178,6 +178,22 @@ Enter a sub-REPL where all expressions are evaluated within VAT."
            (make-goblins-language vat)))
         (format #t "Not a vat: ~s" vat))))
 
+(define-meta-command ((vat-log-enable goblins) repl)
+  "vat-log-enable
+Enable vat event logging for the current vat."
+  (when-in-vat
+   (set-vat-logging! (current-vat) #t)))
+
+(define-meta-command ((vat-log-disable goblins) repl)
+  "vat-log-disable
+Disable vat event logging for the current vat."
+  (when-in-vat
+   (set-vat-logging! (current-vat) #f)))
+
+(define (check-logging-status vat)
+  (unless (vat-logging? vat)
+    (display "warn: Logging is disabled.  Use ,vat-log-enable to begin logging.\n")))
+
 ;; Symbolic representation of a vat event for the purpose of printing.
 (define (vat-event->list event)
   (let ((msg (vat-event-message event)))
@@ -198,6 +214,7 @@ Display the most recent N messages in the current vat."
   (when-in-vat
    (let* ((vat (current-vat))
           (len (vat-log-length vat)))
+     (check-logging-status vat)
      (let loop ((i (max (- len n) 0))
                 (prev-churn #f))
        (unless (= i len)
@@ -247,6 +264,7 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
                   (else
                    (vat-event-trace
                     (vat-log-ref-by-time vat (vat-clock vat)))))))
+     (check-logging-status vat)
      (let loop ((events (reverse trace))
                 (prev-event #f))
        (match events
@@ -280,6 +298,7 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
   (when-in-vat
    (let* ((vat (current-vat))
           (event (vat-log-ref-by-time vat (or timestamp (vat-clock vat)))))
+     (check-logging-status vat)
      (let loop ((nodes (vat-event-tree event))
                 (depth 0))
        (match nodes
@@ -318,6 +337,7 @@ Display a list of errors that have occurred in the current vat."
                   ""))))
   (when-in-vat
    (let ((vat (current-vat)))
+     (check-logging-status vat)
      ;; Sort errors by timestamp.
      (match (sort (vat-log-errors vat)
                   (match-lambda*
