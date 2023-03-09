@@ -27,6 +27,29 @@
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9))
 
+;; Special exception type that REPL commands will catch in order to
+;; print out friendly error messages.
+(define &goblins-repl-error
+  (make-exception-type '&goblins-repl-error &error '()))
+
+(define make-goblins-repl-error (record-constructor &goblins-repl-error))
+
+(define (repl-error message)
+  (raise-exception
+   (make-exception (make-goblins-repl-error)
+                   (make-exception-with-message message))))
+
+(define (call-with-goblins-error-messages thunk)
+  (with-exception-handler (lambda (e)
+                            (display (exception-message e))
+                            (newline))
+    thunk
+    #:unwind? #t
+    #:unwind-for-type &goblins-repl-error))
+
+(define-syntax-rule (with-goblins-error-messages body ...)
+  (call-with-goblins-error-messages (lambda () body ...)))
+
 ;; This type stores a vat event trace (as a vector rather than a list)
 ;; and an index into that vector, for the purpose of moving up/down
 ;; the trace like we're used to with stack frames.
