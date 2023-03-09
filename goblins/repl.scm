@@ -253,6 +253,14 @@ Display the most recent N messages in the current vat."
                    (vat-event->list event))
            (loop (+ i 1) churn)))))))
 
+(define (vat-log-ref-by-time* vat timestamp)
+  (check-logging-status vat)
+  (let ((event (vat-log-ref-by-time vat timestamp)))
+    (if (vat-event? event)
+        event
+        (repl-error
+         (format #f "No event for logical timestamp ~a." timestamp)))))
+
 (define-meta-command ((vat-trace goblins) repl #:optional timestamp)
   "vat-trace [TIMESTAMP]
 Display a backtrace of events starting from TIMESTAMP in the current vat."
@@ -278,7 +286,7 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
                   ;; User provided a timestamp.
                   ((number? timestamp)
                    (vat-event-trace
-                    (vat-log-ref-by-time vat timestamp)))
+                    (vat-log-ref-by-time* vat timestamp)))
                   ;; No timestamp provided, but we are in a debugger,
                   ;; so use the current debugging trace narrowed to
                   ;; the current debug index.
@@ -289,8 +297,7 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
                   ;; debugger, use the current vat timestamp.
                   (else
                    (vat-event-trace
-                    (vat-log-ref-by-time vat (vat-clock vat)))))))
-     (check-logging-status vat)
+                    (vat-log-ref-by-time* vat (vat-clock vat)))))))
      (let loop ((events (reverse trace))
                 (prev-event #f))
        (match events
@@ -323,8 +330,7 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
               (vat-event->list event))))
   (with-goblins-error-messages
    (let* ((vat (current-vat*))
-          (event (vat-log-ref-by-time vat (or timestamp (vat-clock vat)))))
-     (check-logging-status vat)
+          (event (vat-log-ref-by-time* vat (or timestamp (vat-clock vat)))))
      (let loop ((nodes (vat-event-tree event))
                 (depth 0))
        (match nodes
@@ -363,7 +369,6 @@ Display a list of errors that have occurred in the current vat."
                   ""))))
   (with-goblins-error-messages
    (let ((vat (current-vat*)))
-     (check-logging-status vat)
      ;; Sort errors by timestamp.
      (match (sort (vat-log-errors vat)
                   (match-lambda*
@@ -383,7 +388,7 @@ Display a list of errors that have occurred in the current vat."
 Debug error associated with the event at TIMESTAMP."
   (with-goblins-error-messages
    (let* ((vat (current-vat*))
-          (event (vat-log-ref-by-time vat timestamp))
+          (event (vat-log-ref-by-time* vat timestamp))
           (exception (vat-log-error-for-event vat event)))
      (if exception
          (enter-debugger (repl-language repl) exception)
