@@ -178,6 +178,18 @@ Enter a sub-REPL where all expressions are evaluated within VAT."
            (make-goblins-language vat)))
         (format #t "Not a vat: ~s" vat))))
 
+(define-meta-command ((vat-log-enable goblins) repl)
+  "vat-log-enable
+Enable vat event logging for the current vat."
+  (when-in-vat
+   (set-vat-logging! (current-vat) #t)))
+
+(define-meta-command ((vat-log-disable goblins) repl)
+  "vat-log-disable
+Disable vat event logging for the current vat."
+  (when-in-vat
+   (set-vat-logging! (current-vat) #f)))
+
 ;; Symbolic representation of a vat event for the purpose of printing.
 (define (vat-event->list event)
   (let ((msg (vat-event-message event)))
