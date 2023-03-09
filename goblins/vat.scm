@@ -47,6 +47,9 @@
             vat-event-trace
             vat-event-tree
 
+            &vat-turn-error
+            vat-turn-error-event
+
             vat-envelope?
             vat-envelope-message
             vat-envelope-timestamp
@@ -378,6 +381,15 @@ more history to search."
 ;; Vats
 ;; ====
 
+(define &vat-turn-error
+  (make-exception-type '&vat-turn-error &error '(event)))
+
+(define make-vat-turn-error (record-constructor &vat-turn-error))
+
+(define vat-turn-error-event
+  (exception-accessor &vat-turn-error
+                      (record-accessor &vat-turn-error 'event)))
+
 ;; Vat envelopes contain a message, are postmarked with a Lamport
 ;; timestamp to indicate when it was sent, and have a flag that
 ;; indicates if the sender wants a reply.  Currently, the return? flag
@@ -549,11 +561,15 @@ disabled.  LOG-CAPACITY events will be retained in the log."
       (actormap-turn-message new-am msg #:catch-errors? #t))
     (queue-messages-appropriately! new-msgs)
     (match result
-      (#('ok _result)
-       (transactormap-buffer-merge! buffer-am))
+      (#('ok _)
+       (transactormap-buffer-merge! buffer-am)
+       result)
       (#('fail exception)
-       (vat-log-error! vat event exception)))
-    result)
+       ;; Decorate exception with the vat event context.
+       (let ((vat-error (make-exception (make-vat-turn-error event)
+                                        exception)))
+         (vat-log-error! vat event vat-error)
+         `#(fail ,vat-error)))))
   (define (churn prev-event)
     (if (q-empty? near-q)
         prev-event

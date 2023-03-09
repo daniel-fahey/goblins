@@ -23,7 +23,46 @@
   #:use-module (goblins core)
   #:use-module (goblins vat)
   #:use-module (ice-9 exceptions)
-  #:use-module (ice-9 match))
+  #:use-module (ice-9 match)
+  #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-9))
+
+;; This type stores a vat event trace (as a vector rather than a list)
+;; and an index into that vector, for the purpose of moving up/down
+;; the trace like we're used to with stack frames.
+(define-record-type <vat-debug>
+  (make-vat-debug trace index)
+  vat-debug?
+  (trace vat-debug-trace)
+  (index vat-debug-index set-vat-debug-index!))
+
+(define (vat-debug-max-index debug)
+  (- (vector-length (vat-debug-trace debug)) 1))
+
+(define (vat-debug-bottom? debug)
+  (= (vat-debug-index debug) 0))
+
+(define (vat-debug-top? debug)
+  (= (vat-debug-index debug)
+     (vat-debug-max-index debug)))
+
+(define (vat-debug-current-event debug)
+  (vector-ref (vat-debug-trace debug) (vat-debug-index debug)))
+
+(define (vat-debug-up! debug)
+  (set-vat-debug-index! debug
+                        (min (+ (vat-debug-index debug) 1)
+                             (vat-debug-max-index debug))))
+
+(define (vat-debug-down! debug)
+  (set-vat-debug-index! debug (max (- (vat-debug-index debug) 1) 0)))
+
+(define current-vat-debug (make-parameter #f))
+
+(define-syntax-rule (when-in-vat-debugger body ...)
+  (if (vat-debug? (current-vat-debug))
+      (begin body ...)
+      (format #t "Not currently debugging a vat error.\n")))
 
 ;; This code is based on error-string in (system repl
 ;; exception-handling) and adapted to work with Guile's new exception
@@ -47,24 +86,27 @@
 (define (enter-debugger language e)
   (let* ((stack (narrow-stack->vector (actormap-turn-error-stack e) 0))
          (msg (error-message stack e))
+         (event (vat-turn-error-event e))
+         (trace (list->vector (vat-event-trace event)))
          (debug (make-debug stack 0 msg)))
-    ;; Mimicking Guile's debugger welcome message because starting a
-    ;; debug REPL doesn't do it!
-    (format #t "~a\n" msg)
-    (format #t "Entering a new prompt. ")
-    (format #t "Type `,bt' for a backtrace or `,q' to continue.\n")
-    (start-interpreted-repl language #:debug debug)
-    ;; The previous procedure returns the empty list, which would get
-    ;; printed as a return value when the sub-repl is exited.  That's
-    ;; a bit weird, so force the return value to be unspecified
-    ;; instead.
-    *unspecified*))
+    (parameterize ((current-vat-debug (make-vat-debug trace 0)))
+      ;; Mimicking Guile's debugger welcome message because starting a
+      ;; debug REPL doesn't do it!
+      (format #t "~a\n" msg)
+      (format #t "Entering a new prompt. ")
+      (format #t "Type `,bt' for a backtrace or `,q' to continue.\n")
+      (start-interpreted-repl language #:debug debug)
+      ;; The previous procedure returns the empty list, which would get
+      ;; printed as a return value when the sub-repl is exited.  That's
+      ;; a bit weird, so force the return value to be unspecified
+      ;; instead.
+      *unspecified*)))
 
 (define (call-with-goblins-debugger language thunk)
   (with-exception-handler (lambda (e) (enter-debugger language e))
     thunk
     #:unwind? #t
-    #:unwind-for-type &actormap-turn-error))
+    #:unwind-for-type &vat-turn-error))
 
 ;; We make a language object per-vat so that we can evaluate
 ;; expressions in the context of a specific vat without having to
@@ -188,9 +230,24 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
               (vat-event->list event))))
   (when-in-vat
    (let* ((vat (current-vat))
-          (timestamp (or timestamp (vat-clock vat)))
-          (event (vat-log-ref-by-time vat timestamp)))
-     (let loop ((events (reverse (vat-event-trace event)))
+          (debug (current-vat-debug))
+          (trace (cond
+                  ;; User provided a timestamp.
+                  ((number? timestamp)
+                   (vat-event-trace
+                    (vat-log-ref-by-time vat timestamp)))
+                  ;; No timestamp provided, but we are in a debugger,
+                  ;; so use the current debugging trace narrowed to
+                  ;; the current debug index.
+                  (debug
+                   (drop (vector->list (vat-debug-trace debug))
+                         (vat-debug-index debug)))
+                  ;; No timestamp provided and we are not in a
+                  ;; debugger, use the current vat timestamp.
+                  (else
+                   (vat-event-trace
+                    (vat-log-ref-by-time vat (vat-clock vat)))))))
+     (let loop ((events (reverse trace))
                 (prev-event #f))
        (match events
          (() *unspecified*)
@@ -283,17 +340,44 @@ Debug error associated with the event at TIMESTAMP."
           (event (vat-log-ref-by-time vat timestamp))
           (exception (vat-log-error-for-event vat event)))
      (if exception
-         (enter-debugger (current-language) exception)
+         (enter-debugger (repl-language repl) exception)
          (format #t "No error at event ~a" timestamp)))))
 
-(define-meta-command ((vat-peek-past goblins) repl timestamp refr . args)
-  "vat-peek-past TIMESTAMP REFR [ARGS ...]
-Send ARGS to REFR using historical actormap state at TIMESTAMP."
-  (when-in-vat
-   (let* ((vat (current-vat))
-          (event (vat-log-ref-by-time vat timestamp)))
-     (if event
-         (format #t "~s\n"
-                 (apply actormap-peek (vat-event-snapshot event)
-                        (repl-eval repl `(list ,refr ,@args))))
-         (format #t "no vat event with timestamp ~a\n" timestamp)))))
+(define (print-current-vat-debug-event debug)
+  (let ((event (vat-debug-current-event debug)))
+    (format #t "Vat ~a, event ~a: ~s\n"
+            ((vat-event-connector event) 'name)
+            (vat-event-timestamp event)
+            (vat-event->list event))))
+
+(define-meta-command ((vat-up goblins) repl)
+  "vat-up
+Move to the previous event in the current vat debug trace."
+  (when-in-vat-debugger
+   (let ((debug (current-vat-debug)))
+     (if (vat-debug-top? debug)
+         (format #t "Already at oldest event.\n")
+         (begin
+           (vat-debug-up! debug)
+           (print-current-vat-debug-event debug))))))
+
+(define-meta-command ((vat-down goblins) repl)
+  "vat-down
+Move to the next event in the current vat debug trace."
+  (when-in-vat-debugger
+   (let ((debug (current-vat-debug)))
+     (if (vat-debug-bottom? debug)
+         (format #t "Already at most recent event.\n")
+         (begin
+           (vat-debug-down! debug)
+           (print-current-vat-debug-event debug))))))
+
+(define-meta-command ((vat-peek goblins) repl refr . args)
+  "vat-peek REFR [ARGS ...]
+Send ARGS to REFR using the snapshot for the current debugger event."
+  (when-in-vat-debugger
+   (let ((debug (current-vat-debug)))
+     (let ((event (vat-debug-current-event debug)))
+       (format #t "~s\n"
+               (apply actormap-peek (vat-event-snapshot event)
+                      (repl-eval repl `(list ,refr ,@args))))))))
