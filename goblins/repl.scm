@@ -208,13 +208,15 @@ Enter a sub-REPL where all expressions are evaluated within VAT."
   "vat-log-enable
 Enable vat event logging for the current vat."
   (with-goblins-error-messages
-   (set-vat-logging! (current-vat*) #t)))
+   (set-vat-logging! (current-vat*) #t)
+   (display "Logging enabled.\n")))
 
 (define-meta-command ((vat-log-disable goblins) repl)
   "vat-log-disable
 Disable vat event logging for the current vat."
   (with-goblins-error-messages
-   (set-vat-logging! (current-vat*) #f)))
+   (set-vat-logging! (current-vat*) #f)
+   (display "Logging disabled.\n")))
 
 (define (check-logging-status vat)
   (unless (vat-logging? vat)
