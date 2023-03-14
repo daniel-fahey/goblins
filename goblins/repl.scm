@@ -200,6 +200,8 @@ Enter a sub-REPL where all expressions are evaluated within VAT."
    (let ((vat (maybe-lookup-vat (repl-eval repl exp))))
      (if (vat? vat)
          (parameterize ((current-vat vat))
+           (format #t "Entering vat '~a'.  Type ',q' to exit.  Type ',help goblins' for help.\n"
+                   (or (vat-name vat) (vat-id vat)))
            (start-interpreted-repl
             (make-goblins-language vat)))
          (repl-error (format #f "Not a vat: ~s" vat))))))
