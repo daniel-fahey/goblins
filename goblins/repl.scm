@@ -392,11 +392,14 @@ Display a list of errors that have occurred in the current vat."
 Debug error associated with the event at TIMESTAMP."
   (with-goblins-error-messages
    (let* ((vat (current-vat*))
-          (event (vat-log-ref-by-time* vat timestamp))
+          (timestamp* (if (integer? timestamp)
+                          timestamp
+                          (repl-eval repl timestamp)))
+          (event (vat-log-ref-by-time* vat timestamp*))
           (exception (vat-log-error-for-event vat event)))
      (if exception
          (enter-debugger (repl-language repl) exception)
-         (format #t "No error at event ~a" timestamp)))))
+         (format #t "No error at event ~a" timestamp*)))))
 
 (define (print-current-vat-debug-event debug)
   (let ((event (vat-debug-current-event debug)))
