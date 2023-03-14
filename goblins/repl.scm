@@ -222,7 +222,7 @@ Disable vat event logging for the current vat."
 
 (define (check-logging-status vat)
   (unless (vat-logging? vat)
-    (display "warn: Logging is disabled.  Use ,vat-log-enable to begin logging.\n")))
+    (display "warning: Logging is disabled.  Use ,vat-log-enable to begin logging.\n")))
 
 ;; Symbolic representation of a vat event for the purpose of printing.
 (define (vat-event->list event)
