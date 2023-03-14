@@ -388,16 +388,21 @@
       #:unwind? #t
       #:unwind-for-type &vat-turn-error)))
 
-(test-eq "Historical actormap state can be queried via event snapshots"
-  'gold
+(test-equal "Historical actormap state can be queried via event snapshots"
+  '(gold sword)
   (let ((t (vat-clock a-vat))
-        (chest (with-vat a-vat (spawn ^cell)))) ;; (+ t 1)
+        (chest (with-vat a-vat (spawn ^cell 'gold)))) ;; (+ t 1)
     (with-vat a-vat ;; (+ t 2)
-      (<-np chest 'gold)) ;; (+ t 3)
-    (with-vat a-vat ;; (+ t 4)
-      (<-np chest 'sword)) ;; (+ t 5)
-    (let ((event (vat-log-ref-by-time a-vat (+ t 4))))
-      (actormap-peek (vat-event-snapshot event) chest))))
+      (on (<- chest 'sword) ;; (+ t 3)
+          (lambda _ 'no-op))) ;; (+ t 7)
+    ;; Compare before and after the event that modified the contents
+    ;; of the cell.
+    (let ((before-cell-update-event (vat-log-ref-by-time a-vat (+ t 3)))
+          (after-cell-update-event (vat-log-ref-by-time a-vat (+ t 4))))
+      (list (actormap-peek (vat-event-snapshot before-cell-update-event)
+                           chest)
+            (actormap-peek (vat-event-snapshot after-cell-update-event)
+                           chest)))))
 
 (test-assert "Event log activation order backtrace across vats"
   (begin
