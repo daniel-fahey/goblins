@@ -62,6 +62,7 @@
 
             whactormap?
             transactormap?
+            transactormap-reparent
             transactormap-merge!
             transactormap-buffer-merge!
 
@@ -584,6 +585,13 @@
   (define vat-connector (actormap-vat-connector parent))
   (_make-actormap transactormap-metatype
                   (make-transactormap-data parent (make-hash-table) #f)
+                  vat-connector))
+
+(define (transactormap-reparent transactormap new-parent)
+  (define vat-connector (actormap-vat-connector new-parent))
+  (define delta (transactormap-data-delta (actormap-data transactormap)))
+  (_make-actormap transactormap-metatype
+                  (make-transactormap-data new-parent delta #f)
                   vat-connector))
 
 
