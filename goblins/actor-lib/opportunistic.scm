@@ -12,17 +12,21 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (goblins actor-lib select-swear)
+(define-module (goblins actor-lib opportunistic)
   #:use-module (goblins)
   #:export (select-$/<-
             run-$/<-))
 
 ;; A helper to select $ or <-.
 ;; Combined they look like a cartoon character swearing.
+;; Sometimes we jokingly call these "cartoon swears."
+;; But really this is "opportunistically using $ or otherwise use <-"
 (define (select-$/<- to-refr)
+  "Select $ opportunistically if to-refr is a near object, otherwise use <-"
   (if (and (local-object-refr? to-refr)
            (near-refr? to-refr))
       $ <-))
 
 (define (run-$/<- to-refr . args)
+  "Invoke to-refr with $ opportunistically if a near object, otherwise use <-"
   (apply (select-$/<- to-refr) to-refr args))

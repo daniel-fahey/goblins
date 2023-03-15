@@ -12,9 +12,9 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (tests actor-lib test-select-swear)
+(define-module (tests actor-lib test-opportunistic)
   #:use-module (goblins)
-  #:use-module (goblins actor-lib select-swear)
+  #:use-module (goblins actor-lib opportunistic)
   #:use-module (ice-9 curried-definitions)
   #:use-module (srfi srfi-64))
 

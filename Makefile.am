@@ -50,10 +50,10 @@ SOURCES = goblins.scm \
           goblins/actor-lib/joiners.scm \
           goblins/actor-lib/methods.scm \
           goblins/actor-lib/nonce-registry.scm \
+          goblins/actor-lib/opportunistic.scm \
 	  goblins/actor-lib/pubsub.scm \
 	  goblins/actor-lib/pushdown.scm \
 	  goblins/actor-lib/sealers.scm \
-          goblins/actor-lib/select-swear.scm \
           goblins/actor-lib/swappable.scm \
           goblins/actor-lib/ticker.scm \
           goblins/actor-lib/ward.scm \
@@ -90,10 +90,10 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-common.scm \
         tests/actor-lib/test-facet.scm \
         tests/actor-lib/test-joiners.scm \
+        tests/actor-lib/test-opportunistic.scm \
 	tests/actor-lib/test-pubsub.scm \
 	tests/actor-lib/test-pushdown.scm \
 	tests/actor-lib/test-sealers.scm \
-        tests/actor-lib/test-select-swear.scm \
         tests/actor-lib/test-swappable.scm \
         tests/actor-lib/test-ticker.scm \
         tests/actor-lib/test-ward.scm \

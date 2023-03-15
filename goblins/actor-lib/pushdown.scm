@@ -15,7 +15,7 @@
 (define-module (goblins actor-lib pushdown)
   #:use-module (goblins)
   #:use-module (goblins actor-lib cell)
-  #:use-module (goblins actor-lib select-swear)
+  #:use-module (goblins actor-lib opportunistic)
   #:use-module (goblins actor-lib methods)
   #:use-module (ice-9 match)
   #:export (spawn-pushdown-pair))
