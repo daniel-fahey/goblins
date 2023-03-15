@@ -570,6 +570,11 @@ disabled.  LOG-CAPACITY events will be retained in the log."
                                         exception)))
          (vat-log-error! vat event vat-error)
          `#(fail ,vat-error)))))
+  (define (make-turn-snapshot)
+    (define snapshot* (copy-whactormap snapshot))
+    (define transactormap (transactormap-reparent new-am snapshot*))
+    (transactormap-merge! transactormap)
+    snapshot*)
   (define (churn prev-event)
     (if (q-empty? near-q)
         prev-event
@@ -577,7 +582,7 @@ disabled.  LOG-CAPACITY events will be retained in the log."
                (churn-id (vat-current-churn vat))
                (event (make-vat-event 'receive churn-id
                                       (vat-next-timestamp vat)
-                                      #f msg snapshot)))
+                                      #f msg (make-turn-snapshot))))
           (vat-log-append! vat event prev-event)
           (turn event)
           ;; Continue processing the near messages.
