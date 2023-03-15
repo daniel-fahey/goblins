@@ -506,7 +506,7 @@ subrepl entered by @code{,enter-vat} is a convenience for hacking.  We
 can run also run code within @code{a-vat} like so:
 
 @lisp
-scheme> (a-vat (lambda () ($ alice "Arthur")))
+scheme> (call-with-vat a-vat (lambda () ($ alice "Arthur")))
 ; => "Hello Arthur, my name is Alice!"
 @end lisp
 
@@ -856,13 +856,13 @@ Here is an instance of this car factory, which we will call
 @code{fork-motors}, which we will spawn on @code{a-vat}:
 
 @lisp
-scheme> ,enter a-vat
+scheme> ,enter-vat a-vat
 goblins[1]> (define fork-motors
               (spawn ^car-factory "Fork"))
 @end lisp
 
 Since asynchronous message passing with @code{<-} works across
-machines, it does not matter whether interacitons with
+machines, it does not matter whether interactions with
 @code{fork-motors} are local or via objects communicating over the
 network.  We will treat @code{fork-motors} as living on machine A, and
 so the following interactions will happen with invocations originating
