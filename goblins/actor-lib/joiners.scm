@@ -18,6 +18,9 @@
   #:export (all-of all-of*))
 
 (define (all-of* promises)
+  "Return a promise which resolves on resolution of all PROMISES.
+
+Type: (Listof Promise) -> Promise"
   (define-cell waiting
     promises)
   (define-cell results
@@ -55,4 +58,7 @@
   join-promise)
 
 (define (all-of . promises)
+  "Return a promise which resolves on resolution of all PROMISES.
+
+Type: Promise ... -> Promise"
   (all-of* promises))
