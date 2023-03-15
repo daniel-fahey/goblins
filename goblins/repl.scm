@@ -27,6 +27,29 @@
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9))
 
+;; Special exception type that REPL commands will catch in order to
+;; print out friendly error messages.
+(define &goblins-repl-error
+  (make-exception-type '&goblins-repl-error &error '()))
+
+(define make-goblins-repl-error (record-constructor &goblins-repl-error))
+
+(define (repl-error message)
+  (raise-exception
+   (make-exception (make-goblins-repl-error)
+                   (make-exception-with-message message))))
+
+(define (call-with-goblins-error-messages thunk)
+  (with-exception-handler (lambda (e)
+                            (display (exception-message e))
+                            (newline))
+    thunk
+    #:unwind? #t
+    #:unwind-for-type &goblins-repl-error))
+
+(define-syntax-rule (with-goblins-error-messages body ...)
+  (call-with-goblins-error-messages (lambda () body ...)))
+
 ;; This type stores a vat event trace (as a vector rather than a list)
 ;; and an index into that vector, for the purpose of moving up/down
 ;; the trace like we're used to with stack frames.
@@ -59,10 +82,11 @@
 
 (define current-vat-debug (make-parameter #f))
 
-(define-syntax-rule (when-in-vat-debugger body ...)
-  (if (vat-debug? (current-vat-debug))
-      (begin body ...)
-      (format #t "Not currently debugging a vat error.\n")))
+(define (current-vat-debug*)
+  (let ((debug (current-vat-debug)))
+    (if (vat-debug? debug)
+        debug
+        (repl-error "Not currently debugging a vat error."))))
 
 ;; This code is based on error-string in (system repl
 ;; exception-handling) and adapted to work with Guile's new exception
@@ -140,10 +164,11 @@
 
 (define current-vat (make-parameter #f))
 
-(define-syntax-rule (when-in-vat body ...)
-  (if (vat? (current-vat))
-      (begin body ...)
-      (format #t "Not in a vat.  Use ,enter-vat first.\n")))
+(define (current-vat*)
+  (let ((vat (current-vat)))
+    (if (vat? vat)
+        vat
+        (repl-error "Not in a vat.  Use ,enter-vat first."))))
 
 (define-meta-command ((vats goblins) repl)
   "vats
@@ -171,24 +196,25 @@ Display a list of vats."
 (define-meta-command ((enter-vat goblins) repl exp)
   "enter-vat vat
 Enter a sub-REPL where all expressions are evaluated within VAT."
-  (let ((vat (maybe-lookup-vat (repl-eval repl exp))))
-    (if (vat? vat)
-        (parameterize ((current-vat vat))
-          (start-interpreted-repl
-           (make-goblins-language vat)))
-        (format #t "Not a vat: ~s" vat))))
+  (with-goblins-error-messages
+   (let ((vat (maybe-lookup-vat (repl-eval repl exp))))
+     (if (vat? vat)
+         (parameterize ((current-vat vat))
+           (start-interpreted-repl
+            (make-goblins-language vat)))
+         (repl-error (format #f "Not a vat: ~s" vat))))))
 
 (define-meta-command ((vat-log-enable goblins) repl)
   "vat-log-enable
 Enable vat event logging for the current vat."
-  (when-in-vat
-   (set-vat-logging! (current-vat) #t)))
+  (with-goblins-error-messages
+   (set-vat-logging! (current-vat*) #t)))
 
 (define-meta-command ((vat-log-disable goblins) repl)
   "vat-log-disable
 Disable vat event logging for the current vat."
-  (when-in-vat
-   (set-vat-logging! (current-vat) #f)))
+  (with-goblins-error-messages
+   (set-vat-logging! (current-vat*) #f)))
 
 (define (check-logging-status vat)
   (unless (vat-logging? vat)
@@ -211,8 +237,8 @@ Disable vat event logging for the current vat."
 (define-meta-command ((vat-tail goblins) repl #:optional (n 10))
   "vat-tail [N]
 Display the most recent N messages in the current vat."
-  (when-in-vat
-   (let* ((vat (current-vat))
+  (with-goblins-error-messages
+   (let* ((vat (current-vat*))
           (len (vat-log-length vat)))
      (check-logging-status vat)
      (let loop ((i (max (- len n) 0))
@@ -226,6 +252,14 @@ Display the most recent N messages in the current vat."
                    (vat-event-timestamp event)
                    (vat-event->list event))
            (loop (+ i 1) churn)))))))
+
+(define (vat-log-ref-by-time* vat timestamp)
+  (check-logging-status vat)
+  (let ((event (vat-log-ref-by-time vat timestamp)))
+    (if (vat-event? event)
+        event
+        (repl-error
+         (format #f "No event for logical timestamp ~a." timestamp)))))
 
 (define-meta-command ((vat-trace goblins) repl #:optional timestamp)
   "vat-trace [TIMESTAMP]
@@ -245,14 +279,14 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
       (format #t "    ~a: ~s\n"
               (vat-event-timestamp event)
               (vat-event->list event))))
-  (when-in-vat
-   (let* ((vat (current-vat))
+  (with-goblins-error-messages
+   (let* ((vat (current-vat*))
           (debug (current-vat-debug))
           (trace (cond
                   ;; User provided a timestamp.
                   ((number? timestamp)
                    (vat-event-trace
-                    (vat-log-ref-by-time vat timestamp)))
+                    (vat-log-ref-by-time* vat timestamp)))
                   ;; No timestamp provided, but we are in a debugger,
                   ;; so use the current debugging trace narrowed to
                   ;; the current debug index.
@@ -263,8 +297,7 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
                   ;; debugger, use the current vat timestamp.
                   (else
                    (vat-event-trace
-                    (vat-log-ref-by-time vat (vat-clock vat)))))))
-     (check-logging-status vat)
+                    (vat-log-ref-by-time* vat (vat-clock vat)))))))
      (let loop ((events (reverse trace))
                 (prev-event #f))
        (match events
@@ -295,10 +328,9 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
               (vat-connector 'name)
               (vat-event-timestamp event)
               (vat-event->list event))))
-  (when-in-vat
-   (let* ((vat (current-vat))
-          (event (vat-log-ref-by-time vat (or timestamp (vat-clock vat)))))
-     (check-logging-status vat)
+  (with-goblins-error-messages
+   (let* ((vat (current-vat*))
+          (event (vat-log-ref-by-time* vat (or timestamp (vat-clock vat)))))
      (let loop ((nodes (vat-event-tree event))
                 (depth 0))
        (match nodes
@@ -335,9 +367,8 @@ Display a list of errors that have occurred in the current vat."
                   (apply format #f (exception-message exception)
                          (exception-irritants exception))
                   ""))))
-  (when-in-vat
-   (let ((vat (current-vat)))
-     (check-logging-status vat)
+  (with-goblins-error-messages
+   (let ((vat (current-vat*)))
      ;; Sort errors by timestamp.
      (match (sort (vat-log-errors vat)
                   (match-lambda*
@@ -355,9 +386,9 @@ Display a list of errors that have occurred in the current vat."
 (define-meta-command ((vat-debug goblins) repl timestamp)
   "vat-debug [TIMESTAMP]
 Debug error associated with the event at TIMESTAMP."
-  (when-in-vat
-   (let* ((vat (current-vat))
-          (event (vat-log-ref-by-time vat timestamp))
+  (with-goblins-error-messages
+   (let* ((vat (current-vat*))
+          (event (vat-log-ref-by-time* vat timestamp))
           (exception (vat-log-error-for-event vat event)))
      (if exception
          (enter-debugger (repl-language repl) exception)
@@ -373,8 +404,8 @@ Debug error associated with the event at TIMESTAMP."
 (define-meta-command ((vat-up goblins) repl)
   "vat-up
 Move to the previous event in the current vat debug trace."
-  (when-in-vat-debugger
-   (let ((debug (current-vat-debug)))
+  (with-goblins-error-messages
+   (let ((debug (current-vat-debug*)))
      (if (vat-debug-top? debug)
          (format #t "Already at oldest event.\n")
          (begin
@@ -384,8 +415,8 @@ Move to the previous event in the current vat debug trace."
 (define-meta-command ((vat-down goblins) repl)
   "vat-down
 Move to the next event in the current vat debug trace."
-  (when-in-vat-debugger
-   (let ((debug (current-vat-debug)))
+  (with-goblins-error-messages
+   (let ((debug (current-vat-debug*)))
      (if (vat-debug-bottom? debug)
          (format #t "Already at most recent event.\n")
          (begin
@@ -395,8 +426,8 @@ Move to the next event in the current vat debug trace."
 (define-meta-command ((vat-peek goblins) repl refr . args)
   "vat-peek REFR [ARGS ...]
 Send ARGS to REFR using the snapshot for the current debugger event."
-  (when-in-vat-debugger
-   (let ((debug (current-vat-debug)))
+  (with-goblins-error-messages
+   (let ((debug (current-vat-debug*)))
      (let ((event (vat-debug-current-event debug)))
        (format #t "~s\n"
                (apply actormap-peek (vat-event-snapshot event)
