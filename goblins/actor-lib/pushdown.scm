@@ -21,6 +21,8 @@
   #:export (spawn-pushdown-pair))
 
 (define* (spawn-pushdown-pair #:optional [initial-refr #f])
+  "Spawn a pair which constitute a pushdown automata, one for the stack
+and one to forward messages to the current top of the stack."
   (define-cell stack
     (if initial-refr
         (list initial-refr)
