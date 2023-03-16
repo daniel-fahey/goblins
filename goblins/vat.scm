@@ -220,32 +220,33 @@ send event.  #f is returned if no such event is found."
         (vat-connector 'find-previous-event event))))
 
 (define (vat-event-next event)
-  "Return the event that happened after EVENT in the same churn, or #f
-if there is no such event."
+  "Return the events that happened after EVENT in the same churn, or #f
+if there are no such events."
   (let ((vat-connector (vat-event-connector event)))
-    (vat-connector 'find-next-event event)))
+    (vat-connector 'find-next-events event)))
 
 (define (vat-event-trace event)
   "Return a list of events, starting with EVENT, and working back
 through previous events until a root event is reached or there is no
-more history to search."
+more history to search.  Much like how backtraces are linear slices of
+call stacks, vat traces are linear slices of the event graph."
   (if (vat-event? event)
       (cons event (vat-event-trace (vat-event-previous event)))
       '()))
 
 (define (vat-event-tree event)
   "Return a tree of events that lead up to EVENT."
-  (define (next-events event)
-    (let ((next (vat-event-next event)))
-      (if next (cons next (next-events next)) '())))
   (define (build-event-tree root)
-    ;; Receive events represent a leaf node since they are processed
-    ;; in the local vat churn.  Send events represent a branch of the
-    ;; tree as they transfer a message from one vat to another.  We
-    ;; need to follow that message and see what happens during the
-    ;; churn in the far vat.
+    ;; Receive events may represent a leaf node if they did not
+    ;; asynchronously invoke any other actors.  Otherwise, create
+    ;; sub-trees for each additional event.
     (if (vat-receive-event? root)
-        root
+        (match (vat-event-next root)
+          (() root)
+          (next-events
+           (list root (map build-event-tree next-events))))
+        ;; Send events require talking to another vat and building a
+        ;; sub-tree.
         (let* ((msg (vat-event-message root))
                ;; Get the vat connector that the message was sent to.
                (vat-connector (local-refr-vat-connector
@@ -256,24 +257,21 @@ more history to search."
                ;; "I *know* I sent you this message, now I need to
                ;; know what happened once you got it!"
                (far-event (vat-connector 'find-event-by-message msg)))
-          ;; Recur on the far events to build a sub-tree.
-          (list root (map build-event-tree
-                          (cons far-event
-                                (next-events far-event)))))))
-  ;; Find the roots by getting the last event in the trace and adding
-  ;; on any additional events that happened in the same churn.  The
-  ;; *last* event in the trace is our *first* event because
-  ;; vat-event-trace returns events in backtrace style using reverse
-  ;; chronological order.  These events form the first level, the
-  ;; roots, of the tree.
-  (define root-events
-    (match (vat-event-trace event)
-      ((_ ... root)
-       (cons root (next-events root)))))
-  ;; Now build a tree by traversing from the roots.  This retraces the
-  ;; steps we just took to find the roots, but follows new paths, as
-  ;; well.
-  (map build-event-tree root-events))
+          (if far-event
+              ;; Recur on the far event to build a sub-tree.
+              (list root (list (build-event-tree far-event)))
+              ;; The other vat is either not logging or no longer has
+              ;; logs for this event, so we've disappointingly reached
+              ;; a leaf node.
+              root))))
+  ;; Find the root by getting the last event in the trace.  The *last*
+  ;; event in the trace is our *first* event because vat-event-trace
+  ;; returns events in backtrace style using reverse chronological
+  ;; order.
+  (match (vat-event-trace event)
+    ((_ ... root)
+     ;; Build a tree starting from the root.
+     (list (build-event-tree root)))))
 
 ;; The vat log maintains a finite amount of history about messages
 ;; that have been sent/received in the vat.  These events are indexed
@@ -345,7 +343,8 @@ more history to search."
       (hashv-set! time-index (vat-event-timestamp event) event)
       (hashq-set! message-index (vat-event-message event) event)
       (hashq-set! prev-index event prev)
-      (hashq-set! next-index prev event))))
+      (hashq-set! next-index prev
+                  (cons event (hashq-ref next-index prev '()))))))
 
 (define (%vat-log-error! log event exception)
   (with-mutex (vat-log-mutex log)
@@ -376,7 +375,8 @@ more history to search."
   (hashq-ref (vat-log-prev-index log) event))
 
 (define (%vat-log-ref-next log event)
-  (hashq-ref (vat-log-next-index log) event))
+  ;; Events are stored in reverse order in which they were processed.
+  (reverse (hashq-ref (vat-log-next-index log) event '())))
 
 ;; Vats
 ;; ====
@@ -487,7 +487,7 @@ disabled.  LOG-CAPACITY events will be retained in the log."
        (vat-log-ref-by-message vat msg))
       (('find-previous-event event)
        (vat-log-ref-previous vat event))
-      (('find-next-event event)
+      (('find-next-events event)
        (vat-log-ref-next vat event))))
   (define am (make-actormap #:vat-connector connector))
   (define id (next-vat-id))
@@ -547,19 +547,19 @@ disabled.  LOG-CAPACITY events will be retained in the log."
     (and (local-refr? to-refr)
          (eq? (local-refr-vat-connector to-refr)
               this-vat-connector)))
-  (define (queue-messages-appropriately! msgs)
+  (define (queue-messages-appropriately! event msgs)
     (match msgs
       (() 'done)
       ((msg next-msgs ...)
-       (queue-messages-appropriately! next-msgs) ; last message first
+       (queue-messages-appropriately! event next-msgs) ; last message first
        (if (near-msg? msg)
-           (enq! near-q msg)
-           (enq! far-q msg)))))
+           (enq! near-q (list event msg))
+           (enq! far-q (list event msg))))))
   (define (turn event)
     (define msg (vat-event-message event))
     (define-values (result buffer-am new-msgs)
       (actormap-turn-message new-am msg #:catch-errors? #t))
-    (queue-messages-appropriately! new-msgs)
+    (queue-messages-appropriately! event new-msgs)
     (match result
       (#('ok _)
        (transactormap-buffer-merge! buffer-am)
@@ -575,18 +575,18 @@ disabled.  LOG-CAPACITY events will be retained in the log."
     (define transactormap (transactormap-reparent new-am snapshot*))
     (transactormap-merge! transactormap)
     snapshot*)
-  (define (churn prev-event)
-    (if (q-empty? near-q)
-        prev-event
-        (let* ((msg (deq! near-q))
-               (churn-id (vat-current-churn vat))
+  (define (churn)
+    (unless (q-empty? near-q)
+      (match (deq! near-q)
+        ((prev-event msg)
+         (let ((churn-id (vat-current-churn vat))
                (event (make-vat-event 'receive churn-id
                                       (vat-next-timestamp vat)
                                       #f msg (make-turn-snapshot))))
-          (vat-log-append! vat event prev-event)
-          (turn event)
-          ;; Continue processing the near messages.
-          (churn event))))
+           (vat-log-append! vat event prev-event)
+           (turn event)
+           ;; Continue processing the near messages.
+           (churn))))))
   ;; Take an initial turn.
   (define received-at (vat-next-timestamp vat sent-at))
   (define init-event
@@ -595,18 +595,19 @@ disabled.  LOG-CAPACITY events will be retained in the log."
   (define result (turn init-event))
   ;; Turn as many additional times as it takes to run this vat to
   ;; quiescence.
-  (define last-event (churn init-event))
+  (churn)
   ;; Dispatch far messages.
-  (let loop ((prev-event last-event))
+  (let loop ()
     (unless (q-empty? far-q)
-      (let* ((far-msg (deq! far-q))
-             (time (vat-next-timestamp vat))
-             (event (make-vat-event 'send churn-id time #f far-msg snapshot)))
-        (vat-log-append! vat event prev-event)
-        (dispatch-message far-msg time)
-        (loop event))))
+      (match (deq! far-q)
+        ((prev-event far-msg)
+         (let* ((time (vat-next-timestamp vat))
+                (event (make-vat-event 'send churn-id time #f far-msg snapshot)))
+           (vat-log-append! vat event prev-event)
+           (dispatch-message far-msg time)
+           (loop))))))
   ;; And now let's return everything...
-  (values result new-am last-event))
+  (values result new-am))
 
 (define (vat-start! vat)
   "Start processing turns for VAT."
@@ -631,7 +632,7 @@ disabled.  LOG-CAPACITY events will be retained in the log."
      (lambda ()
        (let* ((msg (vat-envelope-message envelope))
               (sent-at (vat-envelope-timestamp envelope)))
-         (define-values (returned new-actormap last-event)
+         (define-values (returned new-actormap)
            (vat-churn vat msg sent-at))
          (maybe-merge returned new-actormap)
          returned))
