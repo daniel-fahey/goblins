@@ -81,6 +81,7 @@ SOURCES = goblins.scm \
           goblins/vat.scm \
           goblins/vrun.scm \
           goblins/repl.scm \
+          tests/repl-driver.scm \
           tests/utils.scm
 
 TESTS = tests/actor-lib/test-cell.scm \
@@ -101,6 +102,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/test-ghash.scm \
         tests/test-inbox.scm \
         tests/test-vat.scm \
+	tests/test-repl.scm \
         tests/utils/test-bytes-stuff.scm \
         tests/utils/test-ring-buffer.scm
 

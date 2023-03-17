@@ -200,6 +200,8 @@ Enter a sub-REPL where all expressions are evaluated within VAT."
    (let ((vat (maybe-lookup-vat (repl-eval repl exp))))
      (if (vat? vat)
          (parameterize ((current-vat vat))
+           (format #t "Entering vat '~a'.  Type ',q' to exit.  Type ',help goblins' for help.\n"
+                   (or (vat-name vat) (vat-id vat)))
            (start-interpreted-repl
             (make-goblins-language vat)))
          (repl-error (format #f "Not a vat: ~s" vat))))))
@@ -208,17 +210,19 @@ Enter a sub-REPL where all expressions are evaluated within VAT."
   "vat-log-enable
 Enable vat event logging for the current vat."
   (with-goblins-error-messages
-   (set-vat-logging! (current-vat*) #t)))
+   (set-vat-logging! (current-vat*) #t)
+   (display "Logging enabled.\n")))
 
 (define-meta-command ((vat-log-disable goblins) repl)
   "vat-log-disable
 Disable vat event logging for the current vat."
   (with-goblins-error-messages
-   (set-vat-logging! (current-vat*) #f)))
+   (set-vat-logging! (current-vat*) #f)
+   (display "Logging disabled.\n")))
 
 (define (check-logging-status vat)
   (unless (vat-logging? vat)
-    (display "warn: Logging is disabled.  Use ,vat-log-enable to begin logging.\n")))
+    (display "warning: Logging is disabled.  Use ,vat-log-enable to begin logging.\n")))
 
 ;; Symbolic representation of a vat event for the purpose of printing.
 (define (vat-event->list event)
@@ -388,11 +392,14 @@ Display a list of errors that have occurred in the current vat."
 Debug error associated with the event at TIMESTAMP."
   (with-goblins-error-messages
    (let* ((vat (current-vat*))
-          (event (vat-log-ref-by-time* vat timestamp))
+          (timestamp* (if (integer? timestamp)
+                          timestamp
+                          (repl-eval repl timestamp)))
+          (event (vat-log-ref-by-time* vat timestamp*))
           (exception (vat-log-error-for-event vat event)))
      (if exception
          (enter-debugger (repl-language repl) exception)
-         (format #t "No error at event ~a" timestamp)))))
+         (format #t "No error at event ~a" timestamp*)))))
 
 (define (print-current-vat-debug-event debug)
   (let ((event (vat-debug-current-event debug)))
