@@ -18,7 +18,7 @@
   #:use-module (ice-9 curried-definitions)
   #:use-module (srfi srfi-64))
 
-(test-begin "test-select-swear")
+(test-begin "test-opportunistic")
 
 (define vat-a (spawn-vat))
 (define vat-b (spawn-vat))
@@ -50,4 +50,4 @@
    ($ swear-selector-a robot-b))
  <-)
 
-(test-end "test-select-swear")
+(test-end "test-opportunistic")
