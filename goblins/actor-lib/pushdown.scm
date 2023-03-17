@@ -30,9 +30,8 @@ and one to forward messages to the current top of the stack."
   (define (^pd-stack bcom)
     (methods
      ((push refr)
-      (lambda (refr)
-        ;; Add to the stack
-        ($ stack (cons refr ($ stack)))))
+      ;; Add to the stack
+      ($ stack (cons refr ($ stack))))
      ((spawn-push constructor #:rest args)
       (define cur-stack
         ($ stack))

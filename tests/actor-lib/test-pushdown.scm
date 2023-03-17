@@ -49,4 +49,16 @@
  (actormap-poke! am pd-forwarder 'bar3)
  `(first #f foo bar3))
 
+(define third-actor
+  (actormap-spawn! am (lambda (bcom foo)
+                        (lambda (bar)
+                          (list 'third foo bar)))
+                  'foo3))
+
+(actormap-poke! am pd-stack 'push third-actor)
+
+(test-equal "Pushdown stack 'push method works too"
+  (actormap-poke! am pd-forwarder 'bar4)
+  '(third foo3 bar4))
+
 (test-end "test-pushdown")
