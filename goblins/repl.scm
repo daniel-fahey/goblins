@@ -317,9 +317,9 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
     (match levels
       (() #t)
       ((branch?)
-       (display (if branch? "├─► " "└─► ")))
+       (display (if branch? "├▸ " "└▸ ")))
       ((branch? . rest)
-       (display (if branch? "│   " "    "))
+       (display (if branch? "│  " "   "))
        (print-branches rest))))
   (define (print-event event levels)
     (let* ((type (vat-event-type event))
