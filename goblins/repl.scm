@@ -313,42 +313,41 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
 (define-meta-command ((vat-tree goblins) repl #:optional timestamp)
   "vat-tree [TIMESTAMP]
 Display a tree view of events starting at TIMESTAMP in the current vat."
-  (define (print-event event depth last?)
+  (define (print-branches levels)
+    (match levels
+      (() #t)
+      ((branch?)
+       (display (if branch? "├─► " "└─► ")))
+      ((branch? . rest)
+       (display (if branch? "│   " "    "))
+       (print-branches rest))))
+  (define (print-event event levels)
     (let* ((type (vat-event-type event))
            (msg (vat-event-message event))
            (to (message-or-request-to msg))
-           (vat-connector (vat-event-connector event))
-           (whitespace-depth (- depth 1))
-           (whitespace (if (> whitespace-depth 0)
-                           (make-string (* whitespace-depth 4) #\space)
-                           ""))
-           (indent (if (> depth 0)
-                       (string-append whitespace
-                                      (if last? "└" "├")
-                                      "─► ")
-                       "")))
-      (format #t "~aVat ~a, ~a: ~s\n"
-              indent
+           (vat-connector (vat-event-connector event)))
+      (print-branches levels)
+      (format #t "Vat ~a, ~a: ~s\n"
               (vat-connector 'name)
               (vat-event-timestamp event)
               (vat-event->list event))))
-  (define (print-tree tree depth last?)
+  (define (print-tree tree levels)
     (match tree
       ((event children ..1)
-       (print-event event depth last?)
+       (print-event event levels)
        (let loop ((children children))
          (match children
            ((child)
-            (print-tree child (+ depth 1) #t))
+            (print-tree child (append levels (list #f))))
            ((child . rest)
-            (print-tree child (+ depth 1) #f)
+            (print-tree child (append levels (list #t)))
             (loop rest)))))
       (event
-       (print-event event depth last?))))
+       (print-event event levels))))
   (with-goblins-error-messages
    (let* ((vat (current-vat*))
           (event (vat-log-ref-by-time* vat (or timestamp (vat-clock vat)))))
-     (print-tree (vat-event-tree event) 0 #f))))
+     (print-tree (vat-event-tree event) '()))))
 
 (define-meta-command ((vat-errors goblins) repl)
   "vat-errors
