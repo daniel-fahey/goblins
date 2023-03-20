@@ -313,6 +313,17 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
 (define-meta-command ((vat-tree goblins) repl #:optional timestamp)
   "vat-tree [TIMESTAMP]
 Display a tree view of events starting at TIMESTAMP in the current vat."
+  (define (symbolic-event event)
+    (let ((msg (vat-event-message event)))
+      (cond
+       ((message? msg)
+        `(message ,(message-to msg) ,@(message-args msg)))
+       ((listen-request? msg)
+        `(listen ,(message-or-request-to msg)))
+       ((questioned? msg)
+        `(question ,(message-or-request-to msg)))
+       (else
+        (repl-error (format #f "unknown message: ~a" msg))))))
   (define (print-branches levels)
     (match levels
       (() #t)
@@ -330,18 +341,25 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
       (format #t "Vat ~a, ~a: ~s\n"
               (vat-connector 'name)
               (vat-event-timestamp event)
-              (vat-event->list event))))
+              (symbolic-event event))))
+  (define (print-list events levels)
+    (match events
+      ((event)
+       (print-tree event (append levels (list #f))))
+      ((event . rest)
+       (print-tree event (append levels (list #t)))
+       (print-list rest levels))))
   (define (print-tree tree levels)
     (match tree
+      ;; Collapse cross-vat send+receive events into a single level of
+      ;; the tree.  The send event gets rendered but not the redundant
+      ;; receive event.
+      (((? vat-send-event? send-event) (_ children ...))
+       (print-event send-event levels)
+       (print-list children levels))
       ((event children ..1)
        (print-event event levels)
-       (let loop ((children children))
-         (match children
-           ((child)
-            (print-tree child (append levels (list #f))))
-           ((child . rest)
-            (print-tree child (append levels (list #t)))
-            (loop rest)))))
+       (print-list children levels))
       (event
        (print-event event levels))))
   (with-goblins-error-messages
