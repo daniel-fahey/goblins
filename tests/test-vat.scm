@@ -510,21 +510,21 @@
             (e13 (vat-log-ref-by-time a-vat (+ ta2 5)))  ; A: recv: fulfill
             (e14 (vat-log-ref-by-time a-vat (+ ta2 6)))) ; A: recv: handler
         ;; This weird looking thing is the vat tree we are expecting.
-        (equal? `((,e0
-                   (,e1
-                    ,e2
-                    (,e3
-                     ((,e5
-                       ((,e6
-                         ((,e9
-                           ((,e10
-                             (,e11))))))))))
-                    (,e4
-                     ((,e7
-                       ((,e8
-                         ((,e12
-                           ((,e13
-                             (,e14)))))))))))))
+        (equal? `(,e0
+                  ,e1
+                  ,e2
+                  (,e3
+                   (,e5
+                    (,e6
+                     (,e9
+                      (,e10
+                       ,e11)))))
+                  (,e4
+                   (,e7
+                    (,e8
+                     (,e12
+                      (,e13
+                       ,e14))))))
                 (vat-event-tree
                  (vat-log-ref-by-time a-vat (vat-clock a-vat))))))))
 
@@ -565,14 +565,14 @@
             (e5 (vat-log-ref-by-time a-vat (+ t 6)))  ; A: recv: fulfill
             (e6 (vat-log-ref-by-time a-vat (+ t 7)))  ; A: recv: handler
             (e7 (vat-log-ref-by-time a-vat (+ t 8)))) ; A: send: (<- b-counter))
-        (equal? `((,e0
-                   (,e1
-                    (,e2
-                     ((,e4
-                       ((,e5
-                         (,e6))))))
-                    ,e3
-                    ,e7)))
+        (equal? `(,e0
+                  ,e1
+                  (,e2
+                   (,e4
+                    (,e5
+                     ,e6)))
+                  ,e3
+                  ,e7)
                 (vat-event-tree e6))))))
 
 ;; Running this test last since it messes with the log size.

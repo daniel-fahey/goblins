@@ -244,7 +244,7 @@ call stacks, vat traces are linear slices of the event graph."
         (match (vat-event-next root)
           (() root)
           (next-events
-           (list root (map build-event-tree next-events))))
+           (cons root (map build-event-tree next-events))))
         ;; Send events require talking to another vat and building a
         ;; sub-tree.
         (let* ((msg (vat-event-message root))
@@ -259,7 +259,7 @@ call stacks, vat traces are linear slices of the event graph."
                (far-event (vat-connector 'find-event-by-message msg)))
           (if far-event
               ;; Recur on the far event to build a sub-tree.
-              (list root (list (build-event-tree far-event)))
+              (cons root (list (build-event-tree far-event)))
               ;; The other vat is either not logging or no longer has
               ;; logs for this event, so we've disappointingly reached
               ;; a leaf node.
@@ -271,7 +271,7 @@ call stacks, vat traces are linear slices of the event graph."
   (match (vat-event-trace event)
     ((_ ... root)
      ;; Build a tree starting from the root.
-     (list (build-event-tree root)))))
+     (build-event-tree root))))
 
 ;; The vat log maintains a finite amount of history about messages
 ;; that have been sent/received in the vat.  These events are indexed

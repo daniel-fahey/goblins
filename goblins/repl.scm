@@ -332,20 +332,23 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
               (vat-connector 'name)
               (vat-event-timestamp event)
               (vat-event->list event))))
+  (define (print-tree tree depth last?)
+    (match tree
+      ((event children ..1)
+       (print-event event depth last?)
+       (let loop ((children children))
+         (match children
+           ((child)
+            (print-tree child (+ depth 1) #t))
+           ((child . rest)
+            (print-tree child (+ depth 1) #f)
+            (loop rest)))))
+      (event
+       (print-event event depth last?))))
   (with-goblins-error-messages
    (let* ((vat (current-vat*))
           (event (vat-log-ref-by-time* vat (or timestamp (vat-clock vat)))))
-     (let loop ((nodes (vat-event-tree event))
-                (depth 0))
-       (match nodes
-         (() #t)
-         (((event (children ...)) . rest)
-          (print-event event depth (null? rest))
-          (loop children (+ depth 1))
-          (loop rest depth))
-         ((event . rest)
-          (print-event event depth (null? rest))
-          (loop rest depth)))))))
+     (print-tree (vat-event-tree event) 0 #f))))
 
 (define-meta-command ((vat-errors goblins) repl)
   "vat-errors
