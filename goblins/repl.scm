@@ -225,19 +225,6 @@ Disable vat event logging for the current vat."
     (display "warning: Logging is disabled.  Use ,vat-log-enable to begin logging.\n")))
 
 ;; Symbolic representation of a vat event for the purpose of printing.
-(define (vat-event->list event)
-  (let ((msg (vat-event-message event)))
-    (cons (if (vat-send-event? event)
-              'send
-              'receive)
-          (cond
-           ((listen-request? msg)
-            `(listen ,(message-or-request-to msg)))
-           ((questioned? msg)
-            `(question ,(message-or-request-to msg)))
-           (else
-            (cons (message-to msg) (message-args msg)))))))
-
 (define (symbolic-event event)
   (let ((msg (vat-event-message event)))
     (cond
@@ -434,7 +421,7 @@ Debug error associated with the event at TIMESTAMP."
     (format #t "Vat ~a, event ~a: ~s\n"
             ((vat-event-connector event) 'name)
             (vat-event-timestamp event)
-            (vat-event->list event))))
+            (symbolic-event event))))
 
 (define-meta-command ((vat-up goblins) repl)
   "vat-up
