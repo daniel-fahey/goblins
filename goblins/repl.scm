@@ -266,7 +266,8 @@ Display the most recent N messages in the current vat."
              (format #t "Churn ~a:\n" churn))
            (format #t "  ~a: ~s\n"
                    (vat-event-timestamp event)
-                   (vat-event->list event))
+                   (cons (vat-event-type event)
+                         (symbolic-event event)))
            (loop (+ i 1) churn)))))))
 
 (define (vat-log-ref-by-time* vat timestamp)

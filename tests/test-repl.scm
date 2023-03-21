@@ -83,7 +83,7 @@
            (meta vat-tail))
 
 (test-repl ",vat-tail displays a list of events when logging is enabled"
-           "\\(receive #<local-object>\\)"
+           "\\(receive message #<local-object>\\)"
            (eval (define a-vat (spawn-vat)))
            (meta enter-vat a-vat)
            (meta vat-log-enable)
