@@ -103,7 +103,7 @@
 (test-repl ",vat-trace displays a vat event backtrace when logging is enabled"
            "In vat alice:
   Churn 1:
-    1: \\(receive #<local-object>\\)"
+    1: \\(message #<local-object>\\)"
            (eval (define a-vat (spawn-vat #:name 'alice)))
            (meta enter-vat a-vat)
            (meta vat-log-enable)

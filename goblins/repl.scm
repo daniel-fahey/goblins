@@ -238,6 +238,18 @@ Disable vat event logging for the current vat."
            (else
             (cons (message-to msg) (message-args msg)))))))
 
+(define (symbolic-event event)
+  (let ((msg (vat-event-message event)))
+    (cond
+     ((message? msg)
+      `(message ,(message-to msg) ,@(message-args msg)))
+     ((listen-request? msg)
+      `(listen ,(message-or-request-to msg)))
+     ((questioned? msg)
+      `(question ,(message-or-request-to msg)))
+     (else
+      (repl-error (format #f "unknown message: ~a" msg))))))
+
 (define-meta-command ((vat-tail goblins) repl #:optional (n 10))
   "vat-tail [N]
 Display the most recent N messages in the current vat."
@@ -282,7 +294,7 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
         (print-churn-id event)))
       (format #t "    ~a: ~s\n"
               (vat-event-timestamp event)
-              (vat-event->list event))))
+              (symbolic-event event))))
   (with-goblins-error-messages
    (let* ((vat (current-vat*))
           (debug (current-vat-debug))
@@ -306,6 +318,12 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
                 (prev-event #f))
        (match events
          (() *unspecified*)
+         ;; Collapse cross-vat send+receive events into a single frame
+         ;; of the trace.  The send event gets rendered but not the
+         ;; redundant receive event.
+         (((? vat-send-event? event) _ . rest)
+          (print-event event prev-event)
+          (loop rest event))
          ((event . rest)
           (print-event event prev-event)
           (loop rest event)))))))
@@ -313,17 +331,6 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
 (define-meta-command ((vat-tree goblins) repl #:optional timestamp)
   "vat-tree [TIMESTAMP]
 Display a tree view of events starting at TIMESTAMP in the current vat."
-  (define (symbolic-event event)
-    (let ((msg (vat-event-message event)))
-      (cond
-       ((message? msg)
-        `(message ,(message-to msg) ,@(message-args msg)))
-       ((listen-request? msg)
-        `(listen ,(message-or-request-to msg)))
-       ((questioned? msg)
-        `(question ,(message-or-request-to msg)))
-       (else
-        (repl-error (format #f "unknown message: ~a" msg))))))
   (define (print-branches levels)
     (match levels
       (() #t)
