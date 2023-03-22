@@ -27,6 +27,11 @@
 ;; Constructor for a cell.  Takes an optional initial value, defaults
 ;; to false.
 (define* (^cell bcom #:optional [val #f])
+  "Construct a Cell taking an optional VAL which defaults to #f.
+
+The constructed cell can be invoked without an argument, which will return VAL;
+or with an argument, resulting in the cell becoming a version with the argument
+as VAL."
   (case-lambda
     ;; Called with no arguments; return the current value
     [() val]
@@ -36,16 +41,23 @@
      (bcom (^cell bcom new-val))]))
 
 (define (cell->read-only cell)
+  "Create a read-only reference to CELL.
+
+Type: Cell -> ROCell"
   (define (^ro-cell bcom)
     (lambda () ($ cell)))
   (spawn ^ro-cell))
 
 (define (cell->write-only cell)
+  "Create a write-only reference to CELL.
+
+Type: Cell -> WOCell"
   (define (^wo-cell bcom)
     (lambda (new-val) ($ cell new-val)))
   (spawn ^wo-cell))
 
 (define-syntax define-cell
+  ;;; Define a Cell using standard Scheme define syntax.
   (syntax-rules ()
     [(_ id)
      (define id
