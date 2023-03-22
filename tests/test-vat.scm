@@ -33,6 +33,7 @@
   #:use-module ((fibers timers)
                 #:select (sleep-operation))
   #:use-module (ice-9 match)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-64))
 
@@ -339,26 +340,26 @@
     (vat-log-clear! a-vat)
     (set-vat-logging! a-vat #t)
     (with-vat a-vat ;; (+ t 1)
-      (<- my-friend) ;; (+ t 2)
-      (<- my-friend)) ;; (+ t 3)
-    (let ((prev (vat-log-ref-by-time a-vat (+ t 2)))
-          (event (vat-log-ref-by-time a-vat (+ t 3))))
+      (<- my-friend)) ;; (+ t 2)
+    (let ((prev (vat-log-ref-by-time a-vat (+ t 1)))
+          (event (vat-log-ref-by-time a-vat (+ t 2))))
       (and (vat-event? prev)
            (vat-event? event)
            (eq? prev (vat-log-ref-previous a-vat event))))))
 
-(test-assert "The next event in a churn can be looked up"
+(test-assert "The next events in a churn can be looked up"
   (let ((t (vat-clock a-vat)))
     (vat-log-clear! a-vat)
     (set-vat-logging! a-vat #t)
     (with-vat a-vat ;; (+ t 1)
       (<- my-friend) ;; (+ t 2)
       (<- my-friend)) ;; (+ t 3)
-    (let ((event (vat-log-ref-by-time a-vat (+ t 2)))
-          (next (vat-log-ref-by-time a-vat (+ t 3))))
+    (let ((event (vat-log-ref-by-time a-vat (+ t 1)))
+          (next (list (vat-log-ref-by-time a-vat (+ t 2))
+                      (vat-log-ref-by-time a-vat (+ t 3)))))
       (and (vat-event? event)
-           (vat-event? next)
-           (eq? next (vat-log-ref-next a-vat event))))))
+           (every vat-event? next)
+           (equal? next (vat-log-ref-next a-vat event))))))
 
 (test-assert "Event information can be obtained from vat errors"
   (let ((t (vat-clock a-vat)))
@@ -412,21 +413,57 @@
     (set-vat-logging! b-vat #t)
     (let* ((counter (with-vat b-vat (spawn ^counter 0)))
            (done? (make-condition))
-           (t (vat-clock a-vat))
-           (vow (with-vat a-vat ;; (+ t 1)
-                  (on (<- counter)
-                      #:finally (lambda ()
-                                  (signal-condition! done?))))))
+           ;; The start time for vat A.
+           (ta1 (vat-clock a-vat))
+           ;; The start time for b-vat when it receives a message
+           ;; from a-vat.  Vat A processes 3 messages (with-vat,
+           ;; listen, listen) before sending messages to vat B, hence
+           ;; the +4 in the math below.
+           (tb (max (+ ta1 4) (vat-clock b-vat)))
+           ;; The start time for vat A when it first receives a
+           ;; promise fulfillment message from vat B.  Vat B ticks its
+           ;; own clock twice before that happens.
+           (ta2 (max (+ tb 2) (+ ta1 5))))
+      (with-vat a-vat
+        ;; This is a distractor promise.  It is part of the
+        ;; same churn as the promise below, but it shouldn't
+        ;; show up in the trace.
+        (on (<- counter) (const #t))
+        ;; This is the promise we want to trace, starting
+        ;; from the #:finally handler and back to the
+        ;; 'with-vat' that kicked off the process.
+        (on (<- counter)
+            #:finally
+            (lambda ()
+              (signal-condition! done?))))
       ;; Wait for the promise to resolve.
-      (perform-operation (choice-operation
-                          (wait-operation done?)
-                          (sleep-operation 1)))
-      ;; Get the backtrace of the promise resolution event and verify
-      ;; that the initial event is the with-vat message.  The trace
-      ;; has to go from vat A -> B -> A to get this result.
-      (let* ((finally-event (vat-log-ref-by-time a-vat (vat-clock a-vat))))
-        (eq? (vat-log-ref-by-time a-vat (+ t 1))
-             (car (reverse (vat-event-trace finally-event))))))))
+      (perform-operation (wait-operation done?))
+      (let ((e0 (vat-log-ref-by-time a-vat (+ ta1 1))) ; A: recv: with-vat
+            ;; The distractor promise generates a listen message (+2),
+            ;; then the tracked promise does the same (+3), then the
+            ;; distractor promise message is sent to vat B (+4), so
+            ;; the tracked promise send event is offset by 5 clock
+            ;; ticks total.
+            (e1 (vat-log-ref-by-time a-vat (+ ta1 5))) ; A: send: (<- counter)
+            ;; Vat B processes the distractor message first. It
+            ;; receives the distractor message (+1), then sends a
+            ;; response to the resolver in vat A (+2), so the events
+            ;; we're tracking are offset by 3 clock ticks.
+            (e2 (vat-log-ref-by-time b-vat (+ tb 3))) ; B: recv: (<- counter)
+            (e3 (vat-log-ref-by-time b-vat (+ tb 4))) ; B: send: resolve
+            ;; Likewise, vat A processes the resolution of the
+            ;; distractor promise before the one we're tracking.  It
+            ;; fulfills the resolver (+1), fulfills the listener (+2),
+            ;; and calls the fulfilled handler (+3), so the events
+            ;; we're tracking are offset by 4 clock ticks.
+            (e4 (vat-log-ref-by-time a-vat (+ ta2 4))) ; A: recv: resolve
+            (e5 (vat-log-ref-by-time a-vat (+ ta2 5))) ; A: recv: fulfill
+            (e6 (vat-log-ref-by-time a-vat (+ ta2 6)))) ; A: recv: finally
+        ;; Get the backtrace of the promise resolution event and
+        ;; verify that it matches our expectation.  The trace has to
+        ;; go from vat A -> B -> A to get the correct result.
+        (equal? (list e6 e5 e4 e3 e2 e1 e0) ; trace goes backwards in time
+                (vat-event-trace (vat-log-ref-by-time a-vat (vat-clock a-vat))))))))
 
 (test-assert "Event log message order tree across vats"
   (begin
@@ -436,21 +473,107 @@
     (set-vat-logging! b-vat #t)
     (let* ((counter (with-vat b-vat (spawn ^counter 0)))
            (done? (make-condition))
-           (t (vat-clock a-vat))
-           (vow (with-vat a-vat ;; (+ t 1)
-                  (on (<- counter)
-                      #:finally (lambda ()
-                                  (signal-condition! done?))))))
+           ;; The start time for vat A.
+           (ta1 (vat-clock a-vat))
+           ;; The start time for b-vat when it receives a message
+           ;; from a-vat.  Vat A processes 3 messages (with-vat,
+           ;; listen, listen) before sending messages to vat B, hence
+           ;; the +4 in the math below.
+           (tb (max (+ ta1 4) (vat-clock b-vat)))
+           ;; The start time for vat A when it first receives a
+           ;; promise fulfillment message from vat B.  Vat B ticks its
+           ;; own clock twice before that happens.
+           (ta2 (max (+ tb 2) (+ ta1 5))))
+      (with-vat a-vat
+        (on (<- counter) (const #t))
+        (on (<- counter)
+            #:finally
+            (lambda ()
+              (signal-condition! done?))))
       ;; Wait for the promise to resolve.
-      (perform-operation (choice-operation
-                          (wait-operation done?)
-                          (sleep-operation 1)))
+      (perform-operation (wait-operation done?))
       ;; Get the tree of the promise resolution event and verify that
-      ;; the first event at depth 0 is the with-vat message.  The
-      ;; trace has to go from vat A -> B -> A to get this result.
-      (let* ((finally-event (vat-log-ref-by-time a-vat (vat-clock a-vat))))
-        (eq? (vat-log-ref-by-time a-vat (+ t 1))
-             (car (vat-event-tree finally-event)))))))
+      ;; it matches what we expect.
+      (let ((e0 (vat-log-ref-by-time a-vat (+ ta1 1)))   ; A: recv: with-vat
+            (e1 (vat-log-ref-by-time a-vat (+ ta1 2)))   ; A: recv: listen
+            (e2 (vat-log-ref-by-time a-vat (+ ta1 3)))   ; A: recv: listen
+            (e3 (vat-log-ref-by-time a-vat (+ ta1 4)))   ; A: send: (<- counter)
+            (e4 (vat-log-ref-by-time a-vat (+ ta1 5)))   ; A: send: (<- counter)
+            (e5 (vat-log-ref-by-time b-vat (+ tb 1)))    ; B: recv: (<- counter)
+            (e6 (vat-log-ref-by-time b-vat (+ tb 2)))    ; B: send: resolve
+            (e7 (vat-log-ref-by-time b-vat (+ tb 3)))    ; B: recv: (<- counter)
+            (e8 (vat-log-ref-by-time b-vat (+ tb 4)))    ; B: send: resolve
+            (e9 (vat-log-ref-by-time a-vat (+ ta2 1)))   ; A: recv: resolve
+            (e10 (vat-log-ref-by-time a-vat (+ ta2 2)))  ; A: recv: fulfill
+            (e11 (vat-log-ref-by-time a-vat (+ ta2 3)))  ; A: recv: handler
+            (e12 (vat-log-ref-by-time a-vat (+ ta2 4)))  ; A: recv: resolve
+            (e13 (vat-log-ref-by-time a-vat (+ ta2 5)))  ; A: recv: fulfill
+            (e14 (vat-log-ref-by-time a-vat (+ ta2 6)))) ; A: recv: handler
+        ;; This weird looking thing is the vat tree we are expecting.
+        (equal? `((,e0
+                   (,e1
+                    ,e2
+                    (,e3
+                     ((,e5
+                       ((,e6
+                         ((,e9
+                           ((,e10
+                             (,e11))))))))))
+                    (,e4
+                     ((,e7
+                       ((,e8
+                         ((,e12
+                           ((,e13
+                             (,e14)))))))))))))
+                (vat-event-tree
+                 (vat-log-ref-by-time a-vat (vat-clock a-vat))))))))
+
+(test-assert "Event log message order tree with partial log"
+  ;; This test ensures that tree construction doesn't fail when a vat
+  ;; doesn't have the event information we are looking for.  In order
+  ;; to test this properly, we need a trace that doesn't have events
+  ;; from vat B in it, but a tree that *does*.
+  (begin
+    (vat-log-clear! a-vat)
+    (vat-log-clear! b-vat)
+    ;; A logs but B doesn't.
+    (set-vat-logging! a-vat #t)
+    (set-vat-logging! b-vat #f)
+    (let* ((done? (make-condition))
+           (a-counter (with-vat a-vat (spawn ^counter 0)))
+           (b-counter (with-vat b-vat (spawn ^counter 0)))
+           (t (vat-clock a-vat)))
+      (with-vat a-vat
+        ;; This puts events from vat B within the event tree of this
+        ;; 'with-vat' form, but *outside* of the trace of the next
+        ;; 'on' form.
+        (on (<- b-counter)
+            (lambda _
+              (signal-condition! done?)))
+        ;; Local async message.
+        (on (<- a-counter)
+            (const #t)))
+      ;; Wait for the promise for b-counter to resolve.
+      (perform-operation (wait-operation done?))
+      ;; Get the tree of the a-counter promise resolution event and
+      ;; verify that it matches what we expect.
+      (let ((e0 (vat-log-ref-by-time a-vat (+ t 1)))  ; A: recv: with-vat
+            (e1 (vat-log-ref-by-time a-vat (+ t 2)))  ; A: recv: listen
+            (e2 (vat-log-ref-by-time a-vat (+ t 3)))  ; A: recv: (<- a-counter)
+            (e3 (vat-log-ref-by-time a-vat (+ t 4)))  ; A: recv: listen
+            (e4 (vat-log-ref-by-time a-vat (+ t 5)))  ; A: recv: resolve
+            (e5 (vat-log-ref-by-time a-vat (+ t 6)))  ; A: recv: fulfill
+            (e6 (vat-log-ref-by-time a-vat (+ t 7)))  ; A: recv: handler
+            (e7 (vat-log-ref-by-time a-vat (+ t 8)))) ; A: send: (<- b-counter))
+        (equal? `((,e0
+                   (,e1
+                    (,e2
+                     ((,e4
+                       ((,e5
+                         (,e6))))))
+                    ,e3
+                    ,e7)))
+                (vat-event-tree e6))))))
 
 ;; Running this test last since it messes with the log size.
 (test-assert "The event log can be resized"
