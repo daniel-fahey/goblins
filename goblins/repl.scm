@@ -225,18 +225,17 @@ Disable vat event logging for the current vat."
     (display "warning: Logging is disabled.  Use ,vat-log-enable to begin logging.\n")))
 
 ;; Symbolic representation of a vat event for the purpose of printing.
-(define (vat-event->list event)
+(define (symbolic-event event)
   (let ((msg (vat-event-message event)))
-    (cons (if (vat-send-event? event)
-              'send
-              'receive)
-          (cond
-           ((listen-request? msg)
-            `(listen ,(message-or-request-to msg)))
-           ((questioned? msg)
-            `(question ,(message-or-request-to msg)))
-           (else
-            (cons (message-to msg) (message-args msg)))))))
+    (cond
+     ((message? msg)
+      `(message ,(message-to msg) ,@(message-args msg)))
+     ((listen-request? msg)
+      `(listen ,(message-or-request-to msg)))
+     ((questioned? msg)
+      `(question ,(message-or-request-to msg)))
+     (else
+      (repl-error (format #f "unknown message: ~a" msg))))))
 
 (define-meta-command ((vat-tail goblins) repl #:optional (n 10))
   "vat-tail [N]
@@ -254,7 +253,8 @@ Display the most recent N messages in the current vat."
              (format #t "Churn ~a:\n" churn))
            (format #t "  ~a: ~s\n"
                    (vat-event-timestamp event)
-                   (vat-event->list event))
+                   (cons (vat-event-type event)
+                         (symbolic-event event)))
            (loop (+ i 1) churn)))))))
 
 (define (vat-log-ref-by-time* vat timestamp)
@@ -282,7 +282,7 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
         (print-churn-id event)))
       (format #t "    ~a: ~s\n"
               (vat-event-timestamp event)
-              (vat-event->list event))))
+              (symbolic-event event))))
   (with-goblins-error-messages
    (let* ((vat (current-vat*))
           (debug (current-vat-debug))
@@ -306,6 +306,12 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
                 (prev-event #f))
        (match events
          (() *unspecified*)
+         ;; Collapse cross-vat send+receive events into a single frame
+         ;; of the trace.  The send event gets rendered but not the
+         ;; redundant receive event.
+         (((? vat-send-event? event) _ . rest)
+          (print-event event prev-event)
+          (loop rest event))
          ((event . rest)
           (print-event event prev-event)
           (loop rest event)))))))
@@ -313,39 +319,48 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
 (define-meta-command ((vat-tree goblins) repl #:optional timestamp)
   "vat-tree [TIMESTAMP]
 Display a tree view of events starting at TIMESTAMP in the current vat."
-  (define (print-event event depth last?)
+  (define (print-branches levels)
+    (match levels
+      (() #t)
+      ((branch?)
+       (display (if branch? "├▸ " "└▸ ")))
+      ((branch? . rest)
+       (display (if branch? "│  " "   "))
+       (print-branches rest))))
+  (define (print-event event levels)
     (let* ((type (vat-event-type event))
            (msg (vat-event-message event))
            (to (message-or-request-to msg))
-           (vat-connector (vat-event-connector event))
-           (whitespace-depth (- depth 1))
-           (whitespace (if (> whitespace-depth 0)
-                           (make-string (* whitespace-depth 4) #\space)
-                           ""))
-           (indent (if (> depth 0)
-                       (string-append whitespace
-                                      (if last? "└" "├")
-                                      "─► ")
-                       "")))
-      (format #t "~aVat ~a, ~a: ~s\n"
-              indent
+           (vat-connector (vat-event-connector event)))
+      (print-branches levels)
+      (format #t "Vat ~a, ~a: ~s\n"
               (vat-connector 'name)
               (vat-event-timestamp event)
-              (vat-event->list event))))
+              (symbolic-event event))))
+  (define (print-list events levels)
+    (match events
+      ((event)
+       (print-tree event (append levels (list #f))))
+      ((event . rest)
+       (print-tree event (append levels (list #t)))
+       (print-list rest levels))))
+  (define (print-tree tree levels)
+    (match tree
+      ;; Collapse cross-vat send+receive events into a single level of
+      ;; the tree.  The send event gets rendered but not the redundant
+      ;; receive event.
+      (((? vat-send-event? send-event) (_ children ...))
+       (print-event send-event levels)
+       (print-list children levels))
+      ((event children ..1)
+       (print-event event levels)
+       (print-list children levels))
+      (event
+       (print-event event levels))))
   (with-goblins-error-messages
    (let* ((vat (current-vat*))
           (event (vat-log-ref-by-time* vat (or timestamp (vat-clock vat)))))
-     (let loop ((nodes (vat-event-tree event))
-                (depth 0))
-       (match nodes
-         (() #t)
-         (((event (children ...)) . rest)
-          (print-event event depth (null? rest))
-          (loop children (+ depth 1))
-          (loop rest depth))
-         ((event . rest)
-          (print-event event depth (null? rest))
-          (loop rest depth)))))))
+     (print-tree (vat-event-tree event) '()))))
 
 (define-meta-command ((vat-errors goblins) repl)
   "vat-errors
@@ -406,7 +421,7 @@ Debug error associated with the event at TIMESTAMP."
     (format #t "Vat ~a, event ~a: ~s\n"
             ((vat-event-connector event) 'name)
             (vat-event-timestamp event)
-            (vat-event->list event))))
+            (symbolic-event event))))
 
 (define-meta-command ((vat-up goblins) repl)
   "vat-up
