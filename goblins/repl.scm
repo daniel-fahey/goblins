@@ -418,10 +418,11 @@ Debug error associated with the event at TIMESTAMP."
 
 (define (print-current-vat-debug-event debug)
   (let ((event (vat-debug-current-event debug)))
-    (format #t "Vat ~a, event ~a: ~s\n"
+    (format #t "Now in vat ~a, event ~a:\n  ~s\n"
             ((vat-event-connector event) 'name)
             (vat-event-timestamp event)
-            (symbolic-event event))))
+            (cons (vat-event-type event)
+                  (symbolic-event event)))))
 
 (define-meta-command ((vat-up goblins) repl)
   "vat-up
