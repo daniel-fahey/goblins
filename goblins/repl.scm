@@ -22,6 +22,8 @@
   #:use-module (system vm loader)
   #:use-module (goblins core)
   #:use-module (goblins vat)
+  #:use-module (goblins utils graphviz)
+  #:use-module (goblins utils random-name)
   #:use-module (ice-9 exceptions)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
@@ -456,6 +458,281 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
                      tree
                      (remove-send-events (remove-system-events tree)))
                  '()))))
+
+;; This monster procedure converts a vat timeline into a Lamport
+;; causality diagram in Graphviz format.
+(define (lamport-graph timeline)
+  ;; Generate a list of all timestamps across all vats in the
+  ;; timeline.  Duplicate values are OK.
+  (define all-timestamps
+    (append-map (match-lambda
+                  ((_ . ((timestamps . _) ...))
+                   timestamps))
+                timeline))
+  ;; Get the min and max timestamp values.  These will serve as the
+  ;; start and end points for the timeline.  The bigger this range is,
+  ;; the taller the resulting graph will be when rendered.
+  (define max-t (reduce max 0 all-timestamps))
+  (define min-t (reduce min max-t all-timestamps))
+  ;; Generate a list of timestamps with no events on any vat timeline.
+  ;; We will skip generating nodes for these to reduce wasted vertical
+  ;; space in the rendered graph.  There is likely to be far fewer
+  ;; empty timestamps than occupied ones, so traversing this list will
+  ;; be faster than an occupied timestamp list.
+  (define empty-timestamps
+    ;; Loop from min-t to max-t.
+    (let loop ((t min-t))
+      (if (<= t max-t)
+          ;; Does any vat timeline have an event at this timestamp?
+          ;; If not, add it to the empty timestamps list.
+          (if (any (lambda (timeline)
+                     (assv-ref timeline t))
+                   timeline)
+              (loop (+ t 1))
+              (cons t (loop (+ t 1))))
+          '())))
+  ;; Helpers for generating graph node names.
+  (define (vat-node-name vat-name)
+    (format #f "vat_~a" vat-name))
+  (define (msg-node-name vat-name t)
+    (format #f "msg_~a_~a" vat-name t))
+  (define timeline-edge-color "slategray")
+  (define (vat-root-node vat-name)
+    `(node ,(vat-node-name vat-name)
+           (@ (group ,vat-name)
+              (shape "point")
+              (color ,timeline-edge-color)
+              (height "0.05"))))
+  ;; Generate a string that describes an event.  For use as node
+  ;; labels.
+  (define (event-label event)
+    (let ((msg (vat-event-message event)))
+      (format #f "~s"
+              ;; For brevity, replace the full printed output of local
+              ;; object refrs with just their debug name.
+              (map (match-lambda
+                     ((? local-object-refr? refr)
+                      (local-object-refr-debug-name refr))
+                     (x x))
+                   ;; Tag the different event message types.
+                   (cond
+                    ((message? msg)
+                     `(msg ,(message-to msg) ,@(message-args msg)))
+                    ((listen-request? msg)
+                     `(listen ,(message-or-request-to msg)))
+                    ((questioned? msg)
+                     `(question ,(message-or-request-to msg)))
+                    (else
+                     (error "unknown message" msg)))))))
+  ;; Node constructor for timestamps with an event.
+  (define (event-node event vat-name t)
+    `(node ,(msg-node-name vat-name t)
+           (@ (label ,(event-label event))
+              (group ,vat-name))))
+  ;; Node constructor for timestamps where nothing happened.
+  (define (empty-node vat-name t)
+    `(node ,(msg-node-name vat-name t)
+           (@ (group ,vat-name)
+              (shape "point")
+              (color ,timeline-edge-color)
+              (height "0.05"))))
+  ;; Helper to extract the name of a node.
+  (define (node-name node)
+    (match node
+      (('node name _ ...) name)))
+  ;; Edge constructor for two nodes on the same timeline that shows
+  ;; the progression of time.
+  (define (timeline-edge from to)
+    `(edge ,(node-name from) ,(node-name to)))
+  ;; Edge constructor for two nodes that are in different vats.  This
+  ;; is the edge type used to represent cross-vat messaging.
+  (define (cross-vat-edge vat-connector timestamp target)
+    `(edge ,target
+           ,(msg-node-name (vat-connector 'name) timestamp)
+           (@ (constraint "false")
+              (arrowhead "normal")
+              (arrowsize "0.75")
+              (color "lightcoral"))))
+  ;; Starting from time 't', find the most recent event associated
+  ;; with a churn and return its timestamp, skipping over empty spaces
+  ;; in the timeline as necessary.  Used to form a time range that is
+  ;; encapsulated in a churn sub-graph.
+  (define (max-churn-timestamp t max-t last-known-t events churn)
+    (if (<= t max-t)
+        (match (assv-ref events t)
+          (#f
+           (max-churn-timestamp (+ t 1) max-t last-known-t events churn))
+          ((event . _)
+           (let ((churn* (vat-event-churn event)))
+             (if (= churn churn*)
+                 (max-churn-timestamp (+ t 1) max-t (vat-event-timestamp event)
+                                      events churn)
+                 last-known-t))))
+        last-known-t))
+  ;; Constructor for a sub-graph containing the events of a single vat
+  ;; churn.  Generates a portion of a vat timeline from 'start-t' to
+  ;; 'end-t'.
+  (define (churn-graph vat-connector events start-t end-t prev-node churn)
+    (let* ((vat-name (symbol->string (vat-connector 'name)))
+           (cluster-name (format #f "cluster_churn_~a_~a" vat-name churn)))
+      (let loop ((t start-t)
+                 (prev-node prev-node)
+                 (nodes '())
+                 (edges '()))
+        ;; Timeline events are lists containing the event *and* any
+        ;; connections to other events in different vats.  These
+        ;; cross-vat sends will be represented as edges in the graph.
+        (match-let (((event event-edges ...)
+                     ;; Fetch the event for this timestamp.  If there
+                     ;; isn't one, default to a structure that still
+                     ;; satisfies the pattern matcher.
+                     (or (assv-ref events t) '(#f))))
+          (cond
+           ;; Timestamp is a member of the empty timestamps list, do
+           ;; not generate a node for it and move on to the next
+           ;; timestamp.
+           ((and (<= t end-t) (memv t empty-timestamps))
+            (loop (+ t 1) prev-node nodes edges))
+           ;; Timestamp is within the churn we are graphing, so lookup
+           ;; the associated event and add a node to the graph.
+           ((<= t end-t)
+            (let* ((node (if event
+                             (event-node event vat-name t)
+                             (empty-node vat-name t)))
+                   (near-edge (timeline-edge prev-node node))
+                   ;; Each edge is a 2 element list containing the far
+                   ;; vat connector and the far timestamp for the
+                   ;; associated receive event.
+                   (far-edges (map (match-lambda
+                                     ((far-vat-connector far-timestamp)
+                                      (cross-vat-edge far-vat-connector
+                                                      far-timestamp
+                                                      (node-name node))))
+                                   event-edges)))
+              (loop (+ t 1)
+                    node
+                    (cons node nodes)
+                    (cons near-edge (append far-edges edges)))))
+           ;; End of the churn. Return the sub-graph, the node edges,
+           ;; and the final node in the churn.
+           (else
+            (values `(subgraph ,cluster-name
+                               (attr graph (@ (label "") ; remove default label
+                                              (color "gray")))
+                               ,@nodes)
+                    edges
+                    prev-node)))))))
+  ;; Constructor for a sub-graph that contains an entire vat timeline.
+  ;; This graph is further broken into sub-graphs for each churn.
+  ;; Timestamps with no event are excluded from churn sub-graphs.
+  (define (vat-graph vat-connector events min-t max-t)
+    (let* ((vat-name (symbol->string (vat-connector 'name)))
+           (root-node (vat-root-node vat-name)))
+      (let loop ((t min-t)
+                 (prev-node root-node)
+                 (nodes (list root-node))
+                 (edges '()))
+        (cond
+         ;; Timestamp is a member of the empty timestamps list, do not
+         ;; generate a node for it and move on to the next timestamp.
+         ((and (<= t max-t) (memv t empty-timestamps))
+          (loop (+ t 1) prev-node nodes edges))
+         ;; Timestamp is within the range we are graphing, so lookup
+         ;; the associated event.  If there is no event, add an empty
+         ;; node.  If there is an event, add a sub-graph containing
+         ;; the entire churn associated with that event.
+         ((<= t max-t)
+          (match (assv-ref events t)
+            ;; No event for this timestamp, make an empty node and
+            ;; proceed to the next timestamp.
+            (#f
+             (let* ((node (empty-node vat-name t))
+                    (edge (timeline-edge prev-node node)))
+               (loop (+ t 1) node (cons node nodes) (cons edge edges))))
+            ;; There is an event, generate a sub-graph for the churn,
+            ;; add the sub-graph and all associated edges, and then
+            ;; proceed to the timestamp after the end of the churn.
+            ((event . _)
+             (let* ((churn (vat-event-churn event))
+                    (end-t (max-churn-timestamp t max-t t events churn)))
+               (let-values (((subgraph new-edges final-node)
+                             (churn-graph vat-connector events t end-t
+                                          prev-node churn)))
+                 (loop (+ end-t 1) final-node (cons subgraph nodes)
+                       (append new-edges edges)))))))
+         ;; We've reached the end of the timeline, so return the
+         ;; sub-graph for the vat.
+         (else
+          (let* ((end-t (+ max-t 1))
+                 (end-node-name (msg-node-name vat-name end-t)))
+            (cons `(subgraph ,(format #f "cluster_vat_~a" vat-name)
+                             (attr graph (@ (label ,vat-name)
+                                            (style "solid")
+                                            (color "transparent")
+                                            (fontsize "14")
+                                            (nodesep "0.02")
+                                            (margin "2.0")))
+                             ,@(cons `(node ,end-node-name
+                                            (@ (style "invis")))
+                                     nodes))
+                  (cons `(edge ,(node-name prev-node)
+                               ,end-node-name
+                               (@ (arrowhead "normal")))
+                        edges))))))))
+  ;; Build a directed graph with a sub-graph per vat timeline.
+  `(digraph goblins
+            (attr graph (@ (ordering "out")
+                           (fontsize "8")
+                           (ranksep "0.1")
+                           (splines "line")))
+            (attr edge (@ (arrowhead "none")
+                          (fontsize "8")
+                          (color ,timeline-edge-color)))
+            (attr node (@ (shape "box")
+                          (style "filled,rounded")
+                          (color "lightskyblue")
+                          (fontsize "10")
+                          (height "0.1")
+                          (margin "0.01")))
+            ,@(append-map (match-lambda
+                            ((vat-connector . events)
+                             (vat-graph vat-connector events min-t max-t)))
+                          timeline)))
+
+(define-meta-command ((vat-graph goblins) repl #:optional timestamp #:key full?)
+  "vat-graph [TIMESTAMP]
+Generate an image of the event tree for TIMESTAMP in the current vat."
+  (with-goblins-error-messages
+   (let* ((vat (current-vat*))
+          (event (vat-log-ref-by-time* vat (or timestamp (vat-clock vat))))
+          (tree (vat-event-tree event))
+          (timeline (vat-event-tree->timeline
+                     (if full?
+                         tree
+                         (remove-system-events tree))))
+          (tmpdir (string-append (or (getenv "TMPDIR") "/tmp")
+                                 "/goblins-repl-images"))
+          ;; Generate a reasonably random file name.  Geiser caches
+          ;; images based on file name so if we used the same name all
+          ;; the time things would look broken in the REPL even though
+          ;; the file is actually being updated in the file system.
+          (base-file-name (random-name 16))
+          (dot-file-name (string-append tmpdir "/" base-file-name ".dot"))
+          (png-file-name (string-append tmpdir "/" base-file-name ".png")))
+     ;; Create directory, if necessary.
+     (unless (file-exists? tmpdir)
+       (mkdir tmpdir))
+     ;; Save graph to file using Graphviz DOT format.
+     (call-with-output-file dot-file-name
+       (lambda (port)
+         (sdot->dot (lamport-graph timeline) port)))
+     ;; Render the graph to an image file.
+     (if (zero? (run-dot "-T" "png" "-o" png-file-name dot-file-name))
+         ;; Print in this specific format that Geiser understands so
+         ;; it will substitute the text for the actual image.  Cool
+         ;; beans!
+         (format #t "#<Image: ~a>\n" png-file-name)
+         (display "failed to generate graph\n")))))
 
 (define-meta-command ((vat-errors goblins) repl)
   "vat-errors
