@@ -122,11 +122,8 @@
 
 (test-repl ",vat-tree displays a vat event tree when logging is enabled"
            "Vat alice, 1: \\(message #<local-object \\^call-with-vat>\\)
-.. Vat alice, 2: \\(listen #<local-promise>\\)
-.. Vat alice, 3: \\(message #<local-object>\\)
-   .. Vat bob, 5: \\(message #<local-object \\^resolver> fulfill \"hello\"\\)
-      .. Vat alice, 7: \\(message #<local-object \\^on-listener> fulfill \"hello\"\\)
-         .. Vat alice, 8: \\(message #<local-object fulfilled-handler> \"hello\"\\)"
+.. Vat bob, 4: \\(message #<local-object>\\)
+   .. Vat alice, 6: \\(message #<local-object \\^resolver> fulfill \"hello\"\\)"
            (eval (define a-vat (spawn-vat #:name 'alice)))
            (eval (define b-vat (spawn-vat #:name 'bob)))
            (meta enter-vat b-vat)
