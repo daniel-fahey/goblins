@@ -83,7 +83,7 @@
            (meta vat-tail))
 
 (test-repl ",vat-tail displays a list of events when logging is enabled"
-           "\\(receive message #<local-object>\\)"
+           "\\(receive message #<local-object \\^call-with-vat>\\)"
            (eval (define a-vat (spawn-vat)))
            (meta enter-vat a-vat)
            (meta vat-log-enable)
@@ -103,7 +103,7 @@
 (test-repl ",vat-trace displays a vat event backtrace when logging is enabled"
            "In vat alice:
   Churn 1:
-    1: \\(message #<local-object>\\)"
+    1: \\(message #<local-object \\^call-with-vat>\\)"
            (eval (define a-vat (spawn-vat #:name 'alice)))
            (meta enter-vat a-vat)
            (meta vat-log-enable)
@@ -121,7 +121,7 @@
            (meta vat-tree))
 
 (test-repl ",vat-tree displays a vat event tree when logging is enabled"
-           "Vat alice, 1: \\(message #<local-object>\\)
+           "Vat alice, 1: \\(message #<local-object \\^call-with-vat>\\)
 .. Vat alice, 2: \\(listen #<local-promise>\\)
 .. Vat alice, 3: \\(message #<local-object>\\)
    .. Vat bob, 5: \\(message #<local-object \\^resolver> fulfill \"hello\"\\)

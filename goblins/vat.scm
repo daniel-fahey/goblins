@@ -645,6 +645,12 @@ disabled.  LOG-CAPACITY events will be retained in the log."
 (define (vat-send vat envelope)
   ((vat-send-proc vat) envelope))
 
+;; This simple actor constructor is used to give a descriptive name to
+;; the one-off actors created by call-with-vat so that they are
+;; clearly marked when debugging.
+(define (^call-with-vat _bcom thunk)
+  thunk)
+
 (define (call-with-vat vat thunk)
   "Run THUNK in the context of VAT and return the resulting values."
   (if (vat-running? vat)
@@ -661,7 +667,7 @@ disabled.  LOG-CAPACITY events will be retained in the log."
           (call-with-values thunk list))
         ;; Spawn a throwaway actor whose behavior is just to apply the
         ;; thunk.
-        (define refr (actormap-spawn! am (lambda (_bcom) multi-value-thunk)))
+        (define refr (actormap-spawn! am ^call-with-vat multi-value-thunk))
         (define msg (make-message (vat-connector vat) refr #f '()))
         (match (vat-send vat (make-vat-envelope msg 0 #t))
           (#('ok vals) (apply values vals))
