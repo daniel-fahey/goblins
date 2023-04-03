@@ -36,6 +36,7 @@
             vat-send-event?
             vat-receive-event?
             vat-event-listen?
+            vat-event-message?
             vat-event-type
             vat-event-churn
             vat-event-timestamp
@@ -202,6 +203,10 @@
 (define (vat-event-listen? event)
   "Return #t if EVENT is for a listen request."
   (listen-request? (vat-event-message event)))
+
+(define (vat-event-message? event)
+  "Return #t if EVENT is for a message."
+  (message? (vat-event-message event)))
 
 (define (vat-event-connector event)
   "Return the connector for the vat that EVENT belongs to. Send events

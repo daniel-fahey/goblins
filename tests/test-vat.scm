@@ -419,6 +419,11 @@
     (and (vat-event-listen? (vat-log-ref-by-time a-vat (+ t 4)))
          (not (vat-event-listen? (vat-log-ref-by-time a-vat (+ t 1)))))))
 
+(test-assert "Events with messages satisfy vat-event-message? predicate"
+  (begin
+    (with-vat a-vat 'no-op)
+    (vat-event-message? (vat-log-ref-by-time a-vat (vat-clock a-vat)))))
+
 (test-assert "Event log activation order backtrace across vats"
   (begin
     (vat-log-clear! a-vat)
