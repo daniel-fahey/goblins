@@ -49,6 +49,7 @@
             vat-event-next
             vat-event-trace
             vat-event-tree
+            vat-event-tree-map
 
             &vat-turn-error
             vat-turn-error-event
@@ -288,6 +289,20 @@ call stacks, vat traces are linear slices of the event graph."
     ((_ ... root)
      ;; Build a tree starting from the root.
      (build-event-tree root))))
+
+(define (vat-event-tree-map proc tree)
+  "Recursively apply PROC to all leaf nodes and subtrees of TREE, a tree
+of vat events in the format produced by 'vat-event-tree', and return a
+new tree.  Post-order tree traversal is used so that PROC is applied
+to leaf nodes before their parent trees."
+  (match tree
+    ((root children ...)
+     (proc (cons root
+                 (map (lambda (child)
+                        (vat-event-tree-map proc child))
+                      children))))
+    ((? vat-event? leaf)
+     (proc leaf))))
 
 ;; The vat log maintains a finite amount of history about messages
 ;; that have been sent/received in the vat.  These events are indexed

@@ -599,6 +599,57 @@
                   ,e7)
                 (vat-event-tree e6))))))
 
+(test-assert "Mapping event tree can modify tree structure"
+  (begin
+    (vat-log-clear! a-vat)
+    (vat-log-clear! b-vat)
+    (set-vat-logging! a-vat #t)
+    (set-vat-logging! b-vat #t)
+    (let* ((counter (with-vat b-vat (spawn ^counter 0)))
+           ;; The root of the event tree is in vat A, so our timer
+           ;; starts with vat A's current time.
+           (ta (vat-clock a-vat))
+           ;; Vat A ticks its clock twice, once for receiving the
+           ;; with-vat message, and again to send a message to the
+           ;; counter.  Therefore, due to the Lamport clock logic, B's
+           ;; clock will advance to (+ ta 2) if it is greater than B's
+           ;; current clock value.
+           (tb (max (vat-clock b-vat) (+ ta 2))))
+      ;; Send a message with no promise to minimize vat events.
+      ;; Opting not to use resolve-vow-and-return-result here as it
+      ;; generates more events to deal with.
+      (with-vat a-vat (<-np counter))
+      ;; This is just to sync up with b-vat before proceeding with the
+      ;; test.  This works because the previous with-vat call
+      ;; dispatches messages to vat B *before* control is relinquished
+      ;; back to this test.
+      (with-vat b-vat 'no-op)
+      (let ((e0 (vat-log-ref-by-time a-vat (+ ta 1)))  ; A: recv: with-vat
+            (e1 (vat-log-ref-by-time a-vat (+ ta 2)))  ; A: send: (<- counter)
+            (e2 (vat-log-ref-by-time b-vat (+ tb 1)))) ; B: recv: (<- counter)
+        ;; Remove the send event from the tree, preserving the
+        ;; associated receive event.
+        (equal? `(,e0 ,e2)
+                (vat-event-tree-map (match-lambda
+                                      (((? vat-send-event?) next-event)
+                                       next-event)
+                                      (other other))
+                                    (vat-event-tree e2)))))))
+
+(test-assert "Mapping event tree with the identity procedure returns the same tree"
+  (begin
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    (let ((t (vat-clock a-vat))
+          (counter (with-vat a-vat (spawn ^counter 0))))
+      (resolve-vow-and-return-result
+       a-vat
+       (lambda ()
+         (on (<- counter) identity)))
+      (let ((tree (vat-event-tree
+                   (vat-log-ref-by-time a-vat (vat-clock a-vat)))))
+        (equal? tree (vat-event-tree-map identity tree))))))
+
 ;; Running this test last since it messes with the log size.
 (test-assert "The event log can be resized"
   (let ((t (vat-clock a-vat)))
