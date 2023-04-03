@@ -30,6 +30,7 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 q)
   #:use-module (ice-9 threads)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:export (vat-event?
@@ -50,6 +51,7 @@
             vat-event-trace
             vat-event-tree
             vat-event-tree-map
+            vat-event-tree-filter
 
             &vat-turn-error
             vat-turn-error-event
@@ -303,6 +305,24 @@ to leaf nodes before their parent trees."
                       children))))
     ((? vat-event? leaf)
      (proc leaf))))
+
+(define (vat-event-tree-filter pred tree)
+  "Recursively apply PRED to all leaf nodes and subtrees of TREE, a tree
+of vat events in the format produced by 'vat-event-tree', and return a
+new tree consisting of the nodes for which PRED returns #t.
+Post-order tree traversal is used so that PRED is applied to leaf
+nodes before their parent trees."
+  (match tree
+    (((? vat-event? root) children ..1)
+     (match (filter-map (lambda (child)
+                          (vat-event-tree-filter pred child))
+                        children)
+       (() root)
+       ((children* ...)
+        (let ((filtered (cons root children*)))
+          (and (pred filtered) filtered)))))
+    ((? vat-event? leaf)
+     (and (pred leaf) leaf))))
 
 ;; The vat log maintains a finite amount of history about messages
 ;; that have been sent/received in the vat.  These events are indexed
