@@ -405,6 +405,20 @@
             (actormap-peek (vat-event-snapshot after-cell-update-event)
                            chest)))))
 
+(test-assert "Events with listen requests satisfy vat-event-listen? predicate"
+  ;; (+ t 1): call-with-vat to spawn counter
+  ;; (+ t 2): call-with-vat to increment counter
+  ;; (+ t 3): (<- counter)
+  ;; (+ t 4): listen to promise
+  (let ((t (vat-clock a-vat))
+        (counter (with-vat a-vat (spawn ^counter 0))))
+    (resolve-vow-and-return-result
+     a-vat
+     (lambda ()
+       (on (<- counter) identity)))
+    (and (vat-event-listen? (vat-log-ref-by-time a-vat (+ t 4)))
+         (not (vat-event-listen? (vat-log-ref-by-time a-vat (+ t 1)))))))
+
 (test-assert "Event log activation order backtrace across vats"
   (begin
     (vat-log-clear! a-vat)

@@ -35,6 +35,7 @@
   #:export (vat-event?
             vat-send-event?
             vat-receive-event?
+            vat-event-listen?
             vat-event-type
             vat-event-churn
             vat-event-timestamp
@@ -197,6 +198,10 @@
 (define (vat-receive-event? event)
   "Return #t if EVENT is a receive event."
   (and (vat-event? event) (eq? (vat-event-type event) 'receive)))
+
+(define (vat-event-listen? event)
+  "Return #t if EVENT is for a listen request."
+  (listen-request? (vat-event-message event)))
 
 (define (vat-event-connector event)
   "Return the connector for the vat that EVENT belongs to. Send events
