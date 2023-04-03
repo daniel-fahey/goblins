@@ -52,6 +52,7 @@
             vat-event-tree
             vat-event-tree-map
             vat-event-tree-filter
+            vat-event-tree-remove
 
             &vat-turn-error
             vat-turn-error-event
@@ -323,6 +324,11 @@ nodes before their parent trees."
           (and (pred filtered) filtered)))))
     ((? vat-event? leaf)
      (and (pred leaf) leaf))))
+
+(define (vat-event-tree-remove pred tree)
+  "Like 'vat-event-tree-filter', but nodes of TREE that match PRED are
+removed."
+  (vat-event-tree-filter (negate pred) tree))
 
 ;; The vat log maintains a finite amount of history about messages
 ;; that have been sent/received in the vat.  These events are indexed
