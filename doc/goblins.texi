@@ -27,7 +27,7 @@
 
 This is the manual for @uref{https://spritely.institute/goblins/,
 Spritely Goblins}, a distributed object programming environment.
-Spritely Goblins is mantained by 
+Spritely Goblins is mantained by
 @uref{https://spritely.institute/, Spritely Networked Communities Institute} and is built to
 be the core layer for building broader decentralized networking technologies.
 
@@ -112,32 +112,32 @@ Features:
 
 @itemize
 @item
-@strong{Quasi-functional object system:} Users hold on to references
+@strong{Quasi-functional object system:} users hold on to references
 of objects/actors, but objects/actors are just procedures.  Rather
 than directly mutating, objects/actors can specify that they should
 ``become'' a new version of themselves when they handle the next
 invocation.
 
 @item
-@strong{Fully distributed, networked, secure p2p communication:} Via
+@strong{Fully distributed, networked, secure p2p communication:} via
 OCapN, the Object Capability Network (which features CapTP, the
 Capability Transport Protocol), you can communicate with other objects
 over a network connection.  Distributed object interactions are safe
 because of ocap security guarantees.
 
 @item
-@strong{Transactional updates:} Changes happen within a transaction.
-If an unhandled exception occurs, we can ``roll back'' history as if
-the message never happened, avoiding confused state changes throughout
-the system.
+@strong{Transactional updates:} changes happen within a transaction.
+If an unhandled exception occurs, Goblins can ``roll back'' history
+as if the message never happened, avoiding confused state changes
+throughout the system.
 
 @item
-@strong{Time travel:} We can snapshot old revisions of the system and
+@strong{Time travel:} you can snapshot old revisions of the system and
 interact with them.
 
 @item
 @strong{Asynchronous programming with sophisticated promise chaining:}
-Asynchronous message passing with promises is supported.  Promises
+asynchronous message passing with promises is supported.  Promises
 work such that there's no need to wait for promises to resolve before
 interacting@dots{} you can communicate with the future that doesn't
 even yet exist!  Sent a message to that remote car factory asking for
@@ -146,13 +146,13 @@ it a drive message at the same time, and both messages can be
 delivered across the network in a single hop.
 
 @item
-@strong{Communicating event loops:} Objects across multiple event
+@strong{Communicating event loops:} objects across multiple event
 loops (aka ``vats'') can communicate, whether in the same OS process
-or (soon) across the network.
+or across the network.
 
 @item
 @strong{Synchronous and asynchronous behavior, integrated but
-distinguished:} Both synchronous and asynchronous programming is
+distinguished:} both synchronous and asynchronous programming is
 supported, but only objects in the same ``vat'' (event loop) can
 perform synchronous immediate calls.  All objects can perform
 asynchronous calls against each other.
@@ -163,9 +163,9 @@ can be utilized across a wide variety of Guile programs.
 
 @item
 @strong{Object capability security:} Goblins itself is built for
-object capability (ocap) security, which is to say that you can only
+object capability (OCap) security, which is to say that you can only
 operate on the references you have access to.  Goblins embraces and
-builds upon this foundation.  (However, full ocap security will
+builds upon this foundation.  (However, full OCap security will
 require utilizing the sandboxing features of Guile; demonstrations of
 this coming soon.)
 @end itemize
@@ -176,7 +176,7 @@ programming language} and by the observation that
 @uref{http://mumble.net/~jar/pubs/secureos/secureos.html, lambda is
 already the ultimate security mechanism} (ie, normal argument-passing
 in programs, if taken seriously/purely, is already all the security
-system we need).
+system needed).
 
 Spritely Networked Communities Institute was created to advance decentralized
 networking infrastructure, particularly as it pertains to social networks.
@@ -200,11 +200,11 @@ version.  This manual is for the Guile edition of Spritely Goblins.
 
 You'll need to install @code{guile-goblins}.  Either use
 @uref{https://guix.gnu.org/, Guix} or use your standard GNU/Linux
-distro's package for @code{guile-goblins} (if it exists) or even
+distro's package for @code{guile-goblins} (if it exists), or even
 better yet run Guix as your standard distro.
 
-See the @file{HACKING} and @file{README} files with git checkouts /
-release tarballs otherwise to install.
+Otherwise see the @file{HACKING} and @file{README} files with git
+checkouts / release tarballs to install.
 
 @node Setup for hacking on Goblins
 @section Setup for hacking on Goblins
@@ -246,16 +246,16 @@ The traditional way to hack Guile is to use Geiser, both evaluating
 from some @code{foo.scm} file/buffer with more ``permanent'' code via,
 for example, the @code{C-x C-e} / @code{C-x C-b} / @code{C-x C-k}
 commands to evaluate an expression, evaluate a whole buffer, or
-compile a buffer's content, and switching back and forth between that
+compile a buffer's content; and switching back and forth between that
 and the (usually called @code{*Geiser Guile REPL*})
 experimental-hacking-and-debugging REPL@.
 
 This works with Goblins, but Geiser does some things to temporarily
 redirect output/error ports when doing the file/buffer oriented
-evaluation, and unfortunately this results in Goblins vats potentially
-breaking due to spawning a separate thread which inherit these
-temporarily redirected ports, which then are closed when the
-evaluation succeeds.  We have a long-term plan to deal with this, but
+evaluation. Unfortunately, this results in Goblins vats potentially
+breaking due to spawning a separate thread which inherits these
+temporarily redirected ports, which are then closed when the
+evaluation succeeds.  There is a long-term plan to deal with this, but
 in the meanwhile, whenever you start a Guile / Geiser hacking session,
 first execute:
 
@@ -264,14 +264,13 @@ first execute:
 @end lisp
 
 @dots{} from the @code{*Geiser Guile REPL*}.  Otherwise vats may
-mysteriously ``hang''.  We know this is an annoyance!  It'll be fixed
-soon!
+mysteriously ``hang''.  This annoyance will be fixed soon!
 
 @node A high level view of Goblins
 @chapter A high level view of Goblins
 
-Let's start with a sketch of a network of Goblins objects wired to
-communicate with each other:
+As a starting point, here's a sketch of a network of Goblins objects
+wired to communicate with each other:
 
 @example
 .----------------------------------.         .----------------------.
@@ -294,7 +293,7 @@ communicate with each other:
 '----------------------------------'         '----------------------'
 @end example
 
-In the above diagram, we see:
+In the above diagram, you see:
 
 @itemize
 @item
@@ -304,15 +303,15 @@ network via OCapN and CapTP@.
 
 @item
 @code{Vat A} and @code{Vat B} are event loops which live on
-@code{Machine 1}, and @code{Vat C} is an event loop which live son
+@code{Machine 1}, and @code{Vat C} is an event loop which lives on
 @code{Machine 2}.
 
 @item
 The individual objects (represented by circles) live in @emph{vats},
 aka event loops which contain objects.  @code{Alice} and @code{Alfred}
 live in @code{Vat A}, @code{Bob} lives in @code{Vat B}, and
-@code{Carol} and @code{Carlos} live on @code{Vat C}.  (While we've
-given these objects human-like names, they're just Goblins objects.)
+@code{Carol} and @code{Carlos} live in @code{Vat C}.  (While these
+objects have human-like names, they're just Goblins objects.)
 
 @item
 The arrows between the objects represent references these objects have
@@ -322,15 +321,15 @@ to each other.  @code{Alice} has references to both @code{Alfred} and
 
 @item
 Two objects which are in the same vat are considered @emph{near} each
-other, and thus can invoke each other synchronously, whereas any
-objects not in the same vat are considered @emph{far} from each other.
-Any objects can invoke each other by asynchronous message
-passing@dots{} assuming they have a reference to each other.
+other, and thus can invoke each other synchronously.  Any objects not
+in the same vat are considered @emph{far} from each other.  Any
+objects can invoke each other by asynchronous message passing,
+assuming they have a reference to each other.
 
 @item
 Not pictured: each vat has an @emph{actormap}, an underlying
 transactional heap used for object communication.  This is what
-permits transactionality and time travel.  (Actormaps can also used
+permits transactionality and time travel.  (Actormaps can also be used
 independently of vats for certain categories of applications.)
 @end itemize
 
@@ -350,7 +349,7 @@ realistically, operating system processes, which contain@dots{}
 @item
 @strong{Actormaps}, transactional heaps, which contain@dots{}
 @item
-A mapping of @strong{References} to @strong{Object Behavior}.
+a mapping of @strong{References} to @strong{Object Behavior}.
 @end itemize
 
 @menu
@@ -361,17 +360,17 @@ A mapping of @strong{References} to @strong{Object Behavior}.
 @section The ``vat model'' of computation
 
 As said, Goblins follows what is called the @emph{vat model} of
-computation.  A @emph{vat} is simply an event loop that manages a set
-of objects which are @emph{near} to each other (and similarly, objects
+computation.  A @emph{vat} is an event loop that manages a set of
+objects which are @emph{near} to each other (and similarly, objects
 outside of a vat are @emph{far} from each other).
 
 Objects which are @emph{near} can perform synchronous call-return
 invocations in a manner familiar to most sequential programming
 languages used by most programmers today.  Aside from being a somewhat
 more convenient way to program, sequential invocation is desirable
-because of cheap @emph{transactionality}, which we shall expand on
-more later.  In Goblins, we use the @code{$} operator to perform
-synchronous operations.
+because of cheap @emph{transactionality}, which will be expanded upon
+more later.  Goblins uses the @code{$} operator to perform synchronous
+operations.
 
 Both @emph{near} and @emph{far} objects are able to invoke each other
 asynchronously using asynchronous message passing (in the same style
@@ -379,8 +378,8 @@ as the @emph{classic actor model}).  It does not generally matter
 whether or not a @emph{far} object is running within the same OS
 process or machine or one somewhere else on the network for most
 programming tasks; asynchronous message passing works the same either
-way.  In Goblins, we use the @code{<-} operator to perform
-asynchronous operations.
+way.  Goblins uses the @code{<-} operator to perform asynchronous
+operations.
 
 For both programmer convenience and for networked efficiency, Goblins
 supports @emph{promise pipelining}: messages can be sent to promises
@@ -410,7 +409,7 @@ asynchronous messages to other objects (which are only sent if the
 While the @emph{vat model} of computation is not new (it originates in
 the @uref{http://erights.org/, E} programming language and can trace
 some of its ideas back to E's predecessor
-@uref{http://erights.org/history/joule/, Joule}, and has since
+@uref{http://erights.org/history/joule/, Joule}; and has since
 reappeared in systems such as @uref{https://agoric.com/, Agoric's}
 @uref{https://github.com/Agoric/agoric-sdk/tree/master/packages/SwingSet,
 SwingSet} kernel), Goblins brings some novel contributions to the
@@ -433,7 +432,7 @@ enhancing an already powerful distributed programming paradigm.
 @node A simple greeter
 @section A simple greeter
 
-First, let's import Goblins:
+First, import Goblins:
 
 @lisp
 > (use-modules (goblins))
@@ -441,8 +440,8 @@ First, let's import Goblins:
 
 (@strong{NOTE}: See @ref{TEMPORARY Live hacking ``fix''} if you haven't.)
 
-Goblins actors live in special event loops called @emph{vats}.  Let's
-make a vat to play around with and ``enter'' it at the REPL:
+Goblins actors live in special event loops called @emph{vats}.  Make a
+vat to play around with and ``enter'' it at the REPL:
 
 @lisp
 scheme> (define a-vat (spawn-vat))
@@ -450,7 +449,7 @@ scheme> ,enter-vat a-vat
 goblins[1]>
 @end lisp
 
-Now let us implement a friend who will greet us:
+Now implement a friend who will greet you:
 
 @lisp
 (define (^greeter bcom our-name)   ; constructor (outer procedure)
@@ -459,7 +458,7 @@ Now let us implement a friend who will greet us:
             your-name our-name)))
 @end lisp
 
-Let's give it a try by instantiating an instance of @code{^greeter}
+Give it a try by instantiating an instance of @code{^greeter}
 using @code{spawn} and assign her to the variable @code{alice}:
 
 @lisp
@@ -467,14 +466,14 @@ using @code{spawn} and assign her to the variable @code{alice}:
     (spawn ^greeter "Alice"))
 @end lisp
 
-The first argument to @code{spawn} is the constructor we will use to
-make our Goblins object, in this case @code{^greeter}.  The remaining
+The first argument to @code{spawn} is the constructor used to
+make the Goblins object, in this case @code{^greeter}.  The remaining
 arguments will be passed to the constructor, along with an implicit
 argument which can be used to change object behavior called
 @code{bcom} (pronounced ``become'').  Thus @code{"Alice"} maps to
 @code{our-name}.
 
-We can invoke @code{alice} by using @code{$} for a synchronous
+You can invoke @code{alice} by using @code{$} for a synchronous
 call-return operation:
 
 @lisp
@@ -484,13 +483,13 @@ goblins[1]> ($ alice "Alfred")
 ; => "Hello Alfred, my name is Alice!"
 @end lisp
 
-The first argument to @code{$} is the object to be invoked, the
+The first argument to @code{$} is the object to be invoked, and the
 remaining arguments are passed to the ``behavior'' of the object.
 Thus @code{your-name} in @code{^greeter}'s behavior procedure is bound
 to @code{"Alfred"}.  The behavior procedure thus proceeds with
 formatting and returning the greeting string.
 
-We can exit the subrepl for @code{a-vat} with @code{,q} (the same way
+You can exit the subrepl for @code{a-vat} with @code{,q} (the same way
 as if Guile put us in a subrepl to debug an error):
 
 @lisp
@@ -502,7 +501,7 @@ As you have probably inferred, Goblins-specific operations such as
 @code{$} and @code{spawn} happen within a context (typically a
 @emph{vat}, though there is an even lower-level structure called an
 @emph{actormap} which we will see more about later).  However, the
-subrepl entered by @code{,enter-vat} is a convenience for hacking.  We
+subrepl entered by @code{,enter-vat} is a convenience for hacking.  You
 can run also run code within @code{a-vat} like so:
 
 @lisp
@@ -512,8 +511,8 @@ scheme> (call-with-vat a-vat (lambda () ($ alice "Arthur")))
 
 Very few operations in Goblins spend time operating on vats directly;
 typically commands like the above only happen when bootstrapping the
-initial set of actors within a vat or when hacking, then the actors
-within the vats do their own thing.
+initial set of actors within a vat or when hacking, after which the
+actors within the vats do their own thing.
 
 @node State as updating behavior
 @section State as updating behavior
@@ -525,9 +524,9 @@ scheme> ,enter-vat a-vat
 goblins[1]>
 @end lisp
 
-Let's introduce a simple cell which stores a value.  This cell will
-have two methods: @code{'get} retrieves the current value, and
-@code{'set} replaces the current value with a new value.
+Here is a simple cell which stores a value.  This cell will have two
+methods: @code{'get} retrieves the current value, and @code{'set}
+replaces the current value with a new value.
 
 @lisp
 (define* (^cell bcom #:optional [val #f])
@@ -539,12 +538,12 @@ have two methods: @code{'get} retrieves the current value, and
 @end lisp
 
 @code{case-lambda} allows for dispatching depending on the number of
-arguments, so here we're choosing that if no arguments are provided,
-our cell shares the current value, and if one argument is provided,
+arguments, so this code says that if no arguments are provided,
+the cell shares the current value; and if one argument is provided,
 the cell updates itself to become a cell storing the new value.
 
-Cells hold values, and so do treasure chests, so let's make a treasure
-chest flavored cell.  Taking things out and putting them back in is
+Cells hold values. So do treasure chests. Make a treasure chest
+flavored cell.  Taking things out and putting them back in is
 easy:
 
 @lisp
@@ -557,7 +556,7 @@ goblins[1]> ($ chest)
 ; => "gold"
 @end lisp
 
-Now we can see what @code{bcom} is: a capability specific to this
+Now you can see what @code{bcom} is: a capability specific to this
 object instance which allows it to change its behavior!  (For this
 reason, @code{bcom} is pronounced ``become''!)
 
@@ -565,9 +564,9 @@ reason, @code{bcom} is pronounced ``become''!)
 @section Methods aren't essential, but they are useful
 
 The most common way to select different sub-behaviors isn't by the
-number of arguments though.  It's much more common to have ``methods''
-that are selected by name.  We can use the @code{methods} macro to do
-just that:
+number of arguments.  It's much more common to have ``methods'' that
+are selected by name.  You can use the @code{methods} macro to do just
+that:
 
 @lisp
 (use-modules (goblins)
@@ -581,7 +580,7 @@ just that:
     (bcom (^mcell bcom new-val)))))
 @end lisp
 
-The use of @code{^mcell} is similar, but now we pass in a first
+The use of @code{^mcell} is similar, but now you pass in a first
 argument as a symbol selecting the method, and the rest of the
 arguments are passed to the object:
 
@@ -613,7 +612,7 @@ dispatch:
 @end lisp
 
 So really, @code{methods} just makes a particularly useful kind of
-behavior procedure for us, one which takes a first argument for the
+behavior procedure for you, one which takes a first argument for the
 method name, grabs the rest of the arguments, and then applies them to
 the relevant method.
 
@@ -623,7 +622,7 @@ the relevant method.
 Objects can also contain and define other object references, including
 in their outer constructor procedure.
 
-Here is the definition of a ``counting greeter'' we call
+Here is the definition of a ``counting greeter'' called
 @code{^cgreeter}:
 
 @lisp
@@ -642,7 +641,7 @@ Here is the definition of a ``counting greeter'' we call
             your-name our-name))))
 @end lisp
 
-As we can see near the top, @code{times-called} is instantiated as an
+As you can see near the top, @code{times-called} is instantiated as a
 @code{^cell} like the one we defined earlier.  The current value of
 this cell is returned by @code{get-times-called} and is updated every
 time the @code{greet} method is called:
@@ -663,13 +662,13 @@ goblins[1]> ($ julius 'get-times-called)
 @node Asynchronous message passing
 @section Asynchronous message passing
 
-We have shown that the behavior of objects may be invoked
+You have seen that the behavior of objects may be invoked
 synchronously with @code{$}.  However, this only works if two objects
 are both defined on the same machine on the network and the same event
 loop within that machine.
 
-Now, recall our friend @code{alice} who we defined on vat A@.  The
-following works just fine if we're still executing within
+Now, recall your friend @code{alice} who you defined on vat A@.  The
+following works just fine if you're still executing within
 @code{a-vat}'s subrepl context:
 
 @lisp
@@ -677,7 +676,7 @@ goblins[1]> ($ alice "Alfred")
 => "Hello Alfred, my name is Alice!"
 @end lisp
 
-But let's exit the @code{a-vat} subrepl and make @code{b-vat} and
+Exit the @code{a-vat} subrepl and make @code{b-vat} and
 enter that:
 
 @lisp
@@ -688,7 +687,7 @@ scheme> ,enter-vat b-vat
 goblins[1]>
 @end lisp
 
-But since Alice works on A, we cannot synchronously invoke her with
+Since Alice works on A, you cannot synchronously invoke her with
 @code{$} on vat B:
 
 @lisp
@@ -700,8 +699,8 @@ goblins[1]> ($ alice "Bob")
 
 This is where @code{<-} comes in.  In contrast to @code{$}, @code{<-}
 can be used against objects which live anywhere, even on remote
-machines.  However, unlike invocation with @code{$}, we do not get
-back an immediate result, we get a promise:
+machines.  However, unlike invocation with @code{$}, you do not get
+back an immediate result; you get a promise:
 
 @lisp
 goblins[1]> (<- alice "Bob")
@@ -732,7 +731,7 @@ such as an instance of @code{^broken} here:
 
 @code{on} also supports the keyword arguments of @code{#:catch} and
 @code{#:finally}, which both accept a procedure defining handling
-errors in the former case and code which will run regardless of
+errors in the former case, and code which will run regardless of
 successful resolution or failure in the latter case:
 
 @lisp
@@ -752,12 +751,12 @@ goblins[1]> (on (<- broken-ben)
 @node Transactions make errors survivable
 @section Transactions make errors survivable
 
-Mistakes happen, and when they do, we'd like damage to be minimal.
+Mistakes happen, and when they do, the damage should be minimal.
 But with many moving parts, accomplishing this can be difficult.
 
-However, Goblins makes our life easier.  To see how, let's
-intentionally insert a couple of print debugging lines (with
-@code{pk}, which is pronounced and means ``peek'') and then an error:
+However, Goblins makes life easier.  To see how, intentionally insert
+a couple of print debugging lines (with @code{pk}, which is pronounced
+and means ``peek'') and then an error:
 
 @lisp
 (define (^borked-cgreeter _bcom our-name)
@@ -778,7 +777,7 @@ intentionally insert a couple of print debugging lines (with
              your-name our-name))))
 @end lisp
 
-Now let's spawn this friend and invoke it:
+Now spawn this friend and invoke it:
 
 @lisp
 goblins[1]> (define horatio
@@ -793,7 +792,7 @@ goblins[1]> ($ horatio 'greet "Hamlet")
 ; Entering a new prompt.  Type `,bt' for a backtrace or `,q' to continue.
 @end lisp
 
-Whoops!  Looks like something went wrong!  We can see from the
+Whoops!  Looks like something went wrong!  You can see from the
 @code{pk} debugging that the @code{times-called} cell should be
 incremented to 1.  And yet@dots{}
 
@@ -802,7 +801,7 @@ goblins[1]> ($ horatio 'get-times-called)
 ; => 0
 @end lisp
 
-We will cover this in greater detail later, but the core idea here is
+This is covered in greater detail later, but the core idea here is
 that synchronous operations run with @code{$} are all done together as
 one transaction.  If an unhandled error occurs, any state changes
 resulting from synchronous operations within that transaction will
@@ -852,8 +851,8 @@ company name of the factory:
     (spawn ^car model color))))
 @end lisp
 
-Here is an instance of this car factory, which we will call
-@code{fork-motors}, which we will spawn on @code{a-vat}:
+Here is an instance of this car factory, called @code{fork-motors} and
+spawned in @code{a-vat}:
 
 @lisp
 scheme> ,enter-vat a-vat
@@ -864,14 +863,14 @@ goblins[1]> (define fork-motors
 Since asynchronous message passing with @code{<-} works across
 machines, it does not matter whether interactions with
 @code{fork-motors} are local or via objects communicating over the
-network.  We will treat @code{fork-motors} as living on machine A, and
-so the following interactions will happen with invocations originating
-from machine B@.
+network.  This example treat @code{fork-motors} as living on machine A,
+and so the following interactions will happen with invocations
+originating from machine B@.
 
-Let's send a message to @code{fork-motors} invoking the
+Now send a message to @code{fork-motors} invoking the
 @code{'make-car} method, receiving back a promise for the car which
-will be made, which we shall name @code{car-vow} (@code{-vow} being
-the conventional suffix given for promises in Goblins):
+will be made, which will be name @code{car-vow} (@code{-vow} being the
+conventional suffix given for promises in Goblins):
 
 @lisp
 goblins[1]> ,q
@@ -881,14 +880,14 @@ goblins[1]> (define car-vow
               (<- fork-motors 'make-car "Explorist" "blue"))
 @end lisp
 
-So we have a @emph{promise} to a future car reference, but not the
-reference itself.  We would like to drive the car as soon as it rolls
+So you have a @emph{promise} to a future car reference, but not the
+reference itself.  You would like to drive the car as soon as it rolls
 off the lot of the factory, which of course involves sending a message
 to the car.
 
-Without promise pipelining, making use of the tools we have already
-shown (and following the pattern most other distributed programming
-systems use), we would end up with something like:
+Without promise pipelining, making use of the tools already shown (and
+following the pattern most other distributed programming systems use),
+you would end up with something like:
 
 @lisp
 ;; Interaction on machine B, communicating with A
@@ -899,10 +898,10 @@ goblins[1]> (on car-vow                    ; B->A: first resolve the car-vow
                         (format #f "Heard: ~a\n" val)))))
 @end lisp
 
-With promise pipelining, we can simply message the promise of the car
+With promise pipelining, you can simply message the promise of the car
 directly.  The first benefit can be observed from code compactness, in
-that we do not need to do an @code{on} of @code{car-vow} to later
-message @code{our-car}, we can simply message @code{car-vow} directly:
+that you do not need to do an @code{on} of @code{car-vow} to later
+message @code{our-car}; you can simply message @code{car-vow} directly:
 
 @lisp
 ;; Interaction on machine B, communicating with A
@@ -913,7 +912,7 @@ goblins[1]> (on (<- car-vow 'drive)       ; B->A: send message to future car
 
 While clearly a considerable programming convenience, the other
 advantage of promise pipelining is a reduction of round-trips, whether
-between our event-loop @emph{vats} or across machines on the network.
+between event-loop @emph{vats} or across machines on the network.
 
 This can be understood by looking at the comments to the right of the
 two above code interactions.  The message flow in the first case looks
@@ -939,23 +938,23 @@ this document, the designs of promise pipelining and the explanation
 of its value come from the E programming language, the many
 contributors to its design, and Mark S@. Miller's extraordinary work
 documenting that work and its history.  If you find this section
-interesting, both the the
+interesting, see both the
 @uref{http://www.erights.org/elib/distrib/pipeline.html, Promise
 Pipelining} page from @uref{http://erights.org, erights.org} and
 sections 2.5 and 16.2 of
 @uref{http://www.erights.org/talks/thesis/markm-thesis.pdf, Mark
 Miller's dissertation}.}  If two objects are on opposite ends of the
 planet, round trips are unavoidably expensive.  Promise pipelining
-both allows us to make plans as programmers and allows for Goblins to
-optimize carrying out those steps as bulk operations over the network.
+both allows programmers to make plans and allows Goblins to optimize
+carrying out those steps as bulk operations over the network.
 
 @node API
 @chapter API
 
-Here lies the core procedures for building and manipulating Goblins
+Here lie the core procedures for building and manipulating Goblins
 programs!
 
-Unless where stated, most code from this section can be found by
+Except where otherwise stated, code from this section can be found by
 importing:
 
 @lisp
@@ -974,9 +973,9 @@ importing:
 
 Objects are the core of Goblins.  In general, you'll need to be within
 an ambient ``Goblins Context'' (TM) in order to start programming
-against them, see @ref{Vats} for most event loop type programming, or
+against them. See @ref{Vats} for most event loop type programming, or
 @ref{Actormaps} if you want to play with more low-level control over
-transactional operations.  (However, most users will just use vats.)
+transactional operations.  Most users will just use vats.
 
 @menu
 * Spawning objects::
@@ -1001,7 +1000,7 @@ traditionally labeled @code{bcom}, which can be used to change an
 object's behavior.  The @code{ARGS} are passed as the remaining
 arguments to the constructor.
 
-So for example, let's say we have the following constructor:
+For example, given the following constructor:
 
 @lisp
 (define* (^cell bcom #:optional val)  ; constructor (outer procedure)
@@ -1012,7 +1011,7 @@ So for example, let's say we have the following constructor:
      (bcom (^cell bcom new-val)))))   ;   ("become" ^cell with new value)
 @end lisp
 
-And so@dots{}
+The instantiation@dots{}
 
 @lisp
 (define some-cell (spawn ^cell 42))
@@ -1020,16 +1019,16 @@ And so@dots{}
 
 will bind @code{val} to @code{42}.
 
-Let's look at the @code{bcom} argument in depth.  This is a capability
-which allows the actor to change its own behavior.  It must be called
-in a tail position, since @code{bcom} actually returns a datastructure
-demonstrating that this object is choosing to change its value (part
-of Goblins' quasi-functional design.)
+The @code{bcom} argument warrants further explanation.  It is a
+capability which allows the actor to change its own behavior.  It must
+be called in a tail position, since @code{bcom} returns a
+datastructure demonstrating that this object is choosing to change its
+value (part of Goblins' quasi-functional design).
 
-@code{bcom} also can take a second argument, which will be returned
-from the object's invocation as a return value, allowing for both an
-object change its own behavior and return a value at the same time
-during an invocation.
+@code{bcom} also can take a second argument which will be returned
+from the object's invocation as a return value. This allows an object
+to both change its behavior and return a value with the same
+invocation.
 
 The following actor represents a consumable object that returns a
 string explaining its current status:
@@ -1052,7 +1051,7 @@ string explaining its current status:
   (drinkable-beh portions))
 @end lisp
 
-Now, playing around at the REPL, we can see how this works:
+Here's how this works at the REPL:
 
 @lisp
 > ,vr (define root-beer (spawn ^drink "root beer" 3))
@@ -1085,9 +1084,10 @@ Provide a synchronous call against the current message handler of
 @code{NEAR-REFR}, which must be a @emph{near} @code{live-refr?}  in
 the same vat as the currently running actor context.  The value
 returned is that which is returned by the current behavior of
-@code{NEAR-REFR} upon invocation (or, if @code{NEAR-REFR} chose to
+@code{NEAR-REFR} upon invocation; or, if @code{NEAR-REFR} chose to
 @code{bcom} something else, the second argument passed to its
-@code{bcom}, or is @code{unspecified?} if not provided.)
+@code{bcom}; or @code{unspecified?} @code{bcom} is invoked and a
+return value is not provided.
 
 @node Asynchronous invocation
 @subsection Asynchronous invocation
@@ -1100,7 +1100,7 @@ returned is that which is returned by the current behavior of
 Like @code{$}, but called asynchronously and returns a @emph{promise},
 which may be handled with @code{on}.  Unlike @code{$}, @code{<-} is
 not limited to only @emph{near} objects; interaction with @emph{far}
-actors are permitted as well.
+actors is permitted as well.
 
 @lisp
 (<-np [actor-refr live-refr?] [arg any/c] ...)
@@ -1123,14 +1123,14 @@ Sets up promise handlers for @code{vow}, which is typically a
 
 @code{fulfilled-handler}, @code{broken-handler}, and
 @code{finally-handler} all, if specified, may be either a procedure
-(the most common case) which is run when @code{vow} becomes resolved,
+(the most common case) which is run when @code{vow} becomes resolved;
 or a reference to an actor that should be messaged when the promise is
 resolved with the same arguments that would be passed to an equivalent
 procedure.  As their names suggest, @code{fulfilled-handler} will run
 if a promise is fulfilled and takes one argument, the fulfilled value.
 @code{broken-handler} will run if a promise is broken and takes one
 argument, the error value.  @code{finally-handler} will run when a
-promise is resolved, no matter the outcome and is called with no
+promise is resolved, no matter the outcome, and is called with no
 arguments.
 
 If @code{#:promise?} is set to @code{#t}, then @code{on} will itself
@@ -1164,7 +1164,7 @@ In order to start programming with Goblins, you will need to boot up a
 vat somewhere.  In general, Goblins uses
 @uref{https://github.com/wingo/fibers/, Fibers} to implement vats.
 However, you can also roll your own vats should you have ``unusual''
-event loop needs (@ref{Rolling your own vats}.)
+event loop needs (@ref{Rolling your own vats}).
 
 @menu
 * Starting and stopping vats::
@@ -1182,7 +1182,7 @@ event loop needs (@ref{Rolling your own vats}.)
 
 Running @code{spawn-vat} returns a vat object.  Code can be run within
 the context of a vat using the @code{call-with-vat} procedure.  This
-is useful for bootstrapping vats, or hacking at the REPL:
+is useful for bootstrapping vats or hacking at the REPL:
 
 @lisp
 > (define my-vat (spawn-vat))
@@ -1216,7 +1216,7 @@ You can also use the @code{vat-halt!} procedure to stop the vat, and
 
 @strong{NOTE:} In the future, we would like vats to automatically halt
 when no more references exist and thus the vat can do no more work.
-The Racket version of vats works this way, it would be good for the
+The Racket version of vats works this way; it would be good for the
 Guile version to do the same.  In the meanwhile, you'll need to call
 @code{vat-halt!} manually.
 
@@ -1303,47 +1303,46 @@ Once a custom vat has been started, it can be used as usual:
 @node Actormaps
 @section Actormaps
 
-So far we have dealt with vats, but there is a lower level of
+So far this manual has dealt with vats, but there is a lower level of
 abstraction in Goblins which is called an @code{actormap}.
 
 The key differences are:
 
 @itemize
 @item
-@strong{vat}: An event loop implementation that runs continuously in
+@strong{vat}: an event loop implementation that runs continuously in
 its own thread.  Comes pre-built with tooling to handle message
 passing between vats.  Actually wraps an actormap.
 @item
-@strong{actormap}: The transactional datastructure that vats use.
+@strong{actormap}: the transactional datastructure that vats use.
 But, useful on its own to either build your own event loop or as a
 synchronous one-turn-at-a-time mapping of actor references to their
 current implementations.
 @end itemize
 
-The best way to learn is by doing, so let's make an actormap now:
+The best way to learn is by doing, so make an actormap now:
 
 @lisp
 (define am (make-actormap))
 @end lisp
 
-Let's add an actor to it.  Since cells are simple, let's add one of
-those.
+Now add an actor to it.  Since cells are simple, add one of those.
 
 @lisp
 (define lunchbox
   (actormap-spawn! am ^cell))
 @end lisp
 
-What's in the lunchbox?  We could take a look with
-@code{actormap-peek}:
+What's in the lunchbox?  Take a look with @code{actormap-peek}:
 
 @lisp
 > (actormap-peek am lunchbox)
 ; => #f
 @end lisp
 
-An empty lunchbox@dots{} we'd like to eat something later, so how
-about we pack ourselves a nice sandwich by using @code{actormap-poke}:
+An empty lunchbox@dots{} it would be nice to eat something later, so
+how about packing a nice sandwich by using
+@code{actormap-poke}:
 
 @lisp
 > (actormap-poke! am lunchbox 'peanut-butter-and-jelly)
@@ -1351,7 +1350,7 @@ about we pack ourselves a nice sandwich by using @code{actormap-poke}:
 ; => 'peanut-butter-and-jelly
 @end lisp
 
-What if we tried to look inside the lunchbox with
+What if you tried to look inside the lunchbox with
 @code{actormap-poke!}  instead of @code{actormap-peek}?
 
 @lisp
@@ -1360,7 +1359,7 @@ What if we tried to look inside the lunchbox with
 ; => 'bbq-tofu
 @end lisp
 
-Well that worked just fine.  What happens if we do both operations
+Well that worked just fine.  What happens if you do both operations
 with @code{actormap-peek}?
 
 @lisp
@@ -1370,9 +1369,9 @@ with @code{actormap-peek}?
 @end lisp
 
 What the@dots{}???
-Our lunchbox didn't change!
+The lunchbox didn't change!
 
-We said that actormaps were transactional.  We have gotten a hint of
+As said, actormaps are transactional.  You have gotten a hint of
 this with the above: @code{actormap-poke!} returns a value and commits
 any changes.  @code{actormap-peek} returns a value and throws any
 changes away.
@@ -1392,16 +1391,16 @@ more powerful (but cumbersome to use) tool, @code{actormap-turn}:
 @end lisp
 
 @code{actormap-turn} returns three values to its continuation: a
-return value (if any@dots{} Guile's REPL doesn't print out the
+return value (if any; Guile's REPL doesn't print out the
 unspecified value, which is what actually got returned in the second
 invocation), a ``transactormap'', and a list representing messages
 queued for delivery.
 
-This @code{#<transactormap>} is interesting@dots{} we haven't
-mentioned this before, but there are really two kinds of actormaps,
+This @code{#<transactormap>} is interesting. It hasn't been mentioned
+before, but there are really two kinds of actormaps,
 ``whactormaps'' (weak-hash actormaps) and ``transactormaps'' (which
-hold a transaction which we can choose whether or not to commit).
-Actually our @code{am} is a whactormap:
+hold a transaction which you can choose whether or not to commit).
+Actually @code{am} is a whactormap:
 
 @lisp
 > am
@@ -1411,7 +1410,7 @@ Actually our @code{am} is a whactormap:
 It's a weak hashtable which stores the current mutable state of all
 actors.
 
-But we'd like to see about that transactormap@dots{} just running
+But what about that transactormap? Just running
 @code{actormap-turn} on its own won't update the lunchbox either:
 
 @lisp
@@ -1425,7 +1424,7 @@ But we'd like to see about that transactormap@dots{} just running
 ; => '()
 @end lisp
 
-We need to capture the transactormap and commit it.
+You need to capture the transactormap and commit it.
 
 @lisp
 > (define-values (_val tr-am _nm)
@@ -1435,8 +1434,8 @@ We need to capture the transactormap and commit it.
 > (transactormap-merge! tr-am)
 @end lisp
 
-Now at least our @code{am} actormap should reflect that we've switched
-out our @code{'bbq-tofu} sandwich for a @code{'chickpea-salad} one:
+Now at least the @code{am} actormap should reflect that you've switched
+out the @code{'bbq-tofu} sandwich for a @code{'chickpea-salad} one:
 
 @lisp
 > (actormap-peek am lunchbox)
@@ -1488,8 +1487,8 @@ Benefits of CapTP:
 @itemize
 @item
 Invocation of remote objects resembles the same as with local objects.
-You can use @code{<-} and @code{on} which means that any most programs
-that were even originally designed mostly for local-only computing
+You can use @code{<-} and @code{on} which means that most programs
+that were originally designed for local-only computing
 naturally scale out to a networked environment.
 @item
 All this is done while mostly hiding the abstraction of the networked
@@ -1520,17 +1519,17 @@ is constant and New York is not getting any closer to Tokyo.
 @end quotation
 @item
 CapTP is written independently of network transport abstractions.  It
-can be run over local unix domain sockets, an OpenSSL connection, Tor
+can be run over local Unix domain sockets, an OpenSSL connection, Tor
 Onion Services, or something custom.  CapTP operates under the
 assumption of secure pairwise channels; the layer which provides the
 pairwise channels is called ``MachineTP'' and can be written in a
 variety of ways.  A simple MachineTP abstraction is provided, but
-presently still requires some manual wiring.  (In the future, even
-simpler abstractions will be provided which cover most user needs.)
+presently still requires some manual wiring.  In the future, even
+simpler abstractions will be provided which cover most user needs.
 @end itemize
 
 All of these combine into an efficient and powerful protocol that,
-most powerfully of all, the author of Goblins programs mostly need not
+most powerfully of all, the author of Goblins programs need not
 think too much about.  This circumvents the usual years and years of
 careful message structure coordination and standardization for many
 kinds of distributed programs, which can simply be written as normal
@@ -1544,7 +1543,7 @@ Goblins' CapTP provides @emph{acyclic} distributed garbage collection.
 Cycles between servers are not automatically recognized.  Full
 @uref{http://erights.org/history/original-e/dgc/, cycle-collecting
 distributed garbage collection} has been written, but requires special
-cooperation from the garbage collector that we don't have access to in
+cooperation from the garbage collector that is not available in
 Guile (or in most languages).
 @item
 Goblins' CapTP does not do anything about memory usage or resource
@@ -1552,9 +1551,9 @@ management on its own.  (Features for this will come as Spritely
 sub-projects in the future.)
 @item
 While CapTP in theory routes capabilities to specific remote objects,
-since the network is mutually suspicious we can't assume that the
+since the network is mutually suspicious one can't assume that the
 remote end isn't conspiring some way to hand those capabilities to
-other objects that we don't expect.  The right way to think about this
+other unexpected objects.  The right way to think about this
 from an object capability perspective is that a remote misbehaving
 machine is equivalent to a misbehaving object with the surface area of
 the entire machine.
@@ -1568,11 +1567,11 @@ the entire machine.
 In order for Goblins' Onion Service netlayer to work, it needs to talk
 to a Tor daemon.  Goblins can set up and manage the Onion Services
 itself once it connects to the Tor daemon.  So far it seems like
-running a single Goblins tor process ``as your user'' and letting
+running a single Goblins Tor process ``as your user'' and letting
 various Goblins processes connect to it is the easiest option.
 
-Here's an example config file template (replace @code{<user>} with
-your actual username):
+Here's an example configuration file template (replace @code{<user>}
+with your actual username):
 
 @example
 DataDirectory /home/<user>/.cache/goblins/tor/data/
@@ -1685,7 +1684,7 @@ following server script as @file{captp-bob.scm}:
 (perform-operation (wait-operation (make-condition)))
 @end lisp
 
-Okay, let’s try it out!  Open up two terminals, and in the first one
+Okay, time to try it out!  Open up two terminals, and in the first one
 run:
 
 @example
@@ -1704,12 +1703,11 @@ Tor Onion Services can take awhile to establish, but after a short
 wait you should see:
 
 @example
-Bob heard back: Hello Bob, my name is Alice!
+Alice heard back: Hello Alice, my name is Bob!
 @end example
 
-If you see the same output then your connection succeeded!  Yay!  In
-the next sections we will get into the details of how to use the CapTP
-API@.
+If you see the same output then your connection succeeded!  Yay! The
+next sections will get into the details of how to use the CapTP API@.
 
 @node Using the CapTP API
 @subsection Using the CapTP API
@@ -1782,7 +1780,7 @@ id:
 @end lisp
 
 Often it is desirable to have an object have a persistant sturdyref
-between sessions, to do this, you need do two things:
+between sessions; to do this, you need to do two things:
 
 @itemize
 @item
@@ -1826,7 +1824,7 @@ That netlayer can then be used to spawn an OCapN router actor:
 
 Each time @code{new-onion-netlayer} is called it generates a new
 @code{private-key} and @code{service-id}.  If you wish for these to
-persist, these needs to be stored (securely, as anyone with them has
+persist, they need to be stored (securely, as anyone with them has
 the capability to host at them) and call @code{restore-onion-netlayer}
 providing them. An example of this is:
 
@@ -1900,7 +1898,7 @@ The @code{methods} macro is used to describe a collection of messages
 that an actor accepts.  The first argument of the message is used to
 dispatch the proper behavior for handling that message.
 
-Let's try it out:
+Try it out:
 
 @lisp
 > (define hello-goodbye (spawn ^hello-goodbye))
@@ -1918,10 +1916,10 @@ combining the results of many promises.
 
 The @code{all-of} procedure returns a new promise that waits for all
 of the given promises to resolve before resolving itself.  This is
-very useful when we need to wait for several asynchronous operations
+very useful when you need to wait for several asynchronous operations
 to complete successfully before moving on.
 
-To demonstrate this, we'll use a very useless actor that waits for
+To demonstrate this, here's a very useless actor that waits for
 awhile before returning the same thing it received:
 
 @lisp
@@ -1931,7 +1929,7 @@ awhile before returning the same thing it received:
       x))
 @end lisp
 
-We can use @code{all-of} to wait for all procrastinators to finish
+You can use @code{all-of} to wait for all procrastinators to finish
 procrastinating before writing some output:
 
 @lisp
@@ -1949,9 +1947,9 @@ procrastinating before writing some output:
 @end lisp
 
 @strong{Note}: Currently, @code{all-of} calls the resolution procedure
-with a list as its only argument.  In a future release of Goblins we
-intend to call the resolution procedure with multiple arguments, one
-for each promise passed to @code{all-of}.
+with a list as its only argument.  In a future release of Goblin you
+will be able to call the resolution procedure with multiple arguments,
+one for each promise passed to @code{all-of}.
 
 @node Sealers
 @section Sealers
@@ -1972,9 +1970,9 @@ unsealer, and the brand check.  Using separate capabilities allows for
 fine-grained privilege management.  For example, an actor that only
 has the brand check capability cannot seal or unseal data.
 
-Imagine a scenario where we are protecting lunchtime meals using
-sealers and unsealers. Our rival, who wishes to sabotage us, does the
-same:
+Imagine a scenario where you are protecting lunchtime meals using
+sealers and unsealers. Your rival, who wishes to sabotage you, does
+the same:
 
 @lisp
 > (define-values (our-lunch:seal our-lunch:unseal our-can?)
@@ -1984,13 +1982,13 @@ same:
 @end lisp
 
 Calling the @code{spawn-sealer-triplet} procedure returns three new
-actors representing the seal, unseal, and check capabilities.  We give
-our customer the unsealer, the delivery driver the brand predicate,
-and we keep the sealer to ourselves so no one else can brand their
-lunch as ours.
+actors representing the seal, unseal, and check capabilities.  You give
+your customer the unsealer, the delivery driver the brand predicate,
+and keep the sealer to yourself so no one else can brand their
+lunch as yours.
 
-A value can be sealed by sending it as a message to the sealer.  Let's
-put some fried rice in a can by sending a message to the sealer:
+A value can be sealed by sending it as a message to the sealer. Put
+some fried rice in a can by sending a message to the sealer:
 
 @lisp
 > ($ our-lunch:seal 'fried-rice)
@@ -2000,14 +1998,14 @@ put some fried rice in a can by sending a message to the sealer:
 The contents of sealed cans are private and cannot be seen by
 inspecting the sealed object.
 
-Our customer wants some chickpea salad, so we seal some for them:
+Your customer wants some chickpea salad, so seal some for them:
 
 @lisp
 > (define chickpea-lunch ($ our-lunch:seal 'chickpea-salad))
 @end lisp
 
-Our truck driver is able to check that the food they are to deliver
-really is from us (we have a reputation to uphold!) by sending a
+Your truck driver is able to check that the food they are to deliver
+really is from you (you have a reputation to uphold!) by sending a
 message to the brand predicate:
 
 @lisp
@@ -2029,14 +2027,14 @@ unsealer:
 @chapter Thanks
 
 This manual was primarily written by Christine Lemmer-Webber with
-additional text by Jessica Tallon and David Thompson.
+additional text by Jessica Tallon, David Thompson, and Juliana Sims.
 
 Many of the ideas are borrowed from
 @uref{http://www.erights.org/talks/thesis/markm-thesis.pdf, Mark
 Miller's dissertation}, which is an excellent, if nerdy, read.
 
-Jessica Tallon, Jonathan A@. Rees, Randy Farmer, and David Thompson
-provided review and feedback.
+Jessica Tallon, Jonathan A@. Rees, Randy Farmer, David Thompson,
+and Juliana Sims provided review and feedback.
 
 @node License
 @chapter License
