@@ -30,11 +30,15 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 q)
   #:use-module (ice-9 threads)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:export (vat-event?
             vat-send-event?
             vat-receive-event?
+            vat-event-listen?
+            vat-event-message?
+            vat-event-local?
             vat-event-type
             vat-event-churn
             vat-event-timestamp
@@ -46,6 +50,9 @@
             vat-event-next
             vat-event-trace
             vat-event-tree
+            vat-event-tree-map
+            vat-event-tree-filter
+            vat-event-tree-remove
 
             &vat-turn-error
             vat-turn-error-event
@@ -198,6 +205,19 @@
   "Return #t if EVENT is a receive event."
   (and (vat-event? event) (eq? (vat-event-type event) 'receive)))
 
+(define (vat-event-listen? event)
+  "Return #t if EVENT is for a listen request."
+  (listen-request? (vat-event-message event)))
+
+(define (vat-event-message? event)
+  "Return #t if EVENT is for a message."
+  (message? (vat-event-message event)))
+
+(define (vat-event-local? event)
+  "Return #t if EVENT is for a local message."
+  (local-object-refr?
+   (message-or-request-to (vat-event-message event))))
+
 (define (vat-event-connector event)
   "Return the connector for the vat that EVENT belongs to. Send events
 belong to the sender.  Receive events belong to the receiver."
@@ -272,6 +292,43 @@ call stacks, vat traces are linear slices of the event graph."
     ((_ ... root)
      ;; Build a tree starting from the root.
      (build-event-tree root))))
+
+(define (vat-event-tree-map proc tree)
+  "Recursively apply PROC to all leaf nodes and subtrees of TREE, a tree
+of vat events in the format produced by 'vat-event-tree', and return a
+new tree.  Post-order tree traversal is used so that PROC is applied
+to leaf nodes before their parent trees."
+  (match tree
+    ((root children ...)
+     (proc (cons root
+                 (map (lambda (child)
+                        (vat-event-tree-map proc child))
+                      children))))
+    ((? vat-event? leaf)
+     (proc leaf))))
+
+(define (vat-event-tree-filter pred tree)
+  "Recursively apply PRED to all leaf nodes and subtrees of TREE, a tree
+of vat events in the format produced by 'vat-event-tree', and return a
+new tree consisting of the nodes for which PRED returns #t.
+Post-order tree traversal is used so that PRED is applied to leaf
+nodes before their parent trees."
+  (match tree
+    (((? vat-event? root) children ..1)
+     (match (filter-map (lambda (child)
+                          (vat-event-tree-filter pred child))
+                        children)
+       (() root)
+       ((children* ...)
+        (let ((filtered (cons root children*)))
+          (and (pred filtered) filtered)))))
+    ((? vat-event? leaf)
+     (and (pred leaf) leaf))))
+
+(define (vat-event-tree-remove pred tree)
+  "Like 'vat-event-tree-filter', but nodes of TREE that match PRED are
+removed."
+  (vat-event-tree-filter (negate pred) tree))
 
 ;; The vat log maintains a finite amount of history about messages
 ;; that have been sent/received in the vat.  These events are indexed

@@ -405,6 +405,30 @@
             (actormap-peek (vat-event-snapshot after-cell-update-event)
                            chest)))))
 
+(test-assert "Events with listen requests satisfy vat-event-listen? predicate"
+  ;; (+ t 1): call-with-vat to spawn counter
+  ;; (+ t 2): call-with-vat to increment counter
+  ;; (+ t 3): (<- counter)
+  ;; (+ t 4): listen to promise
+  (let ((t (vat-clock a-vat))
+        (counter (with-vat a-vat (spawn ^counter 0))))
+    (resolve-vow-and-return-result
+     a-vat
+     (lambda ()
+       (on (<- counter) identity)))
+    (and (vat-event-listen? (vat-log-ref-by-time a-vat (+ t 4)))
+         (not (vat-event-listen? (vat-log-ref-by-time a-vat (+ t 1)))))))
+
+(test-assert "Events with messages satisfy vat-event-message? predicate"
+  (begin
+    (with-vat a-vat 'no-op)
+    (vat-event-message? (vat-log-ref-by-time a-vat (vat-clock a-vat)))))
+
+(test-assert "Events sent to local objects satisfy vat-event-local? predicate"
+  (begin
+    (with-vat a-vat 'no-op)
+    (vat-event-local? (vat-log-ref-by-time a-vat (vat-clock a-vat)))))
+
 (test-assert "Event log activation order backtrace across vats"
   (begin
     (vat-log-clear! a-vat)
@@ -574,6 +598,124 @@
                   ,e3
                   ,e7)
                 (vat-event-tree e6))))))
+
+(test-assert "Mapping event tree can modify tree structure"
+  (begin
+    (vat-log-clear! a-vat)
+    (vat-log-clear! b-vat)
+    (set-vat-logging! a-vat #t)
+    (set-vat-logging! b-vat #t)
+    (let* ((counter (with-vat b-vat (spawn ^counter 0)))
+           ;; The root of the event tree is in vat A, so our timer
+           ;; starts with vat A's current time.
+           (ta (vat-clock a-vat))
+           ;; Vat A ticks its clock twice, once for receiving the
+           ;; with-vat message, and again to send a message to the
+           ;; counter.  Therefore, due to the Lamport clock logic, B's
+           ;; clock will advance to (+ ta 2) if it is greater than B's
+           ;; current clock value.
+           (tb (max (vat-clock b-vat) (+ ta 2))))
+      ;; Send a message with no promise to minimize vat events.
+      ;; Opting not to use resolve-vow-and-return-result here as it
+      ;; generates more events to deal with.
+      (with-vat a-vat (<-np counter))
+      ;; This is just to sync up with b-vat before proceeding with the
+      ;; test.  This works because the previous with-vat call
+      ;; dispatches messages to vat B *before* control is relinquished
+      ;; back to this test.
+      (with-vat b-vat 'no-op)
+      (let ((e0 (vat-log-ref-by-time a-vat (+ ta 1)))  ; A: recv: with-vat
+            (e1 (vat-log-ref-by-time a-vat (+ ta 2)))  ; A: send: (<- counter)
+            (e2 (vat-log-ref-by-time b-vat (+ tb 1)))) ; B: recv: (<- counter)
+        ;; Remove the send event from the tree, preserving the
+        ;; associated receive event.
+        (equal? `(,e0 ,e2)
+                (vat-event-tree-map (match-lambda
+                                      (((? vat-send-event?) next-event)
+                                       next-event)
+                                      (other other))
+                                    (vat-event-tree e2)))))))
+
+(test-assert "Mapping event tree with the identity procedure returns the same tree"
+  (begin
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    (let ((t (vat-clock a-vat))
+          (counter (with-vat a-vat (spawn ^counter 0))))
+      (resolve-vow-and-return-result
+       a-vat
+       (lambda ()
+         (on (<- counter) identity)))
+      (let ((tree (vat-event-tree
+                   (vat-log-ref-by-time a-vat (vat-clock a-vat)))))
+        (equal? tree (vat-event-tree-map identity tree))))))
+
+(test-assert "Filtering event tree keeps only nodes that satisfy predicate"
+  (begin
+    (vat-log-clear! a-vat)
+    (vat-log-clear! b-vat)
+    (set-vat-logging! a-vat #t)
+    (set-vat-logging! b-vat #t)
+    (let* ((counter (with-vat b-vat (spawn ^counter 0)))
+           ;; The root of the event tree is in vat A, so our timer
+           ;; starts with vat A's current time.  This is the first of
+           ;; two clock values for vat A because the sequence of
+           ;; events progresses from vat A, to vat B, and then back to
+           ;; vat A.
+           (ta1 (vat-clock a-vat))
+           ;; Vat A ticks its clock three times, once for receiving
+           ;; the with-vat message, once to listen to the promise, and
+           ;; once more to send a message to the counter.  Therefore,
+           ;; due to the Lamport clock logic, B's clock will advance
+           ;; to (+ ta 3) if it is greater than B's current clock
+           ;; value.
+           (tb (max (vat-clock b-vat) (+ ta1 3)))
+           ;; With the clocks synced between vat A and B, vat B ticks
+           ;; its clock twice.  Once to receive the message to the
+           ;; counter, and once more to send a message to the promise
+           ;; resolver in vat A.  Vat A has not processed any other
+           ;; messages in the meantime, so receiving the next message
+           ;; from vat B will advance vat A's clock to (+ tb 2).
+           (ta2 (+ tb 2)))
+      ;; Opting not to use resolve-vow-and-return-result here as it
+      ;; generates more events to deal with.
+      (with-vat a-vat (on (<- counter) identity))
+      ;; This is just to sync up with b-vat before proceeding with the
+      ;; test.  This works because the previous with-vat call
+      ;; dispatches messages to vat B *before* control is relinquished
+      ;; back to this test.
+      (with-vat b-vat 'no-op)
+      (let ((e0 (vat-log-ref-by-time a-vat (+ ta1 1)))  ; A: recv: with-vat
+            ;; This listen event will be filtered out.
+            (e1 (vat-log-ref-by-time a-vat (+ ta1 2)))  ; A: recv: listen
+            (e2 (vat-log-ref-by-time a-vat (+ ta1 3)))  ; A: send: (<- counter)
+            (e3 (vat-log-ref-by-time b-vat (+ tb 1)))   ; B: recv: (<- counter)
+            (e4 (vat-log-ref-by-time b-vat (+ tb 2)))   ; B: send: resolver fulfill
+            (e5 (vat-log-ref-by-time a-vat (+ ta2 1)))  ; A: recv: resolver fulfill
+            (e6 (vat-log-ref-by-time a-vat (+ ta2 2)))  ; A: recv: listener fulfill
+            (e7 (vat-log-ref-by-time a-vat (+ ta2 3)))) ; A: recv: fulfilled handler
+        ;; Keep only message events, removing e1, the only listen
+        ;; request event.
+        (equal? `(,e0 (,e2 (,e3 (,e4 (,e5 (,e6 ,e7))))))
+                (vat-event-tree-filter (match-lambda
+                                         ((? vat-event? event)
+                                          (vat-event-message? event))
+                                         (_ #t))
+                                       (vat-event-tree e7)))))))
+
+(test-assert "Filtering event tree with an always true predicate returns the same tree"
+  (begin
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    (let ((t (vat-clock a-vat))
+          (counter (with-vat a-vat (spawn ^counter 0))))
+      (resolve-vow-and-return-result
+       a-vat
+       (lambda ()
+         (on (<- counter) identity)))
+      (let ((tree (vat-event-tree
+                   (vat-log-ref-by-time a-vat (vat-clock a-vat)))))
+        (equal? tree (vat-event-tree-filter (const #t) tree))))))
 
 ;; Running this test last since it messes with the log size.
 (test-assert "The event log can be resized"

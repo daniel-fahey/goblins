@@ -25,7 +25,8 @@
   #:use-module (ice-9 exceptions)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
-  #:use-module (srfi srfi-9))
+  #:use-module (srfi srfi-9)
+  #:use-module (srfi srfi-11))
 
 ;; Special exception type that REPL commands will catch in order to
 ;; print out friendly error messages.
@@ -316,8 +317,104 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
           (print-event event prev-event)
           (loop rest event)))))))
 
-(define-meta-command ((vat-tree goblins) repl #:optional timestamp)
-  "vat-tree [TIMESTAMP]
+;; The following series of procedures are for processing vat event
+;; trees, and in particular removing details of internal machinery
+;; such as promise resolution.  Our current strategy relies on
+;; unsatisfying heuristics that make educated guesses based on actor
+;; debug names and message argument patterns.  In the future we would
+;; like to enhance the information we store about actors so that we
+;; can know *for sure* that a message is, say, for a promise resolver
+;; and not just something that *looks like* one.
+(define (fulfill-event-for? obj debug-name)
+  (and (vat-receive-event? obj)
+       (vat-event-local? obj)
+       (vat-event-message? obj)
+       (let ((msg (vat-event-message obj)))
+         (and (eq? (local-object-refr-debug-name (message-to msg)) debug-name)
+              ;; Look for the proper argument form to make this
+              ;; heuristic less prone to false positives.
+              (match (message-args msg)
+                (('fulfill _) #t)
+                (_ #f))))))
+
+(define (resolver-fulfill-event? obj)
+  ;; Promise resolver actors use the "^resolver" debug name.
+  (fulfill-event-for? obj '^resolver))
+
+(define (on-listener-fulfill-event? obj)
+  ;; Listener actors use the "^on-listener" debug name.
+  (fulfill-event-for? obj '^on-listener))
+
+(define (fulfilled-handler-event? obj)
+  (and (vat-receive-event? obj)
+       (vat-event-local? obj)
+       (vat-event-message? obj)
+       (eq? (local-object-refr-debug-name
+             (message-to (vat-event-message obj)))
+            'fulfilled-handler)))
+
+(define (collapse-promise-resolutions tree)
+  ;; Collapse a ^resolver fulfill -> ^on-listener fulfill ->
+  ;; fulfilled-handler sequence into just a ^resolver fulfill, for
+  ;; brevity's sake.
+  (vat-event-tree-map (match-lambda
+                        ;; Promise resolution sequence ending in a
+                        ;; leaf node.
+                        (((? resolver-fulfill-event? event)
+                          ((? on-listener-fulfill-event?)
+                           (? fulfilled-handler-event?)))
+                         event)
+                        ;; Promise resolution sequence with a subtree.
+                        (((? resolver-fulfill-event? event)
+                          ((? on-listener-fulfill-event?)
+                           ((? fulfilled-handler-event?) . rest-tree)))
+                         (cons event rest-tree))
+                        (other other))
+                      tree))
+
+(define (remove-send-events tree)
+  ;; Remove the send side of a send-receive tree since the event
+  ;; messages are duplicated between them.  This removes a layer of
+  ;; nesting for each cross-vat event sequence in the tree.
+  (vat-event-tree-map (match-lambda
+                        ((root children ...)
+                         (let-values (((send-trees other-trees)
+                                       (partition (match-lambda
+                                                    (((? vat-send-event?) _ ...)
+                                                     #t)
+                                                    (_ #f))
+                                                  children)))
+                           (match send-trees
+                             ;; No send event trees so there's nothing
+                             ;; to do.
+                             (()
+                              (cons root children))
+                             ;; Remove the send events (at the head of
+                             ;; each list) and splice their subtrees
+                             ;; into their parent tree.
+                             (((_ send-subtrees) ...)
+                              (cons root (append other-trees send-subtrees))))))
+                        ;; Leaf nodes are unchanged.
+                        (leaf leaf))
+                      tree))
+
+(define (remove-listen-events tree)
+  (vat-event-tree-remove (match-lambda
+                           ((? vat-event? event)
+                            (vat-event-listen? event))
+                           (_ #f))
+                         tree))
+
+(define (remove-leaf-resolver-fulfill-events tree)
+  (vat-event-tree-remove resolver-fulfill-event? tree))
+
+(define (remove-system-events tree)
+  (collapse-promise-resolutions
+   (remove-leaf-resolver-fulfill-events
+    (remove-listen-events tree))))
+
+(define-meta-command ((vat-tree goblins) repl #:optional timestamp #:key full?)
+  "vat-tree [TIMESTAMP] [#:FULL?]
 Display a tree view of events starting at TIMESTAMP in the current vat."
   (define (print-branches levels)
     (match levels
@@ -346,12 +443,6 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
        (print-list rest levels))))
   (define (print-tree tree levels)
     (match tree
-      ;; Collapse cross-vat send+receive events into a single level of
-      ;; the tree.  The send event gets rendered but not the redundant
-      ;; receive event.
-      (((? vat-send-event? send-event) (_ children ...))
-       (print-event send-event levels)
-       (print-list children levels))
       ((event children ..1)
        (print-event event levels)
        (print-list children levels))
@@ -359,8 +450,12 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
        (print-event event levels))))
   (with-goblins-error-messages
    (let* ((vat (current-vat*))
-          (event (vat-log-ref-by-time* vat (or timestamp (vat-clock vat)))))
-     (print-tree (vat-event-tree event) '()))))
+          (event (vat-log-ref-by-time* vat (or timestamp (vat-clock vat))))
+          (tree (vat-event-tree event)))
+     (print-tree (if full?
+                     tree
+                     (remove-send-events (remove-system-events tree)))
+                 '()))))
 
 (define-meta-command ((vat-errors goblins) repl)
   "vat-errors
