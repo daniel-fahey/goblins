@@ -83,6 +83,31 @@
 (define (vat-debug-down! debug)
   (set-vat-debug-index! debug (max (- (vat-debug-index debug) 1) 0)))
 
+(define (vat-debug-top! debug)
+  (set-vat-debug-index! debug (- (vector-length (vat-debug-trace debug)) 1)))
+
+(define (vat-debug-bottom! debug)
+  (set-vat-debug-index! debug 0))
+
+(define (vat-debug-jump! debug timestamp)
+  ;; Iterate over the trace vector, looking for an event matching
+  ;; timestamp.  Traces aren't usually very long, so a linear time
+  ;; search is fine.  It should be possibly to binary search, though,
+  ;; due to the nature of Lamport timestamps.
+  ;;
+  ;; Return #t if an event with the given timestamp was found, or #f
+  ;; otherwise.
+  (let* ((trace (vat-debug-trace debug))
+         (n (vector-length trace)))
+    (let loop ((i 0))
+      (and (< i n)
+           (let ((event (vector-ref trace i)))
+             (if (= (vat-event-timestamp event) timestamp)
+                 (begin
+                   (set-vat-debug-index! debug i)
+                   #t)
+                 (loop (+ i 1))))))))
+
 (define current-vat-debug (make-parameter #f))
 
 (define (current-vat-debug*)
@@ -817,6 +842,38 @@ Move to the next event in the current vat debug trace."
          (begin
            (vat-debug-down! debug)
            (print-current-vat-debug-event debug))))))
+
+(define-meta-command ((vat-top goblins) repl)
+  "vat-top
+Move to the oldest event in the current vat debug trace."
+  (with-goblins-error-messages
+   (let ((debug (current-vat-debug*)))
+     (if (vat-debug-top? debug)
+         (format #t "Already at oldest event.\n")
+         (begin
+           (vat-debug-top! debug)
+           (print-current-vat-debug-event debug))))))
+
+(define-meta-command ((vat-bottom goblins) repl)
+  "vat-bottom
+Move to the most recent event in the current vat debug trace."
+  (with-goblins-error-messages
+   (let ((debug (current-vat-debug*)))
+     (if (vat-debug-bottom? debug)
+         (format #t "Already at most recent event.\n")
+         (begin
+           (vat-debug-bottom! debug)
+           (print-current-vat-debug-event debug))))))
+
+(define-meta-command ((vat-jump goblins) repl timestamp)
+  "vat-jump TIMESTAMP
+Move to the event for TIMESTAMP in the current vat debug trace."
+  (with-goblins-error-messages
+   (let ((debug (current-vat-debug*)))
+     (unless (vat-debug-jump! debug timestamp)
+       (repl-error
+        (format #f "no event with timestamp ~a in current trace" timestamp)))
+     (print-current-vat-debug-event debug))))
 
 (define-meta-command ((vat-peek goblins) repl refr . args)
   "vat-peek REFR [ARGS ...]
