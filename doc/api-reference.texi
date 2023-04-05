@@ -236,3 +236,10 @@ Return @code{#t} if @var{obj} is a promise in the current process,
 else @code{#f}.
 
 @end deffn
+
+@deffn {Procedure} local-refr? obj
+
+Return @code{#t} if @var{obj} is an object or promise in the current
+process, else @code{#f}.
+
+@end deffn
