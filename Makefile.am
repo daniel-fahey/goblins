@@ -60,6 +60,7 @@ SOURCES = goblins.scm \
           goblins/actor-lib/ticker.scm \
           goblins/actor-lib/ward.scm \
           goblins/base-io-ports.scm \
+	  goblins/config.scm \
           goblins/contrib/syrup.scm \
           goblins/core.scm \
           goblins/default-vat-scheduler.scm \
@@ -77,6 +78,7 @@ SOURCES = goblins.scm \
           goblins/utils/assert-type.scm \
           goblins/utils/bytes-stuff.scm \
           goblins/utils/crypto.scm \
+	  goblins/utils/graphviz.scm \
           goblins/utils/random-name.scm \
           goblins/utils/simple-dispatcher.scm \
           goblins/utils/simple-sealers.scm \

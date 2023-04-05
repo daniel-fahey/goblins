@@ -717,6 +717,75 @@
                    (vat-log-ref-by-time a-vat (vat-clock a-vat)))))
         (equal? tree (vat-event-tree-filter (const #t) tree))))))
 
+(test-assert "vat trees can be converted to timeline graphs"
+  (begin
+    (vat-log-clear! a-vat)
+    (vat-log-clear! b-vat)
+    (set-vat-logging! a-vat #t)
+    (set-vat-logging! b-vat #t)
+    (let* ((counter (with-vat b-vat (spawn ^counter 0)))
+           ;; The root of the event tree is in vat A, so our timer
+           ;; starts with vat A's current time.  This is the first of
+           ;; two clock values for vat A because the sequence of
+           ;; events progresses from vat A, to vat B, and then back to
+           ;; vat A.
+           (ta1 (vat-clock a-vat))
+           ;; Vat A ticks its clock three times, once for receiving
+           ;; the with-vat message, once to listen to the promise, and
+           ;; once more to send a message to the counter.  Therefore,
+           ;; due to the Lamport clock logic, B's clock will advance
+           ;; to (+ ta 3) if it is greater than B's current clock
+           ;; value.
+           (tb (max (vat-clock b-vat) (+ ta1 3)))
+           ;; With the clocks synced between vat A and B, vat B ticks
+           ;; its clock twice.  Once to receive the message to the
+           ;; counter, and once more to send a message to the promise
+           ;; resolver in vat A.  Vat A has not processed any other
+           ;; messages in the meantime, so receiving the next message
+           ;; from vat B will advance vat A's clock to (+ tb 2).
+           (ta2 (+ tb 2)))
+      ;; Opting not to use resolve-vow-and-return-result here as it
+      ;; generates more events to deal with.
+      (with-vat a-vat (on (<- counter) identity))
+      ;; This is just to sync up with b-vat before proceeding with the
+      ;; test.  This works because the previous with-vat call
+      ;; dispatches messages to vat B *before* control is relinquished
+      ;; back to this test.
+      (with-vat b-vat 'no-op)
+      (let ((e0 (vat-log-ref-by-time a-vat (+ ta1 1)))  ; A: recv: with-vat
+            (e1 (vat-log-ref-by-time a-vat (+ ta1 2)))  ; A: recv: listen
+            (e2 (vat-log-ref-by-time a-vat (+ ta1 3)))  ; A: send: (<- counter)
+            (e3 (vat-log-ref-by-time b-vat (+ tb 1)))   ; B: recv: (<- counter)
+            (e4 (vat-log-ref-by-time b-vat (+ tb 2)))   ; B: send: resolver fulfill
+            (e5 (vat-log-ref-by-time a-vat (+ ta2 1)))  ; A: recv: resolver fulfill
+            (e6 (vat-log-ref-by-time a-vat (+ ta2 2)))  ; A: recv: listener fulfill
+            (e7 (vat-log-ref-by-time a-vat (+ ta2 3)))) ; A: recv: fulfilled handler
+        ;; It would be better if we had an order independent equality
+        ;; operator ('alist-equal?' or something), but
+        ;; 'vat-event-tree->timeline' produces its output
+        ;; deterministically so an 'equal?' check is fine.
+        (equal? (list (cons (vat-connector a-vat)
+                            (list (cons (vat-event-timestamp e7)
+                                        (list e7))
+                                  (cons (vat-event-timestamp e6)
+                                        (list e6))
+                                  (cons (vat-event-timestamp e5)
+                                        (list e5))
+                                  (cons (vat-event-timestamp e2)
+                                        (list e2 (list (vat-connector b-vat)
+                                                       (vat-event-timestamp e3))))
+                                  (cons (vat-event-timestamp e1)
+                                        (list e1))
+                                  (cons (vat-event-timestamp e0)
+                                        (list e0))))
+                      (cons (vat-connector b-vat)
+                            (list (cons (vat-event-timestamp e4)
+                                        (list e4 (list (vat-connector a-vat)
+                                                       (vat-event-timestamp e5))))
+                                  (cons (vat-event-timestamp e3)
+                                        (list e3)))))
+                (vat-event-tree->timeline (vat-event-tree e7)))))))
+
 ;; Running this test last since it messes with the log size.
 (test-assert "The event log can be resized"
   (let ((t (vat-clock a-vat)))

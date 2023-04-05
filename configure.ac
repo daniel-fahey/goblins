@@ -11,7 +11,7 @@ AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE([1.12 gnu silent-rules subdir-objects  color-tests parallel-tests -Woverride -Wno-portability])
 AM_SILENT_RULES([yes])
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile goblins/config.scm])
 AC_CONFIG_FILES([pre-inst-env], [chmod +x pre-inst-env])
 
 dnl Search for 'guile' and 'guild'.  This macro defines
@@ -43,5 +43,9 @@ AS_IF([test "x$with_debug" != xno],
   [guile_debug_flags=-O0],
   [guile_debug_flags=])
 AC_SUBST([guile_debug_flags])
+
+dnl Look up absolute file name of 'dot' executable, falling back to
+dnl just 'dot' to look it up on $PATH at runtime.
+AC_PATH_PROG([DOT], [dot], [dot])
 
 AC_OUTPUT
