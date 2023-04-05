@@ -136,26 +136,41 @@
 (define* (start-interpreted-repl language #:key debug)
   (let ((repl (make-repl language debug)))
     (repl-option-set! repl 'interp #t)
-    (run-repl repl)))
+    (run-repl repl)
+    ;; The previous procedure returns the empty list, which would get
+    ;; printed as a return value when the sub-REPL is exited.  That's
+    ;; a bit weird, so force the return value to be unspecified
+    ;; instead.
+    *unspecified*))
 
 (define (enter-debugger language e)
-  (let* ((stack (narrow-stack->vector (actormap-turn-error-stack e) 0))
-         (msg (error-message stack e))
-         (event (vat-turn-error-event e))
-         (trace (list->vector (vat-event-trace event)))
-         (debug (make-debug stack 0 msg)))
-    (parameterize ((current-vat-debug (make-vat-debug trace 0)))
-      ;; Mimicking Guile's debugger welcome message because starting a
-      ;; debug REPL doesn't do it!
-      (format #t "~a\n" msg)
-      (format #t "Entering a new prompt. ")
-      (format #t "Type `,bt' for a backtrace or `,q' to continue.\n")
-      (start-interpreted-repl language #:debug debug)
-      ;; The previous procedure returns the empty list, which would get
-      ;; printed as a return value when the sub-repl is exited.  That's
-      ;; a bit weird, so force the return value to be unspecified
-      ;; instead.
-      *unspecified*)))
+  (cond
+   ;; For exceptions, launch Guile's debug sub-REPL so that both the
+   ;; stack trace and the vat trace can be debugged.
+   ((exception? e)
+    (let* ((stack (narrow-stack->vector (actormap-turn-error-stack e) 0))
+           (msg (error-message stack e))
+           (event (vat-turn-error-event e))
+           (trace (list->vector (vat-event-trace event)))
+           (debug (make-debug stack 0 msg)))
+      (parameterize ((current-vat-debug (make-vat-debug trace 0)))
+        ;; Mimicking Guile's debugger welcome message because starting a
+        ;; debug REPL doesn't do it!
+        (format #t "~a\n" msg)
+        (format #t "Entering a new prompt. ")
+        (format #t "Type `,bt' for a backtrace or `,q' to continue.\n")
+        (start-interpreted-repl language #:debug debug))))
+   ;; For events with no exception, we still want to make a sub-REPL
+   ;; so the vat trace can be inspected for logic errors that did not
+   ;; trigger exceptions.  The Guile stack debugging tools won't be
+   ;; available since there's no stack to debug.
+   ((vat-event? e)
+    (let ((trace (list->vector (vat-event-trace e))))
+      (parameterize ((current-vat-debug (make-vat-debug trace 0)))
+        (format #t "Entering a new prompt. Type `,q' to exit.\n")
+        (start-interpreted-repl language))))
+   (else
+    (repl-error (format #f "invalid debug context: ~a" e)))))
 
 (define (call-with-goblins-debugger language thunk)
   (with-exception-handler (lambda (e) (enter-debugger language e))
@@ -871,9 +886,10 @@ Debug error associated with the event at TIMESTAMP."
                           (repl-eval repl timestamp)))
           (event (vat-log-ref-by-time* vat timestamp*))
           (exception (vat-log-error-for-event vat event)))
-     (if exception
-         (enter-debugger (repl-language repl) exception)
-         (format #t "No error at event ~a" timestamp*)))))
+     (enter-debugger (repl-language repl)
+                     (if (exception? exception)
+                         exception
+                         event)))))
 
 (define (print-current-vat-debug-event debug)
   (let ((event (vat-debug-current-event debug)))

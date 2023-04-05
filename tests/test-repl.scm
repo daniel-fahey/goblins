@@ -196,6 +196,18 @@
            (eval (error "oh no"))
            (meta vat-down))
 
+(test-repl ",vat-debug can debug events that did not raise an exception"
+           "sword"
+           (meta import (goblins actor-lib cell))
+           (eval (define a-vat (spawn-vat)))
+           (meta enter-vat a-vat)
+           (meta vat-log-enable)
+           (eval (define cell (spawn ^cell 'gold)))
+           (eval ($ cell 'sword))
+           (eval ($ cell 'shield))
+           (meta vat-debug 3)
+           (meta vat-peek cell))
+
 (test-repl ",vat-resolve prints result when promise is fulfilled"
            "Alice"
            (eval (define a-vat (spawn-vat)))
