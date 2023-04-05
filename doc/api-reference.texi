@@ -265,3 +265,10 @@ process, else @code{#f}.
 
 @end deffn
 
+@deffn {Procedure} promise-refr? maybe-promise
+
+Return @code{#t} if @var{maybe-promise} is a local or remote promise,
+else @code{#f}.
+
+@end deffn
+
