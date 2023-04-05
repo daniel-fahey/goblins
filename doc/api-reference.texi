@@ -1,0 +1,89 @@
+This is the documentation for the core Goblins API. That is, this is
+the documentation for everything imported with
+@code{(use-modules (goblins))}.
+
+@menu
+* Objects::
+* Vats::
+* Actormaps::
+@end menu
+
+@node Objects
+@section Objects
+
+@menu
+* Spawning objects::
+* Synchronous invocation::
+* Asynchronous invocation::
+@end menu
+
+@node Spawning objects
+@subsection Spawning objects
+
+Objects can be spawned with the @code{spawn} operator:
+
+@deffn {Procedure} spawn constructor args @dots{}
+
+Construct and return a reference to a new object.
+
+@itemize
+@item
+@var{constructor}: Procedure which returns a procedure representing
+the object's initial behavior; implicitly passed a first argument,
+@ref{bcom}, which can be used to change the object's behavior.
+
+@item
+@var{args}: Remaining arguments passed to @var{constructor}.
+
+@end itemize
+
+For example, given the following constructor:
+
+@lisp
+(define* (^cell bcom #:optional val)  ; constructor (outer procedure)
+  (case-lambda                        ; behavior    (inner procedure)
+    (()                               ; 0-argument invocation (getter)
+     val)                             ;   (return current value)
+    ((new-val)                        ; 1-argument invocation (setter)
+     (bcom (^cell bcom new-val)))))   ;   ("become" ^cell with new value)
+@end lisp
+
+The instantiation@dots{}
+
+@lisp
+(define some-cell (spawn ^cell 42))
+@end lisp
+
+will bind @code{val} to @code{42}.
+
+@end deffn
+
+@code{spawn} also has a few variants:
+
+@deffn {Procedure} spawn-named name constructor args @dots{}
+
+Like @code{spawn}, and set the object's debug name to @var{name}.
+
+@end deffn
+
+@deffn {Procedure} spawn-promise-values
+
+Return a promise and its associated resolver.
+
+@lisp
+(define-values a-promise a-resolver (spawn-promise-values))
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} spawn-promise-cons
+
+Return a promise and its associated resolver as a @code{cons} pair.
+
+@lisp
+(define promise-pair (spawn-promise-cons))
+(define a-promise (car promise-pair))
+(define a-resolver (cdr promise-pair))
+@end lisp
+
+@end deffn
