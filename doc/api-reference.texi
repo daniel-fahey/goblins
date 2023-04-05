@@ -243,3 +243,10 @@ Return @code{#t} if @var{obj} is an object or promise in the current
 process, else @code{#f}.
 
 @end deffn
+
+@deffn {Procedure} remote-object-refr? obj
+
+Return @code{#t} if @var{obj} is an object in a different process,
+else @code{#f}.
+
+@end deffn
