@@ -140,3 +140,18 @@ Like @code{$}, but @var{to-refr} may be @ref{near} or @ref{far}, and
 @end lisp
 
 @end deffn
+
+@code{<-} has a variant that does not return a promise:
+
+@deffn {Procedure} <-np to-refr args @dots{}
+
+Like @code{<-}, but return @code{void} instead of a promise.
+
+@lisp
+(define object-a (spawn ^some-object))
+;; in a different vat... or the same; it doesn't matter to <-np
+(<-np object-a arg1)                ; returns void
+(<-np object-a 'some-method arg2)   ; returns void
+@end lisp
+
+@end deffn
