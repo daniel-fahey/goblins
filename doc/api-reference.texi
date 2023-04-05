@@ -127,3 +127,16 @@ indicating the behavior/method to be invoked.
 @node Asynchronous invocation
 @subsection Asynchronous invocation
 
+@deffn {Procedure} <- to-refr args @dots{}
+
+Like @code{$}, but @var{to-refr} may be @ref{near} or @ref{far}, and
+@code{<-} returns a promise instead of a result.
+
+@lisp
+(define object-a (spawn ^some-object))
+;; in a different vat... or the same; it doesn't matter to <-
+(define a-promise (<- object-a arg1))
+(define b-promise (<- object-a 'some-method arg2))
+@end lisp
+
+@end deffn
