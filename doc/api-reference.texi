@@ -278,3 +278,11 @@ Return @code{#t} if @var{obj} is a local or remote object or promise,
 else @code{#f}.
 
 @end deffn
+
+@deffn {Procedure} near-refr? obj
+
+Return @code{#t} if @var{obj} is a @ref{near} object or promise, else
+@code{#f}.
+
+@end deffn
+
