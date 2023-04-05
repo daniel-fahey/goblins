@@ -286,3 +286,10 @@ Return @code{#t} if @var{obj} is a @ref{near} object or promise, else
 
 @end deffn
 
+@deffn {Procedure} far-refr? obj
+
+Return @code{#t} if @var{obj} is a @ref{far} object or promise, else
+@code{#f}.
+
+@end deffn
+
