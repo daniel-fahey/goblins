@@ -305,3 +305,12 @@ objects live inside a @ref{vat}.
 @menu
 * ...::
 @end menu
+
+@node Actormaps
+@section Actormaps
+
+An @dfn{actormap} is the transactional data structure underlying
+@ref{vat}s. They are useful for building a custom event loop (such as
+for a video game) or as a synchronous one-turn-at-a-time mapping of
+actor references to their current behaviors.
+
