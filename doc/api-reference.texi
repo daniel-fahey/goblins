@@ -293,3 +293,15 @@ Return @code{#t} if @var{obj} is a @ref{far} object or promise, else
 
 @end deffn
 
+@node Vats
+@section Vats
+
+A @dfn{vat} is an event loop that manages a set of objects which are
+@ref{near} to each other. They are one of the central abstractions of
+Spritely Goblins facilitating the object capabilities security model
+as well as transactionality and distributed programming. All Goblins
+objects live inside a @ref{vat}.
+
+@menu
+* ...::
+@end menu
