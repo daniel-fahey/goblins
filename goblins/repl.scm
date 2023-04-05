@@ -20,10 +20,13 @@
   #:use-module (system repl debug)
   #:use-module (system repl repl)
   #:use-module (system vm loader)
+  #:use-module (fibers conditions)
+  #:use-module (fibers operations)
   #:use-module (goblins core)
   #:use-module (goblins vat)
   #:use-module (goblins utils graphviz)
   #:use-module (goblins utils random-name)
+  #:use-module (ice-9 atomic)
   #:use-module (ice-9 exceptions)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
@@ -758,6 +761,65 @@ Generate an image of the event tree for TIMESTAMP in the current vat."
          ;; beans!
          (format #t "#<Image: ~a>\n" png-file-name)
          (display "failed to generate graph\n")))))
+
+(define-meta-command ((vat-resolve goblins) repl exp)
+  "vat-resolve EXP
+Wait for the promise returned by EXP to resolve and print the result."
+  (with-goblins-error-messages
+   (let* ((vat (current-vat*)))
+     ;; Evaluate the expression and make sure it's a promise before
+     ;; going any further.
+     (match (repl-eval repl exp)
+       ((? promise-refr? promise)
+        (let ((done? (make-condition))
+              (result (make-atomic-box #f)))
+          (match (sigaction SIGINT)
+            ((prev-sigint-handler . prev-sigint-flags)
+             ;; Catch SIGINT and stop waiting for the promise to resolve.
+             ;; Nothing will be printed as a result.
+             (sigaction SIGINT
+               (lambda _
+                 (signal-condition! done?)))
+             ;; Wait for promise to resolve within the vat and update the
+             ;; 'result' box with the results.
+             (with-vat vat
+               (on promise
+                   (lambda (val)
+                     (atomic-box-set! result `#(fulfilled ,val)))
+                   #:catch
+                   (lambda (exception)
+                     (atomic-box-set! result `#(broken ,exception)))
+                   #:finally
+                   (lambda ()
+                     ;; Tell the REPL thread that it can print the result
+                     ;; now.
+                     (signal-condition! done?))))
+             ;; Wait until the promise is fulfilled or broken.
+             (perform-operation (wait-operation done?))
+             ;; Restore original SIGINT handler.
+             (sigaction SIGINT prev-sigint-handler prev-sigint-flags)))
+          (match (atomic-box-ref result)
+            ;; Either the wait was terminated by SIGINT or the
+            ;; response is unspecified.  Either way, don't print
+            ;; anything.
+            ((or #f #('fulfilled (? unspecified?)))
+             #f)
+            ;; Promise was fulfilled, so print value.
+            (#('fulfilled val)
+             (write val)
+             (newline))
+            ;; Promise was broken, so print exception.
+            (#('broken exception)
+             (display "Promise broken:\n")
+             ;; We don't have the stack but we can still
+             ;; print some details about the exception.
+             (print-exception (current-output-port)
+                              #f ; no stack :(
+                              (exception-kind exception)
+                              (exception-args exception))))))
+       ;; Expression didn't evaluate to a promise, so tell the user
+       ;; that.
+       (obj (repl-error (format #f "Not a promise: ~s" obj)))))))
 
 (define-meta-command ((vat-errors goblins) repl)
   "vat-errors

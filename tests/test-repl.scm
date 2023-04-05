@@ -196,4 +196,19 @@
            (eval (error "oh no"))
            (meta vat-down))
 
+(test-repl ",vat-resolve prints result when promise is fulfilled"
+           "Alice"
+           (eval (define a-vat (spawn-vat)))
+           (meta enter-vat a-vat)
+           (eval (define alice (spawn (lambda _bcom (lambda () "Alice")))))
+           (meta vat-resolve (<- alice)))
+
+(test-repl ",vat-resolve prints exception when promise is broken"
+           "Promise broken"
+           (eval (define a-vat (spawn-vat)))
+           (meta enter-vat a-vat)
+           (eval (define broken
+                   (spawn (lambda _bcom (lambda () (+ 1 "two"))))))
+           (meta vat-resolve (<- broken)))
+
 (test-end "test-repl")
