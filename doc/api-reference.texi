@@ -87,3 +87,18 @@ Return a promise and its associated resolver as a @code{cons} pair.
 @end lisp
 
 @end deffn
+
+@node Synchronous invocation
+@subsection Synchronous invocation
+
+Relative to a given @emph{vat}, there are two types of objects.  A
+@dfn{near} object is in the @emph{vat}.  A @dfn{far} object is in a
+different @emph{vat}.  Similarly, there are two ways to invoke objects:
+@dfn{synchronous}ly, or using traditional call-return, which only
+works for @emph{near} objects; or @dfn{asynchronous}ly, which works for
+either @emph{near} or @emph{far} objects, and usually returns a
+@emph{promise}. @emph{Synchronous} and @emph{asynchronous} invocation
+use different but similar procedures.
+
+@node Asynchronous invocation
+@subsection Asynchronous invocation
