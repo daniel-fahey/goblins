@@ -100,5 +100,30 @@ either @emph{near} or @emph{far} objects, and usually returns a
 @emph{promise}. @emph{Synchronous} and @emph{asynchronous} invocation
 use different but similar procedures.
 
+@deffn {Procedure} $ to-refr args @dots{}
+
+Call a @ref{near} object's behavior and return the result.
+
+@itemize
+@item
+@var{to-refr}: @ref{Near} object to call.
+
+@item
+@var{args}: Arguments to the object's behavior.  If @var{to-refr}
+has @ref{methods}, the first argument will conventionally be a symbol
+indicating the behavior/method to be invoked.
+
+@end itemize
+
+@lisp
+(define object-a (spawn ^some-object))
+;; in the same vat
+(define a-val ($ object-a arg1))
+(define b-val ($ object-a 'some-method arg2))
+@end lisp
+
+@end deffn
+
 @node Asynchronous invocation
 @subsection Asynchronous invocation
+
