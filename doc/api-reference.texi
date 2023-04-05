@@ -15,6 +15,7 @@ the documentation for everything imported with
 * Spawning objects::
 * Synchronous invocation::
 * Asynchronous invocation::
+* Object reference predicates::
 @end menu
 
 @node Spawning objects
@@ -214,3 +215,10 @@ Wait for @var{to-refr} to resolve, then inform @var{listener}.  If
 for full promise resolution.
 
 @end deffn
+
+@node Object reference predicates
+@subsection Object reference predicates
+
+Goblins comes with a variety of predicates for identifying and working
+with objects.  While these are primarily for internal use, they are
+also helpful when defining custom @ref{vat} code.
