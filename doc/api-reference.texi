@@ -502,3 +502,9 @@ transaction.  Return a reference to the spawned object and a
 
 @end deffn
 
+@deffn {Procedure} actormap-spawn! actormap actor-constructor args @dots{}
+
+Like @code{actormap-spawn}, but do commit the transaction.
+
+@end deffn
+
