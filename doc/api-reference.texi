@@ -595,3 +595,10 @@ Execute @var{thunk} in @var{actormap}, but do not commit the results.
 Return the results.
 
 @end deffn
+
+@deffn {Procedure} actormap-run! actormap thunk [#:reckless? #f]
+
+Like @code{actormap-run}, and commit the results.  If @var{reckless?}
+is @code{#t}, do not create a new generation for the turn.
+
+@end deffn
