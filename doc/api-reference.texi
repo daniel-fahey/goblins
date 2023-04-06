@@ -428,6 +428,23 @@ write a separate lambda expression.
 
 @end deffn
 
+@deffn {Syntax} define-vat-run vat-run-id [vat (spawn-vat)]
+
+This procedure is deprecated.
+
+Return a procedure bound to @var{vat-run-id} accepting a body to be
+evaulated in the context of @var{vat}.
+
+@lisp
+(define-vat-run run-in-vat)
+(run-in-vat
+  (define a-near-object (spawn ^some-object))
+  (<- a-far-object 'some-message an-arg)
+  ($ a-near-object 'some-message))
+@end lisp
+
+@end deffn
+
 @node Actormaps
 @section Actormaps
 
