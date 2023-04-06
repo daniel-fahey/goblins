@@ -155,3 +155,9 @@ Like @code{<-}, but return @code{void} instead of a promise.
 @end lisp
 
 @end deffn
+
+@deffn {Procedure} <-np-extern to-refr args @dots{}
+
+Like @code{<-np}, but only operate on @ref{far} objects.
+
+@end deffn
