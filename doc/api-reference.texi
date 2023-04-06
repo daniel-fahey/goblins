@@ -303,8 +303,12 @@ as well as transactionality and distributed programming. All Goblins
 objects live inside a @ref{vat}.
 
 @menu
-* ...::
+* Making vats::
+* Using vats::
 @end menu
+
+@node Making vats
+@subsection Making vats
 
 At a high level, users generally will spawn a @ref{vat}, bind it to a
 name in the local namespace, and use it for various operations. This
@@ -371,6 +375,9 @@ Defaults to 256.
 @end itemize
 
 @end deffn
+
+@node Using vats
+@subsection Using vats
 
 Regardless of whether a @ref{vat} is standard or custom, there are
 several procedures supporting their use.
