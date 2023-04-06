@@ -646,3 +646,9 @@ Like @code{actormap-churn-run}, but dispatch messages and only return
 the results of the @emph{churn}.
 
 @end deffn
+
+@deffn {Procedure} whactormap? obj
+
+Return @code{#t} if @var{obj} is a @ref{whactormap}, else @code{#f}.
+
+@end deffn
