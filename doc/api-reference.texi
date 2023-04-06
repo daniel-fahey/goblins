@@ -203,3 +203,14 @@ appropriate handler.
 @end lisp
 
 @end deffn
+
+You can also wait for the resolution of a promise without necessarily
+responding:
+
+@deffn {Procedure} listen-to to-refr listener [#:wants-partial? #f]
+
+Wait for @var{to-refr} to resolve, then inform @var{listener}.  If
+@var{wants-partial?} is @code{#t}, return updates rather than waiting
+for full promise resolution.
+
+@end deffn
