@@ -20,10 +20,13 @@
   #:use-module (system repl debug)
   #:use-module (system repl repl)
   #:use-module (system vm loader)
+  #:use-module (fibers conditions)
+  #:use-module (fibers operations)
   #:use-module (goblins core)
   #:use-module (goblins vat)
   #:use-module (goblins utils graphviz)
   #:use-module (goblins utils random-name)
+  #:use-module (ice-9 atomic)
   #:use-module (ice-9 exceptions)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
@@ -83,6 +86,31 @@
 (define (vat-debug-down! debug)
   (set-vat-debug-index! debug (max (- (vat-debug-index debug) 1) 0)))
 
+(define (vat-debug-top! debug)
+  (set-vat-debug-index! debug (- (vector-length (vat-debug-trace debug)) 1)))
+
+(define (vat-debug-bottom! debug)
+  (set-vat-debug-index! debug 0))
+
+(define (vat-debug-jump! debug timestamp)
+  ;; Iterate over the trace vector, looking for an event matching
+  ;; timestamp.  Traces aren't usually very long, so a linear time
+  ;; search is fine.  It should be possibly to binary search, though,
+  ;; due to the nature of Lamport timestamps.
+  ;;
+  ;; Return #t if an event with the given timestamp was found, or #f
+  ;; otherwise.
+  (let* ((trace (vat-debug-trace debug))
+         (n (vector-length trace)))
+    (let loop ((i 0))
+      (and (< i n)
+           (let ((event (vector-ref trace i)))
+             (if (= (vat-event-timestamp event) timestamp)
+                 (begin
+                   (set-vat-debug-index! debug i)
+                   #t)
+                 (loop (+ i 1))))))))
+
 (define current-vat-debug (make-parameter #f))
 
 (define (current-vat-debug*)
@@ -108,26 +136,41 @@
 (define* (start-interpreted-repl language #:key debug)
   (let ((repl (make-repl language debug)))
     (repl-option-set! repl 'interp #t)
-    (run-repl repl)))
+    (run-repl repl)
+    ;; The previous procedure returns the empty list, which would get
+    ;; printed as a return value when the sub-REPL is exited.  That's
+    ;; a bit weird, so force the return value to be unspecified
+    ;; instead.
+    *unspecified*))
 
 (define (enter-debugger language e)
-  (let* ((stack (narrow-stack->vector (actormap-turn-error-stack e) 0))
-         (msg (error-message stack e))
-         (event (vat-turn-error-event e))
-         (trace (list->vector (vat-event-trace event)))
-         (debug (make-debug stack 0 msg)))
-    (parameterize ((current-vat-debug (make-vat-debug trace 0)))
-      ;; Mimicking Guile's debugger welcome message because starting a
-      ;; debug REPL doesn't do it!
-      (format #t "~a\n" msg)
-      (format #t "Entering a new prompt. ")
-      (format #t "Type `,bt' for a backtrace or `,q' to continue.\n")
-      (start-interpreted-repl language #:debug debug)
-      ;; The previous procedure returns the empty list, which would get
-      ;; printed as a return value when the sub-repl is exited.  That's
-      ;; a bit weird, so force the return value to be unspecified
-      ;; instead.
-      *unspecified*)))
+  (cond
+   ;; For exceptions, launch Guile's debug sub-REPL so that both the
+   ;; stack trace and the vat trace can be debugged.
+   ((exception? e)
+    (let* ((stack (narrow-stack->vector (actormap-turn-error-stack e) 0))
+           (msg (error-message stack e))
+           (event (vat-turn-error-event e))
+           (trace (list->vector (vat-event-trace event)))
+           (debug (make-debug stack 0 msg)))
+      (parameterize ((current-vat-debug (make-vat-debug trace 0)))
+        ;; Mimicking Guile's debugger welcome message because starting a
+        ;; debug REPL doesn't do it!
+        (format #t "~a\n" msg)
+        (format #t "Entering a new prompt. ")
+        (format #t "Type `,bt' for a backtrace or `,q' to continue.\n")
+        (start-interpreted-repl language #:debug debug))))
+   ;; For events with no exception, we still want to make a sub-REPL
+   ;; so the vat trace can be inspected for logic errors that did not
+   ;; trigger exceptions.  The Guile stack debugging tools won't be
+   ;; available since there's no stack to debug.
+   ((vat-event? e)
+    (let ((trace (list->vector (vat-event-trace e))))
+      (parameterize ((current-vat-debug (make-vat-debug trace 0)))
+        (format #t "Entering a new prompt. Type `,q' to exit.\n")
+        (start-interpreted-repl language))))
+   (else
+    (repl-error (format #f "invalid debug context: ~a" e)))))
 
 (define (call-with-goblins-debugger language thunk)
   (with-exception-handler (lambda (e) (enter-debugger language e))
@@ -734,6 +777,65 @@ Generate an image of the event tree for TIMESTAMP in the current vat."
          (format #t "#<Image: ~a>\n" png-file-name)
          (display "failed to generate graph\n")))))
 
+(define-meta-command ((vat-resolve goblins) repl exp)
+  "vat-resolve EXP
+Wait for the promise returned by EXP to resolve and print the result."
+  (with-goblins-error-messages
+   (let* ((vat (current-vat*)))
+     ;; Evaluate the expression and make sure it's a promise before
+     ;; going any further.
+     (match (repl-eval repl exp)
+       ((? promise-refr? promise)
+        (let ((done? (make-condition))
+              (result (make-atomic-box #f)))
+          (match (sigaction SIGINT)
+            ((prev-sigint-handler . prev-sigint-flags)
+             ;; Catch SIGINT and stop waiting for the promise to resolve.
+             ;; Nothing will be printed as a result.
+             (sigaction SIGINT
+               (lambda _
+                 (signal-condition! done?)))
+             ;; Wait for promise to resolve within the vat and update the
+             ;; 'result' box with the results.
+             (with-vat vat
+               (on promise
+                   (lambda (val)
+                     (atomic-box-set! result `#(fulfilled ,val)))
+                   #:catch
+                   (lambda (exception)
+                     (atomic-box-set! result `#(broken ,exception)))
+                   #:finally
+                   (lambda ()
+                     ;; Tell the REPL thread that it can print the result
+                     ;; now.
+                     (signal-condition! done?))))
+             ;; Wait until the promise is fulfilled or broken.
+             (perform-operation (wait-operation done?))
+             ;; Restore original SIGINT handler.
+             (sigaction SIGINT prev-sigint-handler prev-sigint-flags)))
+          (match (atomic-box-ref result)
+            ;; Either the wait was terminated by SIGINT or the
+            ;; response is unspecified.  Either way, don't print
+            ;; anything.
+            ((or #f #('fulfilled (? unspecified?)))
+             #f)
+            ;; Promise was fulfilled, so print value.
+            (#('fulfilled val)
+             (write val)
+             (newline))
+            ;; Promise was broken, so print exception.
+            (#('broken exception)
+             (display "Promise broken:\n")
+             ;; We don't have the stack but we can still
+             ;; print some details about the exception.
+             (print-exception (current-output-port)
+                              #f ; no stack :(
+                              (exception-kind exception)
+                              (exception-args exception))))))
+       ;; Expression didn't evaluate to a promise, so tell the user
+       ;; that.
+       (obj (repl-error (format #f "Not a promise: ~s" obj)))))))
+
 (define-meta-command ((vat-errors goblins) repl)
   "vat-errors
 Display a list of errors that have occurred in the current vat."
@@ -784,9 +886,10 @@ Debug error associated with the event at TIMESTAMP."
                           (repl-eval repl timestamp)))
           (event (vat-log-ref-by-time* vat timestamp*))
           (exception (vat-log-error-for-event vat event)))
-     (if exception
-         (enter-debugger (repl-language repl) exception)
-         (format #t "No error at event ~a" timestamp*)))))
+     (enter-debugger (repl-language repl)
+                     (if (exception? exception)
+                         exception
+                         event)))))
 
 (define (print-current-vat-debug-event debug)
   (let ((event (vat-debug-current-event debug)))
@@ -817,6 +920,38 @@ Move to the next event in the current vat debug trace."
          (begin
            (vat-debug-down! debug)
            (print-current-vat-debug-event debug))))))
+
+(define-meta-command ((vat-top goblins) repl)
+  "vat-top
+Move to the oldest event in the current vat debug trace."
+  (with-goblins-error-messages
+   (let ((debug (current-vat-debug*)))
+     (if (vat-debug-top? debug)
+         (format #t "Already at oldest event.\n")
+         (begin
+           (vat-debug-top! debug)
+           (print-current-vat-debug-event debug))))))
+
+(define-meta-command ((vat-bottom goblins) repl)
+  "vat-bottom
+Move to the most recent event in the current vat debug trace."
+  (with-goblins-error-messages
+   (let ((debug (current-vat-debug*)))
+     (if (vat-debug-bottom? debug)
+         (format #t "Already at most recent event.\n")
+         (begin
+           (vat-debug-bottom! debug)
+           (print-current-vat-debug-event debug))))))
+
+(define-meta-command ((vat-jump goblins) repl timestamp)
+  "vat-jump TIMESTAMP
+Move to the event for TIMESTAMP in the current vat debug trace."
+  (with-goblins-error-messages
+   (let ((debug (current-vat-debug*)))
+     (unless (vat-debug-jump! debug timestamp)
+       (repl-error
+        (format #f "no event with timestamp ~a in current trace" timestamp)))
+     (print-current-vat-debug-event debug))))
 
 (define-meta-command ((vat-peek goblins) repl refr . args)
   "vat-peek REFR [ARGS ...]
