@@ -405,6 +405,21 @@ Start processing @ref{turn}s for @var{vat}.
 
 @end deffn
 
+@deffn {Procedure} call-with-vat vat thunk
+
+Run @var{thunk} in the context of @var{vat} and return the resulting
+values.
+
+@lisp
+(define a-vat (spawn-vat))
+(call-with-vat a-vat
+  (lambda ()
+    (define an-object (spawn ^some-object))
+    ($ an-object 'a-message an-arg)))
+@end lisp
+
+@end deffn
+
 @node Actormaps
 @section Actormaps
 
