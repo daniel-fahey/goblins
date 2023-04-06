@@ -460,3 +460,20 @@ An @dfn{actormap} is the transactional data structure underlying
 for a video game) or as a synchronous one-turn-at-a-time mapping of
 actor references to their current behaviors.
 
+@deffn {Procedure} make-whactormap [#:vat-connector #f]
+
+Return a reference to a new @ref{whactormap}.  @var{vat-connector}, if
+provided, is the @ref{syscaller} for the containing @ref{vat}.
+
+@end deffn
+
+@deffn {Procedure} make-actormap
+
+Return a reference to a new @ref{actormap}.  This is a convenience
+wrapper around @code{make-whactormap}.
+
+@lisp
+(define an-actormap (make-actormap))
+@end lisp
+
+@end deffn
