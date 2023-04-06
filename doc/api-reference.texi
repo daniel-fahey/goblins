@@ -375,6 +375,12 @@ Defaults to 256.
 Regardless of whether a @ref{vat} is standard or custom, there are
 several procedures supporting their use.
 
+@deffn {Procedure} vat? obj
+
+Return @code{#t} if @var{obj} is a @ref{vat}, else @code{#f}.
+
+@end deffn
+
 @node Actormaps
 @section Actormaps
 
