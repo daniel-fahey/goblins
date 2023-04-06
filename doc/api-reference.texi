@@ -638,3 +638,11 @@ possible local invocations to resolve @var{thunk}.  If
 results, a reference to the new actormap, and any messages generated.
 
 @end deffn
+
+@deffn {Procedure} actormap-churn-run! actormap thunk
+       [#:catch-errors? #t]
+
+Like @code{actormap-churn-run}, but dispatch messages and only return
+the results of the @emph{churn}.
+
+@end deffn
