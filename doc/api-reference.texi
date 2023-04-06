@@ -524,3 +524,27 @@ transaction with @var{actormap} as the parent and operate in it
 instead.
 
 @end deffn
+
+@deffn {Procedure} actormap-turn-message actormap msg
+       [#:error-handler simple-display-error] [#:reckless? #f]
+       [#:catch-errors? #t]
+
+Return the result of @var{msg} in the context of @var{actormap}.
+How to handle errors and transactions is controlled by keyword args:
+
+@itemize
+@item
+@var{error-handler}: Procedure to handle errors.  It is passed
+@var{msg}, the error, and the stack at the time of the error.
+
+@item
+@var{reckless?}: If @code{#t}, operate within @var{actormap} instead
+of creating a new generation; otherwise, create a new generation.
+
+@item
+@var{catch-errors?}: If @code{#t}, capture the stack and abort to a
+prompt; otherwise, propagate the error.
+
+@end itemize
+
+@end deffn
