@@ -699,6 +699,10 @@ the results of the @emph{churn}.
 
 @end deffn
 
+When performing any action in a @ref{transactormap}, one may wish to
+(but, as has been shown, does not have to) commit the changes to the
+generational history of the overarching @ref{actormap}.
+
 @deffn {Procedure} transactormap-merge! transactormap
 
 Commit the changes in @var{transactormap} to the generational history.
