@@ -161,3 +161,45 @@ Like @code{<-}, but return @code{void} instead of a promise.
 Like @code{<-np}, but only operate on @ref{far} objects.
 
 @end deffn
+
+@deffn {Procedure} on vow [fulfilled-handler #f]
+       [#:catch #f] [#:finally #f] [#:promise? #f]
+
+Respond to a promise, optionally with error handling.  Return nothing
+unless @var{promise?} is @code{#t}, in which case return a promise.
+
+@itemize
+@item
+@var{vow}: Promise to which to respond.
+
+@item
+@var{fulfilled-handler}: Procedure called with the result of @var{vow}
+if it is fulfilled.
+
+@item
+@var{catch}: Procedure invoked on an error; passed one argument, the
+exception object.
+
+@item
+@var{finally}: Procedure invoked on success or failure after the
+appropriate handler.
+
+@end itemize
+
+@lisp
+;; in the context of some vat
+(define object-a (spawn ^some-object))
+;; in the context of some vat, possibly different
+(on (<- object-a arg1)
+    (lambda (val)
+      (some-proc val))
+    #:catch
+    (lambda (err)
+      (handle-err err))
+    #:finally
+    (lambda _
+      (other-proc))
+    #:promise? #f)      ; the default, written out for demonstration
+@end lisp
+
+@end deffn
