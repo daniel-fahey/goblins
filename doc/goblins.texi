@@ -41,6 +41,7 @@ v2.  See @ref{License} for more information.
 * A high level view of Goblins::
 * Tutorial::
 * API::
+* API Reference::
 * actor-lib A standard library of sorts::
 * Thanks::
 * License::
@@ -1775,6 +1776,11 @@ providing them. An example of this is:
     (restore-onion-netlayer private-key service-id))
 @end lisp
 @end enumerate
+
+@node API Reference
+@chapter API Reference
+
+@include api-reference.texi
 
 @node actor-lib A standard library of sorts
 @chapter actor-lib: A standard library of sorts
