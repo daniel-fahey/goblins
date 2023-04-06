@@ -659,3 +659,9 @@ Return @code{#t} if @var{obj} is a @ref{transactormap}, else
 @code{#f}.
 
 @end deffn
+
+@deffn {Procedure} transactormap-merge! transactormap
+
+Commit the changes in @var{transactormap} to the generational history.
+
+@end deffn
