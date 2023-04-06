@@ -387,6 +387,12 @@ Return the name of @var{vat}.
 
 @end deffn
 
+@deffn {Procedure} vat-running? vat
+
+Return @code{#t} if @var{vat} is running, else @code{#f}.
+
+@end deffn
+
 @node Actormaps
 @section Actormaps
 
