@@ -393,6 +393,12 @@ Return @code{#t} if @var{vat} is running, else @code{#f}.
 
 @end deffn
 
+@deffn {Procedure} vat-halt! vat
+
+Stop processing @ref{turn}s for @var{vat}.
+
+@end deffn
+
 @node Actormaps
 @section Actormaps
 
