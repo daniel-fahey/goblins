@@ -652,3 +652,10 @@ the results of the @emph{churn}.
 Return @code{#t} if @var{obj} is a @ref{whactormap}, else @code{#f}.
 
 @end deffn
+
+@deffn {Procedure} transactormap? obj
+
+Return @code{#t} if @var{obj} is a @ref{transactormap}, else
+@code{#f}.
+
+@end deffn
