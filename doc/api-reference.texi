@@ -306,6 +306,10 @@ objects live inside a @ref{vat}.
 * ...::
 @end menu
 
+At a high level, users generally will spawn a @ref{vat}, bind it to a
+name in the local namespace, and use it for various operations. This
+will usually use @code{spawn-vat}:
+
 @deffn {Procedure} spawn-vat [#:name] [#:log?]
        [log-capacity]
 
@@ -330,6 +334,9 @@ Defaults to 256.
 @end lisp
 
 @end deffn
+
+Sometimes, it is useful to make and manage a @ref{vat} at a slightly
+lower level. In such cases, @code{make-vat} comes into play:
 
 @deffn {Procedure} make-vat [#:name] [#:start] [#:halt] [#:send]
        [#:log?] [log-capacity]
@@ -364,6 +371,9 @@ Defaults to 256.
 @end itemize
 
 @end deffn
+
+Regardless of whether a @ref{vat} is standard or custom, there are
+several procedures supporting their use.
 
 @node Actormaps
 @section Actormaps
