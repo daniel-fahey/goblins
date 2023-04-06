@@ -507,6 +507,25 @@ its preceding generation.
 
 @end deffn
 
+The two types of @ref{actormap} have corresponding identity
+predicates:
+
+@deffn {Procedure} whactormap? obj
+
+Return @code{#t} if @var{obj} is a @ref{whactormap}, else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} transactormap? obj
+
+Return @code{#t} if @var{obj} is a @ref{transactormap}, else
+@code{#f}.
+
+@end deffn
+
+@node Using actormaps
+@subsection Using actormaps
+
 @deffn {Procedure} actormap-spawn actormap actor-constructor args @dots{}
 
 Spawn an actor inside @var{actormap}, but do not commit the
@@ -666,19 +685,6 @@ results, a reference to the new actormap, and any messages generated.
 
 Like @code{actormap-churn-run}, but dispatch messages and only return
 the results of the @emph{churn}.
-
-@end deffn
-
-@deffn {Procedure} whactormap? obj
-
-Return @code{#t} if @var{obj} is a @ref{whactormap}, else @code{#f}.
-
-@end deffn
-
-@deffn {Procedure} transactormap? obj
-
-Return @code{#t} if @var{obj} is a @ref{transactormap}, else
-@code{#f}.
 
 @end deffn
 
