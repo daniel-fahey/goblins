@@ -477,3 +477,10 @@ wrapper around @code{make-whactormap}.
 @end lisp
 
 @end deffn
+
+@deffn {Procedure} make-transactormap parent
+
+Return a reference to a new @ref{transactormap} with @var{parent} as
+its preceding generation.
+
+@end deffn
