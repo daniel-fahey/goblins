@@ -460,6 +460,28 @@ An @dfn{actormap} is the transactional data structure underlying
 for a video game) or as a synchronous one-turn-at-a-time mapping of
 actor references to their current behaviors.
 
+@menu
+* Actormap objects::
+* Using actormaps::
+@end menu
+
+@node Actormap objects
+@subsection Actormap objects
+
+An @dfn{actormap} is fundamentally a place in memory holding
+references to objects so that they may be manipulated.  There are two
+types of @ref{actormap}s: @dfn{whactormap}s, which use
+@url{https://www.gnu.org/software/guile/manual/html_node/Weak-References.html, weak-key hash tables}
+as the backing data structure so objects may be garbage collected
+automatically, and which serve as the root of a generational
+transaction history of @ref{actormap} actions; and
+@dfn{transactormap}s, which are backed by standard hash tables and
+constitute every other generation of a transaction history.  Aside
+from their backing data structures and resulting use cases, all
+@ref{actormap}s are very similar; @ref{transactormaps} simply also
+hold a reference to a parent, which is either another
+@ref{transactormap} or the root @ref{whactormap}.
+
 @deffn {Procedure} make-whactormap [#:vat-connector #f]
 
 Return a reference to a new @ref{whactormap}.  @var{vat-connector}, if
