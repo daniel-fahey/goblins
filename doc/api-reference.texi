@@ -484,3 +484,21 @@ Return a reference to a new @ref{transactormap} with @var{parent} as
 its preceding generation.
 
 @end deffn
+
+@deffn {Procedure} actormap-spawn actormap actor-constructor args @dots{}
+
+Spawn an actor inside @var{actormap}, but do not commit the
+transaction.  Return a reference to the spawned object and a
+@emph{transactormap}.
+
+@itemize
+@item
+@var{actor-constructor}: Constructor for the actor to be spawned.
+
+@item
+@var{args}: Arguments to @var{actor-constructor}.
+
+@end itemize
+
+@end deffn
+
