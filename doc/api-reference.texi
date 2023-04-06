@@ -381,6 +381,12 @@ Return @code{#t} if @var{obj} is a @ref{vat}, else @code{#f}.
 
 @end deffn
 
+@deffn {Procedure} vat-name vat
+
+Return the name of @var{vat}.
+
+@end deffn
+
 @node Actormaps
 @section Actormaps
 
