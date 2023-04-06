@@ -609,3 +609,23 @@ Like @code{actormap-run}, and return a reference to the new
 @emph{actormap} as well as any messages generated.
 
 @end deffn
+
+@deffn {Procedure} actormap-churn am msg [#:catch-errors? #t]
+       [#:make-transactormap? #t]
+
+Perform every turn in @var{am} possible without needing to invoke
+@emph{far} objects to resolve @var{msg}, then dispatch messages to
+the appropriate @emph{far} objects.
+
+@itemize
+@item
+@var{catch-errors?}: If @code{#f}, do not handle errors.
+
+@item
+@var{make-transactormap?}: If @code{#f}, operate and commit in
+@var{am} instead of creating a new generation.
+
+@end itemize
+
+@end deffn
+
