@@ -306,6 +306,40 @@ objects live inside a @ref{vat}.
 * ...::
 @end menu
 
+@deffn {Procedure} make-vat [#:name] [#:start] [#:halt] [#:send]
+       [#:log?] [log-capacity]
+
+Return a new vat named @var{name}.  Vat behavior is determined by
+three event hooks, and logging is controlled by the remaining
+arguments:
+
+@itemize
+@item
+@var{start}: Procedure to start @ref{vat} process in non-blocking
+manner such as a new thread.  Accepts a procedure which takes a
+message as its single argument and churns the underlying
+@ref{actormap} for the @ref{vat}.
+
+@item
+@var{halt}: Thunk to stop @ref{vat} process.
+
+@item
+@var{send}: Procedure accepting a message to handle within the
+@ref{vat} process and a boolean indicating if the message result
+needs to be returned to sender.
+
+@item
+@var{log?}: If @code{#t}, event logging is enabled, otherwise it is
+disabled (the default).
+
+@item
+@var{log-capacity}: Number of events to be retained in the log.
+Defaults to 256.
+
+@end itemize
+
+@end deffn
+
 @node Actormaps
 @section Actormaps
 
