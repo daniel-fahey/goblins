@@ -526,6 +526,9 @@ Return @code{#t} if @var{obj} is a @ref{transactormap}, else
 @node Using actormaps
 @subsection Using actormaps
 
+Before using objects in an @ref{actormap}, one must first create those
+objects in the context of that @ref{actormap}:
+
 @deffn {Procedure} actormap-spawn actormap actor-constructor args @dots{}
 
 Spawn an actor inside @var{actormap}, but do not commit the
@@ -548,6 +551,14 @@ transaction.  Return a reference to the spawned object and a
 Like @code{actormap-spawn}, but do commit the transaction.
 
 @end deffn
+
+Once objects have been put into an @ref{actormap}, they may be invoked
+to perform some action or other.  There are several ways to do this,
+falling into one of two general categories: @dfn{turn}s and
+@dfn{churn}s.  A @ref{turn} can be thought of as the performance of a
+single action, or the processesing of a single message.  A @ref{churn}
+is best understand in terms of a @ref{turn} as all @ref{turn}s a given
+@ref{actormap} can handle without invoking @ref{far} objects.
 
 @deffn {Procedure} actormap-turn* actormap to-refr args
 
