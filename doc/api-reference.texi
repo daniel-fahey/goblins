@@ -306,6 +306,31 @@ objects live inside a @ref{vat}.
 * ...::
 @end menu
 
+@deffn {Procedure} spawn-vat [#:name] [#:log?]
+       [log-capacity]
+
+Create and return a reference to a new @ref{vat}.
+
+@itemize
+@item
+@var{name}: Name of the vat.  Note that this is @emph{not} the name it is
+bound to in the current namespace.
+
+@item
+@var{log?}: If @code{#t}, log @ref{vat} events; otherwise, do not.
+
+@item
+@var{log-capacity}: Number of events to be retained in the log.
+Defaults to 256.
+
+@end itemize
+
+@lisp
+(define a-vat (spawn-vat))
+@end lisp
+
+@end deffn
+
 @deffn {Procedure} make-vat [#:name] [#:start] [#:halt] [#:send]
        [#:log?] [log-capacity]
 
