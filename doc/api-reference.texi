@@ -399,6 +399,12 @@ Stop processing @ref{turn}s for @var{vat}.
 
 @end deffn
 
+@deffn {Procedure} vat-start! vat
+
+Start processing @ref{turn}s for @var{vat}.
+
+@end deffn
+
 @node Actormaps
 @section Actormaps
 
