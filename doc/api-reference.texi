@@ -602,3 +602,10 @@ Like @code{actormap-run}, and commit the results.  If @var{reckless?}
 is @code{#t}, do not create a new generation for the turn.
 
 @end deffn
+
+@deffn {Procedure} actormap-run* actormap thunk
+
+Like @code{actormap-run}, and return a reference to the new
+@emph{actormap} as well as any messages generated.
+
+@end deffn
