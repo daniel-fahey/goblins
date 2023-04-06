@@ -629,3 +629,12 @@ the appropriate @emph{far} objects.
 
 @end deffn
 
+@deffn {Procedure} actormap-churn-run actormap thunk
+       [#:catch-errors? #t]
+
+Evaluate @var{thunk} in the context of @var{actormap}, performing all
+possible local invocations to resolve @var{thunk}.  If
+@code{catch-errors?} is @code{#f}, do not handle errors.  Return the
+results, a reference to the new actormap, and any messages generated.
+
+@end deffn
