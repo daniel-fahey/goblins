@@ -420,6 +420,14 @@ values.
 
 @end deffn
 
+@deffn {Syntax} with-vat vat body @dots{}
+
+Execute @var{body} in the context of @var{vat} and return the result.
+This is syntax for @code{call-with-vat} so the user does not have to
+write a separate lambda expression.
+
+@end deffn
+
 @node Actormaps
 @section Actormaps
 
