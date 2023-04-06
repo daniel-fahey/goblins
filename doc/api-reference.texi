@@ -548,3 +548,19 @@ prompt; otherwise, propagate the error.
 @end itemize
 
 @end deffn
+
+@deffn {Procedure} actormap-peek actormap to-refr args @dots{}
+
+Perform a turn in @var{actormap} only to return the results; do not
+commit the transaction to the transaction history.
+
+@itemize
+@item
+@var{to-refr}: Object to be invoked.
+
+@item
+@var{args}: Arguments passed to @var{to-refr}.
+
+@end itemize
+
+@end deffn
