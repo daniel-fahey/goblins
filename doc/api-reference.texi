@@ -588,3 +588,10 @@ transaction generation without creating a new one.  This voids
 Goblin's transactionality guarantees like time travel.
 
 @end deffn
+
+@deffn {Procedure} actormap-run actormap thunk
+
+Execute @var{thunk} in @var{actormap}, but do not commit the results.
+Return the results.
+
+@end deffn
