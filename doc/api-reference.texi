@@ -3,23 +3,23 @@ the documentation for everything imported with
 @code{(use-modules (goblins))}.
 
 @menu
-* Objects::
-* Vats::
-* Actormaps::
+* Objects API::
+* Vats API::
+* Actormaps API::
 @end menu
 
-@node Objects
-@section Objects
+@node Objects API
+@section Objects API
 
 @menu
-* Spawning objects::
-* Synchronous invocation::
-* Asynchronous invocation::
+* Object construction::
+* Synchronous calls::
+* Asynchronous calls::
 * Object reference predicates::
 @end menu
 
-@node Spawning objects
-@subsection Spawning objects
+@node Object construction
+@subsection Object construction
 
 Objects can be spawned with the @code{spawn} operator:
 
@@ -31,7 +31,7 @@ Construct and return a reference to a new object.
 @item
 @var{constructor}: Procedure which returns a procedure representing
 the object's initial behavior; implicitly passed a first argument,
-@ref{bcom}, which can be used to change the object's behavior.
+@code{bcom}, which can be used to change the object's behavior.
 
 @item
 @var{args}: Remaining arguments passed to @var{constructor}.
@@ -89,8 +89,8 @@ Return a promise and its associated resolver as a @code{cons} pair.
 
 @end deffn
 
-@node Synchronous invocation
-@subsection Synchronous invocation
+@node Synchronous calls
+@subsection Synchronous calls
 
 Relative to a given @emph{vat}, there are two types of objects.  A
 @dfn{near} object is in the @emph{vat}.  A @dfn{far} object is in a
@@ -103,15 +103,15 @@ use different but similar procedures.
 
 @deffn {Procedure} $ to-refr args @dots{}
 
-Call a @ref{near} object's behavior and return the result.
+Call a @emph{near} object's behavior and return the result.
 
 @itemize
 @item
-@var{to-refr}: @ref{Near} object to call.
+@var{to-refr}: @emph{Near} object to call.
 
 @item
 @var{args}: Arguments to the object's behavior.  If @var{to-refr}
-has @ref{methods}, the first argument will conventionally be a symbol
+has methods, the first argument will conventionally be a symbol
 indicating the behavior/method to be invoked.
 
 @end itemize
@@ -125,12 +125,12 @@ indicating the behavior/method to be invoked.
 
 @end deffn
 
-@node Asynchronous invocation
-@subsection Asynchronous invocation
+@node Asynchronous calls
+@subsection Asynchronous calls
 
 @deffn {Procedure} <- to-refr args @dots{}
 
-Like @code{$}, but @var{to-refr} may be @ref{near} or @ref{far}, and
+Like @code{$}, but @var{to-refr} may be @emph{near} or @emph{far}, and
 @code{<-} returns a promise instead of a result.
 
 @lisp
@@ -159,7 +159,7 @@ Like @code{<-}, but return @code{void} instead of a promise.
 
 @deffn {Procedure} <-np-extern to-refr args @dots{}
 
-Like @code{<-np}, but only operate on @ref{far} objects.
+Like @code{<-np}, but only operate on @emph{far} objects.
 
 @end deffn
 
@@ -221,7 +221,7 @@ for full promise resolution.
 
 Goblins comes with a variety of predicates for identifying and working
 with objects.  While these are primarily for internal use, they are
-also helpful when defining custom @ref{vat} code.
+also helpful when defining custom @emph{vat} code.
 
 @deffn {Procedure} local-object-refr? obj
 
@@ -281,26 +281,26 @@ else @code{#f}.
 
 @deffn {Procedure} near-refr? obj
 
-Return @code{#t} if @var{obj} is a @ref{near} object or promise, else
+Return @code{#t} if @var{obj} is a @emph{near} object or promise, else
 @code{#f}.
 
 @end deffn
 
 @deffn {Procedure} far-refr? obj
 
-Return @code{#t} if @var{obj} is a @ref{far} object or promise, else
+Return @code{#t} if @var{obj} is a @emph{far} object or promise, else
 @code{#f}.
 
 @end deffn
 
-@node Vats
-@section Vats
+@node Vats API
+@section Vats API
 
 A @dfn{vat} is an event loop that manages a set of objects which are
-@ref{near} to each other. They are one of the central abstractions of
+@emph{near} to each other. They are one of the central abstractions of
 Spritely Goblins facilitating the object capabilities security model
 as well as transactionality and distributed programming. All Goblins
-objects live inside a @ref{vat}.
+objects live inside a @emph{vat}.
 
 @menu
 * Making vats::
@@ -310,14 +310,14 @@ objects live inside a @ref{vat}.
 @node Making vats
 @subsection Making vats
 
-At a high level, users generally will spawn a @ref{vat}, bind it to a
+At a high level, users generally will spawn a @emph{vat}, bind it to a
 name in the local namespace, and use it for various operations. This
 will usually use @code{spawn-vat}:
 
 @deffn {Procedure} spawn-vat [#:name] [#:log?]
        [log-capacity]
 
-Create and return a reference to a new @ref{vat}.
+Create and return a reference to a new @emph{vat}.
 
 @itemize
 @item
@@ -325,7 +325,7 @@ Create and return a reference to a new @ref{vat}.
 bound to in the current namespace.
 
 @item
-@var{log?}: If @code{#t}, log @ref{vat} events; otherwise, do not.
+@var{log?}: If @code{#t}, log @emph{vat} events; otherwise, do not.
 
 @item
 @var{log-capacity}: Number of events to be retained in the log.
@@ -339,7 +339,7 @@ Defaults to 256.
 
 @end deffn
 
-Sometimes, it is useful to make and manage a @ref{vat} at a slightly
+Sometimes, it is useful to make and manage a @emph{vat} at a slightly
 lower level. In such cases, @code{make-vat} comes into play:
 
 @deffn {Procedure} make-vat [#:name] [#:start] [#:halt] [#:send]
@@ -351,17 +351,17 @@ arguments:
 
 @itemize
 @item
-@var{start}: Procedure to start @ref{vat} process in non-blocking
+@var{start}: Procedure to start @emph{vat} process in non-blocking
 manner such as a new thread.  Accepts a procedure which takes a
 message as its single argument and churns the underlying
-@ref{actormap} for the @ref{vat}.
+@emph{actormap} for the @emph{vat}.
 
 @item
-@var{halt}: Thunk to stop @ref{vat} process.
+@var{halt}: Thunk to stop @emph{vat} process.
 
 @item
 @var{send}: Procedure accepting a message to handle within the
-@ref{vat} process and a boolean indicating if the message result
+@emph{vat} process and a boolean indicating if the message result
 needs to be returned to sender.
 
 @item
@@ -379,12 +379,12 @@ Defaults to 256.
 @node Using vats
 @subsection Using vats
 
-Regardless of whether a @ref{vat} is standard or custom, there are
+Regardless of whether a @emph{vat} is standard or custom, there are
 several procedures supporting their use.
 
 @deffn {Procedure} vat? obj
 
-Return @code{#t} if @var{obj} is a @ref{vat}, else @code{#f}.
+Return @code{#t} if @var{obj} is a @emph{vat}, else @code{#f}.
 
 @end deffn
 
@@ -402,13 +402,13 @@ Return @code{#t} if @var{vat} is running, else @code{#f}.
 
 @deffn {Procedure} vat-halt! vat
 
-Stop processing @ref{turn}s for @var{vat}.
+Stop processing @emph{turn}s for @var{vat}.
 
 @end deffn
 
 @deffn {Procedure} vat-start! vat
 
-Start processing @ref{turn}s for @var{vat}.
+Start processing @emph{turn}s for @var{vat}.
 
 @end deffn
 
@@ -452,11 +452,11 @@ evaulated in the context of @var{vat}.
 
 @end deffn
 
-@node Actormaps
-@section Actormaps
+@node Actormaps API
+@section Actormaps API
 
 An @dfn{actormap} is the transactional data structure underlying
-@ref{vat}s. They are useful for building a custom event loop (such as
+@emph{vat}s. They are useful for building a custom event loop (such as
 for a video game) or as a synchronous one-turn-at-a-time mapping of
 actor references to their current behaviors.
 
@@ -470,28 +470,28 @@ actor references to their current behaviors.
 
 An @dfn{actormap} is fundamentally a place in memory holding
 references to objects so that they may be manipulated.  There are two
-types of @ref{actormap}s: @dfn{whactormap}s, which use
+types of @emph{actormap}s: @dfn{whactormap}s, which use
 @url{https://www.gnu.org/software/guile/manual/html_node/Weak-References.html, weak-key hash tables}
 as the backing data structure so objects may be garbage collected
 automatically, and which serve as the root of a generational
-transaction history of @ref{actormap} actions; and
+transaction history of @emph{actormap} actions; and
 @dfn{transactormap}s, which are backed by standard hash tables and
 constitute every other generation of a transaction history.  Aside
 from their backing data structures and resulting use cases, all
-@ref{actormap}s are very similar; @ref{transactormaps} simply also
+@emph{actormap}s are very similar; @emph{transactormaps} simply also
 hold a reference to a parent, which is either another
-@ref{transactormap} or the root @ref{whactormap}.
+@emph{transactormap} or the root @emph{whactormap}.
 
 @deffn {Procedure} make-whactormap [#:vat-connector #f]
 
-Return a reference to a new @ref{whactormap}.  @var{vat-connector}, if
-provided, is the @ref{syscaller} for the containing @ref{vat}.
+Return a reference to a new @emph{whactormap}.  @var{vat-connector}, if
+provided, is the @emph{syscaller} for the containing @emph{vat}.
 
 @end deffn
 
 @deffn {Procedure} make-actormap
 
-Return a reference to a new @ref{actormap}.  This is a convenience
+Return a reference to a new @emph{actormap}.  This is a convenience
 wrapper around @code{make-whactormap}.
 
 @lisp
@@ -502,23 +502,23 @@ wrapper around @code{make-whactormap}.
 
 @deffn {Procedure} make-transactormap parent
 
-Return a reference to a new @ref{transactormap} with @var{parent} as
+Return a reference to a new @emph{transactormap} with @var{parent} as
 its preceding generation.
 
 @end deffn
 
-The two types of @ref{actormap} have corresponding identity
+The two types of @emph{actormap} have corresponding identity
 predicates:
 
 @deffn {Procedure} whactormap? obj
 
-Return @code{#t} if @var{obj} is a @ref{whactormap}, else @code{#f}.
+Return @code{#t} if @var{obj} is a @emph{whactormap}, else @code{#f}.
 
 @end deffn
 
 @deffn {Procedure} transactormap? obj
 
-Return @code{#t} if @var{obj} is a @ref{transactormap}, else
+Return @code{#t} if @var{obj} is a @emph{transactormap}, else
 @code{#f}.
 
 @end deffn
@@ -526,8 +526,8 @@ Return @code{#t} if @var{obj} is a @ref{transactormap}, else
 @node Using actormaps
 @subsection Using actormaps
 
-Before using objects in an @ref{actormap}, one must first create those
-objects in the context of that @ref{actormap}:
+Before using objects in an @emph{actormap}, one must first create those
+objects in the context of that @emph{actormap}:
 
 @deffn {Procedure} actormap-spawn actormap actor-constructor args @dots{}
 
@@ -552,13 +552,13 @@ Like @code{actormap-spawn}, but do commit the transaction.
 
 @end deffn
 
-Once objects have been put into an @ref{actormap}, they may be invoked
+Once objects have been put into an @emph{actormap}, they may be invoked
 to perform some action or other.  There are several ways to do this,
-falling into one of two general categories: @dfn{turn}s and
-@dfn{churn}s.  A @ref{turn} can be thought of as the performance of a
-single action, or the processesing of a single message.  A @ref{churn}
-is best understand in terms of a @ref{turn} as all @ref{turn}s a given
-@ref{actormap} can handle without invoking @ref{far} objects.
+falling into one of two general categories: @emph{turn}s and
+@emph{churn}s.  A @dfn{turn} can be thought of as the performance of a
+single action, or the processesing of a single message.  A @dfn{churn}
+is best understand in terms of a @emph{turn} as all @emph{turn}s a given
+@emph{actormap} can handle without invoking @emph{far} objects.
 
 @deffn {Procedure} actormap-turn* actormap to-refr args
 
@@ -699,9 +699,9 @@ the results of the @emph{churn}.
 
 @end deffn
 
-When performing any action in a @ref{transactormap}, one may wish to
+When performing any action in a @emph{transactormap}, one may wish to
 (but, as has been shown, does not have to) commit the changes to the
-generational history of the overarching @ref{actormap}.
+generational history of the overarching @emph{actormap}.
 
 @deffn {Procedure} transactormap-merge! transactormap
 
