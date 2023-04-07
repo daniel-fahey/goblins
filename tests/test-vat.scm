@@ -620,12 +620,10 @@
       ;; generates more events to deal with.
       (with-vat a-vat (<-np counter))
       ;; This is just to sync up with b-vat before proceeding with the
-      ;; test.  This works because the previous with-vat call
-      ;; dispatches messages to vat B *before* control is relinquished
-      ;; back to this test.
-      (with-vat b-vat 'no-op)
-      (let ((e0 (vat-log-ref-by-time a-vat (+ ta 1)))  ; A: recv: with-vat
-            (e1 (vat-log-ref-by-time a-vat (+ ta 2)))  ; A: send: (<- counter)
+      ;; test.
+      (resolve-vow-and-return-result a-vat (lambda () (<- counter)))
+      (let ((e0 (vat-log-ref-by-time a-vat (+ ta 1))) ; A: recv: with-vat
+            (e1 (vat-log-ref-by-time a-vat (+ ta 2))) ; A: send: (<- counter)
             (e2 (vat-log-ref-by-time b-vat (+ tb 1)))) ; B: recv: (<- counter)
         ;; Remove the send event from the tree, preserving the
         ;; associated receive event.
@@ -676,15 +674,9 @@
            ;; resolver in vat A.  Vat A has not processed any other
            ;; messages in the meantime, so receiving the next message
            ;; from vat B will advance vat A's clock to (+ tb 2).
-           (ta2 (+ tb 2)))
-      ;; Opting not to use resolve-vow-and-return-result here as it
-      ;; generates more events to deal with.
-      (with-vat a-vat (on (<- counter) identity))
-      ;; This is just to sync up with b-vat before proceeding with the
-      ;; test.  This works because the previous with-vat call
-      ;; dispatches messages to vat B *before* control is relinquished
-      ;; back to this test.
-      (with-vat b-vat 'no-op)
+           (ta2 (+ tb 2))
+           (vow (with-vat a-vat (on (<- counter) identity))))
+      (resolve-vow-and-return-result a-vat (lambda () vow))
       (let ((e0 (vat-log-ref-by-time a-vat (+ ta1 1)))  ; A: recv: with-vat
             ;; This listen event will be filtered out.
             (e1 (vat-log-ref-by-time a-vat (+ ta1 2)))  ; A: recv: listen
@@ -743,15 +735,9 @@
            ;; resolver in vat A.  Vat A has not processed any other
            ;; messages in the meantime, so receiving the next message
            ;; from vat B will advance vat A's clock to (+ tb 2).
-           (ta2 (+ tb 2)))
-      ;; Opting not to use resolve-vow-and-return-result here as it
-      ;; generates more events to deal with.
-      (with-vat a-vat (on (<- counter) identity))
-      ;; This is just to sync up with b-vat before proceeding with the
-      ;; test.  This works because the previous with-vat call
-      ;; dispatches messages to vat B *before* control is relinquished
-      ;; back to this test.
-      (with-vat b-vat 'no-op)
+           (ta2 (+ tb 2))
+           (vow (with-vat a-vat (on (<- counter) identity))))
+      (resolve-vow-and-return-result a-vat (lambda () vow))
       (let ((e0 (vat-log-ref-by-time a-vat (+ ta1 1)))  ; A: recv: with-vat
             (e1 (vat-log-ref-by-time a-vat (+ ta1 2)))  ; A: recv: listen
             (e2 (vat-log-ref-by-time a-vat (+ ta1 3)))  ; A: send: (<- counter)
