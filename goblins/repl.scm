@@ -390,13 +390,19 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
   ;; Listener actors use the "^on-listener" debug name.
   (fulfill-event-for? obj '^on-listener))
 
-(define (fulfilled-handler-event? obj)
+(define (promise-handler-event? obj handler-debug-name)
   (and (vat-receive-event? obj)
        (vat-event-local? obj)
        (vat-event-message? obj)
        (eq? (local-object-refr-debug-name
              (message-to (vat-event-message obj)))
-            'fulfilled-handler)))
+            handler-debug-name)))
+
+(define (fulfilled-handler-event? obj)
+  (promise-handler-event? obj 'fulfilled-handler))
+
+(define (finally-handler-event? obj)
+  (promise-handler-event? obj 'finally-handler))
 
 (define (collapse-promise-resolutions tree)
   ;; Collapse a ^resolver fulfill -> ^on-listener fulfill ->
@@ -408,6 +414,11 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
                         (((? resolver-fulfill-event? event)
                           ((? on-listener-fulfill-event?)
                            (? fulfilled-handler-event?)))
+                         event)
+                        (((? resolver-fulfill-event? event)
+                          ((? on-listener-fulfill-event?)
+                           (? fulfilled-handler-event?)
+                           (? finally-handler-event?)))
                          event)
                         ;; Promise resolution sequence with a subtree.
                         (((? resolver-fulfill-event? event)
@@ -450,12 +461,21 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
                            (_ #f))
                          tree))
 
-(define (remove-leaf-resolver-fulfill-events tree)
-  (vat-event-tree-remove resolver-fulfill-event? tree))
+(define (remove-resolver-fulfill-events tree)
+  ;; Rewrite subtrees to remove leaf resolver fulfill events.  A
+  ;; subtree might only have resolver fulfill events as children, in
+  ;; which case it becomes eligible for removal when its parent tree
+  ;; is mapped.
+  (vat-event-tree-map (match-lambda
+                        ((? vat-event? leaf)
+                         leaf)
+                        (subtree
+                         (vat-event-tree-remove resolver-fulfill-event? subtree)))
+                      tree))
 
 (define (remove-system-events tree)
   (collapse-promise-resolutions
-   (remove-leaf-resolver-fulfill-events
+   (remove-resolver-fulfill-events
     (remove-listen-events tree))))
 
 (define-meta-command ((vat-tree goblins) repl #:optional timestamp #:key full?)
