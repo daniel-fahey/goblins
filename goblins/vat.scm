@@ -186,7 +186,7 @@
   (timestamp vat-event-timestamp)
   (far-timestamp vat-event-far-timestamp)
   (message vat-event-message)
-  (snapshot vat-event-snapshot))
+  (snapshot vat-event-snapshot set-vat-event-snapshot!))
 
 (define (print-vat-event event port)
   (format port
@@ -678,46 +678,57 @@ disabled.  LOG-CAPACITY events will be retained in the log."
     (and (local-refr? to-refr)
          (eq? (local-refr-vat-connector to-refr)
               this-vat-connector)))
-  (define (queue-messages-appropriately! event msgs)
-    (match msgs
-      (() 'done)
-      ((msg next-msgs ...)
-       (queue-messages-appropriately! event next-msgs) ; last message first
-       (if (near-msg? msg)
-           (enq! near-q (list event msg))
-           (enq! far-q (list event msg))))))
-  (define (turn event)
-    (define msg (vat-event-message event))
-    (define-values (result buffer-am new-msgs)
-      (actormap-turn-message new-am msg #:catch-errors? #t))
-    (queue-messages-appropriately! event new-msgs)
-    (match result
-      (#('ok _)
-       (transactormap-buffer-merge! buffer-am)
-       result)
-      (#('fail exception)
-       ;; Decorate exception with the vat event context.
-       (let ((vat-error (make-exception (make-vat-turn-error event)
-                                        exception)))
-         (vat-log-error! vat event vat-error)
-         `#(fail ,vat-error)))))
-  (define (make-turn-snapshot)
+  (define* (current-snapshot)
     (define snapshot* (copy-whactormap snapshot))
     (define transactormap (transactormap-reparent new-am snapshot*))
     (transactormap-merge! transactormap)
     snapshot*)
+  (define (queue-messages-appropriately! prev-event msgs)
+    (match msgs
+      (() 'done)
+      ((msg next-msgs ...)
+       ;; Last message first.
+       (queue-messages-appropriately! prev-event next-msgs)
+       ;; Create new event and put it in either the near or far queue.
+       (let* ((near? (near-msg? msg))
+              (event-type (if near? 'receive 'send))
+              (timestamp (vat-next-timestamp vat))
+              ;; For near messages, the snapshot will be set during
+              ;; its turn.  Far messages are not processed in the
+              ;; current vat, so we use the current snapshot so users
+              ;; can inspect the state of the actormap when the far
+              ;; message was sent.
+              (snapshot (if near? #f (current-snapshot)))
+              (q (if near? near-q far-q)))
+         (let ((event (make-vat-event event-type churn-id timestamp
+                                      #f msg snapshot)))
+           (vat-log-append! vat event prev-event)
+           (enq! q event))))))
+  (define (turn event)
+    (set-vat-event-snapshot! event (current-snapshot))
+    (define msg (vat-event-message event))
+    (define-values (result buffer-am new-msgs)
+      (actormap-turn-message new-am msg #:catch-errors? #t))
+    (define result*
+      (match result
+        (#('ok _)
+         (transactormap-buffer-merge! buffer-am)
+         result)
+        (#('fail exception)
+         ;; Decorate exception with the vat event context.
+         (let ((vat-error (make-exception (make-vat-turn-error event)
+                                          exception)))
+           (vat-log-error! vat event vat-error)
+           `#(fail ,vat-error)))))
+    ;; Queue messages after merging 'buffer-am' so we can take a
+    ;; snapshot to associate with far message events.
+    (queue-messages-appropriately! event new-msgs)
+    result*)
   (define (churn)
     (unless (q-empty? near-q)
-      (match (deq! near-q)
-        ((prev-event msg)
-         (let ((churn-id (vat-current-churn vat))
-               (event (make-vat-event 'receive churn-id
-                                      (vat-next-timestamp vat)
-                                      #f msg (make-turn-snapshot))))
-           (vat-log-append! vat event prev-event)
-           (turn event)
-           ;; Continue processing the near messages.
-           (churn))))))
+      (turn (deq! near-q))
+      ;; Continue processing the near messages.
+      (churn)))
   ;; Take an initial turn.
   (define received-at (vat-next-timestamp vat sent-at))
   (define init-event
@@ -730,13 +741,10 @@ disabled.  LOG-CAPACITY events will be retained in the log."
   ;; Dispatch far messages.
   (let loop ()
     (unless (q-empty? far-q)
-      (match (deq! far-q)
-        ((prev-event far-msg)
-         (let* ((time (vat-next-timestamp vat))
-                (event (make-vat-event 'send churn-id time #f far-msg snapshot)))
-           (vat-log-append! vat event prev-event)
-           (dispatch-message far-msg time)
-           (loop))))))
+      (let ((event (deq! far-q)))
+        (dispatch-message (vat-event-message event)
+                          (vat-event-timestamp event))
+        (loop))))
   ;; And now let's return everything...
   (values result new-am))
 

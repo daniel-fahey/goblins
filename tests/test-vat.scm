@@ -390,20 +390,67 @@
       #:unwind-for-type &vat-turn-error)))
 
 (test-equal "Historical actormap state can be queried via event snapshots"
-  '(gold sword)
+  '(#f gold)
+  ;; Events:
+  ;; 1) with-vat to spawn chest
+  ;; 2) with-vat to send messages to chest
+  ;; 3) update chest contents from #f to 'gold'
+  ;; 4) update chest contents from 'gold' to 'sword'
+  (let* ((t (vat-clock a-vat))
+         (chest (with-vat a-vat (spawn ^cell #f))))
+    (define (peek timestamp)
+      (actormap-peek (vat-event-snapshot
+                      (vat-log-ref-by-time a-vat timestamp))
+                     chest))
+    (with-vat a-vat
+      (<-np chest 'gold)
+      (<-np chest 'sword))
+    (list (peek (+ t 3))
+          (peek (+ t 4)))))
+
+(test-assert "Far message snapshots reflect the state at the end of the turn that caused them"
   (let ((t (vat-clock a-vat))
-        (chest (with-vat a-vat (spawn ^cell 'gold)))) ;; (+ t 1)
-    (with-vat a-vat ;; (+ t 2)
-      (on (<- chest 'sword) ;; (+ t 3)
-          (lambda _ 'no-op))) ;; (+ t 7)
-    ;; Compare before and after the event that modified the contents
-    ;; of the cell.
-    (let ((before-cell-update-event (vat-log-ref-by-time a-vat (+ t 3)))
-          (after-cell-update-event (vat-log-ref-by-time a-vat (+ t 4))))
-      (list (actormap-peek (vat-event-snapshot before-cell-update-event)
-                           chest)
-            (actormap-peek (vat-event-snapshot after-cell-update-event)
-                           chest)))))
+        ;; This chest has a sneaky setter method.  The cell contents
+        ;; are updated synchronously to hold the new value, but then
+        ;; the cell is updated asynchronously to hold a shield.
+        ;; That's a pretty weird thing to do, but we're doing it to
+        ;; tease out an important detail surrounding vat event
+        ;; snapshots.  For a far message, the snapshot should be the
+        ;; state of the actormap at the end of the turn that caused
+        ;; it.  The sneaky chest gives us a scenario where the state
+        ;; of the cell when the setter returns is different than its
+        ;; state at both the beginning and end of the churn.
+        (sneaky-chest
+         (with-vat a-vat
+           (let ((cell (spawn ^cell #f)))
+             (define (^sneaky-cell _bcom)
+               (case-lambda
+                 (()
+                  ($ cell))
+                 ((new-val)
+                  ;; Immediately store the requested value but...
+                  ($ cell new-val)
+                  ;; ...sneakily overwrite the contents of the cell
+                  ;; asynchronously!  This message will be processed
+                  ;; during the same churn.
+                  (<-np cell 'shield)
+                  ;; Return cell contents.
+                  ($ cell))))
+             (spawn ^sneaky-cell)))))
+    ;; Try to put a sword in the chest, but that sneaky chest has
+    ;; other plans!
+    (resolve-vow-and-return-result
+     b-vat
+     (lambda () (<- sneaky-chest 'sword)))
+    ;; Vat A events:
+    ;; 1) with-vat to spawn sneaky-chest
+    ;; 2) update sneaky-chest with 'sword' as requested by vat A
+    ;; 3) update sneaky-chest with 'shield'
+    ;; 4) send promise resolution value of 'sword' to vat B
+    (let ((event (vat-log-ref-by-time a-vat (+ t 4))))
+      (and (vat-send-event? event)
+           (eq? (actormap-peek (vat-event-snapshot event) sneaky-chest)
+                'sword)))))
 
 (test-assert "Events with listen requests satisfy vat-event-listen? predicate"
   ;; (+ t 1): call-with-vat to spawn counter
@@ -439,15 +486,20 @@
            (done? (make-condition))
            ;; The start time for vat A.
            (ta1 (vat-clock a-vat))
-           ;; The start time for b-vat when it receives a message
-           ;; from a-vat.  Vat A processes 3 messages (with-vat,
-           ;; listen, listen) before sending messages to vat B, hence
-           ;; the +4 in the math below.
-           (tb (max (+ ta1 4) (vat-clock b-vat)))
+           ;; The start time for b-vat when it receives a message from
+           ;; vat A.  Vat A ticks its clock twice before vat B is
+           ;; involved: Once for the call-with-vat call, and once more
+           ;; to send a message to vat B. Therefore, due to the
+           ;; Lamport clock logic, B's clock will advance to (+ ta1 2)
+           ;; if it is greater than B's current clock value.
+           (tb (max (+ ta1 2) (vat-clock b-vat)))
            ;; The start time for vat A when it first receives a
            ;; promise fulfillment message from vat B.  Vat B ticks its
-           ;; own clock twice before that happens.
-           (ta2 (max (+ tb 2) (+ ta1 5))))
+           ;; own clock twice before that happens (receiving a message
+           ;; and sending a promise resolve message), and vat A ticks
+           ;; once for a listen request, for a total of a three tick
+           ;; offset.
+           (ta2 (+ tb 3)))
       (with-vat a-vat
         ;; This is a distractor promise.  It is part of the
         ;; same churn as the promise below, but it shouldn't
@@ -462,26 +514,23 @@
               (signal-condition! done?))))
       ;; Wait for the promise to resolve.
       (perform-operation (wait-operation done?))
-      (let ((e0 (vat-log-ref-by-time a-vat (+ ta1 1))) ; A: recv: with-vat
-            ;; The distractor promise generates a listen message (+2),
-            ;; then the tracked promise does the same (+3), then the
-            ;; distractor promise message is sent to vat B (+4), so
-            ;; the tracked promise send event is offset by 5 clock
-            ;; ticks total.
-            (e1 (vat-log-ref-by-time a-vat (+ ta1 5))) ; A: send: (<- counter)
-            ;; Vat B processes the distractor message first. It
-            ;; receives the distractor message (+1), then sends a
-            ;; response to the resolver in vat A (+2), so the events
-            ;; we're tracking are offset by 3 clock ticks.
-            (e2 (vat-log-ref-by-time b-vat (+ tb 3))) ; B: recv: (<- counter)
-            (e3 (vat-log-ref-by-time b-vat (+ tb 4))) ; B: send: resolve
-            ;; Likewise, vat A processes the resolution of the
-            ;; distractor promise before the one we're tracking.  It
-            ;; fulfills the resolver (+1), fulfills the listener (+2),
-            ;; and calls the fulfilled handler (+3), so the events
-            ;; we're tracking are offset by 4 clock ticks.
-            (e4 (vat-log-ref-by-time a-vat (+ ta2 4))) ; A: recv: resolve
-            (e5 (vat-log-ref-by-time a-vat (+ ta2 5))) ; A: recv: fulfill
+      (let ((e0 (vat-log-ref-by-time a-vat (+ ta1 1)))  ; A: recv: with-vat
+            ;; Outside of the trace:
+            ;; (+ ta1 2): distractor (<- counter) message send to vat B.
+            ;; (+ ta1 3): listen request for the above promise.
+            (e1 (vat-log-ref-by-time a-vat (+ ta1 4)))  ; A: send: (<- counter)
+            ;; Outside of the trace:
+            ;; (+ ta1 5): listen request for the promise.
+            ;; (+ tb 1): receive distractor (<- counter) message.
+            ;; (+ tb 2): send resolver fulfill message back to vat A.
+            (e2 (vat-log-ref-by-time b-vat (+ tb 3)))   ; B: recv: (<- counter)
+            (e3 (vat-log-ref-by-time b-vat (+ tb 4)))   ; B: send: resolve
+            ;; Outside of the trace:
+            ;; (+ ta2 1): receive distractor promise resolution from vat B.
+            ;; (+ ta2 2): fulfill listener for distractor promise.
+            ;; (+ ta2 3): call fulfilled handler for distractor promise.
+            (e4 (vat-log-ref-by-time a-vat (+ ta2 4)))  ; A: recv: resolve
+            (e5 (vat-log-ref-by-time a-vat (+ ta2 5)))  ; A: recv: fulfill
             (e6 (vat-log-ref-by-time a-vat (+ ta2 6)))) ; A: recv: finally
         ;; Get the backtrace of the promise resolution event and
         ;; verify that it matches our expectation.  The trace has to
@@ -499,15 +548,18 @@
            (done? (make-condition))
            ;; The start time for vat A.
            (ta1 (vat-clock a-vat))
-           ;; The start time for b-vat when it receives a message
-           ;; from a-vat.  Vat A processes 3 messages (with-vat,
-           ;; listen, listen) before sending messages to vat B, hence
-           ;; the +4 in the math below.
-           (tb (max (+ ta1 4) (vat-clock b-vat)))
-           ;; The start time for vat A when it first receives a
-           ;; promise fulfillment message from vat B.  Vat B ticks its
-           ;; own clock twice before that happens.
-           (ta2 (max (+ tb 2) (+ ta1 5))))
+           ;; The start time for b-vat when it receives a message from
+           ;; a-vat.  Vat A processes two messages before vat receives
+           ;; a message: The with-vat message, and the send for
+           ;; messaging the counter in vat B.
+           (tb (max (+ ta1 2) (vat-clock b-vat)))
+           ;; The start time for vat A when it first receives a a
+           ;; message back from vat B.  Vat B ticks its own clock
+           ;; twice before that happens (receiving a message for the
+           ;; counter, the sending a promise resolution message back),
+           ;; and vat A in the meantime has processed another listen
+           ;; request, so the total offset is 3 ticks.
+           (ta2 (+ tb 3)))
       (with-vat a-vat
         (on (<- counter) (const #t))
         (on (<- counter)
@@ -519,10 +571,10 @@
       ;; Get the tree of the promise resolution event and verify that
       ;; it matches what we expect.
       (let ((e0 (vat-log-ref-by-time a-vat (+ ta1 1)))   ; A: recv: with-vat
-            (e1 (vat-log-ref-by-time a-vat (+ ta1 2)))   ; A: recv: listen
+            (e1 (vat-log-ref-by-time a-vat (+ ta1 2)))   ; A: send: (<- counter)
             (e2 (vat-log-ref-by-time a-vat (+ ta1 3)))   ; A: recv: listen
             (e3 (vat-log-ref-by-time a-vat (+ ta1 4)))   ; A: send: (<- counter)
-            (e4 (vat-log-ref-by-time a-vat (+ ta1 5)))   ; A: send: (<- counter)
+            (e4 (vat-log-ref-by-time a-vat (+ ta1 5)))   ; A: recv: listen
             (e5 (vat-log-ref-by-time b-vat (+ tb 1)))    ; B: recv: (<- counter)
             (e6 (vat-log-ref-by-time b-vat (+ tb 2)))    ; B: send: resolve
             (e7 (vat-log-ref-by-time b-vat (+ tb 3)))    ; B: recv: (<- counter)
@@ -535,20 +587,20 @@
             (e14 (vat-log-ref-by-time a-vat (+ ta2 6)))) ; A: recv: handler
         ;; This weird looking thing is the vat tree we are expecting.
         (equal? `(,e0
-                  ,e1
-                  ,e2
-                  (,e3
+                  (,e1
                    (,e5
                     (,e6
                      (,e9
                       (,e10
                        ,e11)))))
-                  (,e4
+                  ,e2
+                  (,e3
                    (,e7
                     (,e8
                      (,e12
                       (,e13
-                       ,e14))))))
+                       ,e14)))))
+                  ,e4)
                 (vat-event-tree
                  (vat-log-ref-by-time a-vat (vat-clock a-vat))))))))
 
@@ -581,23 +633,23 @@
       (perform-operation (wait-operation done?))
       ;; Get the tree of the a-counter promise resolution event and
       ;; verify that it matches what we expect.
-      (let ((e0 (vat-log-ref-by-time a-vat (+ t 1)))  ; A: recv: with-vat
-            (e1 (vat-log-ref-by-time a-vat (+ t 2)))  ; A: recv: listen
-            (e2 (vat-log-ref-by-time a-vat (+ t 3)))  ; A: recv: (<- a-counter)
-            (e3 (vat-log-ref-by-time a-vat (+ t 4)))  ; A: recv: listen
-            (e4 (vat-log-ref-by-time a-vat (+ t 5)))  ; A: recv: resolve
-            (e5 (vat-log-ref-by-time a-vat (+ t 6)))  ; A: recv: fulfill
-            (e6 (vat-log-ref-by-time a-vat (+ t 7)))  ; A: recv: handler
-            (e7 (vat-log-ref-by-time a-vat (+ t 8)))) ; A: send: (<- b-counter))
+      (let ((e0 (vat-log-ref-by-time a-vat (+ t 1))) ; A: recv: with-vat
+            (e1 (vat-log-ref-by-time a-vat (+ t 2))) ; A: send: (<- b-counter))
+            (e2 (vat-log-ref-by-time a-vat (+ t 3))) ; A: recv: listen
+            (e3 (vat-log-ref-by-time a-vat (+ t 4))) ; A: recv: (<- a-counter)
+            (e4 (vat-log-ref-by-time a-vat (+ t 5))) ; A: recv: listen
+            (e5 (vat-log-ref-by-time a-vat (+ t 6))) ; A: recv: resolver fulfill
+            (e6 (vat-log-ref-by-time a-vat (+ t 7))) ; A: recv: promise fulfill
+            (e7 (vat-log-ref-by-time a-vat (+ t 8)))) ; A: recv: fulfilled-handler
         (equal? `(,e0
                   ,e1
-                  (,e2
-                   (,e4
-                    (,e5
-                     ,e6)))
-                  ,e3
-                  ,e7)
-                (vat-event-tree e6))))))
+                  ,e2
+                  (,e3
+                   (,e5
+                    (,e6
+                     ,e7)))
+                  ,e4)
+                (vat-event-tree e7))))))
 
 (test-assert "Mapping event tree can modify tree structure"
   (begin
@@ -620,12 +672,10 @@
       ;; generates more events to deal with.
       (with-vat a-vat (<-np counter))
       ;; This is just to sync up with b-vat before proceeding with the
-      ;; test.  This works because the previous with-vat call
-      ;; dispatches messages to vat B *before* control is relinquished
-      ;; back to this test.
-      (with-vat b-vat 'no-op)
-      (let ((e0 (vat-log-ref-by-time a-vat (+ ta 1)))  ; A: recv: with-vat
-            (e1 (vat-log-ref-by-time a-vat (+ ta 2)))  ; A: send: (<- counter)
+      ;; test.
+      (resolve-vow-and-return-result a-vat (lambda () (<- counter)))
+      (let ((e0 (vat-log-ref-by-time a-vat (+ ta 1))) ; A: recv: with-vat
+            (e1 (vat-log-ref-by-time a-vat (+ ta 2))) ; A: send: (<- counter)
             (e2 (vat-log-ref-by-time b-vat (+ tb 1)))) ; B: recv: (<- counter)
         ;; Remove the send event from the tree, preserving the
         ;; associated receive event.
@@ -663,32 +713,25 @@
            ;; events progresses from vat A, to vat B, and then back to
            ;; vat A.
            (ta1 (vat-clock a-vat))
-           ;; Vat A ticks its clock three times, once for receiving
-           ;; the with-vat message, once to listen to the promise, and
-           ;; once more to send a message to the counter.  Therefore,
-           ;; due to the Lamport clock logic, B's clock will advance
-           ;; to (+ ta 3) if it is greater than B's current clock
-           ;; value.
-           (tb (max (vat-clock b-vat) (+ ta1 3)))
+           ;; Vat A ticks its clock twice, once for receiving the
+           ;; with-vat message, and once more to send a message to the
+           ;; counter.  Therefore, due to the Lamport clock logic, B's
+           ;; clock will advance to (+ ta 2) if it is greater than B's
+           ;; current clock value.
+           (tb (max (vat-clock b-vat) (+ ta1 2)))
            ;; With the clocks synced between vat A and B, vat B ticks
            ;; its clock twice.  Once to receive the message to the
            ;; counter, and once more to send a message to the promise
            ;; resolver in vat A.  Vat A has not processed any other
            ;; messages in the meantime, so receiving the next message
            ;; from vat B will advance vat A's clock to (+ tb 2).
-           (ta2 (+ tb 2)))
-      ;; Opting not to use resolve-vow-and-return-result here as it
-      ;; generates more events to deal with.
-      (with-vat a-vat (on (<- counter) identity))
-      ;; This is just to sync up with b-vat before proceeding with the
-      ;; test.  This works because the previous with-vat call
-      ;; dispatches messages to vat B *before* control is relinquished
-      ;; back to this test.
-      (with-vat b-vat 'no-op)
+           (ta2 (+ tb 2))
+           (vow (with-vat a-vat (on (<- counter) identity))))
+      (resolve-vow-and-return-result a-vat (lambda () vow))
       (let ((e0 (vat-log-ref-by-time a-vat (+ ta1 1)))  ; A: recv: with-vat
+            (e1 (vat-log-ref-by-time a-vat (+ ta1 2)))  ; A: send: (<- counter)
             ;; This listen event will be filtered out.
-            (e1 (vat-log-ref-by-time a-vat (+ ta1 2)))  ; A: recv: listen
-            (e2 (vat-log-ref-by-time a-vat (+ ta1 3)))  ; A: send: (<- counter)
+            (e2 (vat-log-ref-by-time a-vat (+ ta1 3)))  ; A: recv: listen
             (e3 (vat-log-ref-by-time b-vat (+ tb 1)))   ; B: recv: (<- counter)
             (e4 (vat-log-ref-by-time b-vat (+ tb 2)))   ; B: send: resolver fulfill
             (e5 (vat-log-ref-by-time a-vat (+ ta2 1)))  ; A: recv: resolver fulfill
@@ -696,7 +739,7 @@
             (e7 (vat-log-ref-by-time a-vat (+ ta2 3)))) ; A: recv: fulfilled handler
         ;; Keep only message events, removing e1, the only listen
         ;; request event.
-        (equal? `(,e0 (,e2 (,e3 (,e4 (,e5 (,e6 ,e7))))))
+        (equal? `(,e0 (,e1 (,e3 (,e4 (,e5 (,e6 ,e7))))))
                 (vat-event-tree-filter (match-lambda
                                          ((? vat-event? event)
                                           (vat-event-message? event))
@@ -730,31 +773,23 @@
            ;; events progresses from vat A, to vat B, and then back to
            ;; vat A.
            (ta1 (vat-clock a-vat))
-           ;; Vat A ticks its clock three times, once for receiving
-           ;; the with-vat message, once to listen to the promise, and
+           ;; Vat A ticks its clock two times before B receives a
+           ;; message. Once for receiving the with-vat message, and
            ;; once more to send a message to the counter.  Therefore,
            ;; due to the Lamport clock logic, B's clock will advance
-           ;; to (+ ta 3) if it is greater than B's current clock
+           ;; to (+ ta 2) if it is greater than B's current clock
            ;; value.
-           (tb (max (vat-clock b-vat) (+ ta1 3)))
+           (tb (max (vat-clock b-vat) (+ ta1 2)))
            ;; With the clocks synced between vat A and B, vat B ticks
            ;; its clock twice.  Once to receive the message to the
            ;; counter, and once more to send a message to the promise
-           ;; resolver in vat A.  Vat A has not processed any other
-           ;; messages in the meantime, so receiving the next message
-           ;; from vat B will advance vat A's clock to (+ tb 2).
-           (ta2 (+ tb 2)))
-      ;; Opting not to use resolve-vow-and-return-result here as it
-      ;; generates more events to deal with.
-      (with-vat a-vat (on (<- counter) identity))
-      ;; This is just to sync up with b-vat before proceeding with the
-      ;; test.  This works because the previous with-vat call
-      ;; dispatches messages to vat B *before* control is relinquished
-      ;; back to this test.
-      (with-vat b-vat 'no-op)
+           ;; resolver in vat A.
+           (ta2 (+ tb 2))
+           (vow (with-vat a-vat (on (<- counter) identity))))
+      (resolve-vow-and-return-result a-vat (lambda () vow))
       (let ((e0 (vat-log-ref-by-time a-vat (+ ta1 1)))  ; A: recv: with-vat
-            (e1 (vat-log-ref-by-time a-vat (+ ta1 2)))  ; A: recv: listen
-            (e2 (vat-log-ref-by-time a-vat (+ ta1 3)))  ; A: send: (<- counter)
+            (e1 (vat-log-ref-by-time a-vat (+ ta1 2)))  ; A: send: (<- counter)
+            (e2 (vat-log-ref-by-time a-vat (+ ta1 3)))  ; A: recv: listen
             (e3 (vat-log-ref-by-time b-vat (+ tb 1)))   ; B: recv: (<- counter)
             (e4 (vat-log-ref-by-time b-vat (+ tb 2)))   ; B: send: resolver fulfill
             (e5 (vat-log-ref-by-time a-vat (+ ta2 1)))  ; A: recv: resolver fulfill
@@ -765,17 +800,17 @@
         ;; 'vat-event-tree->timeline' produces its output
         ;; deterministically so an 'equal?' check is fine.
         (equal? (list (cons (vat-connector a-vat)
-                            (list (cons (vat-event-timestamp e7)
+                            (list (cons (vat-event-timestamp e2)
+                                        (list e2))
+                                  (cons (vat-event-timestamp e7)
                                         (list e7))
                                   (cons (vat-event-timestamp e6)
                                         (list e6))
                                   (cons (vat-event-timestamp e5)
                                         (list e5))
-                                  (cons (vat-event-timestamp e2)
-                                        (list e2 (list (vat-connector b-vat)
-                                                       (vat-event-timestamp e3))))
                                   (cons (vat-event-timestamp e1)
-                                        (list e1))
+                                        (list e1 (list (vat-connector b-vat)
+                                                       (vat-event-timestamp e3))))
                                   (cons (vat-event-timestamp e0)
                                         (list e0))))
                       (cons (vat-connector b-vat)
