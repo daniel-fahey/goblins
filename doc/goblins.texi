@@ -41,67 +41,10 @@ v2.  See @ref{License} for more information.
 * A high level view of Goblins::
 * Tutorial::
 * API::
+* API Reference::
 * actor-lib A standard library of sorts::
 * Thanks::
 * License::
-
-@detailmenu
---- The Detailed Node Listing ---
-
-Getting started
-
-* Installing Goblins::
-* Setup for hacking on Goblins::
-* TEMPORARY Live hacking ``fix''::
-
-A high level view of Goblins
-
-* The ``vat model'' of computation::
-
-Tutorial
-
-* A simple greeter::
-* State as updating behavior::
-* Methods aren't essential, but they are useful: Methods aren't essential but they are useful.
-* Objects which contain objects::
-* Asynchronous message passing::
-* Transactions make errors survivable::
-* Promise pipelining::
-
-API
-
-* Objects::
-* Vats::
-* Actormaps::
-* OCapN The Object Capabilities Network::
-
-Objects
-
-* Spawning objects::
-* Synchronous invocation::
-* Asynchronous invocation::
-
-Vats
-
-* Starting and stopping vats::
-* Rolling your own vats::
-
-OCapN: The Object Capabilities Network
-
-* CapTP The Capability Transport Protocol::
-* Launching a Tor daemon for Goblins::
-* Example Two Goblins programs chatting over CapTP via Tor::
-* Using the CapTP API::
-* Netlayers::
-
-actor-lib: A standard library of sorts
-
-* Cells::
-* Methods::
-* Joiners::
-* Sealers::
-
-@end detailmenu
 @end menu
 
 @node What is Goblins?
@@ -1833,6 +1776,11 @@ providing them. An example of this is:
     (restore-onion-netlayer private-key service-id))
 @end lisp
 @end enumerate
+
+@node API Reference
+@chapter API Reference
+
+@include api-reference.texi
 
 @node actor-lib A standard library of sorts
 @chapter actor-lib: A standard library of sorts
