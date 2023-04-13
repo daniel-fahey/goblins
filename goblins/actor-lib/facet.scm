@@ -14,13 +14,13 @@
 
 (define-module (goblins actor-lib facet)
   #:use-module (goblins)
+  #:use-module (goblins actor-lib opportunistic)
   #:use-module (ice-9 match)
   #:export (^facet facet))
 
 (define* (^facet bcom wrap-me
-                 #:key [sync? #f]
                  #:rest methods)
-  (define $/<- (if sync? $ <-))
+  (define $/<- (select-$/<- wrap-me))
   (lambda args
     (match args
       [((? symbol? method) args ...)
@@ -30,7 +30,6 @@
       [_ "Requires symbol-based method dispatch"])))
 
 (define* (facet wrap-me
-                #:key [sync? #f]
                 #:rest methods)
   (apply spawn-named (procedure-name wrap-me) ^facet
-         #:sync? sync? methods))
+         methods))
