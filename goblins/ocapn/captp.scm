@@ -1266,7 +1266,7 @@
     ;; TODO: Eventually... well this whole sturdyref nonsense we want
     ;; to make more configureable
     (define-values (registry locator)
-      (spawn-nonce-registry-locator-pair))
+      (spawn-nonce-registry-and-locator))
 
     ;; Warden and incanter for collaborating parties in this
     ;; particular machine
