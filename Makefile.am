@@ -131,7 +131,8 @@ AM_SCM_LOG_FLAGS = --no-auto-compile -L "$(top_srcdir)"
 AM_TESTS_ENVIRONMENT = abs_top_srcdir="$(abs_top_srcdir)"
 
 info_TEXINFOS = doc/goblins.texi
-doc_goblin_TEXINFOS = doc/api-reference.texi
+doc_goblin_TEXINFOS = doc/api-reference.texi	\
+                      doc/apache-2.0.texi
 dvi: # Don't build dvi docs
 html-local:
 	$(GUILE) --no-auto-compile doc/build-html.scm
@@ -152,7 +153,6 @@ EXTRA_DIST += README.org \
               live-guile.sh \
               .gitlab-ci.yml \
               build-aux/test-driver.scm \
-              doc/apache-2.0.texi \
               doc/goblins.css \
               doc/build-html.scm \
               $(TESTS)

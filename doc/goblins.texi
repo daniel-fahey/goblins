@@ -45,6 +45,7 @@ v2.  See @ref{License} for more information.
 * actor-lib A standard library of sorts::
 * Thanks::
 * License::
+* Index::
 @end menu
 
 @node What is Goblins?
@@ -1995,5 +1996,10 @@ Tallon, the Spritely Institute, and other contributors.  See
 terms of the following license:}
 
 @include apache-2.0.texi
+
+@node Index
+@unnumbered Index
+
+@printindex fn
 
 @bye
