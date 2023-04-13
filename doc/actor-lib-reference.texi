@@ -50,3 +50,18 @@ returns nothing.
 @end lisp
 
 @end deffn
+
+@deffn {Procedure} cell->read-only cell
+
+Create and return a read-only proxy to @var{cell}. It is an error to
+attempt to write to such a cell.
+
+@lisp
+> (define ro-chest (cell->read-only chest))
+> ($ chest)
+=> 'sword
+> ($ chest 'wand)
+=> error: ...
+@end lisp
+
+@end deffn
