@@ -299,3 +299,32 @@ For example, this use of @code{let-on}@dots{}
 
 @end deffn
 
+@deffn let*-on ((var exp) @dots{}) body
+
+Like @code{let-on}, except paralleling @code{let*}; each @var{exp} is
+resolved @emph{sequentially} rather than concurrently, and each
+@code{var} is available in the body of the succeeding @var{exp}s.
+This is equivalent to nested @code{on} and @code{lambda} calls, without
+using @code{match-lambda} or @code{all-of}.
+
+So this use of @code{let*-on}@dots{}
+
+@lisp
+(let*-on ((four (<- doubler 2))
+          (eight (<- doubler four)))
+  (+ four eight))
+@end lisp
+
+@dots{}is equivalent to@dots{}
+
+@lisp
+(on (<- doubler 2)
+    (lambda (four)
+      (on (<- doubler four)
+          (lambda (eight)
+            (+ four eight))
+          #:promise? #t))
+    #:promise? #t)
+@end lisp
+
+@end deffn
