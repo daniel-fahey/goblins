@@ -419,6 +419,18 @@ Below is a more visual representation of the timeline structure:
   (error-index vat-log-error-index)
   (mutex vat-log-mutex))
 
+(define (print-vat-log log port)
+  (format port
+          "#<vat-log length: ~a time-index: ~a message-index: ~a prev-index: ~a next-index: ~a error-index: ~a>"
+          (ring-buffer-length (vat-log-events log))
+          (vat-log-time-index log)
+          (vat-log-message-index log)
+          (vat-log-prev-index log)
+          (vat-log-next-index log)
+          (vat-log-error-index log)))
+
+(set-record-type-printer! <vat-log> print-vat-log)
+
 (define (make-vat-log max-length)
   (%make-vat-log (make-ring-buffer max-length)
                  (make-hash-table)
