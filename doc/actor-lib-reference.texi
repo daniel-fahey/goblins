@@ -79,3 +79,15 @@ attempt to read from such a cell.
 @end lisp
 
 @end deffn
+
+@deffn {Syntax} define-cell id [val #f]
+
+Syntax for creating a cell using a form like Scheme @code{define}.
+
+@lisp
+> (define-cell chest 'gold)
+> ($ chest)
+=> 'gold
+@end lisp
+
+@end deffn
