@@ -401,4 +401,12 @@ methods directly, as in:
 
 @end deffn
 
+@node Nonce Registry
+@section Nonce Registry
+
+The @code{(goblins actor-lib nonce-registry)} module provides an actor
+to store and retrieve references using @emph{swiss-num}s.  A
+@dfn{swiss-num} is a string of digits which grants anyone with that
+string of digits access to whatever it refers to, much as a Swiss bank
+account number grants access to the bank account (hence the name).
 
