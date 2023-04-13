@@ -258,3 +258,9 @@ Like @code{all-of}, but @var{promises} is a list of promises.
 
 @end deffn
 
+@node Let-On
+@section Let-On
+
+The @code{(goblins actor-lib let-on)} module provides convenient
+syntax to facilitate promise pipelining.
+
