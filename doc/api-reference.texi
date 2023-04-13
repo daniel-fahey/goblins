@@ -163,7 +163,7 @@ Like @code{<-np}, but only operate on @emph{far} objects.
 
 @end deffn
 
-@deffn {Procedure} on vow [fulfilled-handler #f]
+@deffn {Procedure} on vow [fulfilled-handler #f] @
        [#:catch #f] [#:finally #f] [#:promise? #f]
 
 Respond to a promise, optionally with error handling.  Return nothing
@@ -314,7 +314,7 @@ At a high level, users generally will spawn a @emph{vat}, bind it to a
 name in the local namespace, and use it for various operations. This
 will usually use @code{spawn-vat}:
 
-@deffn {Procedure} spawn-vat [#:name] [#:log?]
+@deffn {Procedure} spawn-vat [#:name] [#:log?] @
        [log-capacity]
 
 Create and return a reference to a new @emph{vat}.
@@ -342,7 +342,7 @@ Defaults to 256.
 Sometimes, it is useful to make and manage a @emph{vat} at a slightly
 lower level. In such cases, @code{make-vat} comes into play:
 
-@deffn {Procedure} make-vat [#:name] [#:start] [#:halt] [#:send]
+@deffn {Procedure} make-vat [#:name] [#:start] [#:halt] [#:send] @
        [#:log?] [log-capacity]
 
 Return a new vat named @var{name}.  Vat behavior is determined by
@@ -577,8 +577,8 @@ instead.
 
 @end deffn
 
-@deffn {Procedure} actormap-turn-message actormap msg
-       [#:error-handler simple-display-error] [#:reckless? #f]
+@deffn {Procedure} actormap-turn-message actormap msg @
+       [#:error-handler simple-display-error] [#:reckless? #f] @
        [#:catch-errors? #t]
 
 Return the result of @var{msg} in the context of @var{actormap}.
@@ -662,7 +662,7 @@ Like @code{actormap-run}, and return a reference to the new
 
 @end deffn
 
-@deffn {Procedure} actormap-churn am msg [#:catch-errors? #t]
+@deffn {Procedure} actormap-churn am msg [#:catch-errors? #t] @
        [#:make-transactormap? #t]
 
 Perform every turn in @var{am} possible without needing to invoke
@@ -681,7 +681,7 @@ the appropriate @emph{far} objects.
 
 @end deffn
 
-@deffn {Procedure} actormap-churn-run actormap thunk
+@deffn {Procedure} actormap-churn-run actormap thunk @
        [#:catch-errors? #t]
 
 Evaluate @var{thunk} in the context of @var{actormap}, performing all
@@ -691,7 +691,7 @@ results, a reference to the new actormap, and any messages generated.
 
 @end deffn
 
-@deffn {Procedure} actormap-churn-run! actormap thunk
+@deffn {Procedure} actormap-churn-run! actormap thunk @
        [#:catch-errors? #t]
 
 Like @code{actormap-churn-run}, but dispatch messages and only return
