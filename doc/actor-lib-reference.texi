@@ -91,3 +91,11 @@ Syntax for creating a cell using a form like Scheme @code{define}.
 @end lisp
 
 @end deffn
+
+@node Common
+@section Common
+
+The @code{(goblins actor-lib common)} module provides actors wrapping
+functional data structures, allowing Goblins transactionality
+guarantees while providing an apparently mutable interface.
+
