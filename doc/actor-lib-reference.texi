@@ -65,3 +65,17 @@ attempt to write to such a cell.
 @end lisp
 
 @end deffn
+
+@deffn {Procedure} cell->write-only cell
+
+Create and return a write-only proxy to @var{cell}. It is an error to
+attempt to read from such a cell.
+
+@lisp
+> (define wo-chest (cell->write-only chest))
+> ($ chest 'wand)
+> ($ chest)
+=> error: ...
+@end lisp
+
+@end deffn
