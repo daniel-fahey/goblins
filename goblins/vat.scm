@@ -485,9 +485,15 @@ Below is a more visual representation of the timeline structure:
       (ring-buffer-put! events event)
       (hashv-set! time-index (vat-event-timestamp event) event)
       (hashq-set! message-index (vat-event-message event) event)
-      (hashq-set! prev-index event prev)
-      (hashq-set! next-index prev
-                  (cons event (hashq-ref next-index prev '()))))))
+      ;; Only add to the prev/next indexes if there is a previous
+      ;; event.  This is particularly important for the next index,
+      ;; because otherwise every root event would be consed onto a
+      ;; list of events associated with the key #f.  This list would
+      ;; grow without bound, eventually exhausting all memory.
+      (when prev
+        (hashq-set! prev-index event prev)
+        (hashq-set! next-index prev
+                    (cons event (hashq-ref next-index prev '())))))))
 
 (define (%vat-log-error! log event exception)
   (with-mutex (vat-log-mutex log)
