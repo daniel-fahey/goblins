@@ -410,3 +410,35 @@ to store and retrieve references using @emph{swiss-num}s.  A
 string of digits access to whatever it refers to, much as a Swiss bank
 account number grants access to the bank account (hence the name).
 
+@deffn {Procedure} spawn-nonce-registry-and-locator
+
+Create and return, as @code{values}, an actor which registers and an
+actor which locates objects using Swiss nums.
+
+The first returned value, the @code{registry}, has two methods:
+@code{register}, which accepts an object reference and an optional
+@emph{swiss-num}, and returns the @emph{swiss-num}; and @code{fetch},
+which accepts a @emph{swiss-num} and returns a reference to the
+appropriate object.  The second returned value, the @code{locator},
+only has one method, @code{fetch}, which operates exactly the same as
+that of @code{registry}.
+
+To clarify, here's an example:
+
+@lisp
+> (use-modules (goblins actor-lib cell))
+> (define-values (nr nr-locator) (spawn-nonce-registry-and-locator))
+> nr
+=> #<local-object ^nonce-registry>
+> (define chest (spawn ^cell 'gold))
+> (define chest-token ($ nr 'register chest))
+> chest-token
+=> #vu8(<32 random 8-bit unsigned integers>)
+> ($ nr 'fetch chest-token)
+=> #<local-object ^cell>
+> ($ nr-locator 'fetch chest-token)
+=> #<local-object ^cell>
+@end lisp
+
+@end deffn
+
