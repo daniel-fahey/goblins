@@ -360,3 +360,45 @@ As an example, consider this actor capable of saying hello or goodbye:
 
 @end deffn
 
+@deffn {Syntax} extend-methods extends ((name args @dots{}) expr) @dots{}
+
+Syntax to expand a collection of methods or an actor @var{extends}.
+@var{name}, @var{args}, and @var{expr} are as in @code{methods}.
+
+So this would allow extending the previous example with a method to
+ask how the caller is:
+
+@lisp
+> (define hello-goodbye-how-are-you
+    (extend-methods hello-goodbye
+      ((how-are-you name)
+       (format #f "How are you, ~a?" name))))
+> (hello-goodbye-how-are-you 'how-are-you "Alice")
+=> "How are you, Alice?"
+@end lisp
+
+You may notice that when extending a live reference, the result is not
+a reference to an actor, but rather a procedure which invokes the
+original actor.  @code{extend-methods} can also be used to extend
+methods directly, as in:
+
+@lisp
+> (define behs (methods
+                 ((say-hello)
+                  (format #f "Hello!"))
+                 ((say-goodbye)
+                  (format #f "Goodbye!"))))
+> (define new-behs (extend-methods behs
+                     ((how-are-you)
+                      (format #f "How are you?"))))
+> (define (^hello-goodbye-how-are-you bcom)
+    new-behs)
+> (define hello-goodbye-how-are-you
+    (spawn ^hellow-goodbye-how-are-you))
+> ($ hello-goodbye-how-are-you 'how-are-you)
+=> "How are you?"
+@end lisp
+
+@end deffn
+
+
