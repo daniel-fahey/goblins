@@ -2172,7 +2172,10 @@
   ;; the load path.
   (if (module-filename (resolve-module '(fibers internal)))
       (begin
-        (display-backtrace stack (current-error-port))
+        ;; Specify stack frame range explicitly, otherwise
+        ;; display-backtrace will display additional frames in the
+        ;; current stack for some reason!
+        (display-backtrace stack (current-error-port) 0 (stack-length stack))
         (newline (current-error-port)))
       (begin
         (display "Backtrace omitted due to a bug in guile-fibers!\n"
@@ -2230,8 +2233,31 @@
        (values `#(fail ,turn-error) actormap new-msgs))
      (define handle-exn-tag (make-prompt-tag 'goblins-turn))
      (define (catch-stack-and-abort-to-prompt err)
+       ;; Prepare a slice of the call stack that only has the frames
+       ;; relevant to the actor behavior that threw the error.  This
+       ;; way we aren't exposing Goblins core stack frames, which
+       ;; would be a security leak in a fully OCap secure system.
        (define stack
-         (make-stack #t catch-stack-and-abort-to-prompt))
+         (make-stack #t ; get the current stack
+                     ;; Trim inner frames up to and including this
+                     ;; error handling procedure.
+                     catch-stack-and-abort-to-prompt
+                     ;; Trim outer frames up to the prompt tag.  This
+                     ;; hides *most* of the core frames.
+                     handle-exn-tag
+                     ;; The frame trimming arguments go inner, outer,
+                     ;; inner, outer, etc. so we need to no-op here so
+                     ;; we can trim more outer frames.
+                     0
+                     ;; Trim 3 more outer frames that the tag doesn't
+                     ;; eliminate for us.
+                     ;;
+                     ;; The frames are:
+                     ;;
+                     ;; - with-exception-handler
+                     ;; - do-call
+                     ;; - _handle-message or _handle-listen
+                     3))
        (abort-to-prompt handle-exn-tag err stack))
      (define (do-call)
        (define result
