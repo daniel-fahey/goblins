@@ -143,12 +143,20 @@
     ;; instead.
     *unspecified*))
 
+(define (stack->vector stack)
+  (let ((v (make-vector (stack-length stack))))
+    (let loop ((i 0))
+      (when (< i (stack-length stack))
+        (vector-set! v i (stack-ref stack i))
+        (loop (+ i 1))))
+    v))
+
 (define (enter-debugger language e)
   (cond
    ;; For exceptions, launch Guile's debug sub-REPL so that both the
    ;; stack trace and the vat trace can be debugged.
    ((exception? e)
-    (let* ((stack (narrow-stack->vector (actormap-turn-error-stack e) 0))
+    (let* ((stack (stack->vector (actormap-turn-error-stack e)))
            (msg (error-message stack e))
            (event (vat-turn-error-event e))
            (trace (list->vector (vat-event-trace event)))
