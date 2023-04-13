@@ -251,3 +251,10 @@ writing some output:
 @end lisp
 
 @end deffn
+
+@deffn {Procedure} all-of* promises
+
+Like @code{all-of}, but @var{promises} is a list of promises.
+
+@end deffn
+
