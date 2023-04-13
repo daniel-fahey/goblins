@@ -205,3 +205,11 @@ Construct a proxy of the actor @var{wrap-me} with access to only
 @code{$}; otherwise, use @code{<-}.
 
 @end deffn
+
+@deffn {Procedure} facet wrap-me [#:sync? #f] [methods @dots{}]
+
+Spawn and return a reference to a @code{^facet}, passing along
+arguments to their equivalents in the constructor.
+
+@end deffn
+
