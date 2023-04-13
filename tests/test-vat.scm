@@ -361,6 +361,18 @@
            (every vat-event? next)
            (equal? next (vat-log-ref-next a-vat event))))))
 
+;; Test for https://gitlab.com/spritely/guile-goblins/-/issues/101
+(test-equal "Root events are not added to the 'next' index"
+  '()
+  (begin
+    (vat-log-clear! a-vat)
+    (set-vat-logging! a-vat #t)
+    (with-vat a-vat 'no-op)
+    ;; A root event has a previous event of #f, or no event.  That
+    ;; shouldn't mean that the next event list for "event" #f is a
+    ;; list of all root events.  It should be the empty list.
+    (vat-log-ref-next a-vat #f)))
+
 (test-assert "Event information can be obtained from vat errors"
   (let ((t (vat-clock a-vat)))
     (define (handle-error e)
