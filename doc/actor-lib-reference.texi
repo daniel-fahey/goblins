@@ -1,0 +1,22 @@
+The Goblins actor library, in the @code{(goblins actor-lib ...)}
+module namespace, provides implementations for a variety of common
+actor model patterns.
+
+@menu
+* Cell::
+* Common::
+* Facet::
+* Joiners::
+* Let-On::
+* Methods::
+* Nonce Registry::
+* Opportunistic::
+* Pubsub::
+* Pushdown::
+* Sealers::
+* Simple Mint::
+* Swappable::
+* Ticker::
+* Ward::
+@end menu
+
