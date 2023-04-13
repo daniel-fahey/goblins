@@ -264,3 +264,38 @@ Like @code{all-of}, but @var{promises} is a list of promises.
 The @code{(goblins actor-lib let-on)} module provides convenient
 syntax to facilitate promise pipelining.
 
+@deffn {Syntax} let-on ((var exp) @dots{}) body
+
+Syntax sugar around @code{on}, @code{all-of}, @code{lambda}, and
+@code{match-lambda} to allow using promise pipelining with a
+@code{let}-like syntax.  Each @var{exp} (an asynchronous invocation of
+an actor resulting in a promise) is evaluted concurrently; the
+resulting promises are bound to their corresponding @var{var}s; and
+finally @var{body} is evaluated in an environment where all promises
+are resolved.
+
+For example, this use of @code{let-on}@dots{}
+
+@lisp
+(define (^doubler bcom)
+  (lambda (x)
+    (* x 2)))
+(define doubler (spawn ^doubler))
+(let-on ((four (<- doubler 2))
+         (eight (<- doubler 4)))
+  (+ four eight))
+@end lisp
+
+@dots{}is equivalent to@dots{}
+
+@lisp
+(use-modules (goblins actor-lib joiners))
+(on (all-of (<- doubler 2)
+            (<- doubler 4))
+  (match-lambda*
+    ((four eight)
+     (+ four eight))))
+@end lisp
+
+@end deffn
+
