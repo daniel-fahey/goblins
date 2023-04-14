@@ -612,3 +612,45 @@ within a wrapper.  This wrapper can only be unsealed by the
 corresponding unsealer, and can be checked with a predicate to ensure
 it is authentic.  Sealers and unsealers are analogous to public key
 cryptography, but do not use any cryptography at all.
+
+@deffn {Procedure} spawn-sealer-triplet [name] @
+       [#:make-sealer-triplet simple:make-sealer-triplet]
+
+Return @code{values} holding a @code{sealer}, @code{unsealer}, and
+@code{check} capability.  @var{name}, if provided, is the debug name
+of the underlying Scheme record object.  @var{make-sealer-triplet}, if
+provided, is the primitive used to create the sealer objects.  Each
+sealer object can be invoked with a single argument:
+
+@itemize
+@item
+@code{sealer value}: Seal @var{value} and return a reference to the
+sealed object.
+
+@item
+@code{unsealer value}: Unseal the @var{value} sealed with the
+corresponding @code{sealer}.  If the unsealed object is @emph{near},
+it is returned directly; otherwise, a promise is returned.
+
+@end itemize
+
+As an example, consider a metaphorical food delivery service and its
+rival service:
+
+@lisp
+> (define-values (our-lunch:seal our-lunch:unseal our-can?)
+    (spawn-sealer-triplet))
+> (define-values (rival-lunch:seal rival-lunch:unseal rival-can?)
+    (spawn-sealer-triplet))
+> ($ our-lunch:seal 'fried-rice)
+=> #<local-object sealed-value>
+> (define chickpea-lunch ($ our-lunch:seal 'chickpea-salad))
+> ($ our-can? chickpea-lunch)
+=> #t
+> ($ our-can? ($ rival-lunch:seal 'melted-ice-cream))
+=> #f
+> ($ our-lunch:unseal chickpea-lunch)
+=> chickpea-salad
+@end lisp
+
+@end deffn
