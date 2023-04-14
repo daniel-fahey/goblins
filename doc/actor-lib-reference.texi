@@ -328,3 +328,11 @@ So this use of @code{let*-on}@dots{}
 @end lisp
 
 @end deffn
+
+@node Methods
+@section Methods
+
+The @code{(goblins actor-lib methods)} module provides a simple,
+single-dispatch method system for actor behaviors.
+
+
