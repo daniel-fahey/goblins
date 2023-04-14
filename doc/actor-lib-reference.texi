@@ -27,3 +27,26 @@ The @code{(goblins actor-lib cell)} module provides a very handy actor
 called a ``cell.''  Cells are used to store arbitrary data.  It also
 provides some helper functions for cells.
 
+@deffn {Constructor} ^cell bcom [val #f]
+
+Construct an actor which contains @var{val} or @code{#f} if @var{val}
+is not provided.
+
+@lisp
+> (define empty-chest (spawn ^cell))
+> (define chest (spawn ^cell 'gold))
+@end lisp
+
+Cells have two possible invocations: with no arguments, which returns
+the current value; and with one argument, which sets a new value and
+returns nothing.
+
+@lisp
+> ($ chest)
+=> 'gold
+> ($ chest 'sword)
+> ($ chest)
+=> 'sword
+@end lisp
+
+@end deffn
