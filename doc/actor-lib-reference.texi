@@ -767,3 +767,11 @@ of @code{tick}.
 @end itemize
 
 @end deffn
+
+@node Ward
+@section Ward
+
+The @code{(goblins actor-lib ward)} module provides a mechanism for an
+actor to restrict access to its behaviors using the conceptual
+metaphor of a magical ward.  It is inspired by
+@uref{http://www.erights.org/history/joule/MANUAL.B17.pdf,parts of the E ecosystem}.
