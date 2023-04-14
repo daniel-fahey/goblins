@@ -543,3 +543,63 @@ The @code{(goblins actor-lib pushdown)} module provides actors
 representing
 @uref{https://en.wikipedia.org/wiki/Pushdown_automaton,pushdown automata}.
 
+@deffn {Procedure} spawn-pushdown-pair [initial-refr #f]
+
+Return a @code{pd-stack} and @code{pd-forwarder} as @code{values},
+which together represent a pushdown automaton.  @var{initial-refr}, if
+provided, is the initial object on the stack.
+
+A @code{pd-stack} has four methods:
+
+@itemize
+@item
+@code{push refr}: Add @var{refr} to the top of the stack.
+
+@item
+@code{spawn-push constructor args ...}: Spawn the actor constructed by
+@var{constructor}, passing the current top of the stack and the
+arguments @var{args} to the constructor; then add the new actor to
+the top of the stack.  Return a reference to the new actor.  This
+method facilitates implementing the
+@uref{https://gameprogrammingpatterns.com/state.html,State} design
+pattern.
+
+@item
+@code{pop}: Return the top of the stack.  Calling @code{pop} on an
+empty stack is an error.
+
+@item
+@code{empty?}: Return @code{#t} if the stack is empty, else @code{#f}.
+
+@end itemize
+
+A @code{pd-forwarder} simply invokes the top actor of the stack with
+whatever arguments it is passed.
+
+@lisp
+> (use-modules (goblins actor-lib cell))
+;; enter a vat
+> (define a-chest (spawn ^cell 'sword))
+> (define b-chest (spawn ^cell 'gold))
+> (define-values (pd-stack pd-fowarder)
+    (spawn-pushdown-pair a-chest))
+> ($ pd-forwarder)
+=> 'sword
+> ($ pd-stack 'push b-chest)
+> ($ pd-forwarder 'wand)
+> ($ b-chest)
+=> 'wand
+> ($ pd-stack 'spawn-push ^cell)
+=> #<local-object ^cell>
+> ($ pd-forwarder)
+=> #<local-object ^cell>
+> ($ ($ pd-forwarder))
+=> 'wand
+> ($ pd-stack 'pop)
+=> #<local-object ^cell>
+> ($ pd-stack 'empty?)
+=> #f
+@end lisp
+
+@end deffn
+
