@@ -804,3 +804,12 @@ The returned behavior can be invoked with either a singe list of
 sealed arguments or any number of unsealed arguments.
 
 @end deffn
+
+@deffn {Procedure} enchant incanter target [#:async? #f]
+
+Spawn and return a reference to a proxy which invokes @var{target}
+using @var{incanter} to access its warded behavior.  If @var{async?}
+is @code{#t}, invoke @var{target} using @code{<-}; otherwise, use
+@code{$}.
+
+@end deffn
