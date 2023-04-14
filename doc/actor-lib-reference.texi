@@ -701,3 +701,9 @@ tokens of the same type as the @code{purse} @var{from-purse}.  Remove
 the same numbers of tokens from @var{from-purse}.
 
 @end deffn
+
+@node Swappable
+@section Swappable
+
+The @code{(goblins actor-lib swappable)} module provides a mechanism
+to create an actor of one type and change it to another type later.
