@@ -456,3 +456,23 @@ otherwise, return @code{<-}.
 
 @end deffn
 
+@deffn {Procedure} run-$/<- to-refr args @dots{}
+
+Invoke the actor @var{to-refr} with the arguments @var{args} using
+@code{$} if it is a @emph{near} object and otherwise using @code{<-}.
+
+@lisp
+> (define a-vat (spawn-vat))
+> (define b-vat (spawn-vat))
+> (define a-chest (with-vat a-vat
+                    (spawn ^cell 'sword)))
+> (with-vat a-vat
+    (run-$/<- a-chest))
+=> 'sword
+> (with-vat b-vat
+    (run-$/<- a-chest))
+=> #<local-promise>
+@end lisp
+
+@end deffn
+
