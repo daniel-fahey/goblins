@@ -449,3 +449,10 @@ The @code{(goblins actor-lib opportunistic)} module provides
 procedures to choose synchronous invocation if possible and fallback
 to asynchronous invocation only if necessary.
 
+@deffn {Procedure} select-$/<- to-refr
+
+If the actor @var{to-refr} is a @emph{near} object, return @code{$};
+otherwise, return @code{<-}.
+
+@end deffn
+
