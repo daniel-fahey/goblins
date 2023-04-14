@@ -775,3 +775,20 @@ The @code{(goblins actor-lib ward)} module provides a mechanism for an
 actor to restrict access to its behaviors using the conceptual
 metaphor of a magical ward.  It is inspired by
 @uref{http://www.erights.org/history/joule/MANUAL.B17.pdf,parts of the E ecosystem}.
+
+@deffn {Procedure} spawn-warding-pair [#:async? #f] [#:sealer-triplet #f]
+
+Return @code{values} holding a @code{warden} and an @code{incanter}.
+If @code{async?} is @code{#t}, the @code{incanter} will use @code{<-}
+to invoke sealed actors; otherwise, it will use @code{$}.
+If provided, @code{sealer-triplet} is the set of sealers to use
+instead of creating a new set.
+
+The @code{warden} is not meant to be used directly; see @code{ward}
+below.
+
+The @code{incanter} can be invoked with a @var{target} actor and the
+@code{args} to invoke it with.
+
+@end deffn
+
