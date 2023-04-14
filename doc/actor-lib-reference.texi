@@ -219,3 +219,35 @@ arguments to their equivalents in the constructor.
 The @code{(goblins actor-lib joiners)} module provides a means of
 combining the results of many promises.
 
+@deffn {Procedure} all-of promises @dots{}
+
+Return a promise which resolves on resolution of all @var{promises}.
+
+As an example, suppose there is an actor which waits for a period of
+time before returning whatever it received:
+
+@lisp
+> (define (^procrastinator bcom delay)
+    (lambda (x)
+      (sleep delay)
+      x))
+@end lisp
+
+@code{all-of} can wait for all procrastinators to finish before
+writing some output:
+
+@lisp
+> (define a-vat (spawn-vat))
+> (define b-vat (spawn-vat))
+> (define c-vat (spawn-vat))
+> (define p1 (with-vat b-vat (spawn ^procrastinator 1)))
+> (define p2 (with-vat c-vat (spawn ^procrastinator 2)))
+> (with-vat a-vat
+    (on (all-of (<- p1 'foo) (<- p2 'bar))
+        (lambda (items)
+          (display items)
+          (newline))))
+; (foo bar)
+@end lisp
+
+@end deffn
