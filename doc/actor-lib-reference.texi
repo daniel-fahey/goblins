@@ -476,3 +476,9 @@ Invoke the actor @var{to-refr} with the arguments @var{args} using
 
 @end deffn
 
+@node Pubsub
+@section Pubsub
+
+The @code{(goblins actor-lib pubsub)} module provides an actor to
+publish messages to a set of other, subscribed actors.
+
