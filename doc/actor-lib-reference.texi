@@ -664,3 +664,33 @@ implementation of a
 @uref{http://erights.org/elib/capability/ode/ode-capabilities.html#simple-money,classic example}
 of object capabilities.
 
+@deffn {Constructor} ^mint _bcom
+
+Constructor an actor which in turn constructs and returns
+@code{purse}s for its currency.  A @code{mint} only has one method:
+@code{new-purse initial-balance} spawns and returns a reference to a
+new @code{purse} which holds @var{initial-balance} tokens.
+
+A @code{purse}, on the other hand, has four methods:
+
+@itemize
+@item
+@code{get-balance}: Return the current number of tokens in the purse.
+
+@item
+@code{sprout}: Spawn and return a reference to a new empty
+@code{purse} for this currency.
+
+@item
+@code{deposit amount src}: Increase the number of tokens in this
+@code{purse} by @var{amount}, decreasing the number of tokens in the
+@code{purse} of the same currency @var{src} by the same amount.
+
+@item
+@code{get-decr}: Return a procedure accepting one argument, an
+@var{amount} of tokens to remove from this @code{purse}.
+
+@end itemize
+
+@end deffn
+
