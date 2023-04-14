@@ -716,3 +716,10 @@ the actor at construction.  @var{proxy-name}, if provided, is the
 debug name for the returned actor.
 
 @end deffn
+
+@node Ticker
+@section Ticker
+
+The @code{(goblins actor-lib ticker)} module provides a mechanism to
+invoke certain actors at the same time each ``tick'' of a program.
+
