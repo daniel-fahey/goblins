@@ -442,3 +442,10 @@ To clarify, here's an example:
 
 @end deffn
 
+@node Opportunistic
+@section Opportunistic
+
+The @code{(goblins actor-lib opportunistic)} module provides
+procedures to choose synchronous invocation if possible and fallback
+to asynchronous invocation only if necessary.
+
