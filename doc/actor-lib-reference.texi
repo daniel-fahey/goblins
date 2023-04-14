@@ -694,3 +694,10 @@ A @code{purse}, on the other hand, has four methods:
 
 @end deffn
 
+@deffn {Procedure} withdraw amount from-purse
+
+Spawn and return a reference to a new purse holding @var{amount}
+tokens of the same type as the @code{purse} @var{from-purse}.  Remove
+the same numbers of tokens from @var{from-purse}.
+
+@end deffn
