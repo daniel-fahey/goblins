@@ -792,3 +792,15 @@ The @code{incanter} can be invoked with a @var{target} actor and the
 
 @end deffn
 
+@deffn {Procedure} ward warden behavior [#:extends #f] [#:async? #f]
+
+Return @var{behavior} sealed by @var{warden} so that only its
+associated @code{incanter} can use the behavior.  @var{extends}, if
+provided, is an actor to extend with the warded @var{behavior}.  If
+@var{async?} is @code{#t}, invoke @var{behavior} using @code{<-};
+otherwise us @code{$}.
+
+The returned behavior can be invoked with either a singe list of
+sealed arguments or any number of unsealed arguments.
+
+@end deffn
