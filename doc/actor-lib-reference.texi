@@ -603,3 +603,12 @@ whatever arguments it is passed.
 
 @end deffn
 
+@node Sealers
+@section Sealers
+
+The @code{(goblins actor-lib sealers)} module provides a mechanism for
+ensuring the authenticity of data.  A sealer is used to place data
+within a wrapper.  This wrapper can only be unsealed by the
+corresponding unsealer, and can be checked with a predicate to ensure
+it is authentic.  Sealers and unsealers are analogous to public key
+cryptography, but do not use any cryptography at all.
