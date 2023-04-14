@@ -707,3 +707,12 @@ the same numbers of tokens from @var{from-purse}.
 
 The @code{(goblins actor-lib swappable)} module provides a mechanism
 to create an actor of one type and change it to another type later.
+
+@deffn {Procedure} swappable initial-target [proxy-name]
+
+Spawn and return @code{values} representing an actor and the
+capability to swap that actor with another.  @var{initial-target} is
+the actor at construction.  @var{proxy-name}, if provided, is the
+debug name for the returned actor.
+
+@end deffn
