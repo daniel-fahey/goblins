@@ -99,3 +99,41 @@ The @code{(goblins actor-lib common)} module provides actors wrapping
 functional data structures, allowing Goblins transactionality
 guarantees while providing an apparently mutable interface.
 
+@deffn {Constructor} ^seteq bcom initial @dots{}
+
+Construct an actor representing a set (each member is unique).  A
+@code{seteq} has four methods:
+
+@itemize
+@item
+@code{add val}: Add @var{val} to the set.
+
+@item
+@code{remove val}: Remove @var{val} from the set.
+
+@item
+@code{member? val}: Return @code{#t} if @var{val} is in the set, else
+@code{#f}.
+
+@item
+@code{as-list}: Return a representation of the set as a Scheme list.
+Note that the order of items in the list is not specified.
+
+@end itemize
+
+@lisp
+> (define a-set (spawn ^seteq 'a 'b 'c))
+> ($ a-set 'as-list)
+=> (a b c)
+> ($ a-set 'member? 'c)
+=> #t
+> ($ a-set 'member? 'f)
+=> #f
+> ($ a-set 'add 'f)
+> ($ a-set 'remove 'b)
+> ($ a-set 'as-list)
+=> (f c a)
+@end lisp
+
+@end deffn
+
