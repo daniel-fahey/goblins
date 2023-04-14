@@ -654,3 +654,13 @@ rival service:
 @end lisp
 
 @end deffn
+
+@node Simple Mint
+@section Simple Mint
+
+The @code{(goblins actor-lib simple-mint)} module provides an example
+actor simulating a mint and currency.  This is a Goblins
+implementation of a
+@uref{http://erights.org/elib/capability/ode/ode-capabilities.html#simple-money,classic example}
+of object capabilities.
+
