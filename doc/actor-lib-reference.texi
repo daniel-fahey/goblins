@@ -213,3 +213,9 @@ arguments to their equivalents in the constructor.
 
 @end deffn
 
+@node Joiners
+@section Joiners
+
+The @code{(goblins actor-lib joiners)} module provides a means of
+combining the results of many promises.
+
