@@ -20,3 +20,10 @@ actor model patterns.
 * Ward::
 @end menu
 
+@node Cell
+@section Cell
+
+The @code{(goblins actor-lib cell)} module provides a very handy actor
+called a ``cell.''  Cells are used to store arbitrary data.  It also
+provides some helper functions for cells.
+
