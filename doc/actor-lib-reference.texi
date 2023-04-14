@@ -813,3 +813,12 @@ is @code{#t}, invoke @var{target} using @code{<-}; otherwise, use
 @code{$}.
 
 @end deffn
+
+@deffn {Procedure} warden->ward-proc warden
+
+Return a procedure to wrap @code{ward} using @var{warden}.  The
+returned procedure accepts two arguments: @var{warded-beh}, which is
+the behavior to ward; and @var{extends-beh}, which is the actor to
+extend with that behavior.
+
+@end deffn
