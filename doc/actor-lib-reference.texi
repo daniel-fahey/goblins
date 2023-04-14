@@ -137,3 +137,55 @@ Note that the order of items in the list is not specified.
 
 @end deffn
 
+@deffn {Constructor} ^ghash bcom [ht ghash-null]
+
+Construct an actor representing a hashtable using @code{eq?} for
+key lookup and @code{equal?} for other comparisons.  @var{ht}, if
+provided, is the underlying @code{ghash} to use as the starting state.
+See @code{(goblins ghash)} module for the compatible hashtable
+implementation.
+
+A @code{ghash} actor has five methods:
+
+@itemize
+@item
+@code{ref key [dflt #f]}: Return the value associated with @var{key},
+or @var{dflt} if the key is not found.
+
+@item
+@code{set key val}: Add @var{key} to the @code{ghash} and associate it
+with @var{val}.
+
+@item
+@code{has-key? key}: Return @code{#t} if @var{key} is in the
+@code{ghash}; otherwise return @code{#f}.
+
+@item
+@code{remove key}: Delete @var{key} and its associated value from the
+@code{ghash}.
+
+@item
+@code{data}: Return the underlying @code{ghash}.
+
+@end itemize
+
+@lisp
+> (define ag (spawn ^ghash))
+> ($ ag 'set "dog" "animal")
+> ($ ag 'set "cesna" "plane")
+> ($ ag 'data)
+=> $<ghash (2)>
+> ($ ag 'ref "cesna")
+=> "plane"
+> ($ ag 'has-key? "dog")
+=> #t
+> ($ ag 'remove "cesna")
+> ($ ag 'ref "cesna")
+=> #f
+> ($ ag 'ref "cesna" 'missing)
+=> missing
+> ($ ag 'data)
+=> $<ghash (1)>
+@end lisp
+
+@end deffn
