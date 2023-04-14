@@ -723,3 +723,47 @@ debug name for the returned actor.
 The @code{(goblins actor-lib ticker)} module provides a mechanism to
 invoke certain actors at the same time each ``tick'' of a program.
 
+@deffn {Procedure} spawn-ticker
+
+Spawn and return a reference to a @code{ticker} actor which holds
+references to a set of actors which it invokes with the same set of
+arguments each ``tick''.
+
+A @code{ticker} has four methods:
+
+@itemize
+@item
+@code{to-tick}: Return a procedure accepting a single argument, a
+closure over spawning an actor with a @code{ticky} actor as an
+argument.  The @code{ticky} actor is passed to the closure and has
+three procedures:
+
+@itemize
+@item
+@code{die}: Set @code{dead?} to @code{#t}.
+
+@item
+@code{dead?}: Return @code{#t} if @code{die} has been invoked, else
+@code{#f}.
+
+@item
+@code{to-tick}: The same as the @code{to-tick} method of @code{ticker}.
+
+@end itemize
+
+@item
+@code{get-ticked}: Return a list holding references to each actor to
+tick.
+
+@item
+@code{tick}: Invoke all actors which have a @code{ticky}.
+
+@item
+@code{foldr proc init [#:include-new? #t]}: A @code{foldr} procedure
+over the actors known to @code{ticker}.  If @code{include-new?} is
+@code{#t}, also operate on actors registered since the last invocation
+of @code{tick}.
+
+@end itemize
+
+@end deffn
