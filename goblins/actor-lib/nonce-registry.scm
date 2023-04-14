@@ -20,8 +20,7 @@
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils assert-type)
   #:use-module (goblins utils crypto)
-  #:export (spawn-nonce-registry-locator-pair
-            spawn-nonce-registry-locator-values))
+  #:export (spawn-nonce-registry-and-locator))
 
 (define (make-swiss-num)
   (gen-random-bv 32 %gcry-strong-random))
@@ -47,7 +46,7 @@
         [(swiss-num dflt)
          (ghash-ref ht swiss-num dflt)])])))
 
-(define (spawn-nonce-registry-locator-pair)
+(define (spawn-nonce-registry-and-locator)
   (define registry
     (spawn ^nonce-registry))
   (define (^nonce-locator bcom)
