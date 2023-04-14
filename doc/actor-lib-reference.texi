@@ -335,4 +335,28 @@ So this use of @code{let*-on}@dots{}
 The @code{(goblins actor-lib methods)} module provides a simple,
 single-dispatch method system for actor behaviors.
 
+@deffn {Syntax} methods ((name args @dots{}) expr) @dots{}
+
+Syntax to describe a collection of methods that an actor accepts.
+@var{name} is the symbol upon which the method dispatches, @var{args}
+are the arguments it accepts, and @var{expr} is the expression
+evaluated when the method is called.
+
+As an example, consider this actor capable of saying hello or goodbye:
+
+@lisp
+> (define (^hello-goodbye _bcom)
+    (methods
+     ((say-hello name)
+      (format #f "Hello, ~a!" name))
+     ((say-goodbye name)
+      (format #f "Goodbye, ~a!" name))))
+> (define hello-goodbye (spawn ^hello-goodbye))
+> ($ hello-goodbye 'say-hello "Alice")
+=> "Hello, Alice!"
+> ($ hello-goodbye 'say-goodbye "Alice")
+=> "Goodbye, Alice!"
+@end lisp
+
+@end deffn
 
