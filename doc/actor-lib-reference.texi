@@ -482,3 +482,57 @@ Invoke the actor @var{to-refr} with the arguments @var{args} using
 The @code{(goblins actor-lib pubsub)} module provides an actor to
 publish messages to a set of other, subscribed actors.
 
+@deffn {Constructor} ^pubsub bcom initial-subscribers @dots{}
+
+Construct an actor with references to the other actors
+@var{initial-subscribers} and which has the following methods:
+
+@itemize
+@item
+@code{subscribe subscriber}: Add @var{subscriber} to the list of
+subscribed actors.
+
+@item
+@code{unsubscribe subscriber}: Remove @var{subscriber} from the list
+of subscribed actors.
+
+@item
+@code{publish args ...}: Invoke all subscribers with the arguments
+@var{args}.
+
+@item
+@code{subscribers}: Return a list of all subscribed actors.
+
+@end itemize
+
+@lisp
+> (use-modules (goblins actor-lib cell))
+;; enter a vat
+> (define a-chest (spawn ^cell 'sword))
+> (define b-chest (spawn ^cell 'gold))
+> (define c-chest (spawn ^cell 'wand))
+> (define pubsub (spawn ^pubsub a-chest b-chest))
+> ($ pubsub 'subscribers)
+=> ($<local-object ^cell> #<local-object ^cell>)
+> ($ pubsub 'publish 'boots)
+=> #t
+> ($ a-chest)
+=> 'boots
+> ($ b-chest)
+=> 'boots
+> ($ pubsub 'subscribe c-chest)
+> ($ pubsub 'subscribers)
+=> (#<local-object ^cell> #<local-object ^cell> #<local-object ^cell>)
+> ($ pubsub 'unsubscribe b-chest)
+> ($ pubsub 'publish 'crown)
+=> #t
+> ($ a-chest)
+=> 'crown
+> ($ b-chest)
+=> 'boots
+> ($ c-chest)
+=> 'crown
+@end lisp
+
+@end deffn
+
