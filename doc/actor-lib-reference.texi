@@ -536,3 +536,10 @@ of subscribed actors.
 
 @end deffn
 
+@node Pushdown
+@section Pushdown
+
+The @code{(goblins actor-lib pushdown)} module provides actors
+representing
+@uref{https://en.wikipedia.org/wiki/Pushdown_automaton,pushdown automata}.
+
