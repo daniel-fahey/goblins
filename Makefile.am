@@ -132,7 +132,11 @@ AM_TESTS_ENVIRONMENT = abs_top_srcdir="$(abs_top_srcdir)"
 
 info_TEXINFOS = doc/goblins.texi
 doc_goblin_TEXINFOS = doc/api-reference.texi	\
+                      doc/debugger.texi		\
                       doc/apache-2.0.texi
+infoimagedir = $(infodir)/images
+dist_infoimage_DATA = doc/images/questie-lamport-diagram.png
+
 dvi: # Don't build dvi docs
 html-local:
 	$(GUILE) --no-auto-compile doc/build-html.scm
