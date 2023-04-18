@@ -23,6 +23,7 @@
              (syntax-highlight scheme))
 
 (define %html-dir "goblins.html")
+(define %image-dir (string-append %html-dir "/images"))
 (define %css-file "goblins.css")
 
 ;; Work within the context of the docs directory.
@@ -79,3 +80,14 @@
                 (lambda (port)
                   (write-sxml-html (prettify-sxml sxml) port)))))
           html-files)
+
+;; Copy images.
+(unless (file-exists? %image-dir)
+  (mkdir %image-dir))
+(for-each (match-lambda
+            ((or "." "..")
+             #f)
+            (file-name
+             (copy-file (string-append "images/" file-name)
+                        (string-append %image-dir "/" file-name))))
+          (scandir "images"))

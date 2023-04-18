@@ -1,0 +1,526 @@
+Debugging distributed programs is difficult, but Goblins provides
+tools to make it easier.  The debugging tools work across many vats
+(@pxref{Vats}) and support ``time travel'', meaning that past program
+state can be inspected.  These tools are implemented as extensions to
+Guile's REPL in the form of ``meta-commands'' and complement Guile's
+default set of sequential debugging tools.  All of the tools mentioned
+in this chapter are accessible by importing the @code{(goblins)}
+module.
+
+@menu
+* Debugger tutorial::
+* Debugger command reference::
+@end menu
+
+@node Debugger tutorial
+@section Debugger tutorial
+
+To illustrate how these tools are used, let's walk through building a
+simple program and using the new debugger to find and fix a small bug.
+We're going to make the world's simplest dungeon crawling RPG.  It
+will allow a player to attack a monster to deal damage, and that's
+about it.
+
+The first step is to start up a Guile REPL and import the Goblins
+modules that we need:
+
+@lisp
+scheme@@(guile-user)> ,use (goblins)
+scheme@@(guile-user)> ,use (goblins actor-lib cell)
+scheme@@(guile-user)> ,use (goblins actor-lib let-on)
+scheme@@(guile-user)> ,use (goblins actor-lib methods)
+@end lisp
+
+Next, we need to create some vats where our actors can live.  Since
+there is overhead in collecting debug data, vat logging is currently
+opt-in on a per-vat basis.  The @code{#:log? #t} keyword argument
+enables logging.
+
+@lisp
+scheme@@(guile-user)> (define p-vat (spawn-vat #:name 'Player  #:log? #t))
+scheme@@(guile-user)> (define m-vat (spawn-vat #:name 'Monster #:log? #t))
+scheme@@(guile-user)> (define c-vat (spawn-vat #:name 'Cave    #:log? #t))
+@end lisp
+
+Now we can define some actors to live in our vats.  To do that, we
+first need to define constructor procedures.  We only need two kinds
+of actors for this demo: Characters and dungeons.  Characters have a
+name, some amount of hit points (HP), and a strength value.  They can
+be damaged by attacks and die when their HP reaches 0.
+
+@lisp
+scheme@@(guile-user)>
+(define (^character _bcom name max-hp strength)
+  ;; HP is reduced when the character is attacked, so we use a cell
+  ;; actor to store a counter that can be modified.
+  (let ((hp (spawn ^cell max-hp)))
+    (methods
+     ;; Getters
+     ((name) name)
+     ((strength) strength)
+     ((hp) ($ hp))
+     ;; Deal combat damage
+     ((damage amount)
+      ($ hp (- ($ hp) amount))
+      #t) ; attacks always hit
+     ;; Check if character is dead
+     ((dead?)
+      (zero? ($ hp))))))
+@end lisp
+
+Dungeons are places where a player character fights a monster
+character.  For simplicity, this is going to be a rather one-sided
+battle and we'll only implement the player's turn.  A player turn
+starts by dealing damage to the monster and ends by returning a log
+summarizing what happened.  If the monster is killed, the log will say
+so.
+
+@lisp
+scheme@@(guile-user)>
+(define (^dungeon _bcom player monster)
+  (methods
+   ((player-turn)
+    (let-on ((player-name (<- player 'name))
+             (monster-name (<- monster 'name))
+             (strength (<- player 'strength)))
+      ;; Deal damage to the monster and check to see if it's dead.
+      (let*-on ((hit? (<- monster 'damage strength))
+                (dead? (<- monster 'dead?)))
+        (let ((damage-msg (format #f "~a deals ~a damage to ~a!"
+                                  player-name strength monster-name)))
+          ;; Log a message if the monster is dead.
+          (if dead?
+              (let ((dead-msg (format #f "~a has been defeated!"
+                                      monster-name)))
+                (list damage-msg dead-msg))
+              (list damage-msg))))))))
+@end lisp
+
+To show off the ``distributed'' part of ``distributed debugger'',
+we'll spawn actors across all three of the vats we defined earlier.
+The player character ``Alice'' will live in the Player vat,
+@var{p-vat}. The monster, a basilisk, will live in the Monster vat,
+@var{m-vat}.  The dungeon will live in the Cave vat, @var{c-vat}.
+This simulates how, in a real game built using a distributed
+architecture, actors in the game world would be hosted on many
+different computers.
+
+@lisp
+scheme@@(guile-user)> (define alice
+                       (with-vat p-vat (spawn ^character "Alice" 100 30)))
+scheme@@(guile-user)> (define basilisk
+                       (with-vat m-vat (spawn ^character "Basilisk" 20 15)))
+scheme@@(guile-user)> (define dungeon
+                       (with-vat c-vat (spawn ^dungeon alice basilisk)))
+@end lisp
+
+With our actors spawned, we are ready to play this trivial game.  But
+first, we'll use a Goblins-specific REPL command to enter a new
+context for evaluating code:
+
+@lisp
+scheme@@(guile-user)> ,enter-vat c-vat
+Entering vat 'Cave'.  Type ',q' to exit.  Type ',help goblins' for help.
+goblins/Cave@@(guile-user) [1]>
+@end lisp
+
+Note the change in the REPL prompt to indicate that we are now in the
+Goblins vat named ``Cave'' and we are in a nested REPL session that is
+one level deep.  The @command{,enter-vat} command is provided by
+Goblins to allow code (and other Goblins REPL commands) to be
+evaluated within the context of a specific vat.  This makes Goblins
+operators (such as @code{spawn}, @code{$}, and @code{<-}) ``just
+work'' since they require a vat in order to do their job.
+
+We're now ready to have Alice take a turn.  Alice will attack the
+basilisk, dealing 30 damage.  The basilisk only has 20 HP, so it
+should die and we should see a log message saying so.  Getting a
+result requires communicating with the Player and Monster vats, so
+we'll use the the @command{,vat-resolve} command to wait for the
+asynchronous operation to complete and print out the results:
+
+@lisp
+goblins/Cave@@(guile-user) [1]> ,vat-resolve ($ dungeon 'player-turn)
+("Alice deals 30 damage to Basilisk!")
+@end lisp
+
+Hmm, that's not right!  The log says that Alice dealt 30 damage, but
+it should also say that the basilisk was defeated.  Let's debug and
+see if we can spot the error.  For starters, we can run
+@command{,vat-tail} to see the most recent messages that the Cave vat
+has processed:
+
+@lisp
+goblins/Cave@@(guile-user) [1]> ,vat-tail
+Churn 7:
+  36: (receive listen #<local-promise>)
+Churn 8:
+  37: (receive message #<local-object ^resolver> fulfill #f)
+  38: (receive message #<local-object ^on-listener> fulfill #f)
+  39: (receive message #<local-object fulfilled-handler> #f)
+  40: (receive message #<local-object ^resolver> fulfill ("Alice deals 30 damage to Basilisk!"))
+  41: (receive message #<local-object ^resolver> fulfill ("Alice deals 30 damage to Basilisk!"))
+  42: (receive message #<local-object ^resolver> fulfill ("Alice deals 30 damage to Basilisk!"))
+  43: (receive message #<local-object ^on-listener> fulfill ("Alice deals 30 damage to Basilisk!"))
+  44: (receive message #<local-object fulfilled-handler> ("Alice deals 30 damage to Basilisk!"))
+  45: (receive message #<local-object finally-handler>)
+@end lisp
+
+The events have been printed in chronological order.  There is some
+useful information in here, but only events in the Cave vat are shown
+and there's nothing that describes how these events relate to one
+another.  However, we now know that event 45 is the most recent.  This
+event represents the terminal point of the @command{,vat-resolve}
+command we evaluated above.
+
+To view the events related to another event, across all relevant vats,
+we will use the @command{,vat-tree} and @command{,vat-graph}
+commands. @command{,vat-tree} outputs a textual representation:
+
+@lisp
+goblins/Cave@@(guile-user) [1]> ,vat-tree 45
+Vat Cave, 2: (message #<local-object ^call-with-vat>)
+├▸ Vat Player, 4: (message #<local-object ^character> name)
+│  └▸ Vat Cave, 10: (message #<local-object ^resolver> fulfill "Alice")
+├▸ Vat Monster, 5: (message #<local-object ^character> name)
+│  └▸ Vat Cave, 16: (message #<local-object ^resolver> fulfill "Basilisk")
+│     └▸ Vat Cave, 19: (message #<local-object ^resolver> fulfill ("Alice" "Basilisk" 30))
+│        └▸ Vat Monster, 23: (message #<local-object ^character> damage 30)
+│           └▸ Vat Cave, 28: (message #<local-object ^resolver> fulfill #t)
+│              └▸ Vat Monster, 32: (message #<local-object ^character> dead?)
+│                 └▸ Vat Cave, 37: (message #<local-object ^resolver> fulfill #f)
+│                    └▸ Vat Cave, 40: (message #<local-object ^resolver> fulfill ("Alice deals 30 damage to Basilisk!"))
+│                       └▸ Vat Cave, 41: (message #<local-object ^resolver> fulfill ("Alice deals 30 damage to Basilisk!"))
+└▸ Vat Player, 6: (message #<local-object ^character> strength)
+   └▸ Vat Cave, 13: (message #<local-object ^resolver> fulfill 30)
+@end lisp
+
+And @command{,vat-graph} outputs a graphical Lamport causality diagram
+(thanks to @url{https://graphviz.org/,Graphviz}):
+
+@lisp
+goblins/Cave@@(guile-user) [1]> ,vat-graph 45
+@end lisp
+
+@image{images/questie-lamport-diagram,,,Lamport diagram of a player turn}
+
+In each of these views, we can see that the message @code{(<- monster
+'dead?)} (with the debug representation of @code{msg ^character dead?}
+in the @command{,vat-graph} output) resolves to @code{#f} when we
+expected @code{#t}.  But @emph{why} did this happen?  The monster
+should have been dead.  Let's travel back in time and find out.  The
+first step is to truly enter the debugger so we can walk backwards in
+time to when the @code{dead?} check happened.  To do this, we'll use
+the @command{,vat-debug} command, which takes an event ID argument and
+starts a new sub-REPL with all the context we need to debug the
+problem.
+
+@lisp
+goblins/Cave@@(guile-user) [1]> ,vat-debug 45
+Entering a new prompt. Type `,q' to exit.
+goblins/Cave@@(guile-user) [2]>
+@end lisp
+
+Note that the @samp{[1]} in the prompt became a @samp{[2]} because we
+are in yet another sub-REPL.  To get our bearings, we'll use the
+@command{,vat-trace} command to get a distributed backtrace showing
+the direct causes of event 45:
+
+@lisp
+goblins/Cave@@(guile-user) [2]> ,vat-trace
+In vat Cave:
+  Churn 2:
+    2: (message #<local-object ^call-with-vat>)
+    4: (message #<local-object ^character> name)
+In vat Monster:
+  Churn 2:
+    6: (message #<local-object ^resolver> fulfill "Basilisk")
+In vat Cave:
+  Churn 5:
+    17: (message #<local-object ^on-listener> fulfill "Basilisk")
+    18: (message #<local-object fulfilled-handler> "Basilisk")
+    19: (message #<local-object ^resolver> fulfill ("Alice" "Basilisk" 30))
+    20: (message #<local-object ^on-listener> fulfill ("Alice" "Basilisk" 30))
+    21: (message #<local-object fulfilled-handler> ("Alice" "Basilisk" 30))
+    22: (message #<local-object ^character> damage 30)
+In vat Monster:
+  Churn 3:
+    24: (message #<local-object ^resolver> fulfill #t)
+In vat Cave:
+  Churn 7:
+    29: (message #<local-object ^on-listener> fulfill #t)
+    30: (message #<local-object fulfilled-handler> #t)
+    31: (message #<local-object ^character> dead?)
+In vat Monster:
+  Churn 4:
+    33: (message #<local-object ^resolver> fulfill #f)
+In vat Cave:
+  Churn 8:
+    38: (message #<local-object ^on-listener> fulfill #f)
+    39: (message #<local-object fulfilled-handler> #f)
+    40: (message #<local-object ^resolver> fulfill ("Alice deals 30 damage to Basilisk!"))
+    41: (message #<local-object ^resolver> fulfill ("Alice deals 30 damage to Basilisk!"))
+    43: (message #<local-object ^on-listener> fulfill ("Alice deals 30 damage to Basilisk!"))
+    45: (message #<local-object finally-handler>)
+@end lisp
+
+Much like a regular backtrace in Guile's sequential debugger, output
+is in order from outermost call to innermost.  In other words, the
+most recent event is the last event printed.  Our debugging session
+starts focused on event 45, but we can shift our focus with the
+@command{,vat-up}, @command{,vat-down}, and @command{,vat-jump}
+commands.
+
+@command{,vat-up} moves up one event, from 45 to 43 in this case:
+
+@lisp
+goblins/Cave@@(guile-user) [2]> ,vat-up
+Now in vat Cave, event 43:
+  (receive message #<local-object ^on-listener> fulfill ("Alice deals 30 damage to Basilisk!"))
+@end lisp
+
+@command{,vat-down} moves down one event, back to event 45 in this
+case:
+
+@lisp
+goblins/Cave@@(guile-user) [2]> ,vat-down
+Now in vat Cave, event 45:
+  (receive message #<local-object finally-handler>)
+@end lisp
+
+@command{,vat-jump} moves to a particular event ID, so we can save
+ourselves the tedium of typing @command{,vat-up} or
+@command{,vat-down} a bunch of times if the event we're trying to
+inspect is far away from our current position.  In fact, event 31
+looks particularly interesting, since that's when the @code{dead?}
+check happened.  Let's jump there now:
+
+@lisp
+goblins/Cave@@(guile-user) [2]> ,vat-jump 31
+Now in vat Cave, event 31:
+  (send message #<local-object ^character> dead?)
+@end lisp
+
+What @command{,vat-trace} is hiding, for brevity's sake, is that this
+``send'' event in the Cave vat has a corresponding ``receive'' event
+in the Monster vat.  Let's step down the trace and see where we end
+up:
+
+@lisp
+goblins/Cave@@(guile-user) [2]> ,vat-down
+Now in vat Monster, event 32:
+  (receive message #<local-object ^character> dead?)
+@end lisp
+
+We're now focused on an event in the Monster vat, where the basilisk
+lives.  This means that we can travel back in time and send messages
+to the basilisk as it existed at event 32.  To do this, we'll use the
+@command{,vat-peek} command.  Let's see what its HP looked like at
+this point:
+
+@lisp
+goblins/Cave@@(guile-user) [2]> ,vat-peek basilisk 'hp
+-10
+@end lisp
+
+Hmm, zero should be the lowest HP value.  The @code{dead?} method is
+specifically checking if the character's HP is zero.  It's a safe bet
+that the bug is in the @code{damage} method, which happened around
+event 22, so let's confirm our suspicion.  We'll jump there, move down
+into an event in the Monster vat, and check out the basilisk's HP:
+
+@lisp
+goblins/Cave@@(guile-user) [2]> ,vat-jump 22
+Now in vat Cave, event 22:
+  (send message #<local-object ^character> damage 30)
+goblins/Cave@@(guile-user) [2]> ,vat-down
+Now in vat Monster, event 23:
+  (receive message #<local-object ^character> damage 30)
+goblins/Cave@@(guile-user) [2]> ,vat-peek basilisk 'hp
+20
+@end lisp
+
+Thanks to time travel, we can see that the starting HP value is 20,
+like it should be.  The basilisk's health was indeed initialized
+correctly.  Moving down one more event, we can see for sure that this
+is the point where we entered a problematic state:
+
+@lisp
+goblins/Cave@@(guile-user) [2]> ,vat-down
+Now in vat Monster, event 24:
+  (send message #<local-object ^resolver> fulfill #t)
+goblins/Cave@@(guile-user) [2]> ,vat-peek basilisk 'hp
+-10
+@end lisp
+
+So, what we're missing is some code to enforce a lower bound on the HP
+value.  Let's update our character constructor to fix that issue
+(exiting the nested REPLs and getting back to the top-level Guile
+prompt):
+
+@lisp
+goblins/Cave@@(guile-user) [2]> ,quit
+goblins/Cave@@(guile-user) [1]> ,quit
+scheme@@(guile-user)>
+(define (^character _bcom name max-hp strength)
+  ;; HP is reduced when the character is attacked, so we use a cell
+  ;; actor to store a counter that can be modified.
+  (let ((hp (spawn ^cell max-hp)))
+    (methods
+     ;; Getters
+     ((name) name)
+     ((strength) strength)
+     ((hp) ($ hp))
+     ;; Deal combat damage
+     ((damage amount)
+      ;; HP can't go below 0.
+      ($ hp (max (- ($ hp) amount) 0))
+      #t) ; attacks always hit
+     ;; Check if character is dead
+     ((dead?)
+      (zero? ($ hp))))))
+@end lisp
+
+A call to @code{max} has been added to the @code{damage} method to
+ensure that zero is the lowest HP value.  All that's left to do now is
+rebuild the actors and verify the fix:
+
+@lisp
+scheme@@(guile-user)> (define alice
+                       (with-vat p-vat (spawn ^character "Alice" 100 30)))
+scheme@@(guile-user)> (define basilisk
+                       (with-vat m-vat (spawn ^character "Basilisk" 20 15)))
+scheme@@(guile-user)> (define dungeon
+                       (with-vat c-vat (spawn ^dungeon alice basilisk)))
+scheme@@(guile-user)> ,enter-vat c-vat
+Entering vat 'Cave'.  Type ',q' to exit.  Type ',help goblins' for help.
+goblins/Cave@@(guile-user) [1]> ,vat-resolve ($ dungeon 'player-turn)
+("Alice deals 30 damage to Basilisk!" "Basilisk has been defeated!")
+@end lisp
+
+We see the ``Basilisk has been defeated'' message now.  Problem
+solved!
+
+@node Debugger command reference
+@section Debugger command reference
+
+To use these commands at the REPL, they must be preceded by a comma.
+Evaluate @code{,help goblins} for a convenient listing of all Goblins
+commands.
+
+@deffn {Command} vats
+Print a listing of all vats in the current Guile process.
+@end deffn
+
+@deffn {Command} enter-vat vat
+Enter a sub-REPL where all expressions are evaluated within the
+context of @var{vat}.  @var{vat} may be either a vat object or a vat
+identifier number (see the output of @command{,vats} for that
+information.)
+@end deffn
+
+All of the following commands rely upon the vat context established by
+the @command{,enter-vat} command.
+
+@deffn {Command} vat-log-enable
+Enable vat event logging for the current vat.
+@end deffn
+
+@deffn {Command} vat-log-disable
+Disable vat event logging for the current vat.
+@end deffn
+
+@deffn {Command} vat-tail [n]
+Display the most recent @var{n} messages (10 by default) in the
+current vat.  Every event is printed with its corresponding
+@emph{Lamport timestamp} that can be used to identify the event within
+the vat.  These timestamps are used to form a partial ordering of
+events across many vats and @emph{do not} represent when an event
+happened in real time.
+@end deffn
+
+@deffn {Command} vat-trace [timestamp]
+Display a backtrace of events starting from @var{timestamp} in the
+current vat.  If @var{timestamp} is not specified, then the
+automatically chosen timestamp varies depending upon if the Goblins
+debugger is active.  If the debugger is active, then the timestamp of
+the current vat event is used, otherwise the current vat time is used.
+@end deffn
+
+@deffn {Command} vat-tree [timestamp #:full?]
+Display a tree view of events starting at @var{timestamp} in the
+current vat.  If @var{timestamp} is not specified, the current vat
+time is used.  By default, a lot of system-level messages (mostly
+about promise resolution) are omitted from the output for readability
+reasons.  If @var{full?} is @code{#t} then the full event tree will be
+printed.
+@end deffn
+
+@deffn {Command} vat-graph [timestamp]
+Generate an image of the event tree for @var{timestamp} in the current
+vat using @url{https://graphviz.org,Graphviz}.  If @var{timestamp} is
+not specified, the current vat time is used.
+
+Images are stored in @file{/tmp/goblins-repl-images}.  When using
+@url{https://geiser.nongnu.org/,Geiser} in Emacs, the resulting image
+will be conveniently rendered inline.  Otherwise, the output will look
+like @code{#<Image: /tmp/geiser-repl-images/17GfwYo8ums9Lit6.png>}.
+@end deffn
+
+@deffn {Command} vat-resolve promise
+Wait for @var{promise} to resolve and print the result.  When the
+promise is fulfilled, the resulting value will be printed.  When the
+promise is broken, an error message will be printed.  Pressing
+@kbd{Ctrl+C} will interrupt the wait and return control to the Guile
+prompt.
+@end deffn
+
+@deffn {Command} vat-errors
+Display a list of errors that have occurred in the current vat and
+their associated timestamps.  The event timestamps can be used as the
+basis for a debugging session via @command{,vat-debug}.
+@end deffn
+
+@deffn {Command} vat-debug [timestamp]
+Debug the error associated with the event at @var{timestamp} by
+opening a sub-REPL with a debugging context focused on the vat trace
+of the chosen event.  If @var{timestamp} is not specified, the current
+vat time is used.
+@end deffn
+
+The following commands only work in the context of the vat debugger,
+either started manually via @command{,vat-debug} or as the result of
+an exception being raised when evaluating code within an
+@command{,enter-vat} REPL.  Within the vat debug REPL, much like
+Guile's stack-based debugger, there is a focus on one event (analogous
+to a stack frame) in the trace.  The focused event can be changed by
+moving up and down the event trace, and the state of the vat at the
+time of the focused event can be inspected.
+
+@deffn {Command} vat-up
+Move to the previous event in the current vat debug trace.
+@end deffn
+
+@deffn {Command} vat-down
+Move to the next event in the current vat debug trace.
+@end deffn
+
+@deffn {Command} vat-top
+Move to the oldest event in the current vat debug trace.
+@end deffn
+
+@deffn {Command} vat-bottom
+Move to the most recent event in the current vat debug trace.
+@end deffn
+
+@deffn {Command} vat-jump timestamp
+Move to the event for @var{timestamp} in the current vat debug trace.
+@end deffn
+
+@deffn {Command} vat-peek refr [args ...]
+Travel back in time and send @var{args} to the actor reference
+@var{refr} as it existed just before the focused event happened.  This
+works by querying the actormap snapshot that has been captured for
+this event.  @var{refr} must be @emph{near} to the vat to which the
+focused event belongs.
+@end deffn

@@ -43,6 +43,7 @@ v2.  See @ref{License} for more information.
 * API::
 * API Reference::
 * actor-lib A standard library of sorts::
+* Debugging tools::
 * Thanks::
 * License::
 * Index::
@@ -1971,6 +1972,11 @@ unsealer:
 > ($ our-lunch:unseal chickpea-lunch)
 => chickpea-salad
 @end lisp
+
+@node Debugging tools
+@chapter Debugging tools
+
+@include debugger.texi
 
 @node Thanks
 @chapter Thanks
