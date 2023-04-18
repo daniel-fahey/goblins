@@ -25,6 +25,11 @@
                      (string->symbol
                       (format #f "swappable: ~a"
                               (local-object-refr-debug-name initial-target)))])
+  "Return a proxy providing access to INITIAL-TARGET and a swap
+capability, accepting a single argument of an actor to switch out with
+INITIAL-TARGET. PROXY-NAME, if provided, is the debug name for the proxy.
+
+Type: Actor [String] -> (Values Actor Actor)"
   (define-cell target
     initial-target)
 
