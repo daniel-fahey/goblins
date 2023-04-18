@@ -21,8 +21,18 @@
   #:export (spawn-pushdown-pair))
 
 (define* (spawn-pushdown-pair #:optional [initial-refr #f])
-  "Spawn a pair which constitute a pushdown automata, one for the stack
-and one to forward messages to the current top of the stack."
+  "Spawn a pair which constitute a pushdown automata, a Pd-Stack for the stack
+and a Pd-Forwarder to forward messages to the current top of the stack.
+
+Pd-Stack Methods:
+`push refr': Add REFR to the stack.
+`spawn-push constructor args ...': Spawn the actor constructed by CONSTRUCTOR,
+passing the current top of the stack and the arguments ARGS to the constructor;
+then add the new actor to the top of the stack. Return a reference to the new actor.
+`pop': Remove and return the top empty of the stack, or error if empty.
+`empty?': Return #t if the stack is empty, else #f.
+
+Type: (Optional Actor) -> (Values Pd-Stack Pd-Forwarder)"
   (define-cell stack
     (if initial-refr
         (list initial-refr)
