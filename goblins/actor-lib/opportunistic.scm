@@ -22,11 +22,16 @@
 ;; Sometimes we jokingly call these "cartoon swears."
 ;; But really this is "opportunistically using $ or otherwise use <-"
 (define (select-$/<- to-refr)
-  "Select $ opportunistically if to-refr is a near object, otherwise use <-"
+  "Select $ opportunistically if to-refr is a near object, otherwise use <-.
+
+Type: Actor -> (U $ <-)"
   (if (and (local-object-refr? to-refr)
            (near-refr? to-refr))
       $ <-))
 
 (define (run-$/<- to-refr . args)
-  "Invoke to-refr with $ opportunistically if a near object, otherwise use <-"
+  "Invoke to-refr with $ opportunistically if a near object, otherwise use <-,
+passing ARGS.
+
+Type: Actor Any ... -> Any"
   (apply (select-$/<- to-refr) to-refr args))
