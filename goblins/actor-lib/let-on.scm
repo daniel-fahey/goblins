@@ -21,6 +21,8 @@
             let*-on))
 
 (define-syntax let-on
+  ;;; Concurrently evaluate and resolve each EXP, binding it to VAR
+  ;;; before evaluating BODY in an environment where each VAR is bound.
   (syntax-rules ()
     ((_ ((var exp)) body ...)
      (on exp (lambda (var) body ...) #:promise? #t))
@@ -32,6 +34,10 @@
          #:promise? #t))))
 
 (define-syntax let*-on
+  ;;; Sequentially evaluate and resolve each EXP in an environment
+  ;;; where all preceding VARs are bound before binding them to their
+  ;;; corresponding VARs, then evaluate BODY in an environment where
+  ;;; each VAR is bound.
   (syntax-rules ()
     ((_ ((var exp)) body ...)
      (on exp (lambda (var) body ...) #:promise? #t))
