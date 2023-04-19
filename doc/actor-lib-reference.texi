@@ -194,7 +194,7 @@ with @var{val}.
 @section Facet
 
 The @code{(goblins actor-lib facet)} module provides an actor to wrap
-another object and only allow certain methods through. It also
+another object and only allow certain methods through.  It also
 provides a convenience function for constructing such actors.
 
 @deffn {Constructor} ^facet bcom wrap-me [methods @dots{}]
