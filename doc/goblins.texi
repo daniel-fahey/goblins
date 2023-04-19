@@ -1811,8 +1811,8 @@ and Juliana Sims provided review and feedback.
 @chapter License
 
 @emph{(C) 2019-2023 Christine Lemmer-Webber, David Thompson, Jessica
-Tallon, the Spritely Institute, and other contributors.  See
-@file{AUTHORS} for details.}
+Tallon, Juliana Sims, the Spritely Institute, and other contributors.
+See @file{AUTHORS} for details.}
 
 @emph{Both Spritely Goblins and this manual are released under the
 terms of the following license:}
