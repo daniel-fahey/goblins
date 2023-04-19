@@ -194,19 +194,22 @@ with @var{val}.
 @section Facet
 
 The @code{(goblins actor-lib facet)} module provides an actor to wrap
-another object and only allow certain methods through. It also
+another object and only allow certain methods through.  It also
 provides a convenience function for constructing such actors.
 
-@deffn {Constructor} ^facet bcom wrap-me [#:sync? #f] [methods @dots{}]
+@deffn {Constructor} ^facet bcom wrap-me [methods @dots{}]
 
 Construct a proxy of the actor @var{wrap-me} with access to only
 @var{methods}, a list of symbols corresponding to methods of
-@var{wrap-me}.  If @var{sync?} is @code{#t}, invoke @var{wrap-me} with
-@code{$}; otherwise, use @code{<-}.
+@var{wrap-me}.  The @var{wrap-me} will be invoked with @code{$} if
+possible, and otherwise will be invoked with @code{<-}.  For cases
+where synchronicity is possible but not desired, invoking the
+@code{facet} asynchronously has the same effect as invoking
+@var{wrap-me} asynchronously.
 
 @end deffn
 
-@deffn {Procedure} facet wrap-me [#:sync? #f] [methods @dots{}]
+@deffn {Procedure} facet wrap-me [methods @dots{}]
 
 Spawn and return a reference to a @code{^facet}, passing along
 arguments to their equivalents in the constructor.
