@@ -20,7 +20,12 @@
 
 (define* (^facet bcom wrap-me
                  #:rest methods)
-  (define $/<- (select-$/<- wrap-me))
+  "Construct an object which limits user access to methods of WRAP-ME.
+
+The METHODS argument is the collection of methods of WRAP-ME to be
+exposed to the user.
+
+The resulting actor can be invoke with any of METHODS."
   (lambda args
     (match args
       [((? symbol? method) args ...)
@@ -31,5 +36,11 @@
 
 (define* (facet wrap-me
                 #:rest methods)
+  "Return an object which limits user access to methods of WRAP-ME.
+
+The METHODS argument is the collection of methods of WRAP-ME to be
+exposed to the user.
+
+Type: Actor (Optional (#:async? Boolean)) (Symbol ...) -> Actor"
   (apply spawn-named (procedure-name wrap-me) ^facet
          methods))

@@ -24,6 +24,19 @@
             withdraw))
 
 (define (^mint _bcom)
+  "Construct a mint to generate purses associated with the mint's
+token.
+
+Mint Methods:
+`new-purse initial-balance': Spawn and return a new Purse containing
+INITIAL-BALANCE tokens.
+
+Purse Methods:
+`get-balance': Return the amount of tokens in the Purse.
+`sprout': Spawn and return a new Purse with 0 tokens.
+`deposit amount src': Add AMOUNT tokens to the Purse from the Purse SRC.
+`get-decr': Seal and return a procedure accepting a single argument, the
+number of tokens to subtract from this Purse."
   (define-values (decr-seal decr-unseal _decr-sealed?)
     (make-sealer-triplet))
   (define (^purse _bcom initial-balance)
@@ -52,7 +65,9 @@
 
 (define (withdraw amount from-purse)
   "Return a new purse containing AMOUNT that has been withdrawn from
-FROM-PURSE."
+FROM-PURSE.
+
+Type: Number Purse -> Purse"
   (let ((new-purse ($ from-purse 'sprout)))
     ($ new-purse 'deposit amount from-purse)
     new-purse))
