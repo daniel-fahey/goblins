@@ -1,0 +1,824 @@
+The Goblins actor library, in the @code{(goblins actor-lib ...)}
+module namespace, provides implementations for a variety of common
+actor model patterns.
+
+@menu
+* Cell::
+* Common::
+* Facet::
+* Joiners::
+* Let-On::
+* Methods::
+* Nonce Registry::
+* Opportunistic::
+* Pubsub::
+* Pushdown::
+* Sealers::
+* Simple Mint::
+* Swappable::
+* Ticker::
+* Ward::
+@end menu
+
+@node Cell
+@section Cell
+
+The @code{(goblins actor-lib cell)} module provides a very handy actor
+called a ``cell.''  Cells are used to store arbitrary data.  It also
+provides some helper functions for cells.
+
+@deffn {Constructor} ^cell bcom [val #f]
+
+Construct an actor which contains @var{val} or @code{#f} if @var{val}
+is not provided.
+
+@lisp
+> (define empty-chest (spawn ^cell))
+> (define chest (spawn ^cell 'gold))
+@end lisp
+
+Cells have two possible invocations: with no arguments, which returns
+the current value; and with one argument, which sets a new value and
+returns nothing.
+
+@lisp
+> ($ chest)
+=> 'gold
+> ($ chest 'sword)
+> ($ chest)
+=> 'sword
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} cell->read-only cell
+
+Create and return a read-only proxy to @var{cell}. It is an error to
+attempt to write to such a cell.
+
+@lisp
+> (define ro-chest (cell->read-only chest))
+> ($ chest)
+=> 'sword
+> ($ chest 'wand)
+=> error: ...
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} cell->write-only cell
+
+Create and return a write-only proxy to @var{cell}. It is an error to
+attempt to read from such a cell.
+
+@lisp
+> (define wo-chest (cell->write-only chest))
+> ($ chest 'wand)
+> ($ chest)
+=> error: ...
+@end lisp
+
+@end deffn
+
+@deffn {Syntax} define-cell id [val #f]
+
+Syntax for creating a cell using a form like Scheme @code{define}.
+
+@lisp
+> (define-cell chest 'gold)
+> ($ chest)
+=> 'gold
+@end lisp
+
+@end deffn
+
+@node Common
+@section Common
+
+The @code{(goblins actor-lib common)} module provides actors wrapping
+functional data structures, allowing Goblins transactionality
+guarantees while providing an apparently mutable interface.
+
+@deffn {Constructor} ^seteq bcom initial @dots{}
+
+Construct an actor representing a set (each member is unique).  A
+@code{seteq} has four methods:
+
+@itemize
+@item
+@code{add val}: Add @var{val} to the set.
+
+@item
+@code{remove val}: Remove @var{val} from the set.
+
+@item
+@code{member? val}: Return @code{#t} if @var{val} is in the set, else
+@code{#f}.
+
+@item
+@code{as-list}: Return a representation of the set as a Scheme list.
+Note that the order of items in the list is not specified.
+
+@end itemize
+
+@lisp
+> (define a-set (spawn ^seteq 'a 'b 'c))
+> ($ a-set 'as-list)
+=> (a b c)
+> ($ a-set 'member? 'c)
+=> #t
+> ($ a-set 'member? 'f)
+=> #f
+> ($ a-set 'add 'f)
+> ($ a-set 'remove 'b)
+> ($ a-set 'as-list)
+=> (f c a)
+@end lisp
+
+@end deffn
+
+@deffn {Constructor} ^ghash bcom [ht ghash-null]
+
+Construct an actor representing a hashtable using @code{eq?} for
+key lookup and @code{equal?} for other comparisons.  @var{ht}, if
+provided, is the underlying @code{ghash} to use as the starting state.
+See @code{(goblins ghash)} module for the compatible hashtable
+implementation.
+
+A @code{ghash} actor has five methods:
+
+@itemize
+@item
+@code{ref key [dflt #f]}: Return the value associated with @var{key},
+or @var{dflt} if the key is not found.
+
+@item
+@code{set key val}: Add @var{key} to the @code{ghash} and associate it
+with @var{val}.
+
+@item
+@code{has-key? key}: Return @code{#t} if @var{key} is in the
+@code{ghash}; otherwise return @code{#f}.
+
+@item
+@code{remove key}: Delete @var{key} and its associated value from the
+@code{ghash}.
+
+@item
+@code{data}: Return the underlying @code{ghash}.
+
+@end itemize
+
+@lisp
+> (define ag (spawn ^ghash))
+> ($ ag 'set "dog" "animal")
+> ($ ag 'set "cesna" "plane")
+> ($ ag 'data)
+=> $<ghash (2)>
+> ($ ag 'ref "cesna")
+=> "plane"
+> ($ ag 'has-key? "dog")
+=> #t
+> ($ ag 'remove "cesna")
+> ($ ag 'ref "cesna")
+=> #f
+> ($ ag 'ref "cesna" 'missing)
+=> missing
+> ($ ag 'data)
+=> $<ghash (1)>
+@end lisp
+
+@end deffn
+
+@node Facet
+@section Facet
+
+The @code{(goblins actor-lib facet)} module provides an actor to wrap
+another object and only allow certain methods through. It also
+provides a convenience function for constructing such actors.
+
+@deffn {Constructor} ^facet bcom wrap-me [#:sync? #f] [methods @dots{}]
+
+Construct a proxy of the actor @var{wrap-me} with access to only
+@var{methods}, a list of symbols corresponding to methods of
+@var{wrap-me}.  If @var{sync?} is @code{#t}, invoke @var{wrap-me} with
+@code{$}; otherwise, use @code{<-}.
+
+@end deffn
+
+@deffn {Procedure} facet wrap-me [#:sync? #f] [methods @dots{}]
+
+Spawn and return a reference to a @code{^facet}, passing along
+arguments to their equivalents in the constructor.
+
+@end deffn
+
+@node Joiners
+@section Joiners
+
+The @code{(goblins actor-lib joiners)} module provides a means of
+combining the results of many promises.
+
+@deffn {Procedure} all-of promises @dots{}
+
+Return a promise which resolves on resolution of all @var{promises}.
+
+As an example, suppose there is an actor which waits for a period of
+time before returning whatever it received:
+
+@lisp
+> (define (^procrastinator bcom delay)
+    (lambda (x)
+      (sleep delay)
+      x))
+@end lisp
+
+@code{all-of} can wait for all procrastinators to finish before
+writing some output:
+
+@lisp
+> (define a-vat (spawn-vat))
+> (define b-vat (spawn-vat))
+> (define c-vat (spawn-vat))
+> (define p1 (with-vat b-vat (spawn ^procrastinator 1)))
+> (define p2 (with-vat c-vat (spawn ^procrastinator 2)))
+> (with-vat a-vat
+    (on (all-of (<- p1 'foo) (<- p2 'bar))
+        (lambda (items)
+          (display items)
+          (newline))))
+; (foo bar)
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} all-of* promises
+
+Like @code{all-of}, but @var{promises} is a list of promises.
+
+@end deffn
+
+@node Let-On
+@section Let-On
+
+The @code{(goblins actor-lib let-on)} module provides convenient
+syntax to facilitate promise pipelining.
+
+@deffn {Syntax} let-on ((var exp) @dots{}) body
+
+Syntax sugar around @code{on}, @code{all-of}, @code{lambda}, and
+@code{match-lambda} to allow using promise pipelining with a
+@code{let}-like syntax.  Each @var{exp} (an asynchronous invocation of
+an actor resulting in a promise) is evaluted concurrently; the
+resulting promises are bound to their corresponding @var{var}s; and
+finally @var{body} is evaluated in an environment where all promises
+are resolved.
+
+For example, this use of @code{let-on}@dots{}
+
+@lisp
+(define (^doubler bcom)
+  (lambda (x)
+    (* x 2)))
+(define doubler (spawn ^doubler))
+(let-on ((four (<- doubler 2))
+         (eight (<- doubler 4)))
+  (+ four eight))
+@end lisp
+
+@dots{}is equivalent to@dots{}
+
+@lisp
+(use-modules (goblins actor-lib joiners))
+(on (all-of (<- doubler 2)
+            (<- doubler 4))
+  (match-lambda*
+    ((four eight)
+     (+ four eight))))
+@end lisp
+
+@end deffn
+
+@deffn let*-on ((var exp) @dots{}) body
+
+Like @code{let-on}, except paralleling @code{let*}; each @var{exp} is
+resolved @emph{sequentially} rather than concurrently, and each
+@code{var} is available in the body of the succeeding @var{exp}s.
+This is equivalent to nested @code{on} and @code{lambda} calls, without
+using @code{match-lambda} or @code{all-of}.
+
+So this use of @code{let*-on}@dots{}
+
+@lisp
+(let*-on ((four (<- doubler 2))
+          (eight (<- doubler four)))
+  (+ four eight))
+@end lisp
+
+@dots{}is equivalent to@dots{}
+
+@lisp
+(on (<- doubler 2)
+    (lambda (four)
+      (on (<- doubler four)
+          (lambda (eight)
+            (+ four eight))
+          #:promise? #t))
+    #:promise? #t)
+@end lisp
+
+@end deffn
+
+@node Methods
+@section Methods
+
+The @code{(goblins actor-lib methods)} module provides a simple,
+single-dispatch method system for actor behaviors.
+
+@deffn {Syntax} methods ((name args @dots{}) expr) @dots{}
+
+Syntax to describe a collection of methods that an actor accepts.
+@var{name} is the symbol upon which the method dispatches, @var{args}
+are the arguments it accepts, and @var{expr} is the expression
+evaluated when the method is called.
+
+As an example, consider this actor capable of saying hello or goodbye:
+
+@lisp
+> (define (^hello-goodbye _bcom)
+    (methods
+     ((say-hello name)
+      (format #f "Hello, ~a!" name))
+     ((say-goodbye name)
+      (format #f "Goodbye, ~a!" name))))
+> (define hello-goodbye (spawn ^hello-goodbye))
+> ($ hello-goodbye 'say-hello "Alice")
+=> "Hello, Alice!"
+> ($ hello-goodbye 'say-goodbye "Alice")
+=> "Goodbye, Alice!"
+@end lisp
+
+@end deffn
+
+@deffn {Syntax} extend-methods extends ((name args @dots{}) expr) @dots{}
+
+Syntax to expand a collection of methods or an actor @var{extends}.
+@var{name}, @var{args}, and @var{expr} are as in @code{methods}.
+
+So this would allow extending the previous example with a method to
+ask how the caller is:
+
+@lisp
+> (define hello-goodbye-how-are-you
+    (extend-methods hello-goodbye
+      ((how-are-you name)
+       (format #f "How are you, ~a?" name))))
+> (hello-goodbye-how-are-you 'how-are-you "Alice")
+=> "How are you, Alice?"
+@end lisp
+
+You may notice that when extending a live reference, the result is not
+a reference to an actor, but rather a procedure which invokes the
+original actor.  @code{extend-methods} can also be used to extend
+methods directly, as in:
+
+@lisp
+> (define behs (methods
+                 ((say-hello)
+                  (format #f "Hello!"))
+                 ((say-goodbye)
+                  (format #f "Goodbye!"))))
+> (define new-behs (extend-methods behs
+                     ((how-are-you)
+                      (format #f "How are you?"))))
+> (define (^hello-goodbye-how-are-you bcom)
+    new-behs)
+> (define hello-goodbye-how-are-you
+    (spawn ^hellow-goodbye-how-are-you))
+> ($ hello-goodbye-how-are-you 'how-are-you)
+=> "How are you?"
+@end lisp
+
+@end deffn
+
+@node Nonce Registry
+@section Nonce Registry
+
+The @code{(goblins actor-lib nonce-registry)} module provides an actor
+to store and retrieve references using @emph{swiss-num}s.  A
+@dfn{swiss-num} is a string of digits which grants anyone with that
+string of digits access to whatever it refers to, much as a Swiss bank
+account number grants access to the bank account (hence the name).
+
+@deffn {Procedure} spawn-nonce-registry-and-locator
+
+Create and return, as @code{values}, an actor which registers and an
+actor which locates objects using Swiss nums.
+
+The first returned value, the @code{registry}, has two methods:
+@code{register}, which accepts an object reference and an optional
+@emph{swiss-num}, and returns the @emph{swiss-num}; and @code{fetch},
+which accepts a @emph{swiss-num} and returns a reference to the
+appropriate object.  The second returned value, the @code{locator},
+only has one method, @code{fetch}, which operates exactly the same as
+that of @code{registry}.
+
+To clarify, here's an example:
+
+@lisp
+> (use-modules (goblins actor-lib cell))
+> (define-values (nr nr-locator) (spawn-nonce-registry-and-locator))
+> nr
+=> #<local-object ^nonce-registry>
+> (define chest (spawn ^cell 'gold))
+> (define chest-token ($ nr 'register chest))
+> chest-token
+=> #vu8(<32 random 8-bit unsigned integers>)
+> ($ nr 'fetch chest-token)
+=> #<local-object ^cell>
+> ($ nr-locator 'fetch chest-token)
+=> #<local-object ^cell>
+@end lisp
+
+@end deffn
+
+@node Opportunistic
+@section Opportunistic
+
+The @code{(goblins actor-lib opportunistic)} module provides
+procedures to choose synchronous invocation if possible and fallback
+to asynchronous invocation only if necessary.
+
+@deffn {Procedure} select-$/<- to-refr
+
+If the actor @var{to-refr} is a @emph{near} object, return @code{$};
+otherwise, return @code{<-}.
+
+@end deffn
+
+@deffn {Procedure} run-$/<- to-refr args @dots{}
+
+Invoke the actor @var{to-refr} with the arguments @var{args} using
+@code{$} if it is a @emph{near} object and otherwise using @code{<-}.
+
+@lisp
+> (define a-vat (spawn-vat))
+> (define b-vat (spawn-vat))
+> (define a-chest (with-vat a-vat
+                    (spawn ^cell 'sword)))
+> (with-vat a-vat
+    (run-$/<- a-chest))
+=> 'sword
+> (with-vat b-vat
+    (run-$/<- a-chest))
+=> #<local-promise>
+@end lisp
+
+@end deffn
+
+@node Pubsub
+@section Pubsub
+
+The @code{(goblins actor-lib pubsub)} module provides an actor to
+publish messages to a set of other, subscribed actors.
+
+@deffn {Constructor} ^pubsub bcom initial-subscribers @dots{}
+
+Construct an actor with references to the other actors
+@var{initial-subscribers} and which has the following methods:
+
+@itemize
+@item
+@code{subscribe subscriber}: Add @var{subscriber} to the list of
+subscribed actors.
+
+@item
+@code{unsubscribe subscriber}: Remove @var{subscriber} from the list
+of subscribed actors.
+
+@item
+@code{publish args ...}: Invoke all subscribers with the arguments
+@var{args}.
+
+@item
+@code{subscribers}: Return a list of all subscribed actors.
+
+@end itemize
+
+@lisp
+> (use-modules (goblins actor-lib cell))
+;; enter a vat
+> (define a-chest (spawn ^cell 'sword))
+> (define b-chest (spawn ^cell 'gold))
+> (define c-chest (spawn ^cell 'wand))
+> (define pubsub (spawn ^pubsub a-chest b-chest))
+> ($ pubsub 'subscribers)
+=> ($<local-object ^cell> #<local-object ^cell>)
+> ($ pubsub 'publish 'boots)
+=> #t
+> ($ a-chest)
+=> 'boots
+> ($ b-chest)
+=> 'boots
+> ($ pubsub 'subscribe c-chest)
+> ($ pubsub 'subscribers)
+=> (#<local-object ^cell> #<local-object ^cell> #<local-object ^cell>)
+> ($ pubsub 'unsubscribe b-chest)
+> ($ pubsub 'publish 'crown)
+=> #t
+> ($ a-chest)
+=> 'crown
+> ($ b-chest)
+=> 'boots
+> ($ c-chest)
+=> 'crown
+@end lisp
+
+@end deffn
+
+@node Pushdown
+@section Pushdown
+
+The @code{(goblins actor-lib pushdown)} module provides actors
+representing
+@uref{https://en.wikipedia.org/wiki/Pushdown_automaton,pushdown automata}.
+
+@deffn {Procedure} spawn-pushdown-pair [initial-refr #f]
+
+Return a @code{pd-stack} and @code{pd-forwarder} as @code{values},
+which together represent a pushdown automaton.  @var{initial-refr}, if
+provided, is the initial object on the stack.
+
+A @code{pd-stack} has four methods:
+
+@itemize
+@item
+@code{push refr}: Add @var{refr} to the top of the stack.
+
+@item
+@code{spawn-push constructor args ...}: Spawn the actor constructed by
+@var{constructor}, passing the current top of the stack and the
+arguments @var{args} to the constructor; then add the new actor to
+the top of the stack.  Return a reference to the new actor.  This
+method facilitates implementing the
+@uref{https://gameprogrammingpatterns.com/state.html,State} design
+pattern.
+
+@item
+@code{pop}: Return the top of the stack.  Calling @code{pop} on an
+empty stack is an error.
+
+@item
+@code{empty?}: Return @code{#t} if the stack is empty, else @code{#f}.
+
+@end itemize
+
+A @code{pd-forwarder} simply invokes the top actor of the stack with
+whatever arguments it is passed.
+
+@lisp
+> (use-modules (goblins actor-lib cell))
+;; enter a vat
+> (define a-chest (spawn ^cell 'sword))
+> (define b-chest (spawn ^cell 'gold))
+> (define-values (pd-stack pd-fowarder)
+    (spawn-pushdown-pair a-chest))
+> ($ pd-forwarder)
+=> 'sword
+> ($ pd-stack 'push b-chest)
+> ($ pd-forwarder 'wand)
+> ($ b-chest)
+=> 'wand
+> ($ pd-stack 'spawn-push ^cell)
+=> #<local-object ^cell>
+> ($ pd-forwarder)
+=> #<local-object ^cell>
+> ($ ($ pd-forwarder))
+=> 'wand
+> ($ pd-stack 'pop)
+=> #<local-object ^cell>
+> ($ pd-stack 'empty?)
+=> #f
+@end lisp
+
+@end deffn
+
+@node Sealers
+@section Sealers
+
+The @code{(goblins actor-lib sealers)} module provides a mechanism for
+ensuring the authenticity of data.  A sealer is used to place data
+within a wrapper.  This wrapper can only be unsealed by the
+corresponding unsealer, and can be checked with a predicate to ensure
+it is authentic.  Sealers and unsealers are analogous to public key
+cryptography, but do not use any cryptography at all.
+
+@deffn {Procedure} spawn-sealer-triplet [name] @
+       [#:make-sealer-triplet simple:make-sealer-triplet]
+
+Return @code{values} holding a @code{sealer}, @code{unsealer}, and
+@code{check} capability.  @var{name}, if provided, is the debug name
+of the underlying Scheme record object.  @var{make-sealer-triplet}, if
+provided, is the primitive used to create the sealer objects.  Each
+sealer object can be invoked with a single argument:
+
+@itemize
+@item
+@code{sealer value}: Seal @var{value} and return a reference to the
+sealed object.
+
+@item
+@code{unsealer value}: Unseal the @var{value} sealed with the
+corresponding @code{sealer}.  If the unsealed object is @emph{near},
+it is returned directly; otherwise, a promise is returned.
+
+@end itemize
+
+As an example, consider a metaphorical food delivery service and its
+rival service:
+
+@lisp
+> (define-values (our-lunch:seal our-lunch:unseal our-can?)
+    (spawn-sealer-triplet))
+> (define-values (rival-lunch:seal rival-lunch:unseal rival-can?)
+    (spawn-sealer-triplet))
+> ($ our-lunch:seal 'fried-rice)
+=> #<local-object sealed-value>
+> (define chickpea-lunch ($ our-lunch:seal 'chickpea-salad))
+> ($ our-can? chickpea-lunch)
+=> #t
+> ($ our-can? ($ rival-lunch:seal 'melted-ice-cream))
+=> #f
+> ($ our-lunch:unseal chickpea-lunch)
+=> chickpea-salad
+@end lisp
+
+@end deffn
+
+@node Simple Mint
+@section Simple Mint
+
+The @code{(goblins actor-lib simple-mint)} module provides an example
+actor simulating a mint and currency.  This is a Goblins
+implementation of a
+@uref{http://erights.org/elib/capability/ode/ode-capabilities.html#simple-money,classic example}
+of object capabilities.
+
+@deffn {Constructor} ^mint _bcom
+
+Constructor an actor which in turn constructs and returns
+@code{purse}s for its currency.  A @code{mint} only has one method:
+@code{new-purse initial-balance} spawns and returns a reference to a
+new @code{purse} which holds @var{initial-balance} tokens.
+
+A @code{purse}, on the other hand, has four methods:
+
+@itemize
+@item
+@code{get-balance}: Return the current number of tokens in the purse.
+
+@item
+@code{sprout}: Spawn and return a reference to a new empty
+@code{purse} for this currency.
+
+@item
+@code{deposit amount src}: Increase the number of tokens in this
+@code{purse} by @var{amount}, decreasing the number of tokens in the
+@code{purse} of the same currency @var{src} by the same amount.
+
+@item
+@code{get-decr}: Return a procedure accepting one argument, an
+@var{amount} of tokens to remove from this @code{purse}.
+
+@end itemize
+
+@end deffn
+
+@deffn {Procedure} withdraw amount from-purse
+
+Spawn and return a reference to a new purse holding @var{amount}
+tokens of the same type as the @code{purse} @var{from-purse}.  Remove
+the same numbers of tokens from @var{from-purse}.
+
+@end deffn
+
+@node Swappable
+@section Swappable
+
+The @code{(goblins actor-lib swappable)} module provides a mechanism
+to create an actor of one type and change it to another type later.
+
+@deffn {Procedure} swappable initial-target [proxy-name]
+
+Spawn and return @code{values} representing an actor and the
+capability to swap that actor with another.  @var{initial-target} is
+the actor at construction.  @var{proxy-name}, if provided, is the
+debug name for the returned actor.
+
+@end deffn
+
+@node Ticker
+@section Ticker
+
+The @code{(goblins actor-lib ticker)} module provides a mechanism to
+invoke certain actors at the same time each ``tick'' of a program.
+
+@deffn {Procedure} spawn-ticker
+
+Spawn and return a reference to a @code{ticker} actor which holds
+references to a set of actors which it invokes with the same set of
+arguments each ``tick''.
+
+A @code{ticker} has four methods:
+
+@itemize
+@item
+@code{to-tick}: Return a procedure accepting a single argument, a
+closure over spawning an actor with a @code{ticky} actor as an
+argument.  The @code{ticky} actor is passed to the closure and has
+three procedures:
+
+@itemize
+@item
+@code{die}: Set @code{dead?} to @code{#t}.
+
+@item
+@code{dead?}: Return @code{#t} if @code{die} has been invoked, else
+@code{#f}.
+
+@item
+@code{to-tick}: The same as the @code{to-tick} method of @code{ticker}.
+
+@end itemize
+
+@item
+@code{get-ticked}: Return a list holding references to each actor to
+tick.
+
+@item
+@code{tick}: Invoke all actors which have a @code{ticky}.
+
+@item
+@code{foldr proc init [#:include-new? #t]}: A @code{foldr} procedure
+over the actors known to @code{ticker}.  If @code{include-new?} is
+@code{#t}, also operate on actors registered since the last invocation
+of @code{tick}.
+
+@end itemize
+
+@end deffn
+
+@node Ward
+@section Ward
+
+The @code{(goblins actor-lib ward)} module provides a mechanism for an
+actor to restrict access to its behaviors using the conceptual
+metaphor of a magical ward.  It is inspired by
+@uref{http://www.erights.org/history/joule/MANUAL.B17.pdf,parts of the E ecosystem}.
+
+@deffn {Procedure} spawn-warding-pair [#:async? #f] [#:sealer-triplet #f]
+
+Return @code{values} holding a @code{warden} and an @code{incanter}.
+If @code{async?} is @code{#t}, the @code{incanter} will use @code{<-}
+to invoke sealed actors; otherwise, it will use @code{$}.
+If provided, @code{sealer-triplet} is the set of sealers to use
+instead of creating a new set.
+
+The @code{warden} is not meant to be used directly; see @code{ward}
+below.
+
+The @code{incanter} can be invoked with a @var{target} actor and the
+@code{args} to invoke it with.
+
+@end deffn
+
+@deffn {Procedure} ward warden behavior [#:extends #f] [#:async? #f]
+
+Return @var{behavior} sealed by @var{warden} so that only its
+associated @code{incanter} can use the behavior.  @var{extends}, if
+provided, is an actor to extend with the warded @var{behavior}.  If
+@var{async?} is @code{#t}, invoke @var{behavior} using @code{<-};
+otherwise us @code{$}.
+
+The returned behavior can be invoked with either a singe list of
+sealed arguments or any number of unsealed arguments.
+
+@end deffn
+
+@deffn {Procedure} enchant incanter target [#:async? #f]
+
+Spawn and return a reference to a proxy which invokes @var{target}
+using @var{incanter} to access its warded behavior.  If @var{async?}
+is @code{#t}, invoke @var{target} using @code{<-}; otherwise, use
+@code{$}.
+
+@end deffn
+
+@deffn {Procedure} warden->ward-proc warden
+
+Return a procedure to wrap @code{ward} using @var{warden}.  The
+returned procedure accepts two arguments: @var{warded-beh}, which is
+the behavior to ward; and @var{extends-beh}, which is the actor to
+extend with that behavior.
+
+@end deffn
