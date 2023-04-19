@@ -39,7 +39,7 @@
 
 (test-begin "test-vat")
 
-(define a-vat (spawn-vat))
+(define a-vat (spawn-vat #:name 'A))
 
 (test-eq "Lookup vat by id"
   (lookup-vat (vat-id a-vat)) a-vat)
@@ -88,7 +88,7 @@
 (test-eq (run a-vat $ a-counter) 10)
 
 ;; Inter-vat communication
-(define b-vat (spawn-vat))
+(define b-vat (spawn-vat #:name 'B))
 (let ((result
        (resolve-vow-and-return-result
         b-vat
@@ -807,31 +807,43 @@
             (e5 (vat-log-ref-by-time a-vat (+ ta2 1)))  ; A: recv: resolver fulfill
             (e6 (vat-log-ref-by-time a-vat (+ ta2 2)))  ; A: recv: listener fulfill
             (e7 (vat-log-ref-by-time a-vat (+ ta2 3)))) ; A: recv: fulfilled handler
-        ;; It would be better if we had an order independent equality
-        ;; operator ('alist-equal?' or something), but
-        ;; 'vat-event-tree->timeline' produces its output
-        ;; deterministically so an 'equal?' check is fine.
         (equal? (list (cons (vat-connector a-vat)
-                            (list (cons (vat-event-timestamp e2)
-                                        (list e2))
-                                  (cons (vat-event-timestamp e7)
-                                        (list e7))
-                                  (cons (vat-event-timestamp e6)
-                                        (list e6))
-                                  (cons (vat-event-timestamp e5)
-                                        (list e5))
+                            (list (cons (vat-event-timestamp e0)
+                                        (list e0))
                                   (cons (vat-event-timestamp e1)
                                         (list e1 (list (vat-connector b-vat)
                                                        (vat-event-timestamp e3))))
-                                  (cons (vat-event-timestamp e0)
-                                        (list e0))))
+                                  (cons (vat-event-timestamp e2)
+                                        (list e2))
+                                  (cons (vat-event-timestamp e5)
+                                        (list e5))
+                                  (cons (vat-event-timestamp e6)
+                                        (list e6))
+                                  (cons (vat-event-timestamp e7)
+                                        (list e7))))
                       (cons (vat-connector b-vat)
-                            (list (cons (vat-event-timestamp e4)
+                            (list (cons (vat-event-timestamp e3)
+                                        (list e3))
+                                  (cons (vat-event-timestamp e4)
                                         (list e4 (list (vat-connector a-vat)
-                                                       (vat-event-timestamp e5))))
-                                  (cons (vat-event-timestamp e3)
-                                        (list e3)))))
-                (vat-event-tree->timeline (vat-event-tree e7)))))))
+                                                       (vat-event-timestamp e5)))))))
+                ;; Convert hash table to an alist, sorting the keys
+                ;; for a deterministic result.
+                (sort (hash-fold (lambda (vat-connector events result)
+                                   (acons vat-connector
+                                          (sort (hash-fold acons '() events)
+                                                ;; Keys are integers,
+                                                ;; so < is enough.
+                                                (lambda (a b)
+                                                  (< (car a) (car b))))
+                                          result))
+                                 '()
+                                 (vat-event-tree->timeline (vat-event-tree e7)))
+                      ;; Keys are vat connector procedures, so compare
+                      ;; vat names.
+                      (lambda (a b)
+                        (string< (symbol->string ((car a) 'name))
+                                 (symbol->string ((car b) 'name))))))))))
 
 ;; Running this test last since it messes with the log size.
 (test-assert "The event log can be resized"

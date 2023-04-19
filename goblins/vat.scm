@@ -331,78 +331,56 @@ nodes before their parent trees."
 removed."
   (vat-event-tree-filter (negate pred) tree))
 
-;; This code uses alists, which has linear time lookup, rather than
-;; hash tables or vhashes.  This doesn't matter much for small trees
-;; where the alists have few keys, but performance will start to be a
-;; problem for large trees.  This procedure should be rewritten to use
-;; vhashes, so that it retains a functional implementation but
-;; produces a structure with much improved time complexity for key
-;; lookups.
 (define (vat-event-tree->timeline tree)
   "Convert TREE, a tree of vat events as produced by 'vat-event-tree',
 to vat timeline form.  A vat timeline is a graph structure consisting
-of an association list mapping vat connectors to their respective
-events in TREE.  The events within a timeline are also in association
-list form, mapping timestamps to lists whose head is a local vat event
-and all subsequent elements are far events that were caused by the
-local event.
+of a hash table mapping vat connectors to their respective events in
+TREE.  The events within a timeline are also stored in hash tables,
+mapping timestamps to lists whose head is a local vat event and all
+subsequent elements are far events that were caused by the local
+event.
 
-Below is a more visual representation of the timeline structure:
+Retrieving an event list for a given vat connector and timestamp looks
+like this:
 
-((vat-connector (timestamp local-vat-event
-                           (far-vat-connector far-timestamp)
-                           ...)...)...)"
-  (define (compose-timelines a b)
-    ;; This first 'map' adds vat data to A that also appears in B.
-    (append (map (match-lambda
-                   ((vat-connector . events-a)
-                    ;; If both A and B have events for the
-                    ;; vat-connector, combine them.  Otherwise, leave
-                    ;; A's events as-is.
-                    (let ((events-b (assq-ref b vat-connector)))
-                      (cons vat-connector
-                            (if events-b
-                                (append events-a events-b)
-                                events-a)))))
-                 a)
-            ;; Next, add in data that only appears in B.
-            (filter-map (match-lambda
-                          ((vat-connector . events-b)
-                           ;; If this vat connector appears in A then
-                           ;; we've already processed it, so skip it.
-                           (let ((events-a (assq-ref a vat-connector)))
-                             (and (not events-a)
-                                  (cons vat-connector events-b)))))
-                        b)))
-  (match tree
-    ((root children ...)
-     (let* ((vat-connector (vat-event-connector root))
-            ;; Build a list of *outgoing* send events with each
-            ;; element of the form (vat-connector timestamp).
-            (sends (filter-map (match-lambda
-                                 ((or (child _ ...) child) ; match subtree or leaf node
-                                  (let ((other-connector (vat-event-connector child)))
-                                    ;; Filter out child events that
-                                    ;; are from the same vat.  We only
-                                    ;; care about events in other vats
-                                    ;; here.
-                                    (and (not (eq? vat-connector other-connector))
-                                         (list other-connector (vat-event-timestamp child))))))
-                               children))
-            ;; A timeline with just the root event in it.  To be
-            ;; composed with the timelines of the child nodes.
-            (root-timeline (list (cons (vat-event-connector root)
-                                       (list (cons (vat-event-timestamp root)
-                                                   (cons root sends))))))
-            ;; Recursively build timelines for the child nodes.
-            (child-timelines (map vat-event-tree->timeline children)))
-       ;; Compose the root timeline with the child timelines to form a
-       ;; complete, aggregate timeline for this tree.
-       (fold compose-timelines root-timeline child-timelines)))
-    ;; The base case: A timeline of just one event.
-    ((? vat-event? event)
-     (list (cons (vat-event-connector event)
-                 (list (cons (vat-event-timestamp event) (list event))))))))
+(hashv-ref (hashq-ref timeline vat-connector) timestamp)"
+  (let ((timeline (make-hash-table)))
+    (define (events-for-vat vat-connector)
+      (or (hashq-ref timeline vat-connector)
+          (let ((table (make-hash-table)))
+            (hashq-set! timeline vat-connector table)
+            table)))
+    (define (add-to-timeline vat-connector timestamp events)
+      (hashq-set! (events-for-vat vat-connector) timestamp events))
+    (define (loop tree)
+      (match tree
+        ((root children ...)
+         (let* ((vat-connector (vat-event-connector root))
+                ;; Build a list of *outgoing* send events with each
+                ;; element of the form (vat-connector timestamp).
+                (sends (filter-map (match-lambda
+                                     ((or (child _ ...) child) ; match subtree or leaf node
+                                      (let ((other-connector (vat-event-connector child)))
+                                        ;; Filter out child events that
+                                        ;; are from the same vat.  We only
+                                        ;; care about events in other vats
+                                        ;; here.
+                                        (and (not (eq? vat-connector other-connector))
+                                             (list other-connector (vat-event-timestamp child))))))
+                                   children)))
+           ;; Add root event to the timeline.
+           (add-to-timeline vat-connector
+                            (vat-event-timestamp root)
+                            (cons root sends))
+           ;; Recursively add child events to the timeline.
+           (for-each loop children)))
+        ;; Base case: A leaf node.
+        ((? vat-event? event)
+         (add-to-timeline (vat-event-connector event)
+                          (vat-event-timestamp event)
+                          (list event)))))
+    (loop tree)
+    timeline))
 
 ;; The vat log maintains a finite amount of history about messages
 ;; that have been sent/received in the vat.  These events are indexed

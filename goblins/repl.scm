@@ -536,32 +536,34 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
   ;; Generate a list of all timestamps across all vats in the
   ;; timeline.  Duplicate values are OK.
   (define all-timestamps
-    (append-map (match-lambda
-                  ((_ . ((timestamps . _) ...))
-                   timestamps))
-                timeline))
+    (hash-fold (lambda (_vat-connector events result)
+                 (hash-fold (lambda (timestamp _event result)
+                              (cons timestamp result))
+                            result events))
+               '() timeline))
   ;; Get the min and max timestamp values.  These will serve as the
   ;; start and end points for the timeline.  The bigger this range is,
   ;; the taller the resulting graph will be when rendered.
   (define max-t (reduce max 0 all-timestamps))
   (define min-t (reduce min max-t all-timestamps))
-  ;; Generate a list of timestamps with no events on any vat timeline.
+  ;; Generate a hash of timestamps with no events on any vat timeline.
   ;; We will skip generating nodes for these to reduce wasted vertical
-  ;; space in the rendered graph.  There is likely to be far fewer
-  ;; empty timestamps than occupied ones, so traversing this list will
-  ;; be faster than an occupied timestamp list.
+  ;; space in the rendered graph.
   (define empty-timestamps
-    ;; Loop from min-t to max-t.
-    (let loop ((t min-t))
-      (if (<= t max-t)
-          ;; Does any vat timeline have an event at this timestamp?
-          ;; If not, add it to the empty timestamps list.
-          (if (any (lambda (timeline)
-                     (assv-ref timeline t))
-                   timeline)
-              (loop (+ t 1))
-              (cons t (loop (+ t 1))))
-          '())))
+    (let ((table (make-hash-table))
+          (vat-events (hash-map->list (lambda (_vat-connector events)
+                                        events)
+                                      timeline)))
+      ;; Loop from min-t to max-t.
+      (do ((t min-t (+ t 1)))
+          ((> t max-t))
+        ;; Does any vat timeline have an event at this timestamp?  If
+        ;; not, add it to the empty timestamps hash.
+        (unless (any (lambda (timeline)
+                       (hashv-ref timeline t))
+                     vat-events)
+          (hashv-set! table t #t)))
+      table))
   ;; Helpers for generating graph node names.
   (define (vat-node-name vat-name)
     (format #f "vat_~a" vat-name))
@@ -630,7 +632,7 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
   ;; encapsulated in a churn sub-graph.
   (define (max-churn-timestamp t max-t last-known-t events churn)
     (if (<= t max-t)
-        (match (assv-ref events t)
+        (match (hashv-ref events t)
           (#f
            (max-churn-timestamp (+ t 1) max-t last-known-t events churn))
           ((event . _)
@@ -657,12 +659,12 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
                      ;; Fetch the event for this timestamp.  If there
                      ;; isn't one, default to a structure that still
                      ;; satisfies the pattern matcher.
-                     (or (assv-ref events t) '(#f))))
+                     (hashv-ref events t '(#f))))
           (cond
            ;; Timestamp is a member of the empty timestamps list, do
            ;; not generate a node for it and move on to the next
            ;; timestamp.
-           ((and (<= t end-t) (memv t empty-timestamps))
+           ((and (<= t end-t) (hashv-ref empty-timestamps t))
             (loop (+ t 1) prev-node nodes edges))
            ;; Timestamp is within the churn we are graphing, so lookup
            ;; the associated event and add a node to the graph.
@@ -706,14 +708,14 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
         (cond
          ;; Timestamp is a member of the empty timestamps list, do not
          ;; generate a node for it and move on to the next timestamp.
-         ((and (<= t max-t) (memv t empty-timestamps))
+         ((and (<= t max-t) (hashv-ref empty-timestamps t))
           (loop (+ t 1) prev-node nodes edges))
          ;; Timestamp is within the range we are graphing, so lookup
          ;; the associated event.  If there is no event, add an empty
          ;; node.  If there is an event, add a sub-graph containing
          ;; the entire churn associated with that event.
          ((<= t max-t)
-          (match (assv-ref events t)
+          (match (hashv-ref events t)
             ;; No event for this timestamp, make an empty node and
             ;; proceed to the next timestamp.
             (#f
@@ -765,10 +767,11 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
                           (fontsize "10")
                           (height "0.1")
                           (margin "0.01")))
-            ,@(append-map (match-lambda
-                            ((vat-connector . events)
-                             (vat-graph vat-connector events min-t max-t)))
-                          timeline)))
+            ,@(hash-fold (lambda (vat-connector events result)
+                           (append (vat-graph vat-connector events min-t max-t)
+                                   result))
+                         '()
+                         timeline)))
 
 (define-meta-command ((vat-graph goblins) repl #:optional timestamp #:key full?)
   "vat-graph [TIMESTAMP]
