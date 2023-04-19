@@ -26,6 +26,7 @@ The METHODS argument is the collection of methods of WRAP-ME to be
 exposed to the user.
 
 The resulting actor can be invoke with any of METHODS."
+  (define $/<- (select-$/<- wrap-me))
   (lambda args
     (match args
       [((? symbol? method) args ...)
