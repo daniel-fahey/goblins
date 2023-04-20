@@ -25,7 +25,7 @@
 
 (define (^double-evens _bcom)
   (lambda (val)
-    (if (even? (pk 'val val))
+    (if (even? val)
         (* val 2)
         (error "Freaking out about non-even number! (as expected)"))))
 
