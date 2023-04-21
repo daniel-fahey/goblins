@@ -2018,6 +2018,9 @@ Type: Actor Any ... -> Void"
 ;; We don't want to expose the keyword arguments of the parent
 ;; procedure to just everyone, hence this indirection
 (define (spawn-promise-values)
+  "Return a promise and its associated resolver as a values object.
+
+Type: -> (Values Promise Resolver)"
   (_spawn-promise-values))
 
 ;; Convenient, sometimes
