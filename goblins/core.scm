@@ -1857,6 +1857,10 @@ Type: Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args (procedure-name constructor)))
 (define (spawn-named name constructor . args)
+  "Construct and return a reference to an actor with the debug name
+NAME described by CONSTRUCTOR, passing it ARGS.
+
+Type: Symbol Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args name))
 (define ($ refr . args)
