@@ -2222,6 +2222,11 @@ Type: Actormap Actor Any ... -> Any"
 
 ;; like actormap-run but also returns the new actormap, new-msgs
 (define (actormap-run* actormap thunk)
+  "Evaluate THUNK in ACTORMAP and commit the results. Return the
+results, the Actormap representing the latest generation of
+transaction, and any messages generated.
+
+Type: Actormap (-> Any) -> (Values Any Actormap (List Message ...))"
   (define-values (actor-refr new-actormap)
     (actormap-spawn (make-transactormap actormap) (lambda (bcom) thunk)))
   (define-values (returned-val new-actormap2 new-msgs)
