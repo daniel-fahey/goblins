@@ -1883,6 +1883,9 @@ Type: Actor Any ... -> Void"
   (sys '<-np refr args))
 
 (define (<-np-extern to-refr . args)
+  "Asynchronously invoke the far REFR with ARGS; return nothing.
+
+Type: Actor Any ... -> Void"
   (match to-refr
     [(? local-refr?)
      (let ((vat-connector (local-refr-vat-connector to-refr)))
