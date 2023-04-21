@@ -1902,6 +1902,11 @@ Type: Actor Any ... -> Void"
 
 ;; Listen to a promise
 (define* (listen-to to-refr listener #:key [wants-partial? #f])
+  "Wait for TO-REFR to resolve then inform LISTENER. If WANTS-PARTIAL?
+is #t, return updates rather than waiting for full promise resolution.
+Return nothing.
+
+Type: Promise Actor -> Void"
   (define sys (get-syscaller-or-die))
   (sys 'send-listen to-refr listener wants-partial?))
 
