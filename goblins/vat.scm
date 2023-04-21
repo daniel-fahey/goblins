@@ -1,6 +1,7 @@
 ;;; Copyright 2021-2022 Christine Lemmer-Webber
 ;;; Copyright 2022 Jessica Tallon
 ;;; Copyright 2023 David Thompson
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -597,7 +598,13 @@ process and a boolean flag indicating if the message result needs to
 be returned to the sender or not.
 
 If LOG? is #t, event logging is enabled.  By default, logging is
-disabled.  LOG-CAPACITY events will be retained in the log."
+disabled.  LOG-CAPACITY events will be retained in the log.
+
+Type: (Optional (#:name (U String Symbol)))
+(Optional (#:start (Message -> Void))) (Optional (#:halt (-> Void)))
+(Optional (#:send (Message Boolean -> (U Void Any))))
+(Optional (#:log? Boolean))
+(Optional (#:log-capacity Positive-Number)) -> Void"
   (define (connector . args)
     (match args
       (('name) (vat-name vat))
@@ -630,7 +637,9 @@ disabled.  LOG-CAPACITY events will be retained in the log."
   vat)
 
 (define (vat-running? vat)
-  "Return #t if VAT is currently running."
+  "Return #t if VAT is currently running, else #f.
+
+Type: Vat -> Boolean"
   (atomic-box-ref (vat-running vat)))
 
 (define (vat-clock vat)
@@ -657,7 +666,9 @@ disabled.  LOG-CAPACITY events will be retained in the log."
     id))
 
 (define (vat-halt! vat)
-  "Stop processing turns for VAT."
+  "Stop processing turns for VAT.
+
+Type: Vat -> Void"
   (atomic-box-set! (vat-running vat) #f)
   ((vat-halt-proc vat)))
 
@@ -745,7 +756,9 @@ disabled.  LOG-CAPACITY events will be retained in the log."
   (values result new-am))
 
 (define (vat-start! vat)
-  "Start processing turns for VAT."
+  "Start processing turns for VAT.
+
+Type: Vat -> Void"
   (define running? (vat-running vat))
   (define actormap (vat-actormap vat))
   (define (maybe-merge returned am)
@@ -787,7 +800,9 @@ disabled.  LOG-CAPACITY events will be retained in the log."
   thunk)
 
 (define (call-with-vat vat thunk)
-  "Run THUNK in the context of VAT and return the resulting values."
+  "Run THUNK in the context of VAT and return the resulting values.
+
+Type: Vat (-> Any) -> Any"
   (if (vat-running? vat)
       (let ((am (vat-actormap vat)))
         ;; The user provided thunk is going to be called
@@ -810,6 +825,9 @@ disabled.  LOG-CAPACITY events will be retained in the log."
       (error "vat is not running" vat)))
 
 (define-syntax-rule (with-vat vat body ...)
+  ;;; Evaluate BODY in the context of VAT and return resulting values.
+  ;;;
+  ;;; Type: Vat Expression ... -> Any
   (call-with-vat vat (lambda () body ...)))
 
 (define (vat-logging? vat)
@@ -945,6 +963,13 @@ logging."
     vat))
 
 (define* (spawn-vat #:key name log? (log-capacity default-log-capacity))
+  "Create and return a reference to a new vat. If provided, NAME is
+the debug name of the vat. If LOG? is #t, log vat events, otherwise
+do not. If provided, LOG-CAPACITY is the number of events to retain in
+the log.
+
+Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
+(Optional (#:log-capacity Positive-Number)) -> Vat"
   (spawn-fibrous-vat #:name name
                      #:log? log?
                      #:log-capacity log-capacity))
