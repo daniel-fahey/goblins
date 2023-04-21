@@ -2486,6 +2486,16 @@ Type: Actormap Message (Optional (#:catch-errors? Boolean))
 
 (define* (actormap-churn-run actormap thunk
                              #:key [catch-errors? #t])
+  "Evaluate THUNK in ACTORMAP, performing all possible invocations to
+resolve THUNK without sending messages to far objects. Return the
+results, a reference to an Actormap representing the new generation,
+and any messages generated.
+
+If CATCH-ERRORS? is #t, capture the stack and abort to a prompt on
+error; otherwise, propogate the error.
+
+Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) ->
+(Values Any Actormap (List Message))"
   (define vat-connector (actormap-vat-connector actormap))
   (define-values (actor-refr new-actormap)
     (actormap-spawn actormap (lambda (_bcom) thunk)))
