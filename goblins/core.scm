@@ -2175,6 +2175,12 @@ Type: Actormap Actor Any ... ->
             (get-sys-internals)))))  ; actormap new-msgs
 
 (define (actormap-turn actormap to-refr . args)
+  "Invoke TO-REFR with ARGS in a new Actormap whose parent is
+ACTORMAP. Return the result of the invoked behavior, a reference to
+the new Actormap, and a list of new Messages.
+
+Type: Actormap Actor Any ... ->
+(Values Any Actormap (List Message ...))"
   (define new-actormap
     (make-transactormap actormap))
   (actormap-turn* new-actormap to-refr args))
