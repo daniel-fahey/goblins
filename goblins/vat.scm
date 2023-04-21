@@ -825,6 +825,9 @@ Type: Vat (-> Any) -> Any"
       (error "vat is not running" vat)))
 
 (define-syntax-rule (with-vat vat body ...)
+  ;;; Evaluate BODY in the context of VAT and return resulting values.
+  ;;;
+  ;;; Type: Vat Expression ... -> Any
   (call-with-vat vat (lambda () body ...)))
 
 (define (vat-logging? vat)
