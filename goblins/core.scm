@@ -2230,6 +2230,10 @@ Type: Actormap Actor Any ... -> Any"
 
 ;; non-committal version of actormap-run
 (define (actormap-run actormap thunk)
+  "Evaluate THUNK in ACTORMAP and return the results. Do not commit
+the results to the transaction history.
+
+Type: Actormap (-> Any) -> Any"
   (define-values (returned-val _am _nm)
     (actormap-run* (make-transactormap actormap) thunk))
   returned-val)
