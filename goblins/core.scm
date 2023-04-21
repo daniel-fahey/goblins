@@ -2189,6 +2189,10 @@ Type: Actormap Actor Any ... ->
 ;; we're not interested in committing the result
 ;; so we discard everything but the result.
 (define (actormap-peek actormap to-refr . args)
+  "Invoke TO-REFR with ARGS in ACTORMAP only to return the results;
+do not commit the transaction to the transaction history.
+
+Type: Actormap Actor Any ... -> Any"
   (define-values (returned-val _am _nm)
     (actormap-turn* (make-transactormap actormap)
                     to-refr args))
