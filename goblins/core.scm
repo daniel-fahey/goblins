@@ -1910,6 +1910,15 @@ Type: Actor Any ... -> Void"
              [catch #f]
              [finally #f]
              [promise? #f])
+  "Resolve the promise VOW, pass the result to FULFILLED-HANDLER if it
+is provided, and return the result. If the procedure CATCH is
+provided, it is called on the exception object of any errors. If
+FINALLY is provided, it is run after FULFILLED-HANDLER and/or CATCH.
+If PROMISE? is #t, the returned value is a promise.
+
+Type: Promise (Optional (Any -> Any))
+(Optional (#:catch (Exception -> Any)))
+(Optional (#:finally (-> Any))) (Optional Boolean) -> (U Any Promise)"
   (define broken-handler catch)
   (define finally-handler finally)
   (define sys (get-syscaller-or-die))
