@@ -2022,6 +2022,9 @@ Type: Actor Any ... -> Void"
 
 ;; Convenient, sometimes
 (define (spawn-promise-cons)
+  "Return a promise and its associated resolver as a cons pair.
+
+Type: -> (Promise . Resolver)"
   (call-with-values spawn-promise-values cons))
 
 
