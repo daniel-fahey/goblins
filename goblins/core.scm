@@ -471,6 +471,10 @@
   (make-actormap-metatype 'whactormap whactormap-ref whactormap-set!))
 
 (define* (make-whactormap #:key [vat-connector #f])
+  "Create and return a reference to a weak-hash actormap. If provided,
+VAT-CONNECTOR is the syscaller of the containing vat.
+
+Type: (Optional Syscaller) -> WHActormap"
   (_make-actormap whactormap-metatype
                   (make-whactormap-data (make-weak-key-hash-table))
                   vat-connector))
