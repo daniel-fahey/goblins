@@ -800,7 +800,9 @@ Type: Vat -> Void"
   thunk)
 
 (define (call-with-vat vat thunk)
-  "Run THUNK in the context of VAT and return the resulting values."
+  "Run THUNK in the context of VAT and return the resulting values.
+
+Type: Vat (-> Any) -> Any"
   (if (vat-running? vat)
       (let ((am (vat-actormap vat)))
         ;; The user provided thunk is going to be called
