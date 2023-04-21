@@ -1,4 +1,5 @@
 ;;; Copyright 2019-2021 Christine Lemmer-Webber
+;;; Copyright 2023 David Thompson
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -13,6 +14,8 @@
 ;;; limitations under the License.
 
 (define-module (goblins ocapn captp)
+  #:use-module ((fibers) #:select (spawn-fiber))
+  #:use-module ((fibers timers) #:select (sleep))
   #:use-module ((goblins core) #:renamer (lambda (x) (if (eq? x '$) '$C x)))
   #:use-module (goblins vat)
   #:use-module (goblins ghash)
@@ -27,7 +30,6 @@
   #:use-module (goblins utils assert-type)
   #:use-module (goblins utils simple-dispatcher)
   #:use-module (goblins utils simple-sealers)
-  #:use-module (goblins utils weak-box)
   #:use-module (goblins utils bytes-stuff)
   #:use-module (goblins utils crypto)
   #:use-module (goblins contrib syrup)
@@ -358,9 +360,10 @@
   (answer-pos cmd-send-gc-answer-answer-pos))
 
 (define-record-type <cmd-send-gc-export>
-  (cmd-send-gc-export export-pos)
+  (cmd-send-gc-export export-pos wire-delta)
   cmd-send-gc-export?
-  (export-pos cmd-send-gc-export-export-pos))
+  (export-pos cmd-send-gc-export-export-pos)
+  (wire-delta cms-send-gc-export-wire-delta))
 
 ;; We don't want to leak information about exceptions across CapTP boundries.
 ;; Eventually we want to have specific intentional error sharing across CapTP,
@@ -390,8 +393,19 @@
   ;; since messages sent to a question are pipelined through the answer
   ;; side of some "remote" machine.
   (define-record-type <question-finder>
-    (make-question-finder)
-    question-finder?)
+    (make-question-finder sealed-pos)
+    question-finder?
+    (sealed-pos question-finder-sealed-pos))
+
+  (define (new-question-finder)
+    (let ((question-finder (make-question-finder (pos-seal next-question-pos))))
+      ;; Install our question at this question id.
+      (hashq-set! questions question-finder next-question-pos)
+      ;; Add it to the gc guardian.
+      (guardian question-finder)
+      ;; Increment the next-question id.
+      (set! next-question-pos (add1 next-question-pos))
+      question-finder))
 
   (define (_handle-message msg)
     (match msg
@@ -451,7 +465,7 @@
 
   (define-simple-dispatcher captp-connector
     [handle-message _handle-message]
-    [new-question-finder make-question-finder]
+    [new-question-finder new-question-finder]
     [listen _listen-request]
     [partition-unsealer-tm-cons _partition-unsealer-tm-cons]
     [same-connection? same-connection?]
@@ -464,10 +478,7 @@
 
   (define exports-val2pos (make-hash-table))    ; (eq)  exports[val]:   chosen by us
   (define exports-pos2val (make-hash-table))    ; (eqv) exports[pos]:   chosen by us
-  ;; TODO: This doesn't make sense if the value isn't wrapped in a weak
-  ;;   reference... I think this also needs to go in both directions to work
-  ;;   from a GC perspective
-  (define imports (make-hash-table))            ; (eqv) imports:        chosen by peer
+  (define imports (make-weak-value-hash-table)) ; (eqv) imports:        chosen by peer
   (define questions (make-weak-key-hash-table)) ; (eq)  questions:      chosen by us
   (define answers (make-hash-table))            ; (eqv) answers:        chosen by peer
 
@@ -524,40 +535,45 @@
               "Tried to decrement the exports count for position ~a but its value was ~a"
               export-pos other-val)]))
 
-  ;; ;; Now make the will executor and boot its corresponding thread
-  ;; ;; for cooperative GC.
-  ;; (define refr-will-executor
-  ;;   (make-will-executor))
+  ;; A guardian to collect objects and question finders that are no
+  ;; longer being referenced.
+  (define guardian (make-guardian))
 
-  ;; ;; TODO: Should we move this out from a thread and put it in the
-  ;; ;;   main loop and run it after every loop with will-try-execute?
-  ;; ;;   That could reduce the chance of some race conditions, though
-  ;; ;;   I'm not sure it's strictly necessary.
-  ;; (syscaller-free-thread
-  ;;  (lambda ()
-  ;;    (let lp ()
-  ;;      (will-execute refr-will-executor)
-  ;;      (lp))))
+  (define (gc:question question-finder)
+    (let ((question-pos (pos-unseal
+                         (question-finder-sealed-pos question-finder))))
+      (<-np-extern internal-handler (cmd-send-gc-answer question-pos))))
 
-  ;; (define (make-question-will-handler question-pos)
-  ;;   (lambda _
-  ;;     ;; There's (I think?) a possible race condition here if we were to
-  ;;     ;; use send-to-remote from right here, so we have the main thread
-  ;;     ;; send it via the internal-ch
-  ;;     ;; TODO: Oh fuck I broke that in commit 7f575d0d didn't I
-  ;;     ;;   ... so that's why we didn't want to use a vat for this???
-  ;;     (<-np-extern internal-handler (cmd-send-gc-answer question-pos))))
-  ;; (define (install-question-will-handler! question-finder question-pos)
-  ;;   (will-register refr-will-executor question-finder
-  ;;                  (make-question-will-handler question-pos)))
+  (define (gc:import refr)
+    (let* ((import-pos (pos-unseal (remote-refr-sealed-pos refr)))
+           (spare-count (or (hashv-ref spare-import-counts import-pos) 0)))
+      ;; We no longer need to keep track of the spare count.
+      (hashv-remove! spare-import-counts import-pos)
+      (<-np-extern internal-handler
+                   ;; The number of references is one more than the number of
+                   ;; spares.
+                   (cmd-send-gc-export import-pos (+ spare-count 1)))))
 
-  ;; (define (make-import-will-handler import-pos)
-  ;;   (lambda _
-  ;;     (hashv-remove! imports import-pos)
-  ;;     (<-np-extern internal-handler (cmd-send-gc-export import-pos))))
-  ;; (define (install-import-will-handler! refr import-pos)
-  ;;   (will-register refr-will-executor refr
-  ;;                  (make-import-will-handler import-pos)))
+  (define (captp-gc)
+    (match (guardian)
+      ;; Nothing in the guardian, so we're done.
+      (#f #f)
+      ;; Remote object or promise
+      ((? remote-refr? refr)
+       (gc:import refr)
+       (captp-gc))
+      ;; Question
+      ((? question-finder? question-finder)
+       (gc:question question-finder)
+       (captp-gc))))
+
+  ;; Spawn a fiber that periodically checks for garbage.
+  (define (gc-loop)
+    (sleep 1)
+    (when running?
+      (captp-gc)
+      (gc-loop)))
+  (spawn-fiber gc-loop)
 
   ;; Possibly install an export for this local refr, and return
   ;; this export id
@@ -622,18 +638,17 @@
            (make-remote-promise-refr captp-connector
                                      (pos-seal import-pos))]))
       ;; Install it...
-      (hashv-set! imports import-pos (make-weak-box new-refr))
-      ;; set up the will handler...
-      ;; TODO: Port to Guile version of this
-      ;; (install-import-will-handler! new-refr import-pos)
+      (hashv-set! imports import-pos new-refr)
+      ;; add to the guardian...
+      (guardian new-refr)
       ;; and return it.
       new-refr)
     (cond
      [(hashv-ref imports import-pos)
       =>
-      (lambda (import-box)
+      (lambda (import)
         ;; Oh, we've already got that.  Reference and return it.
-        (match (weak-box-value import-box)
+        (match import
           ;; Possible race condition: Apparently it was GC'ed
           ;; mid-operation so now we need to add it back
           ;; @@: *sweating profusely* but is this all the possible
@@ -645,22 +660,6 @@
            refr]))]
      [else
       (install-new-import!)]))
-
-  (define (question-finder->question-pos! question-finder)
-    (assert-type question-finder question-finder?)
-    (or
-     ;; we already have a question relevant to this question id
-     (hashq-ref questions question-finder)
-     ;; new question id...
-     (let ([question-pos next-question-pos])
-       ;; install our question at this question id
-       (hashq-set! questions question-finder question-pos)
-       ;; TODO: Port over to guile GC
-       ;; (install-question-will-handler! question-finder question-pos)
-       ;; increment the next-question id
-       (set! next-question-pos (add1 next-question-pos))
-       ;; and return the question-pos we set up
-       question-pos)))
 
   ;; general argument marshall/unmarshall for import/export
 
@@ -915,7 +914,7 @@
                [(? message?)
                 (values msg #f)]
                [($ <questioned> msg answer-this-question)
-                (values msg (question-finder->question-pos! answer-this-question))]))
+                (values msg (hashq-ref questions answer-this-question))]))
            (match-let ((($ <message> _ to resolve-me args)
                         real-msg))
              (define deliver-msg
@@ -940,8 +939,8 @@
              (send-to-remote listen-msg))]
           [($ <cmd-send-gc-answer> (? integer? answer-pos))
            (send-to-remote (op:gc-answer answer-pos))]
-          [($ <cmd-send-gc-export> (? integer? export-pos))
-           (send-to-remote (op:gc-export export-pos 1))]))
+          [($ <cmd-send-gc-export> (? integer? export-pos) (? integer? wire-delta))
+           (send-to-remote (op:gc-export export-pos wire-delta))]))
       (define (broken-handle-cmd cmd)
         (match cmd
           [($ <cmd-send-message> msg)
@@ -973,10 +972,7 @@
   ;; BEGIN REMOTE BOOTSTRAP OPERATION
   ;; ================================
   (define this-question-finder
-    (make-question-finder))
-  ;; called for its effect of installing the question
-  (define _qp
-    (question-finder->question-pos! this-question-finder))
+    (new-question-finder))
   (define-values (remote-bootstrap-vow remote-bootstrap-resolver)
     (_spawn-promise-values #:question-finder
                            this-question-finder
