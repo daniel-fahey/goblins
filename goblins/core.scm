@@ -2406,6 +2406,17 @@ Type: Actormap Message (Optional (#:error-handler (Exception -> Any)))
                          #:key [catch-errors? #t]
                          ;; TODO: for consistency, replace with a #:reckless? flag
                          [make-transactormap? #t])
+  "Perform every turn possible in AM to resolve MSG without needing to
+send messages to far objects, then dispatch messages to far objects.
+
+If CATCH-ERRORS is #t, collect the stack and abort to a prompt on
+errors; otherwise, propogate errors.
+
+If MAKE-TRANSACTORMAP? is #t, create a new generation for the
+operation; otherwise, act directly in AM.
+
+Type: Actormap Message (Optional (#:catch-errors? Boolean))
+(Optional (#:make-transactormap? Boolean)) -> Void"
   (define churn-q (make-q))     ; message to churn on here
   ;; This one doesn't really need to be a queue.  Maybe it
   ;; makes things easier to think about though, I'm undecided.
