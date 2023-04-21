@@ -656,6 +656,9 @@ Type: Any -> Boolean"
   (sealed-pos remote-promise-refr-sealed-pos))
 
 (define (promise-refr? maybe-promise)
+  "Return #t if MAYBE-PROMISE is a promise reference, else #f.
+
+Type: Any -> Boolean"
   (or (local-promise-refr? maybe-promise) (remote-promise-refr? maybe-promise)))
 
 (define (remote-refr-captp-connector remote-refr)
