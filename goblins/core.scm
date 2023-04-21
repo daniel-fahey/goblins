@@ -2113,6 +2113,10 @@ Type: -> (Promise . Resolver)"
 
 ;; non-committal version of actormap-spawn
 (define (actormap-spawn actormap actor-constructor . args)
+  "Create and return a reference to ACTOR-CONSTRUCTOR inside ACTORMAP,
+passing in ARGS; do not commit the transaction.
+
+Type: Actormap Constructor Any ... -> Actor"
   (define new-actormap
     (make-transactormap actormap))
   (call-with-fresh-syscaller
