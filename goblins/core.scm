@@ -480,6 +480,9 @@ Type: (Optional Syscaller) -> WHActormap"
                   vat-connector))
 
 (define (whactormap? obj)
+  "Return #t if OBJ is a weak-hash actormap, else #f.
+
+Type: Any -> Boolean"
   (and (actormap? obj)
        (eq? (actormap-metatype obj) whactormap-metatype)))
 
