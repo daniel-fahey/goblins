@@ -2160,6 +2160,12 @@ Type: Actormap Constructor Any ... -> Actor"
 ;;; ==========================
 
 (define (actormap-turn* actormap to-refr args)
+  "Invoke TO-REFR with ARGS in ACTORMAP, without creating a new
+generation. Return the result of the invoked behavior, a new Actormap,
+and a list of new Messages.
+
+Type: Actormap Actor Any ... ->
+(Values Any Actormap (List Message ...))"
   (call-with-fresh-syscaller
    actormap
    (lambda (sys get-sys-internals)
