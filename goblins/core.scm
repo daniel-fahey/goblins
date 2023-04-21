@@ -2128,6 +2128,10 @@ Type: Actormap Constructor Any ... -> Actor"
      (values actor-refr new-actormap))))
 
 (define (actormap-spawn! actormap actor-constructor . args)
+  "Create and return a reference to ACTOR-CONSTRUCTOR inside ACTORMAP,
+passing in ARGS; commit the transaction.
+
+Type: Actormap Constructor Any ... -> Actor"
   (define new-actormap
     (make-transactormap actormap))
   (define actor-refr
