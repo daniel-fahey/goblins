@@ -539,6 +539,9 @@ Type: Any -> Boolean"
 
 ;; Not threadsafe, but probably doesn't matter
 (define (transactormap-merge! transactormap)
+  "Commit the changes in TRANSACTORMAP to the generational history.
+
+Type: TransActormap -> Void"
   ;; Serves two functions:
   ;;  - to extract the root weak-hasheq
   ;;  - to merge this transaction on top of the weak-hasheq
