@@ -666,7 +666,9 @@ Type: Vat -> Boolean"
     id))
 
 (define (vat-halt! vat)
-  "Stop processing turns for VAT."
+  "Stop processing turns for VAT.
+
+Type: Vat -> Void"
   (atomic-box-set! (vat-running vat) #f)
   ((vat-halt-proc vat)))
 
