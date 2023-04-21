@@ -970,7 +970,10 @@ Type: Any -> Boolean"
        (let ((sys (get-syscaller-or-die)))
          (sys 'near-refr? obj))))
 (define (far-refr? obj)
-  "Ensures that OBJ is a live refr, but is not within this vat"
+  "Return #t if OBJ is an object or promise reference within a
+different vat, else #f.
+
+Type: Any -> Boolean"
   (and (live-refr? obj)
        (not (near-refr? obj))))
 
