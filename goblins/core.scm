@@ -1850,6 +1850,10 @@
 
 ;; System calls
 (define (spawn constructor . args)
+  "Construct and return a reference to the actor described by
+CONSTRUCTOR, passing it ARGS.
+
+Type: Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args (procedure-name constructor)))
 (define (spawn-named name constructor . args)
