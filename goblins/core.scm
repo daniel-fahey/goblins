@@ -1864,6 +1864,9 @@ Type: Symbol Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args name))
 (define ($ refr . args)
+  "Synchronously invoke REFR with ARGS; return the result.
+
+Type: Actor Any ... -> Any"
   (define sys (get-syscaller-or-die))
   (sys '$ refr args))
 (define (<- refr . args)
