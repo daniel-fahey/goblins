@@ -694,6 +694,10 @@ Type: Any -> Boolean"
       (remote-promise-refr? obj)))
 
 (define (live-refr? obj)
+  "Return #t if OBJ is a local or remote object or promise reference,
+else #f.
+
+Type: Any -> Boolean"
   (or (local-refr? obj)
       (remote-refr? obj)))
 
