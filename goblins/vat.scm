@@ -756,7 +756,9 @@ Type: Vat -> Void"
   (values result new-am))
 
 (define (vat-start! vat)
-  "Start processing turns for VAT."
+  "Start processing turns for VAT.
+
+Type: Vat -> Void"
   (define running? (vat-running vat))
   (define actormap (vat-actormap vat))
   (define (maybe-merge returned am)
