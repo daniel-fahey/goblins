@@ -962,7 +962,10 @@ Type: Any -> Boolean"
   (resolver-unsealer sealed-resolution))
 
 (define (near-refr? obj)
-  "Ensures that OBJ is an object reference within the same vat"
+  "Return #t if OBJ is an object or promise reference within the same
+vat, else #f.
+
+Type: Any -> Boolean"
   (and (local-refr? obj)
        (let ((sys (get-syscaller-or-die)))
          (sys 'near-refr? obj))))
