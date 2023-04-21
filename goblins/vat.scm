@@ -598,7 +598,13 @@ process and a boolean flag indicating if the message result needs to
 be returned to the sender or not.
 
 If LOG? is #t, event logging is enabled.  By default, logging is
-disabled.  LOG-CAPACITY events will be retained in the log."
+disabled.  LOG-CAPACITY events will be retained in the log.
+
+Type: (Optional (#:name (U String Symbol)))
+(Optional (#:start (Message -> Void))) (Optional (#:halt (-> Void)))
+(Optional (#:send (Message Boolean -> (U Void Any))))
+(Optional (#:log? Boolean))
+(Optional (#:log-capacity Positive-Number)) -> Void"
   (define (connector . args)
     (match args
       (('name) (vat-name vat))
