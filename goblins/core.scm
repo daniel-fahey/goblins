@@ -2513,6 +2513,14 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) ->
 ;; Also sends out relevant messages, and re-raises exceptions if appropriate
 (define* (actormap-churn-run! actormap thunk
                               #:key [catch-errors? #t])
+  "Evaluate THUNK in ACTORMAP, performing all possible invocations to
+resolve THUNK without sending messages to far objects, then send out
+messages. Return the results.
+
+If CATCH-ERRORS? is #t, capture the stack and abort to a prompt on
+error; otherwise, propogate the error.
+
+Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (define (churn-run-values->list . args)
     (call-with-values thunk
       (lambda rvals
