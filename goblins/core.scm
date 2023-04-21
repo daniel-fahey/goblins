@@ -686,6 +686,10 @@ Type: Any -> Boolean"
    (display "#<remote-promise>" port)))
 
 (define (remote-refr? obj)
+  "Return #t if OBJ is an object or promise reference in a different
+process, else #f.
+
+Type: Any -> Boolean"
   (or (remote-object-refr? obj)
       (remote-promise-refr? obj)))
 
