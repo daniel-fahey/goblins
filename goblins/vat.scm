@@ -946,6 +946,13 @@ logging."
     vat))
 
 (define* (spawn-vat #:key name log? (log-capacity default-log-capacity))
+  "Create and return a reference to a new vat. If provided, NAME is
+the debug name of the vat. If LOG? is #t, log vat events, otherwise
+do not. If provided, LOG-CAPACITY is the number of events to retain in
+the log.
+
+Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
+(Optional (#:log-capacity Positive-Number)) -> Vat"
   (spawn-fibrous-vat #:name name
                      #:log? log?
                      #:log-capacity log-capacity))
