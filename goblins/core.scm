@@ -625,6 +625,10 @@
    (display "#<local-promise>" port)))
 
 (define (local-refr? obj)
+  "Return #t if OBJ is an object or promise reference in the current
+process, else #f.
+
+Type: Any -> Boolean"
   (or (local-object-refr? obj) (local-promise-refr? obj)))
 
 (define (local-refr-vat-connector local-refr)
