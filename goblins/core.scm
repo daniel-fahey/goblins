@@ -1870,6 +1870,9 @@ Type: Actor Any ... -> Any"
   (define sys (get-syscaller-or-die))
   (sys '$ refr args))
 (define (<- refr . args)
+  "Asynchronously invoke REFR with ARGS; return a promise.
+
+Type: Actor Any ... -> Promise"
   (define sys (get-syscaller-or-die))
   (sys '<- refr args))
 (define (<-np refr . args)
