@@ -2211,6 +2211,11 @@ Type: Actormap Actor Any ... -> Any"
   returned-val)
 
 (define (actormap-reckless-poke! actormap to-refr . args)
+  "Invoke TO-REFR with ARGS in ACTORMAP, committing the results
+directly to ACTORMAP reather than creating a new generation. Return
+the results.
+
+Type: Actormap Actor Any ... -> Any"
   (define-values (returned-val transactormap _nm)
     (actormap-turn* actormap to-refr args))
   returned-val)
