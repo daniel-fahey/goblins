@@ -2200,6 +2200,10 @@ Type: Actormap Actor Any ... -> Any"
 
 ;; Note that this does nothing with the messages.
 (define (actormap-poke! actormap to-refr . args)
+  "Invoke TO-REFR with ARGS in ACTORMAP and commit the results, but do
+not propagate any messages. Return the results.
+
+Type: Actormap Actor Any ... -> Any"
   (define-values (returned-val transactormap _nm)
     (actormap-turn* (make-transactormap actormap)
                     to-refr args))
