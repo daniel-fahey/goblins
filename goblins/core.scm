@@ -574,7 +574,10 @@ Type: TransActormap -> Void"
   _void)
 
 (define (transactormap-buffer-merge! transactormap)
-  "Merge TRANSACTORMAP against its parent buffer (also a transactormap)"
+  "Merge TRANSACTORMAP against its parent buffer (also a
+transactormap).
+
+Type: TransActormap -> Void"
   (define tm-data (actormap-data transactormap))
   (define parent (transactormap-data-parent tm-data))
   (define parent-mtype (actormap-metatype parent))
