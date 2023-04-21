@@ -637,7 +637,9 @@ Type: (Optional (#:name (U String Symbol)))
   vat)
 
 (define (vat-running? vat)
-  "Return #t if VAT is currently running."
+  "Return #t if VAT is currently running, else #f.
+
+Type: Vat -> Boolean"
   (atomic-box-ref (vat-running vat)))
 
 (define (vat-clock vat)
