@@ -2283,6 +2283,17 @@ Type: Actormap Actor Any ... ->
                                 [error-handler simple-display-error]
                                 [reckless? #f]
                                 [catch-errors? #t])
+  "Invoke MSG in ACTORMAP and return the result.
+
+If provided, ERROR-HANDLER is a procedure to handle exceptions.
+If RECKLESS? is #t, operate directly in ACTORMAP without creating a
+new generation; otherwise create a new generation of Actormap. If
+CATCH-ERRORS? is #t, capture the stack and abort to a prompt;
+otherwise propogate the error.
+
+Type: Actormap Message (Optional (#:error-handler (Exception -> Any)))
+(Optional (#:reckless? Boolean)) (Optional (#:catch-errors? Boolean))
+-> Any"
   ;; TODO: Kuldgily reimplements part of actormap-turn*... maybe
   ;; there's some opportunity to combine things, dunno.
   (call-with-fresh-syscaller
@@ -2314,7 +2325,7 @@ Type: Actormap Actor Any ... ->
        ;; way we aren't exposing Goblins core stack frames, which
        ;; would be a security leak in a fully OCap secure system.
        (define stack
-         (make-stack #t ; get the current stack
+         (make-stack #t            ; get the current stack
                      ;; Trim inner frames up to and including this
                      ;; error handling procedure.
                      catch-stack-and-abort-to-prompt
