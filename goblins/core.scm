@@ -587,6 +587,10 @@ Type: (Optional Syscaller) -> WHActormap"
   (make-actormap-metatype 'transactormap transactormap-ref transactormap-set!))
 
 (define (make-transactormap parent)
+  "Create a return a reference to a transactional actormap
+representing the generation after PARENT.
+
+Type: Actormap -> TransActormap"
   (define vat-connector (actormap-vat-connector parent))
   (_make-actormap transactormap-metatype
                   (make-transactormap-data parent (make-hash-table) #f)
