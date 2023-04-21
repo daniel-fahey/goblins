@@ -2247,6 +2247,13 @@ Type: Actormap (-> Any) -> Any"
 ;; Run, and also commit the results of, the code in the thunk
 (define* (actormap-run! actormap thunk
                         #:key [reckless? #f])
+  "Evaluate THUNK in ACTORMAP and return the results. Commit the
+results.
+
+If RECKLESS? is #t, operate directly in ACTORMAP without creating a
+new generation.
+
+Type: Actormap (-> Any) (Optioan (#:reckless? Boolean)) -> Any"
   (define actor-refr
     (actormap-spawn! actormap
                      (lambda (bcom)
