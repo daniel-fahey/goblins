@@ -564,6 +564,8 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
                      vat-events)
           (hashv-set! table t #t)))
       table))
+  (define (vat-name-string vat-connector)
+    (format #f "~a" (vat-connector 'name)))
   ;; Helpers for generating graph node names.
   (define (vat-node-name vat-name)
     (format #f "vat_~a" vat-name))
@@ -646,7 +648,7 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
   ;; churn.  Generates a portion of a vat timeline from 'start-t' to
   ;; 'end-t'.
   (define (churn-graph vat-connector events start-t end-t prev-node churn)
-    (let* ((vat-name (symbol->string (vat-connector 'name)))
+    (let* ((vat-name (vat-name-string vat-connector))
            (cluster-name (format #f "cluster_churn_~a_~a" vat-name churn)))
       (let loop ((t start-t)
                  (prev-node prev-node)
@@ -699,7 +701,7 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
   ;; This graph is further broken into sub-graphs for each churn.
   ;; Timestamps with no event are excluded from churn sub-graphs.
   (define (vat-graph vat-connector events min-t max-t)
-    (let* ((vat-name (symbol->string (vat-connector 'name)))
+    (let* ((vat-name (vat-name-string vat-connector))
            (root-node (vat-root-node vat-name)))
       (let loop ((t min-t)
                  (prev-node root-node)
