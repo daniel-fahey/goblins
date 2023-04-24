@@ -101,6 +101,9 @@
             listen-request-listener
             listen-request-wants-partial?
 
+            forward-to-captp?
+            forward-to-captp-msg
+
             message-or-request-from-vat
             message-or-request-to
             message-who-wants-response
