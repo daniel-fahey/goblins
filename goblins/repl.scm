@@ -278,18 +278,22 @@ Disable vat event logging for the current vat."
   (unless (vat-logging? vat)
     (display "warning: Logging is disabled.  Use ,vat-log-enable to begin logging.\n")))
 
-;; Symbolic representation of a vat event for the purpose of printing.
+;; Symbolic representation of a message for the purpose of printing.
+(define (symbolic-message msg)
+  (cond
+   ((message? msg)
+    `(message ,(message-to msg) ,@(message-args msg)))
+   ((listen-request? msg)
+    `(listen ,(listen-request-to msg)))
+   ((questioned? msg)
+    `(question ,(symbolic-message (questioned-message msg))))
+   ((forward-to-captp? msg)
+    `(forward-to-captp ,(symbolic-message (forward-to-captp-msg msg))))
+   (else
+    (repl-error (format #f "unknown message: ~a" msg)))))
+
 (define (symbolic-event event)
-  (let ((msg (vat-event-message event)))
-    (cond
-     ((message? msg)
-      `(message ,(message-to msg) ,@(message-args msg)))
-     ((listen-request? msg)
-      `(listen ,(message-or-request-to msg)))
-     ((questioned? msg)
-      `(question ,(message-or-request-to msg)))
-     (else
-      (repl-error (format #f "unknown message: ~a" msg))))))
+  (symbolic-message (vat-event-message event)))
 
 (define-meta-command ((vat-tail goblins) repl #:optional (n 10))
   "vat-tail [N]
