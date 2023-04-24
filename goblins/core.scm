@@ -164,7 +164,7 @@
            (display "<sealed: " port)
            (display name port)
            (display ">" port))
-         (display "<sealed>"))))
+         (display "<sealed>" port))))
   (values seal unseal sealed?))
 
 
