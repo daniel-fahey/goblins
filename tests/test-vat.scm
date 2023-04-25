@@ -15,7 +15,6 @@
 ;;; limitations under the License.
 
 (define-module (goblins test-vat)
-  #:use-module (goblins)
   #:use-module (goblins core)
   #:use-module (goblins vat)
   #:use-module (goblins actor-lib cell)
