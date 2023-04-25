@@ -14,7 +14,7 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (goblins test-vat)
+(define-module (tests test-vat)
   #:use-module (goblins core)
   #:use-module (goblins vat)
   #:use-module (goblins actor-lib cell)
