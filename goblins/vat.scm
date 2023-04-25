@@ -1009,6 +1009,8 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
   (syntax-rules ()
     ((define-vat-run vat-run-id vat)
      (begin
+       (issue-deprecation-warning
+        "`define-vat-run' is deprecated. Use `call-with-vat', `with-vat', or `,enter-vat' REPL command instead.")
        (define this-vat vat)
        (define-syntax vat-run-id
          (syntax-rules ::: ()
