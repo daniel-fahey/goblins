@@ -252,25 +252,17 @@
 (define-values (marshall::desc:handoff-receive unmarshall::desc:handoff-receive)
   (make-marshallers <desc:handoff-receive> #:name 'desc:handoff-receive))
 
-;; machinetp operations/descriptions
-(define-record-type <mtp:op:start-session>
-  (mtp:op:start-session captp-version handoff-pubkey acceptable-location acceptable-location-sig)
-  mtp:op:start-session?
-  (captp-version mtp:op:start-session-captp-version)
-  (handoff-pubkey mtp:op:start-session-handoff-pubkey)
+(define-record-type <op:start-session>
+  (op:start-session captp-version handoff-pubkey acceptable-location acceptable-location-sig)
+  op:start-session?
+  (captp-version op:start-session-captp-version)
+  (handoff-pubkey op:start-session-handoff-pubkey)
   ;; a sig-envelope signed by handoff-pubkey with a <my-location $location-data>
-  (acceptable-location mtp:op:start-session-acceptable-location)
-  (acceptable-location-sig mtp:op:start-session-acceptable-location-sig))
+  (acceptable-location op:start-session-acceptable-location)
+  (acceptable-location-sig op:start-session-acceptable-location-sig))
 
-(define-values (marshall::mtp:op:start-session unmarshall::mtp:op:start-session)
-  (make-marshallers <mtp:op:start-session> #:name 'mtp:op:start-session))
-
-;; Confirm we both have the session name, each side signs with its
-;; respective key
-;; Not sure this is necessary...
-#;(define-recordable-struct mtp:op:confirm-session
-  (session-name-sig)
-  marshall::mtp:op:start-session unmarshall::mtp:op:start-session)
+(define-values (marshall::op:start-session unmarshall::op:start-session)
+  (make-marshallers <op:start-session> #:name 'op:start-session))
 
 ;; TODO: 3 vat/machine handoff versions (Promise3Desc, Far3Desc)
 
@@ -289,7 +281,7 @@
         marshall::desc:sig-envelope
         marshall::desc:handoff-give
         marshall::desc:handoff-receive
-        marshall::mtp:op:start-session
+        marshall::op:start-session
 
         marshall::ocapn-machine
         marshall::ocapn-sturdyref))
@@ -309,7 +301,7 @@
         unmarshall::desc:sig-envelope
         unmarshall::desc:handoff-give
         unmarshall::desc:handoff-receive
-        unmarshall::mtp:op:start-session
+        unmarshall::op:start-session
 
         unmarshall::ocapn-machine
         unmarshall::ocapn-sturdyref))
@@ -1484,7 +1476,7 @@
           ;; TODO: Shouldn't the netlayer actually interpret this message
           ;;   before it gets here?  Ie, at this stage, we're already
           ;;   "confident" this is from the right location
-          [($ <mtp:op:start-session>
+          [($ <op:start-session>
               remote-captp-version
               remote-encoded-pubkey
               ;; TODO: We want to restores something like the below, which
@@ -1596,10 +1588,10 @@
 
       ;; Now we'll need to send our side of the start-session and get the
       ;; other side... which will be handled by the ^setup-completer above
-      (send-to-remote (mtp:op:start-session captp-version
-                                            handoff-pubkey
-                                            our-location
-                                            our-location-sig))
+      (send-to-remote (op:start-session captp-version
+                                        handoff-pubkey
+                                        our-location
+                                        our-location-sig))
 
       ;; Return the meta-bootstrap-vow, which will be completed as above
       meta-bootstrap-vow]
