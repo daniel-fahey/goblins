@@ -55,7 +55,7 @@
 (define _spawn-promise-values
   (@@ (goblins core) _spawn-promise-values))
 
-(define captp-version 0.1)
+(define captp-version "goblins-0.11")
 
 
 ;; This should be better documented, and will when it becomes more of
@@ -1477,7 +1477,7 @@
           ;;   before it gets here?  Ie, at this stage, we're already
           ;;   "confident" this is from the right location
           [($ <op:start-session>
-              remote-captp-version
+              (? string? remote-captp-version)
               remote-encoded-pubkey
               ;; TODO: We want to restores something like the below, which
               ;;   is what the racket version expects, or at least unify the
@@ -1488,7 +1488,7 @@
               encoded-remote-location-sig)
 
            ;; Check we are speaking the same language!
-           (unless (= remote-captp-version captp-version)
+           (unless (string=? remote-captp-version captp-version)
              (error (format #f "CapTP version is incompatible (our version: ~a, remote version: ~a)"
                             captp-version
                             remote-captp-version)))
