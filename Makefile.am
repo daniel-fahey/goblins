@@ -142,6 +142,10 @@ dvi: # Don't build dvi docs
 html-local:
 	$(GUILE) --no-auto-compile doc/build-html.scm
 
+EXAMPLES = examples/cauldron.scm		\
+           examples/try-captp-onion.scm		\
+           examples/try-base-netlayer.scm
+
 EXTRA_DIST += README.org \
               README \
               HACKING \
@@ -160,6 +164,7 @@ EXTRA_DIST += README.org \
               build-aux/test-driver.scm \
               doc/goblins.css \
               doc/build-html.scm \
+              $(EXAMPLES) \
               $(TESTS)
 
 ACLOCAL_AMFLAGS = -I m4
