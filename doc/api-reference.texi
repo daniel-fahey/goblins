@@ -11,6 +11,12 @@ the documentation for everything imported with
 @node Objects API
 @section Objects API
 
+Objects are the core of Goblins.  In general, you'll need to be within
+an ambient Goblins Context in order to start programming
+against them.  See @ref{Vats} for most event loop type programming, or
+@ref{Actormaps} if you want to play with more low-level control over
+transactional operations.  Most users will just use vats.
+
 @menu
 * Object construction::
 * Synchronous calls::
@@ -58,6 +64,57 @@ The instantiation@dots{}
 will bind @code{val} to @code{42}.
 
 @end deffn
+
+@cindex bcom
+The @code{bcom} argument warrants further explanation.  It is a
+capability which allows the actor to change its own behavior.  It must
+be called in a tail position, since @code{bcom} returns a
+datastructure demonstrating that this object is choosing to change its
+value (part of Goblins' quasi-functional design).
+
+@code{bcom} can also take a second argument which will be returned
+from the object's invocation as a return value. This allows an object
+to both change its behavior and return a value with the same
+invocation.
+
+The following actor represents a consumable object that returns a
+string explaining its current status:
+
+@lisp
+(define (^drink bcom drink-name portions)
+  (define (drinkable-beh portions)   ; "-beh" is a common suffix for "-behavior"
+    (lambda ()
+      (define portions-left
+        (- portions 1))
+      (if (zero? portions-left)
+          (bcom empty-beh
+                (format #f "*GLUG!* You drink your ~a. It's empty!"
+                        drink-name))
+          (bcom (drinkable-beh portions-left)
+                (format #f "*GLUG!* You drink your ~a. Still some left!"
+                        drink-name)))))
+  (define (empty-beh)
+    "Sadly, your glass appears to be empty!")
+  (drinkable-beh portions))
+@end lisp
+
+Here's how this works at the REPL:
+
+@lisp
+> ,vr (define root-beer (spawn ^drink "root beer" 3))
+> ,vr ($ root-beer)
+=> "*GLUG!* You drink your root beer. Still some left!"
+> ,vr ($ root-beer)
+=> "*GLUG!* You drink your root beer. Still some left!"
+> ,vr ($ root-beer)
+=> "*GLUG!* You drink your root beer. It's empty!"
+> ,vr ($ root-beer)
+=> "Sadly, your glass appears to be empty!"
+@end lisp
+
+As you can see above, @code{bcom} is also a handy way to construct
+state machines, as @code{^drink} moves from drinkable to empty as it
+is consumed.
 
 @code{spawn} also has a few variants:
 
@@ -184,6 +241,31 @@ exception object.
 @item
 @var{finally}: Procedure invoked on success or failure after the
 appropriate handler.
+
+@end itemize
+
+As mentioned above, if @code{#:promise?} is @code{#t}, then @code{on}
+will itself return a promise.  This promise is resolved as follows:
+
+@itemize
+@item
+If @code{vow} is fulfilled and @code{fulfilled-handler} is not
+provided, the promise returned will share @code{vow}'s resolution.
+@item
+If @code{vow} is broken and @code{catch} is not provided, the promise
+returned will share @code{vow}'s broken result.
+@item
+If @code{vow} is fulfilled and @code{fulfilled-handler} is provided,
+the resolution will be whatever is returned from
+@code{fulfilled-handler}, unless @code{fulfilled-handler} raises an
+error, in which case the promise will be broken with its error-value
+set to this exception.
+@item
+If @code{vow} is broken and @code{catch} is provided, the resolution
+will be whatever is returned from @code{catch}, unless @code{catch}
+raises an error, in which case the promise will be broken with its
+error-value set to this exception (which may even be the original
+exception).
 
 @end itemize
 
