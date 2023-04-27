@@ -3,13 +3,13 @@ the documentation for everything imported with
 @code{(use-modules (goblins))}.
 
 @menu
-* Objects API::
-* Vats API::
-* Actormaps API::
+* Objects::
+* Vats::
+* Actormaps::
 @end menu
 
-@node Objects API
-@section Objects API
+@node Objects
+@section Objects
 
 Objects are the core of Goblins.  In general, you'll need to be within
 an ambient Goblins Context in order to start programming
@@ -375,8 +375,8 @@ Return @code{#t} if @var{obj} is a @emph{far} object or promise, else
 
 @end deffn
 
-@node Vats API
-@section Vats API
+@node Vats
+@section Vats
 
 A @dfn{vat} is an event loop that runs continuously in a single thread
 and manages a set of objects which are @emph{near} to each other,
@@ -632,8 +632,8 @@ evaulated in the context of @var{vat}.
 
 @end deffn
 
-@node Actormaps API
-@section Actormaps API
+@node Actormaps
+@section Actormaps
 
 An @dfn{actormap} is the transactional data structure underlying
 @emph{vat}s.  They are useful for building a custom event loop (such

@@ -41,7 +41,7 @@ v2.  See @ref{License} for more information.
 * A high level view of Goblins::
 * Tutorial::
 * OCapN The Object Capabilities Network::
-* API Reference::
+* API::
 * actor-lib A standard library of sorts::
 * Debugging tools::
 * Thanks::
@@ -1283,8 +1283,8 @@ providing them. An example of this is:
 @end lisp
 @end enumerate
 
-@node API Reference
-@chapter API Reference
+@node API
+@chapter API
 
 @include api-reference.texi
 
