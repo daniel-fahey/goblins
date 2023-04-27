@@ -890,7 +890,7 @@
          (hashv-remove! answers answer-pos)]
         [($ <op:gc-export> (? integer? export-pos) (? integer? wire-delta))
          (decrement-exports-count-maybe-remove! export-pos wire-delta)]
-        [($ <op:abort> reason)
+        [($ <op:abort> (? string? reason))
          (tear-it-down 'abort reason)]
         [($ <internal-shutdown> reason)
          (tear-it-down 'internal-shutdown reason)]
