@@ -378,16 +378,75 @@ Return @code{#t} if @var{obj} is a @emph{far} object or promise, else
 @node Vats API
 @section Vats API
 
-A @dfn{vat} is an event loop that manages a set of objects which are
-@emph{near} to each other. They are one of the central abstractions of
-Spritely Goblins facilitating the object capabilities security model
-as well as transactionality and distributed programming. All Goblins
-objects live inside a @emph{vat}.
+A @dfn{vat} is an event loop that runs continuously in a single thread
+and manages a set of objects which are @emph{near} to each other,
+including passing messages between @emph{vats}.  They are one of the
+central abstractions of Spritely Goblins facilitating the object
+capabilities security model as well as transactionality and
+distributed programming through their use of the underlying
+@code{actormap} data structure.  All Goblins objects live inside a
+@emph{vat}.
 
 @menu
+* Vats overview::
 * Making vats::
 * Using vats::
 @end menu
+
+@node Vats overview
+@subsection Vats overview
+
+In order to start programming with Goblins, you will need to boot up a
+vat somewhere.  In general, Goblins uses
+@uref{https://github.com/wingo/fibers/, Fibers} to implement vats.
+However, you can also roll your own vats should you have ``unusual''
+event loop needs (see @code{make-vat}).
+
+@lisp
+> (define my-vat (spawn-vat))
+> my-vat
+=> #<vat izvD0DJT>
+@end lisp
+
+Running @code{spawn-vat} returns a vat object.  Code can be run within
+the context of a vat using the @code{call-with-vat} procedure.  This
+is useful for bootstrapping vats or hacking at the REPL:
+
+@lisp
+> (define my-vat (spawn-vat))
+> (call-with-vat my-vat
+   (lambda ()
+     (define alice (spawn ^greeter "Alice"))
+     ($ alice "Bob")))
+=> "Hello Alice, my name is Bob!"
+@end lisp
+
+For convenience, the @code{with-vat} macro can be used instead of
+@code{call-with-vat}.  Here's the above example rewritten to use
+@code{with-vat}:
+
+@lisp
+> (define my-vat (spawn-vat))
+> (with-vat my-vat
+   (define alice (spawn ^greeter "Alice"))
+   ($ alice "Bob"))
+=> "Hello Alice, my name is Bob!"
+@end lisp
+
+You can also use the @code{vat-halt!} procedure to stop the vat, and
+@code{vat-running?} to check its status:
+
+@lisp
+> (vat-halt! my-vat)
+> (vat-running? my-vat)
+=> #f
+@end lisp
+
+@strong{NOTE:} In the future, we would like vats to automatically halt
+when no more references exist and thus the vat can do no more work.
+The Racket version of vats works this way; it would be good for the
+Guile version to do the same.  In the meanwhile, you'll need to call
+@code{vat-halt!} manually.
 
 @node Making vats
 @subsection Making vats
@@ -422,7 +481,9 @@ Defaults to 256.
 @end deffn
 
 Sometimes, it is useful to make and manage a @emph{vat} at a slightly
-lower level. In such cases, @code{make-vat} comes into play:
+lower level, such as when using Goblins with a foreign event loop (like
+a GUI toolkit or game engine).  In such cases, @code{make-vat} comes
+into play:
 
 @deffn {Procedure} make-vat [#:name] [#:start] [#:halt] [#:send] @
        [#:log?] [log-capacity]
@@ -455,6 +516,43 @@ disabled (the default).
 Defaults to 256.
 
 @end itemize
+
+Here is a pseudocode example illustrating the basic pattern:
+
+@lisp
+(define (make-custom-vat)
+  (define thread #f)
+  (define (start churn)
+    (define (loop)
+      (churn (dequeue-msg))
+      (loop))
+    (set! thread (call-with-new-thread loop)))
+  (define (halt)
+    (cancel-thread thread))
+  (define (send msg return?)
+    (if return?
+        (enqueue-msg-and-wait-for-result msg)
+        (enqueue-msg msg)))
+  (make-vat #:start start
+            #:halt halt
+            #:send send))
+@end lisp
+
+How to implement @code{enqueue-msg},
+@code{enqueue-msg-and-wait-for-result}, and @code{dequeue-msg} depends
+on the integration target and is left as an exercise for the
+implementer.
+
+Custom vat implementations @emph{must} enqueue and dequeue messages in
+a thread-safe manner because incoming messages from other vats may be,
+and likely are, running in a different thread.
+
+The above custom vat would be used like so:
+
+@lisp
+> (define custom-vat (make-custom-vat))
+> (vat-start! custom-vat)
+@end lisp
 
 @end deffn
 
