@@ -636,19 +636,20 @@ evaulated in the context of @var{vat}.
 @section Actormaps API
 
 An @dfn{actormap} is the transactional data structure underlying
-@emph{vat}s. They are useful for building a custom event loop (such as
-for a video game) or as a synchronous one-turn-at-a-time mapping of
+@emph{vat}s.  They are useful for building a custom event loop (such
+as for a video game) or as a synchronous one-turn-at-a-time mapping of
 actor references to their current behaviors.
 
 @menu
+* Actormaps overview::
 * Actormap objects::
 * Using actormaps::
 @end menu
 
-@node Actormap objects
-@subsection Actormap objects
+@node Actormaps overview
+@subsection Actormaps overview
 
-An @dfn{actormap} is fundamentally a place in memory holding
+An @emph{actormap} is fundamentally a place in memory holding
 references to objects so that they may be manipulated.  There are two
 types of @emph{actormap}s: @dfn{whactormap}s, which use
 @url{https://www.gnu.org/software/guile/manual/html_node/Weak-References.html, weak-key hash tables}
@@ -661,6 +662,61 @@ from their backing data structures and resulting use cases, all
 @emph{actormap}s are very similar; @emph{transactormaps} simply also
 hold a reference to a parent, which is either another
 @emph{transactormap} or the root @emph{whactormap}.
+
+The best way to understand @emph{actormap}s is by using them.  First,
+create one:
+
+@lisp
+(define am (make-actormap))
+@end lisp
+
+@emph{Actormap}s need actors, so add a simple @code{cell}:
+
+@lisp
+(define lunchbox
+  (actormap-spawn! am ^cell))
+@end lisp
+
+Actors can then be invoked, such as by @code{actormap-poke!}:
+
+@lisp
+> (actormap-poke! am lunchbox 'peanut-butter-and-jelly)
+> (actormap-peek am lunchbox)
+; => 'peanut-butter-and-jelly
+@end lisp
+
+For some situations, @code{actormap-poke!} and @code{actormap-peek}
+can be interchanged, such as in this version of the above example:
+
+@lisp
+> (actormap-poke! am lunchbox 'bbq-tofu)
+> (actormap-poke! am lunchbox)
+; => 'bbq-tofu
+@end lisp
+
+For other situations, they cannot:
+
+@lisp
+> (actormap-peek am lunchbox 'chickpea-salad)
+> (actormap-peek am lunchbox)
+; => 'bbq-tofu
+@end lisp
+
+This is due to the @emph{transactional} nature of @emph{actormap}s.
+In these examples, you can see that @code{actormap-poke!} returns a
+value and commits changes to the transaction history, while
+@code{actormap-peek} returns a value and throws away changes.  Both
+of these procedures are conveniences over the more powerful and more
+cumbersome @code{actormap-turn} family of procedures.
+
+The next sections will cover these and related procedures in greater
+detail.
+
+@node Actormap objects
+@subsection Actormap objects
+
+At its base level, every @emph{actormap} is either a @emph{whactormap}
+or a @emph{transactormap}, as discussed in the last section.
 
 @deffn {Procedure} make-whactormap [#:vat-connector #f]
 
@@ -706,8 +762,8 @@ Return @code{#t} if @var{obj} is a @emph{transactormap}, else
 @node Using actormaps
 @subsection Using actormaps
 
-Before using objects in an @emph{actormap}, one must first create those
-objects in the context of that @emph{actormap}:
+As already shown, before using objects in an @emph{actormap}, one must
+first create those objects in the context of that @emph{actormap}:
 
 @deffn {Procedure} actormap-spawn actormap actor-constructor args @dots{}
 
