@@ -327,8 +327,9 @@
 
 
 (define-record-type <internal-shutdown>
-  (internal-shutdown reason)
+  (internal-shutdown type reason)
   internal-shutdown?
+  (type internal-shutdown-type)
   (reason internal-shutdown-reason))
 
 ;; Internal commands from the vat connector
@@ -798,10 +799,6 @@
      ($C interested-in-sever 'as-list))
     (set! interested-in-sever #f))
 
-  (define (abort-because reason)
-    (send-to-remote (op:abort reason))
-    (tear-it-down 'aborted reason))
-
   ;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ;; TODO TODO TODO: EACH of these needs to call (handle-spare-imports!)
   ;; at the end of its behavior!  Probably the best thing to do is to
@@ -892,8 +889,10 @@
          (decrement-exports-count-maybe-remove! export-pos wire-delta)]
         [($ <op:abort> (? string? reason))
          (tear-it-down 'abort reason)]
-        [($ <internal-shutdown> reason)
-         (tear-it-down 'internal-shutdown reason)]
+        [($ <internal-shutdown> (? symbol? type) (? string? reason))
+         (when (eq? type 'abort)
+           (send-to-remote (op:abort reason)))
+         (tear-it-down type reason)]
         [other-message
          (error 'invalid-message "~a" other-message)])))
 
@@ -1489,6 +1488,10 @@
 
            ;; Check we are speaking the same language!
            (unless (string=? remote-captp-version captp-version)
+             ;; Needs to be <-np-extern so that the error that is
+             ;; thrown after doesn't cancel dispatch.
+             (<-np-extern incoming-forwarder
+                          (internal-shutdown 'abort "CapTP version is incompatible"))
              (error (format #f "CapTP version is incompatible (our version: ~a, remote version: ~a)"
                             captp-version
                             remote-captp-version)))
@@ -1556,7 +1559,15 @@
                (make-sessionmeta remote-location
                                  local-bootstrap-obj remote-bootstrap-vow
                                  coordinator session-name))
-           _void]))
+           _void]
+          ;; Handle shutdown requests that happen before the setup
+          ;; completer hands control to the internal handler.
+          [($ <internal-shutdown> (? symbol? type) (? string? reason))
+           (when (eq? type 'abort)
+             (send-to-remote (op:abort reason)))
+           ;; Since we're shutting down, our new behavior will be to
+           ;; ignore all further messages.
+           (bcom (lambda _ _void))]))
 
       (define-values (incoming-forwarder incoming-swap)
         (swappable (spawn ^setup-completer)))
@@ -1567,9 +1578,8 @@
          (let lp ()
            (match (read-message unmarshallers)
              [(? eof-object?)
-              ;; (displayln "Shutting down captp session...")
               (<-np-extern incoming-forwarder
-                           (internal-shutdown 'disconnected))]
+                           (internal-shutdown 'disconnect "Remote disconnected"))]
              [msg
               (<-np-extern incoming-forwarder msg)
               (lp)]))))
