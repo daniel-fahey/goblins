@@ -302,7 +302,7 @@ For example, this use of @code{let-on}@dots{}
 
 @end deffn
 
-@deffn let*-on ((var exp) @dots{}) body
+@deffn {Syntax} let*-on ((var exp) @dots{}) body
 
 Like @code{let-on}, except paralleling @code{let*}; each @var{exp} is
 resolved @emph{sequentially} rather than concurrently, and each
