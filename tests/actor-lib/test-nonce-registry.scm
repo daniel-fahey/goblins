@@ -42,16 +42,15 @@
    am
    registry 'register bob))
 
-(test-expect-fail 2)
-(test-equal "swiss nums for different objects are not the same"
-  alice-swiss-num
-  bob-swiss-num)
+(test-assert "swiss nums for different objects are not the same"
+  (not (equal? alice-swiss-num
+               bob-swiss-num)))
 
-(test-equal "swiss nums for same object are not the same"
-  alice-swiss-num
-  (actormap-poke!
-   am
-   registry 'register alice))
+(test-assert "swiss nums for same object are not the same"
+  (not (equal? alice-swiss-num
+               (actormap-poke!
+                am
+                registry 'register alice))))
 
 (test-eq "alice swiss num retrieves alice"
   (actormap-peek
