@@ -40,8 +40,8 @@ v2.  See @ref{License} for more information.
 * Getting started::
 * A high level view of Goblins::
 * Tutorial::
+* OCapN The Object Capabilities Network::
 * API::
-* API Reference::
 * actor-lib A standard library of sorts::
 * Debugging tools::
 * Thanks::
@@ -893,504 +893,8 @@ planet, round trips are unavoidably expensive.  Promise pipelining
 both allows programmers to make plans and allows Goblins to optimize
 carrying out those steps as bulk operations over the network.
 
-@node API
-@chapter API
-
-Here lie the core procedures for building and manipulating Goblins
-programs!
-
-Except where otherwise stated, code from this section can be found by
-importing:
-
-@lisp
-(use-modules (goblins))
-@end lisp
-
-@menu
-* Objects::
-* Vats::
-* Actormaps::
-* OCapN The Object Capabilities Network::
-@end menu
-
-@node Objects
-@section Objects
-
-Objects are the core of Goblins.  In general, you'll need to be within
-an ambient ``Goblins Context'' (TM) in order to start programming
-against them. See @ref{Vats} for most event loop type programming, or
-@ref{Actormaps} if you want to play with more low-level control over
-transactional operations.  Most users will just use vats.
-
-@menu
-* Spawning objects::
-* Synchronous invocation::
-* Asynchronous invocation::
-@end menu
-
-@node Spawning objects
-@subsection Spawning objects
-
-Objects can be spawned with the @code{spawn} operator:
-
-@lisp
-(spawn CONSTRUCTOR ARGS ...)
-;=> <local-refr>
-@end lisp
-
-where @code{CONSTRUCTOR} is a procedure which itself returns a
-procedure representing an object's current behavior.  The
-@code{CONSTRUCTOR} is implicitly passed a first argument,
-traditionally labeled @code{bcom}, which can be used to change an
-object's behavior.  The @code{ARGS} are passed as the remaining
-arguments to the constructor.
-
-For example, given the following constructor:
-
-@lisp
-(define* (^cell bcom #:optional val)  ; constructor (outer procedure)
-  (case-lambda                        ; behavior    (inner procedure)
-    (()                               ; 0-argument invocation (getter)
-     val)                             ;   (return current value)
-    ((new-val)                        ; 1-argument invocation (setter)
-     (bcom (^cell bcom new-val)))))   ;   ("become" ^cell with new value)
-@end lisp
-
-The instantiation@dots{}
-
-@lisp
-(define some-cell (spawn ^cell 42))
-@end lisp
-
-will bind @code{val} to @code{42}.
-
-The @code{bcom} argument warrants further explanation.  It is a
-capability which allows the actor to change its own behavior.  It must
-be called in a tail position, since @code{bcom} returns a
-datastructure demonstrating that this object is choosing to change its
-value (part of Goblins' quasi-functional design).
-
-@code{bcom} also can take a second argument which will be returned
-from the object's invocation as a return value. This allows an object
-to both change its behavior and return a value with the same
-invocation.
-
-The following actor represents a consumable object that returns a
-string explaining its current status:
-
-@lisp
-(define (^drink bcom drink-name portions)
-  (define (drinkable-beh portions)   ; "-beh" is a common suffix for "-behavior"
-    (lambda ()
-      (define portions-left
-        (- portions 1))
-      (if (zero? portions-left)
-          (bcom empty-beh
-                (format #f "*GLUG!* You drink your ~a. It's empty!"
-                        drink-name))
-          (bcom (drinkable-beh portions-left)
-                (format #f "*GLUG!* You drink your ~a. Still some left!"
-                        drink-name)))))
-  (define (empty-beh)
-    "Sadly, your glass appears to be empty!")
-  (drinkable-beh portions))
-@end lisp
-
-Here's how this works at the REPL:
-
-@lisp
-> ,vr (define root-beer (spawn ^drink "root beer" 3))
-> ,vr ($ root-beer)
-=> "*GLUG!* You drink your root beer. Still some left!"
-> ,vr ($ root-beer)
-=> "*GLUG!* You drink your root beer. Still some left!"
-> ,vr ($ root-beer)
-=> "*GLUG!* You drink your root beer. It's empty!"
-> ,vr ($ root-beer)
-=> "Sadly, your glass appears to be empty!"
-@end lisp
-
-As you can see above, @code{bcom} is also a handy way to construct
-state machines, as @code{^drink} moves from drinkable to empty as it
-is consumed.
-
-@node Synchronous invocation
-@subsection Synchronous invocation
-
-To synchronously invoke two objects within the same vat / actormap,
-use @code{$}:
-
-@lisp
-($ near-object args ...)
-;=> something
-@end lisp
-
-Provide a synchronous call against the current message handler of
-@code{NEAR-REFR}, which must be a @emph{near} @code{live-refr?}  in
-the same vat as the currently running actor context.  The value
-returned is that which is returned by the current behavior of
-@code{NEAR-REFR} upon invocation; or, if @code{NEAR-REFR} chose to
-@code{bcom} something else, the second argument passed to its
-@code{bcom}; or @code{unspecified?} @code{bcom} is invoked and a
-return value is not provided.
-
-@node Asynchronous invocation
-@subsection Asynchronous invocation
-
-@lisp
-(<- near-object arg ...)
-;=> <local-promise>
-@end lisp
-
-Like @code{$}, but called asynchronously and returns a @emph{promise},
-which may be handled with @code{on}.  Unlike @code{$}, @code{<-} is
-not limited to only @emph{near} objects; interaction with @emph{far}
-actors is permitted as well.
-
-@lisp
-(<-np [actor-refr live-refr?] [arg any/c] ...)
-@end lisp
-
-Like @code{<-} but does not return (or require the overhead of) a
-promise.  @code{<-np} is effectively an optimization; where promises
-are not needed, using @code{<-np} over @code{<-} is a good idea.
-
-@lisp
-(on vow
-    [fulfilled-handler]
-    [#:catch broken-handler]
-    [#:finally finally-handler]
-    [#:promise? #f])
-@end lisp
-
-Sets up promise handlers for @code{vow}, which is typically a
-@code{live-refr?} to a @emph{promise} but may be anything.
-
-@code{fulfilled-handler}, @code{broken-handler}, and
-@code{finally-handler} all, if specified, may be either a procedure
-(the most common case) which is run when @code{vow} becomes resolved;
-or a reference to an actor that should be messaged when the promise is
-resolved with the same arguments that would be passed to an equivalent
-procedure.  As their names suggest, @code{fulfilled-handler} will run
-if a promise is fulfilled and takes one argument, the fulfilled value.
-@code{broken-handler} will run if a promise is broken and takes one
-argument, the error value.  @code{finally-handler} will run when a
-promise is resolved, no matter the outcome, and is called with no
-arguments.
-
-If @code{#:promise?} is set to @code{#t}, then @code{on} will itself
-return a promise.  The promise will be resolved as follows:
-
-@itemize
-@item
-If @code{vow} is fulfilled and @code{fulfilled-handler} is not
-provided, the promise returned will share @code{vow}'s resolution.
-@item
-If @code{vow} is broken and @code{broken-handler} is not provided, the
-promise returned will share @code{vow}'s broken result.
-@item
-If @code{vow} is fulfilled and @code{fulfilled-handler} is provided,
-the resolution will be whatever is returned from
-@code{fulfilled-handler}, unless @code{fulfilled-handler} raises an
-error, in which case the promise will be broken with its error-value
-set to this exception.
-@item
-If @code{vow} is broken and @code{broken-handler} is provided, the
-resolution will be whatever is returned from @code{broken-handler},
-unless @code{broken-handler} raises an error, in which case the
-promise will be broken with its error-value set to this exception
-(which may even be the original exception).
-@end itemize
-
-@node Vats
-@section Vats
-
-In order to start programming with Goblins, you will need to boot up a
-vat somewhere.  In general, Goblins uses
-@uref{https://github.com/wingo/fibers/, Fibers} to implement vats.
-However, you can also roll your own vats should you have ``unusual''
-event loop needs (@ref{Rolling your own vats}).
-
-@menu
-* Starting and stopping vats::
-* Rolling your own vats::
-@end menu
-
-@node Starting and stopping vats
-@subsection Starting and stopping vats
-
-@lisp
-> (define my-vat (spawn-vat))
-> my-vat
-=> #<vat izvD0DJT>
-@end lisp
-
-Running @code{spawn-vat} returns a vat object.  Code can be run within
-the context of a vat using the @code{call-with-vat} procedure.  This
-is useful for bootstrapping vats or hacking at the REPL:
-
-@lisp
-> (define my-vat (spawn-vat))
-> (call-with-vat my-vat
-   (lambda ()
-     (define alice (spawn ^greeter "Alice"))
-     ($ alice "Bob")))
-=> "Hello Alice, my name is Bob!"
-@end lisp
-
-For convenience, the @code{with-vat} macro can be used instead of
-@code{call-with-vat}.  Here's the above example rewritten to use
-@code{with-vat}:
-
-@lisp
-> (define my-vat (spawn-vat))
-> (with-vat my-vat
-   (define alice (spawn ^greeter "Alice"))
-   ($ alice "Bob"))
-=> "Hello Alice, my name is Bob!"
-@end lisp
-
-You can also use the @code{vat-halt!} procedure to stop the vat, and
-@code{vat-running?} to check its status:
-
-@lisp
-> (vat-halt! my-vat)
-> (vat-running? my-vat)
-=> #f
-@end lisp
-
-@strong{NOTE:} In the future, we would like vats to automatically halt
-when no more references exist and thus the vat can do no more work.
-The Racket version of vats works this way; it would be good for the
-Guile version to do the same.  In the meanwhile, you'll need to call
-@code{vat-halt!} manually.
-
-@node Rolling your own vats
-@subsection Rolling your own vats
-
-Goblins comes with a built-in vat implementation that is
-general-purpose and useful in most situations.  However, using Goblins
-with a foreign event loop (such as a GUI widget toolkit or game
-engine) calls for a specialized vat that knows how to hook into it.
-The API described below is considered unstable and likely to change in
-future releases of Goblins, so be prepared to update custom vat code
-at a later date.
-
-The @code{make-vat} constructor is used to make specialized vats.
-Below is some pseudocode that illustrates the basic pattern:
-
-@lisp
-> (define (make-custom-vat)
-    (define thread #f)
-    (define (start churn)
-      (define (loop)
-        (churn (dequeue-msg))
-        (loop))
-      (set! thread (call-with-new-thread loop)))
-    (define (halt)
-      (cancel-thread thread))
-    (define (send msg return?)
-      (if return?
-          (enqueue-msg-and-wait-for-result msg)
-          (enqueue-msg msg)))
-    (make-vat #:start start
-              #:halt halt
-              #:send send))
-@end lisp
-
-How to implement @code{enqueue-msg},
-@code{enqueue-msg-and-wait-for-result}, and @code{dequeue-msg} depends
-on the integration target and is left as an exercise for the
-implementer.
-
-Vat implementations must provide three hook procedures to
-@code{make-vat}:
-
-@itemize
-@item
-@code{start}: This procedure starts the vat message processor in the
-desired foreign event loop.  It accepts a @code{churn} procedure as
-its only argument.  The @code{churn} procedure accepts a message
-object and processes it using the vat's underlying actormap.
-@item
-@code{halt}: This procedure stops vat message processing.  It is a
-thunk, meaning that it accepts zero arguments.
-@item
-@code{send}: This procedure receives a message to process within the
-vat.  It accepts two arguments: a message and a boolean flag
-indicating if the result of processing the message needs to be
-returned to the caller.  When the return flag is @code{#f}, vat
-implementations can simply queue the message for processing and move
-on.  When it is @code{#t}, however, the vat must arrange to wait and
-retrieve the eventual result of processing the message.
-@end itemize
-
-Custom vat implementations @emph{must} enqueue and dequeue messages in
-a thread-safe manner because incoming messages from other vats may be,
-and likely are, running in a different thread.
-
-The @code{vat-start!} procedure initiates the processing of messages
-sent to the vat.
-
-@lisp
-> (define custom-vat (make-custom-vat))
-> (vat-start! custom-vat)
-@end lisp
-
-Once a custom vat has been started, it can be used as usual:
-
-@lisp
-> (define alice
-    (with-vat custom-vat
-     (spawn ^greeter "Alice")))
-@end lisp
-
-@node Actormaps
-@section Actormaps
-
-So far this manual has dealt with vats, but there is a lower level of
-abstraction in Goblins which is called an @code{actormap}.
-
-The key differences are:
-
-@itemize
-@item
-@strong{vat}: an event loop implementation that runs continuously in
-its own thread.  Comes pre-built with tooling to handle message
-passing between vats.  Actually wraps an actormap.
-@item
-@strong{actormap}: the transactional datastructure that vats use.
-But, useful on its own to either build your own event loop or as a
-synchronous one-turn-at-a-time mapping of actor references to their
-current implementations.
-@end itemize
-
-The best way to learn is by doing, so make an actormap now:
-
-@lisp
-(define am (make-actormap))
-@end lisp
-
-Now add an actor to it.  Since cells are simple, add one of those.
-
-@lisp
-(define lunchbox
-  (actormap-spawn! am ^cell))
-@end lisp
-
-What's in the lunchbox?  Take a look with @code{actormap-peek}:
-
-@lisp
-> (actormap-peek am lunchbox)
-; => #f
-@end lisp
-
-An empty lunchbox@dots{} it would be nice to eat something later, so
-how about packing a nice sandwich by using
-@code{actormap-poke}:
-
-@lisp
-> (actormap-poke! am lunchbox 'peanut-butter-and-jelly)
-> (actormap-peek am lunchbox)
-; => 'peanut-butter-and-jelly
-@end lisp
-
-What if you tried to look inside the lunchbox with
-@code{actormap-poke!}  instead of @code{actormap-peek}?
-
-@lisp
-> (actormap-poke! am lunchbox 'bbq-tofu)
-> (actormap-poke! am lunchbox)
-; => 'bbq-tofu
-@end lisp
-
-Well that worked just fine.  What happens if you do both operations
-with @code{actormap-peek}?
-
-@lisp
-> (actormap-peek am lunchbox 'chickpea-salad)
-> (actormap-peek am lunchbox)
-; => 'bbq-tofu
-@end lisp
-
-What the@dots{}???
-The lunchbox didn't change!
-
-As said, actormaps are transactional.  You have gotten a hint of
-this with the above: @code{actormap-poke!} returns a value and commits
-any changes.  @code{actormap-peek} returns a value and throws any
-changes away.
-
-Actually, these two functions are just simple conveniences that wrap a
-more powerful (but cumbersome to use) tool, @code{actormap-turn}:
-
-@lisp
-> (actormap-turn am lunchbox)
-; => 'bbq-tofu
-; => #<transactormap>
-; => '()
-(actormap-turn am lunchbox 'chickpea-salad)
-; => *unspecified* (not printed)
-; => #<transactormap>
-; => '()
-@end lisp
-
-@code{actormap-turn} returns three values to its continuation: a
-return value (if any; Guile's REPL doesn't print out the
-unspecified value, which is what actually got returned in the second
-invocation), a ``transactormap'', and a list representing messages
-queued for delivery.
-
-This @code{#<transactormap>} is interesting. It hasn't been mentioned
-before, but there are really two kinds of actormaps,
-``whactormaps'' (weak-hash actormaps) and ``transactormaps'' (which
-hold a transaction which you can choose whether or not to commit).
-Actually @code{am} is a whactormap:
-
-@lisp
-> am
-; => #<whactormap>
-@end lisp
-
-It's a weak hashtable which stores the current mutable state of all
-actors.
-
-But what about that transactormap? Just running
-@code{actormap-turn} on its own won't update the lunchbox either:
-
-@lisp
-> (actormap-turn am lunchbox 'chickpea-salad)
-; => *unspecified* (not printed)
-; => #<transactormap>
-; => '()
-> (actormap-turn am lunchbox)
-; => 'bbq-tofu
-; => #<transactormap>
-; => '()
-@end lisp
-
-You need to capture the transactormap and commit it.
-
-@lisp
-> (define-values (_val tr-am _nm)
-    (actormap-turn am lunchbox 'chickpea-salad))
-> tr-am
-; => #<transactormap>
-> (transactormap-merge! tr-am)
-@end lisp
-
-Now at least the @code{am} actormap should reflect that you've switched
-out the @code{'bbq-tofu} sandwich for a @code{'chickpea-salad} one:
-
-@lisp
-> (actormap-peek am lunchbox)
-; => 'chickpea-salad
-@end lisp
-
-Horray!
-
 @node OCapN The Object Capabilities Network
-@section OCapN: The Object Capabilities Network
+@chapter OCapN: The Object Capabilities Network
 
 @uref{https://github.com/ocapn/ocapn, OCapN} stands for ``Object
 Capability Network'' and is a suite of protocols for communication
@@ -1419,7 +923,7 @@ not rely on the protocol being stable at this time.
 @end menu
 
 @node CapTP The Capability Transport Protocol
-@subsection CapTP: The Capability Transport Protocol
+@section CapTP: The Capability Transport Protocol
 
 OCapN's CapTP has an abstract ``netlayer'' interface, allowing
 communication over many different protocols ranging from Tor Onion
@@ -1507,7 +1011,7 @@ the entire machine.
 @end itemize
 
 @node Launching a Tor daemon for Goblins
-@subsection Launching a Tor daemon for Goblins
+@section Launching a Tor daemon for Goblins
 
 In order for Goblins' Onion Service netlayer to work, it needs to talk
 to a Tor daemon.  Goblins can set up and manage the Onion Services
@@ -1540,7 +1044,7 @@ tor -f ~/.config/goblins/tor-config.txt
 @end example
 
 @node Example Two Goblins programs chatting over CapTP via Tor
-@subsection Example: Two Goblins programs chatting over CapTP via Tor
+@section Example: Two Goblins programs chatting over CapTP via Tor
 
 Before diving into API details, let's take a look at a couple of small
 example programs to demonstrate that this stuff works.
@@ -1655,7 +1159,7 @@ If you see the same output then your connection succeeded!  Yay! The
 next sections will get into the details of how to use the CapTP API@.
 
 @node Using the CapTP API
-@subsection Using the CapTP API
+@section Using the CapTP API
 
 Goblins uses an actor to communicate over CapTP@.  This actor can be
 spawned using the @code{spawn-mycapn} procedure from the
@@ -1745,7 +1249,7 @@ registered object in mycapn. The following is how this can be done:
 @end enumerate
 
 @node Netlayers
-@subsection Netlayers
+@section Netlayers
 
 @enumerate
 @item
@@ -1779,8 +1283,8 @@ providing them. An example of this is:
 @end lisp
 @end enumerate
 
-@node API Reference
-@chapter API Reference
+@node API
+@chapter API
 
 @include api-reference.texi
 
