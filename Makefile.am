@@ -95,6 +95,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-facet.scm \
         tests/actor-lib/test-joiners.scm \
         tests/actor-lib/test-let-on.scm \
+	tests/actor-lib/test-nonce-registry.scm \
         tests/actor-lib/test-opportunistic.scm \
 	tests/actor-lib/test-pubsub.scm \
 	tests/actor-lib/test-pushdown.scm \
