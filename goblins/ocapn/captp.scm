@@ -1515,7 +1515,12 @@
              (gcrypt:pk-crypto:sexp->canonical-sexp encoded-remote-location-sig))
 
            (unless (verify remote-location-sig encoded-location remote-handoff-pubkey)
-             (error "Location not signed by handoff key"))
+             (let ((reason "Invalid location signature"))
+               ;; Needs to be <-np-extern so that the error that is
+               ;; thrown after doesn't cancel dispatch.
+               (<-np-extern incoming-forwarder
+                            (internal-shutdown 'abort reason))
+               (error 'captp-invalid-signature remote-location-sig)))
 
            ;; TODO: Now we need to do the dial back and verify that
            ;; the location is where it says it is!
