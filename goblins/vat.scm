@@ -926,14 +926,12 @@ logging."
     ;; So much nesting you might think a bird wrote this.
     (call-with-new-thread
      (lambda ()
-       (run-fibers
+       (dynamic-wrap
         (lambda ()
-          (dynamic-wrap
+          (syscaller-free
            (lambda ()
-             (syscaller-free
-              (lambda ()
-                (spawn-fiber loop scheduler)
-                (wait done?))))))))))
+             (spawn-fiber loop scheduler)
+             (wait done?))))))))
   (define (halt)
     (signal-condition! done?)
     *unspecified*)
