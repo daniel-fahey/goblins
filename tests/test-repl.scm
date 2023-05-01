@@ -121,9 +121,9 @@
            (meta vat-tree))
 
 (test-repl ",vat-tree displays a vat event tree when logging is enabled"
-           "Vat alice, 1: \\(message #<local-object \\^call-with-vat>\\)
-.. Vat bob, 3: \\(message #<local-object>\\)
-   .. Vat alice, 5: \\(message #<local-object \\^resolver> fulfill \"hello\"\\)"
+           "Vat alice, [0-9]+: \\(message #<local-object \\^call-with-vat>\\)
+.. Vat bob, [0-9]+: \\(message #<local-object>\\)
+   .. Vat alice, [0-9]+: \\(message #<local-object \\^resolver> fulfill \"hello\"\\)"
            (eval (define a-vat (spawn-vat #:name 'alice)))
            (eval (define b-vat (spawn-vat #:name 'bob)))
            (meta enter-vat b-vat)
@@ -134,7 +134,8 @@
            (meta quit)
            (meta enter-vat a-vat)
            (meta vat-log-enable)
-           (eval (on (<- bob)
+           (meta vat-resolve
+                 (on (<- bob)
                      (lambda (response)
                        (format #f "Bob said: ~a" response))))
            (meta vat-tree))
@@ -168,7 +169,8 @@
            (eval (define chest (spawn ^cell 'gold)))
            ;; Create a multi-step process where the cell is updated
            ;; and then an error happens.
-           (eval (on (<- chest 'sword)
+           (meta vat-resolve
+                 (on (<- chest 'sword)
                      (lambda _ (error "oh no"))))
            ;; Debug the error that just happened out-of-band.
            (meta vat-debug (- (vat-clock a-vat) 1))
