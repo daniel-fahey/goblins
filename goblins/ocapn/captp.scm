@@ -55,7 +55,7 @@
 (define _spawn-promise-values
   (@@ (goblins core) _spawn-promise-values))
 
-(define captp-version 0.1)
+(define captp-version "goblins-0.11")
 
 
 ;; This should be better documented, and will when it becomes more of
@@ -252,25 +252,17 @@
 (define-values (marshall::desc:handoff-receive unmarshall::desc:handoff-receive)
   (make-marshallers <desc:handoff-receive> #:name 'desc:handoff-receive))
 
-;; machinetp operations/descriptions
-(define-record-type <mtp:op:start-session>
-  (mtp:op:start-session captp-version handoff-pubkey acceptable-location acceptable-location-sig)
-  mtp:op:start-session?
-  (captp-version mtp:op:start-session-captp-version)
-  (handoff-pubkey mtp:op:start-session-handoff-pubkey)
+(define-record-type <op:start-session>
+  (op:start-session captp-version handoff-pubkey acceptable-location acceptable-location-sig)
+  op:start-session?
+  (captp-version op:start-session-captp-version)
+  (handoff-pubkey op:start-session-handoff-pubkey)
   ;; a sig-envelope signed by handoff-pubkey with a <my-location $location-data>
-  (acceptable-location mtp:op:start-session-acceptable-location)
-  (acceptable-location-sig mtp:op:start-session-acceptable-location-sig))
+  (acceptable-location op:start-session-acceptable-location)
+  (acceptable-location-sig op:start-session-acceptable-location-sig))
 
-(define-values (marshall::mtp:op:start-session unmarshall::mtp:op:start-session)
-  (make-marshallers <mtp:op:start-session> #:name 'mtp:op:start-session))
-
-;; Confirm we both have the session name, each side signs with its
-;; respective key
-;; Not sure this is necessary...
-#;(define-recordable-struct mtp:op:confirm-session
-  (session-name-sig)
-  marshall::mtp:op:start-session unmarshall::mtp:op:start-session)
+(define-values (marshall::op:start-session unmarshall::op:start-session)
+  (make-marshallers <op:start-session> #:name 'op:start-session))
 
 ;; TODO: 3 vat/machine handoff versions (Promise3Desc, Far3Desc)
 
@@ -289,7 +281,7 @@
         marshall::desc:sig-envelope
         marshall::desc:handoff-give
         marshall::desc:handoff-receive
-        marshall::mtp:op:start-session
+        marshall::op:start-session
 
         marshall::ocapn-machine
         marshall::ocapn-sturdyref))
@@ -309,7 +301,7 @@
         unmarshall::desc:sig-envelope
         unmarshall::desc:handoff-give
         unmarshall::desc:handoff-receive
-        unmarshall::mtp:op:start-session
+        unmarshall::op:start-session
 
         unmarshall::ocapn-machine
         unmarshall::ocapn-sturdyref))
@@ -335,8 +327,9 @@
 
 
 (define-record-type <internal-shutdown>
-  (internal-shutdown reason)
+  (internal-shutdown type reason)
   internal-shutdown?
+  (type internal-shutdown-type)
   (reason internal-shutdown-reason))
 
 ;; Internal commands from the vat connector
@@ -806,10 +799,6 @@
      ($C interested-in-sever 'as-list))
     (set! interested-in-sever #f))
 
-  (define (abort-because reason)
-    (send-to-remote (op:abort reason))
-    (tear-it-down 'aborted reason))
-
   ;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ;; TODO TODO TODO: EACH of these needs to call (handle-spare-imports!)
   ;; at the end of its behavior!  Probably the best thing to do is to
@@ -898,10 +887,12 @@
          (hashv-remove! answers answer-pos)]
         [($ <op:gc-export> (? integer? export-pos) (? integer? wire-delta))
          (decrement-exports-count-maybe-remove! export-pos wire-delta)]
-        [($ <op:abort> reason)
+        [($ <op:abort> (? string? reason))
          (tear-it-down 'abort reason)]
-        [($ <internal-shutdown> reason)
-         (tear-it-down 'internal-shutdown reason)]
+        [($ <internal-shutdown> (? symbol? type) (? string? reason))
+         (when (eq? type 'abort)
+           (send-to-remote (op:abort reason)))
+         (tear-it-down type reason)]
         [other-message
          (error 'invalid-message "~a" other-message)])))
 
@@ -1484,8 +1475,8 @@
           ;; TODO: Shouldn't the netlayer actually interpret this message
           ;;   before it gets here?  Ie, at this stage, we're already
           ;;   "confident" this is from the right location
-          [($ <mtp:op:start-session>
-              remote-captp-version
+          [($ <op:start-session>
+              (? string? remote-captp-version)
               remote-encoded-pubkey
               ;; TODO: We want to restores something like the below, which
               ;;   is what the racket version expects, or at least unify the
@@ -1496,7 +1487,11 @@
               encoded-remote-location-sig)
 
            ;; Check we are speaking the same language!
-           (unless (= remote-captp-version captp-version)
+           (unless (string=? remote-captp-version captp-version)
+             ;; Needs to be <-np-extern so that the error that is
+             ;; thrown after doesn't cancel dispatch.
+             (<-np-extern incoming-forwarder
+                          (internal-shutdown 'abort "CapTP version is incompatible"))
              (error (format #f "CapTP version is incompatible (our version: ~a, remote version: ~a)"
                             captp-version
                             remote-captp-version)))
@@ -1520,7 +1515,12 @@
              (gcrypt:pk-crypto:sexp->canonical-sexp encoded-remote-location-sig))
 
            (unless (verify remote-location-sig encoded-location remote-handoff-pubkey)
-             (error "Location not signed by handoff key"))
+             (let ((reason "Invalid location signature"))
+               ;; Needs to be <-np-extern so that the error that is
+               ;; thrown after doesn't cancel dispatch.
+               (<-np-extern incoming-forwarder
+                            (internal-shutdown 'abort reason))
+               (error 'captp-invalid-signature remote-location-sig)))
 
            ;; TODO: Now we need to do the dial back and verify that
            ;; the location is where it says it is!
@@ -1564,7 +1564,15 @@
                (make-sessionmeta remote-location
                                  local-bootstrap-obj remote-bootstrap-vow
                                  coordinator session-name))
-           _void]))
+           _void]
+          ;; Handle shutdown requests that happen before the setup
+          ;; completer hands control to the internal handler.
+          [($ <internal-shutdown> (? symbol? type) (? string? reason))
+           (when (eq? type 'abort)
+             (send-to-remote (op:abort reason)))
+           ;; Since we're shutting down, our new behavior will be to
+           ;; ignore all further messages.
+           (bcom (lambda _ _void))]))
 
       (define-values (incoming-forwarder incoming-swap)
         (swappable (spawn ^setup-completer)))
@@ -1575,9 +1583,8 @@
          (let lp ()
            (match (read-message unmarshallers)
              [(? eof-object?)
-              ;; (displayln "Shutting down captp session...")
               (<-np-extern incoming-forwarder
-                           (internal-shutdown 'disconnected))]
+                           (internal-shutdown 'disconnect "Remote disconnected"))]
              [msg
               (<-np-extern incoming-forwarder msg)
               (lp)]))))
@@ -1596,10 +1603,10 @@
 
       ;; Now we'll need to send our side of the start-session and get the
       ;; other side... which will be handled by the ^setup-completer above
-      (send-to-remote (mtp:op:start-session captp-version
-                                            handoff-pubkey
-                                            our-location
-                                            our-location-sig))
+      (send-to-remote (op:start-session captp-version
+                                        handoff-pubkey
+                                        our-location
+                                        our-location-sig))
 
       ;; Return the meta-bootstrap-vow, which will be completed as above
       meta-bootstrap-vow]
