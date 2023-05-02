@@ -1897,6 +1897,7 @@ CONSTRUCTOR, passing it ARGS.
 Type: Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args (procedure-name constructor)))
+
 (define (spawn-named name constructor . args)
   "Construct and return a reference to an actor with the debug name
 NAME described by CONSTRUCTOR, passing it ARGS.
@@ -1904,18 +1905,21 @@ NAME described by CONSTRUCTOR, passing it ARGS.
 Type: Symbol Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args name))
+
 (define ($ refr . args)
   "Synchronously invoke REFR with ARGS; return the result.
 
 Type: Actor Any ... -> Any"
   (define sys (get-syscaller-or-die))
   (sys '$ refr args))
+
 (define (<- refr . args)
   "Asynchronously invoke REFR with ARGS; return a promise.
 
 Type: Actor Any ... -> Promise"
   (define sys (get-syscaller-or-die))
   (sys '<- refr args))
+
 (define (<-np refr . args)
   "Asynchronously invoke REFR with ARGS; return nothing.
 
@@ -1940,6 +1944,7 @@ Type: Actor Any ... -> Void"
        (captp-connector 'handle-message
                         (make-message captp-connector to-refr #f args))
        _void)]))
+
 
 ;; Listen to a promise
 (define* (listen-to to-refr listener #:key [wants-partial? #f])
