@@ -1301,8 +1301,8 @@ providing them. An example of this is:
 @node Thanks
 @chapter Thanks
 
-This manual was primarily written by Christine Lemmer-Webber with
-additional text by Jessica Tallon, David Thompson, and Juliana Sims.
+This manual was primarily written by Christine Lemmer-Webber and
+Juliana Sims, with additional text by Jessica Tallon and David Thompson.
 
 Many of the ideas are borrowed from
 @uref{http://www.erights.org/talks/thesis/markm-thesis.pdf, Mark
