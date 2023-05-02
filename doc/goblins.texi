@@ -40,9 +40,9 @@ v2.  See @ref{License} for more information.
 * Getting started::               Installing, running, developing
 * High level view::               Conceptual overview
 * Tutorial::                      Learn to use Goblins
-* OCapN::                         The Object Capabilities Network
 * API::                           Goblins' fundamental API 
 * actor-lib::                     A standard library of sorts
+* OCapN::                         The Object Capabilities Network
 * Debugging tools::               Figure out what's going wrong
 * Thanks::                        Contributors to this manual
 * License::                       Copying, distributing, using this text
@@ -893,11 +893,6 @@ planet, round trips are unavoidably expensive.  Promise pipelining
 both allows programmers to make plans and allows Goblins to optimize
 carrying out those steps as bulk operations over the network.
 
-@node OCapN
-@chapter OCapN: The Object Capabilities Network
-
-@include ocapn.texi
-
 @node API
 @chapter API
 
@@ -907,6 +902,11 @@ carrying out those steps as bulk operations over the network.
 @chapter actor-lib: A standard library of sorts
 
 @include actor-lib-reference.texi
+
+@node OCapN
+@chapter OCapN: The Object Capabilities Network
+
+@include ocapn.texi
 
 @node Debugging tools
 @chapter Debugging tools
