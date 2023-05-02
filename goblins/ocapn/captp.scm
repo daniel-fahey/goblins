@@ -94,13 +94,11 @@
 
 ;; Queue a delivery of verb(args..) to recip, discarding the outcome.
 (define-record-type <op:deliver-only>
-  (op:deliver-only to-desc method args)
+  (op:deliver-only to-desc args)
   op:deliver-only?
   ;; Position in the table for the target
   ;; (sender's imports, reciever's exports)
   (to-desc op:deliver-only-to-desc)
-  ;; Either the method name, or #f if this is a procedure call
-  (method op:deliver-only-method)
    ;; Either arguments to the method or to the procedure, depending
    ;; on whether method exists
   (args op:deliver-only-args))
@@ -110,10 +108,9 @@
 
 ;; Queue a delivery of verb(args..) to recip, binding answer/rdr to the outcome.
 (define-record-type <op:deliver>
-  (op:deliver to-desc method args answer-pos resolve-me-desc)
+  (op:deliver to-desc args answer-pos resolve-me-desc)
   op:deliver?
   (to-desc op:deliver-to-desc)
-  (method op:deliver-method)
   (args op:deliver-args)
   (answer-pos op:deliver-answer-pos)
   ;; a resolver, probably an import (though it could be a handoff)
@@ -820,13 +817,13 @@
            _void)]
         ;; TODO: Handle case where the target doesn't exist?
         ;;   Or maybe just generally handle unmarshalling errors :P
-        [($ <op:deliver-only> to-desc method args-marshalled)
+        [($ <op:deliver-only> to-desc args-marshalled)
          (let*-values (((args)
                         (incoming-post-unmarshall! args-marshalled))
                        ((target) (unmarshall-to-desc to-desc)))
            (apply <-np target args)
            _void)]
-        [($ <op:deliver> to-desc method
+        [($ <op:deliver> to-desc
                          args-marshalled
                          ;; answer-pos is either an integer (promise pipelining)
                          ;; or #f (no pipelining)
@@ -911,14 +908,10 @@
              (define deliver-msg
                (if resolve-me
                    (op:deliver (marshall-to to)
-                               #;(desc:import (maybe-install-export! to))
-                               #f ;; TODO: support methods
-                               ;; TODO: correctly marshall everything here
                                (outgoing-pre-marshall! args)
                                answer-pos
                                (marshall-local-refr! resolve-me))
                    (op:deliver-only (marshall-to to)
-                                    #f ;; TODO: support methods
                                     (outgoing-pre-marshall! args))))
              (send-to-remote deliver-msg))]
           [($ <cmd-send-listen> (? remote-refr? to-refr) (? local-refr? listener-refr)
