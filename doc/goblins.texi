@@ -36,16 +36,16 @@ v2.  See @ref{License} for more information.
 @end ifnottex
 
 @menu
-* What is Goblins?::
-* Getting started::
-* A high level view of Goblins::
-* Tutorial::
-* OCapN The Object Capabilities Network::
-* API::
-* actor-lib A standard library of sorts::
-* Debugging tools::
-* Thanks::
-* License::
+* What is Goblins?::              What Goblins gives you
+* Getting started::               Installing, running, developing
+* High level view::               Conceptual overview
+* Tutorial::                      Learn to use Goblins
+* OCapN::                         The Object Capabilities Network
+* API::                           Goblins' fundamental API 
+* actor-lib::                     A standard library of sorts
+* Debugging tools::               Figure out what's going wrong
+* Thanks::                        Contributors to this manual
+* License::                       Copying, distributing, using this text
 * Index::
 @end menu
 
@@ -211,7 +211,7 @@ first execute:
 @dots{} from the @code{*Geiser Guile REPL*}.  Otherwise vats may
 mysteriously ``hang''.  This annoyance will be fixed soon!
 
-@node A high level view of Goblins
+@node High level view
 @chapter A high level view of Goblins
 
 As a starting point, here's a sketch of a network of Goblins objects
@@ -893,7 +893,7 @@ planet, round trips are unavoidably expensive.  Promise pipelining
 both allows programmers to make plans and allows Goblins to optimize
 carrying out those steps as bulk operations over the network.
 
-@node OCapN The Object Capabilities Network
+@node OCapN
 @chapter OCapN: The Object Capabilities Network
 
 @uref{https://github.com/ocapn/ocapn, OCapN} stands for ``Object
@@ -1288,7 +1288,7 @@ providing them. An example of this is:
 
 @include api-reference.texi
 
-@node actor-lib A standard library of sorts
+@node actor-lib
 @chapter actor-lib: A standard library of sorts
 
 @include actor-lib-reference.texi
