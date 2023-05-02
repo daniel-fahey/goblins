@@ -1301,8 +1301,13 @@ providing them. An example of this is:
 @node Thanks
 @chapter Thanks
 
-This manual was primarily written by Christine Lemmer-Webber with
-additional text by Jessica Tallon, David Thompson, and Juliana Sims.
+The bulk of the original structure and content of this manual came
+from Christine Lemmer-Webber.  Juliana Sims reworked a substantial
+portion of the manual and heroically documented the entire API and
+actor-lib sections.  David Thompson contributed the debugging tools
+section and its lovely tutorial.  Additional text and corrections by
+Jessica Tallon, Vivianne Langdon, Alan Zimmerman, and Geoffrey
+J. Teale.
 
 Many of the ideas are borrowed from
 @uref{http://www.erights.org/talks/thesis/markm-thesis.pdf, Mark
