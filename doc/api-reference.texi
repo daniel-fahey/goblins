@@ -503,9 +503,11 @@ message as its single argument and churns the underlying
 @var{halt}: Thunk to stop @emph{vat} process.
 
 @item
-@var{send}: Procedure accepting a message to handle within the
-@emph{vat} process and a boolean indicating if the message result
-needs to be returned to sender.
+@var{send}: Procedure accepting a ``vat envelope'' containing a
+message to handle within the @emph{vat} process.  The envelope also
+indicates if the caller wants a response, in which case the send
+procedure must block until the message has been processed and return
+the result.
 
 @item
 @var{log?}: If @code{#t}, event logging is enabled, otherwise it is
@@ -529,19 +531,18 @@ Here is a pseudocode example illustrating the basic pattern:
     (set! thread (call-with-new-thread loop)))
   (define (halt)
     (cancel-thread thread))
-  (define (send msg return?)
-    (if return?
-        (enqueue-msg-and-wait-for-result msg)
-        (enqueue-msg msg)))
+  (define (send envelope)
+    (if (vat-envelope-return? envelope)
+        (enqueue-and-wait-for-result envelope)
+        (enqueue enevelope)))
   (make-vat #:start start
             #:halt halt
             #:send send))
 @end lisp
 
 How to implement @code{enqueue-msg},
-@code{enqueue-msg-and-wait-for-result}, and @code{dequeue-msg} depends
-on the integration target and is left as an exercise for the
-implementer.
+@code{enqueue-and-wait-for-result}, and @code{dequeue} depends on the
+integration target and is left as an exercise for the implementer.
 
 Custom vat implementations @emph{must} enqueue and dequeue messages in
 a thread-safe manner because incoming messages from other vats may be,
@@ -553,6 +554,40 @@ The above custom vat would be used like so:
 > (define custom-vat (make-custom-vat))
 > (vat-start! custom-vat)
 @end lisp
+
+@end deffn
+
+Custom vats are expected to handle ``vat envelope'' objects which
+contain a message, a logical timestamp, and a flag indicating if the
+sender wants to know the result of processing the message.
+
+@deffn {Procedure} vat-envelope? obj
+
+Return @code{#t} if @var{obj} is a vat envelope, or @code{#f}
+otherwise.
+
+@end deffn
+
+@deffn {Procedure} vat-envelope-message envelope
+
+Return the message contained in @var{envelope}.
+
+@end deffn
+
+@deffn {Procedure} vat-envelope-timestamp envelope
+
+Return the logical timestamp for @var{envelope}.  This timestamp
+indicates when @var{envelope} was sent from its origin vat.
+
+@end deffn
+
+@deffn {Procedure} vat-envelope-return? envelope
+
+Return @code{#t} if the result of processing the message within
+@var{envelope} should be returned to the caller who deposited the
+envelope, or @code{#f} otherwise.  When @code{#t}, a custom vat
+implementation @emph{must} block until a result can be returned to the
+caller.  Notably, @code{call-with-vat} relies upon this behavior.
 
 @end deffn
 
