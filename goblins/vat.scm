@@ -820,6 +820,7 @@ Type: Vat (-> Any) -> Any"
         (define refr (actormap-spawn! am ^call-with-vat multi-value-thunk))
         (define msg (make-message (vat-connector vat) refr #f '()))
         (match (vat-send vat (make-vat-envelope msg 0 #t))
+          (#('ok '*awaited*) '*awaited*)
           (#('ok vals) (apply values vals))
           (#('fail err) (raise-exception err))))
       (error "vat is not running" vat)))
