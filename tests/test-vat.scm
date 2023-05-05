@@ -273,6 +273,20 @@
  '(#f oh-no #t)
  (try-far-on-promise 'break 'oh-no))
 
+(test-equal "await works within a vat"
+  'hello
+  (let ((result #f))
+    (with-vat a-vat
+      (let ((friend (spawn ^friendo)))
+        (set! result (<<- friend))))
+    result))
+
+(test-equal "the *awaited* value can be returned from call-with-vat"
+  '*awaited*
+  (with-vat a-vat
+    (let ((friend (spawn ^friendo)))
+      (<<- friend))))
+
 ;; Vat event log tests
 
 (let ((t (vat-clock a-vat)))
