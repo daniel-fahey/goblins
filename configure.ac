@@ -1,8 +1,7 @@
 
 dnl -*- Autoconf -*-
 
-AC_INIT(guile-goblins, 0.10)
-AC_SUBST(HVERSION, "\"0.10\"")
+AC_INIT(guile-goblins, 0.11.0)
 AC_SUBST(AUTHOR, "\"The Spritely Institute\"")
 AC_SUBST(COPYRIGHT, "'(2022)")
 AC_SUBST(LICENSE, asl2.0)
