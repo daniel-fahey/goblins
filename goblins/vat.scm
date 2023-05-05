@@ -923,15 +923,11 @@ logging."
                               (wrap-operation (wait-operation done?)
                                               (lambda () #f))))
            (loop)))
-    ;; So much nesting you might think a bird wrote this.
-    (call-with-new-thread
+    (dynamic-wrap
      (lambda ()
-       (dynamic-wrap
+       (syscaller-free
         (lambda ()
-          (syscaller-free
-           (lambda ()
-             (spawn-fiber loop scheduler)
-             (wait done?))))))))
+          (spawn-fiber loop scheduler))))))
   (define (halt)
     (signal-condition! done?)
     *unspecified*)
