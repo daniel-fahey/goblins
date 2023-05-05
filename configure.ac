@@ -3,7 +3,7 @@ dnl -*- Autoconf -*-
 
 AC_INIT(guile-goblins, 0.11.0)
 AC_SUBST(AUTHOR, "\"The Spritely Institute\"")
-AC_SUBST(COPYRIGHT, "'(2022)")
+AC_SUBST(COPYRIGHT, "'(2023)")
 AC_SUBST(LICENSE, asl2.0)
 AC_CONFIG_SRCDIR(goblins.scm)
 AC_CONFIG_AUX_DIR([build-aux])
