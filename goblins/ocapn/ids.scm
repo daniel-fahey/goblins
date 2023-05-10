@@ -48,13 +48,13 @@
 
 ;; Ocapn machine type URI:
 ;;
-;;   ocapn://<transport-address>.<transport>[.<transport-hints>]
+;;   ocapn://<transport-address>.<transport>[?<transport-hints>]
 ;;
 ;;   <ocapn-machine $transport $transport-address $transport-hints>
 ;;
 ;; . o O (Are hints really a good idea or needed anymore?)
 
-;; EG: "ocapn://wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.onion"
+;; EG: "ocapn://wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.onion?foo=bar"
 (define-record-type <ocapn-machine>
   (make-ocapn-machine transport address hints)
   ocapn-machine?
@@ -75,9 +75,9 @@
 
 ;; Ocapn swissnum URI:
 ;;
-;;   ocapn://abpoiyaspodyoiapsdyiopbasyop.onion/s/3cbe8e02-ca27-4699-b2dd-3e284c71fa96
+;;   ocapn://abpoiyaspodyoiapsdyiopbasyop.onion/s/3cbe8e02-ca27-4699-b2dd-3e284c71fa96?foo=bar
 ;;
-;;   ocapn://<transport-address>.<transport>/s/<swiss-num>
+;;   ocapn://<transport-address>.<transport>/s/<swiss-num>[?<transport-hints>]
 ;;
 ;;   <ocapn-sturdyref <ocapn-machine $transport $transport-address $transport-hints>
 ;;                    $swiss-num>
@@ -156,13 +156,28 @@
          (equal? m1-address m2-address))))
 
 (define (string->ocapn-id string-uri)
+  (define (query->hints query)
+    (and query
+         ;; The URI query string is *not* pre-parsed into key/value
+         ;; pairs, as the 'foo=1&bar=2' notation is just a convention.
+         ;; So, we need to parse it ourselves.
+         (map (lambda (hint)
+                (match (string-split hint #\=)
+                  ((key value)
+                   ;; Hints are lists of 2 elements, *not pairs*,
+                   ;; because Syrup can serialize proper lists but not
+                   ;; pairs.
+                   (list (string->symbol (uri-decode key))
+                         (uri-decode value)))))
+              (string-split query #\&))))
+
   (define (uri->ocapn-machine uri)
-    ;; TODO: Maybe we need to support hints.
     (let* ((host (uri-host uri))
            (final-part (string-rindex host #\.))
            (transport (string->symbol (substring host (+ 1 final-part))))
-           (address (substring host 0 final-part)))
-      (make-ocapn-machine transport address #f)))
+           (address (substring host 0 final-part))
+           (hints (query->hints (uri-query uri))))
+      (make-ocapn-machine transport address hints)))
 
   (define (uri->ocapn-sturdyref uri)
     (let ((path (string-trim (uri-path uri) #\/)))
@@ -185,21 +200,33 @@
     (uri->ocapn-id uri)))
 
 (define (ocapn-id->uri ocapn-id)
+  (define (hints->query hints)
+    (and hints
+         (string-join (map (match-lambda
+                             (((? symbol? key) (? string? value))
+                              (string-append (uri-encode (symbol->string key))
+                                             "="
+                                             (uri-encode value))))
+                           hints)
+                      "&")))
+
   (unless (ocapn-id? ocapn-id)
     (error "Not a OCapN ID" ocapn-id))
 
   (match ocapn-id
-    [($ <ocapn-machine> transport address _hints)
-     (build-uri
-      'ocapn
-      #:host (string-join (list address (symbol->string transport)) "."))]
-
-    [($ <ocapn-sturdyref> ($ <ocapn-machine> transport address _hints)
-        swiss-num)
+    [($ <ocapn-machine> transport address hints)
      (build-uri
       'ocapn
       #:host (string-join (list address (symbol->string transport)) ".")
-      #:path (string-append "/s/" (url-base64-encode swiss-num)))]))
+      #:query (hints->query hints))]
+
+    [($ <ocapn-sturdyref> ($ <ocapn-machine> transport address hints)
+                          swiss-num)
+     (build-uri
+      'ocapn
+      #:host (string-join (list address (symbol->string transport)) ".")
+      #:path (string-append "/s/" (url-base64-encode swiss-num))
+      #:query (hints->query hints))]))
 
 (define (ocapn-id->string ocapn-id)
   (uri->string (ocapn-id->uri ocapn-id)))

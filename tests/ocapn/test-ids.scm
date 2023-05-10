@@ -8,19 +8,19 @@
   (make-ocapn-machine
    'fake
    "4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"
-   #f))
+   '((name "test 1"))))
 
 (define ocapn-m1*
   (make-ocapn-machine
    'fake
    "4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"
-   #t))
+   '((name "test 2"))))
 
 (define ocapn-m2
   (make-ocapn-machine
    'fake
    "8upy8klbgvtxwopxz93oyx5rxtglasaphptdjbb0hqjfvsalsinc9p7g"
-   #f))
+   '((name "test 3"))))
 
 (define ocapn-sref1
   (make-ocapn-sturdyref ocapn-m1 #vu8(74 174 136 226 211 114 92 53 153 139 168 28 82 26 52 183 107 50 123 83 116 61 247 240 172 189 77 35 75 63 51 162)))
@@ -56,12 +56,12 @@
 ;; Check string->ocapn-id
 (test-assert
     "Verify string->ocapn-id produces the correct ocapn-machine"
-  (equal? (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake")
+  (equal? (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake?name=test%201")
           ocapn-m1))
 
 (test-assert
     "Verify string->ocapn-id produces the correct ocapn-studyref"
-  (equal? (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake/s/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I")
+  (equal? (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake/s/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I?name=test%201")
           ocapn-sref1))
 
 ;; Check ocapn-id->string
@@ -69,12 +69,12 @@
     "ocapn-id->string works for ocapn-machine"
   (string=?
    (ocapn-id->string ocapn-m1)
-   "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake"))
+   "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake?name=test%201"))
 
 (test-assert
     "ocapn-id->string works for ocapn-studyref"
   (string=?
    (ocapn-id->string ocapn-sref1)
-   "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake/s/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I"))
+   "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake/s/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I?name=test%201"))
 
 (test-end "test-ids")
