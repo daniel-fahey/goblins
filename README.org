@@ -54,7 +54,7 @@ have been installed, Goblins can be built by running the following
 commands:
 
 #+BEGIN_SRC sh
-  ./configure
+  ./configure GUILE=$(which guile)
   make
   sudo make install
 #+END_SRC

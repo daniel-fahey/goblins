@@ -1,4 +1,5 @@
 ;;; Copyright 2020-2022 Christine Lemmer-Webber
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -38,8 +39,7 @@
 (define faceted-wizard
   (actormap-spawn! am ^facet all-powerful-wizard
                    'magic-missile
-                   'flame-tongue
-                   #:sync? #t))
+                   'flame-tongue))
 (test-equal
  (actormap-peek am faceted-wizard 'magic-missile 2)
  "Casts magic missile level 2!")

@@ -1,14 +1,15 @@
-(use-modules (goblins)
-             (goblins vat)
-             (goblins actor-lib joiners)
-             (goblins actor-lib methods)
-             (goblins ocapn ids)
-             (goblins ocapn captp)
-             (goblins ocapn netlayer fake)
-             (tests utils)
-             (fibers channels)
-             (ice-9 match)
-             (srfi srfi-64))
+(define-module (tests ocapn test-captp)
+  #:use-module (goblins)
+  #:use-module (goblins vat)
+  #:use-module (goblins actor-lib joiners)
+  #:use-module (goblins actor-lib methods)
+  #:use-module (goblins ocapn ids)
+  #:use-module (goblins ocapn captp)
+  #:use-module (goblins ocapn netlayer fake)
+  #:use-module (tests utils)
+  #:use-module (fibers channels)
+  #:use-module (ice-9 match)
+  #:use-module (srfi srfi-64))
 
 (test-begin "test-captp")
 
@@ -84,50 +85,44 @@
       [#('err problem) #t]
       [_ #f])))
 
-;; TODO: This test, particularly the new vat that is spawned for it,
-;; is causing intermittent test failures, so we've disabled it until
-;; we can determine the root cause and a fix.  See
-;; https://gitlab.com/spritely/guile-goblins/-/issues/69 for more
-;; information.
-
 ;; Testing multiple objects on A, communicating with B
-;; (define a1-vat (spawn-vat #:name "a1"))
-;; (define introducer-alice
-;;   (with-vat a-vat
-;;     (define (^introducer-alice _bcom)
-;;       (lambda (intro-bob intro-carol)
-;;         (<- intro-bob 'meet intro-carol)))
-;;     (spawn ^introducer-alice)))
+(define a1-vat (spawn-vat #:name "a1"))
+(define introducer-alice
+  (with-vat a-vat
+    (define (^introducer-alice _bcom)
+      (lambda (intro-bob intro-carol)
+        (<- intro-bob 'meet intro-carol)))
+    (spawn ^introducer-alice)))
 
-;; (define meeter-bob-sref
-;;   (with-vat b-vat
-;;     (define (^meeter-bob _bcom)
-;;       (methods
-;;        [(meet new-friend)
-;;         (<- new-friend 'hi-new-friend)]))
-;;     (define meeter-bob (spawn ^meeter-bob))
-;;     ($ b-mycapn 'register meeter-bob 'fake)))
+(define meeter-bob-sref
+  (with-vat b-vat
+    (define (^meeter-bob _bcom)
+      (methods
+       [(meet new-friend)
+        (<- new-friend 'hi-new-friend)]))
+    (define meeter-bob (spawn ^meeter-bob))
+    ($ b-mycapn 'register meeter-bob 'fake)))
 
-;; (define (^chatty _bcom our-name)
-;;   (methods
-;;    [(hi-new-friend)
-;;     (list 'hello-back-from our-name)]))
+(define (^chatty _bcom our-name)
+  (methods
+   [(hi-new-friend)
+    (list 'hello-back-from our-name)]))
 
-;; (define chatty-carol
-;;   (with-vat a1-vat
-;;     (spawn ^chatty 'carol)))
+(define chatty-carol
+  (with-vat a1-vat
+    (spawn ^chatty 'carol)))
 
-;; (let ((result
-;;        (resolve-vow-and-return-result
-;;         a-vat
-;;         (lambda ()
-;;           (on (<- a-mycapn 'enliven meeter-bob-sref)
-;;               (lambda (meeter-bob)
-;;                 (<- introducer-alice meeter-bob chatty-carol))
-;;               #:promise? #t)))))
-;;   (test-equal "A and C on one machine, B on another with introductions"
-;;     result
-;;     #(ok (hello-back-from carol))))
+(let ((result
+       (resolve-vow-and-return-result
+        a-vat
+        (lambda ()
+          (on (<- a-mycapn 'enliven meeter-bob-sref)
+              (lambda (meeter-bob)
+                (<- introducer-alice meeter-bob chatty-carol))
+              #:promise? #t)))))
+  (test-equal "A and C on one machine, B on another with introductions"
+    result
+    #(ok (hello-back-from carol))))
 
 ;; ------------- ;;
 ;; Handoff test  ;;

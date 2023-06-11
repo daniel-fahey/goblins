@@ -48,14 +48,19 @@ SOURCES = goblins.scm \
           goblins/actor-lib/common.scm \
           goblins/actor-lib/facet.scm \
           goblins/actor-lib/joiners.scm \
+	  goblins/actor-lib/let-on.scm \
           goblins/actor-lib/methods.scm \
           goblins/actor-lib/nonce-registry.scm \
+          goblins/actor-lib/opportunistic.scm \
 	  goblins/actor-lib/pubsub.scm \
+	  goblins/actor-lib/pushdown.scm \
 	  goblins/actor-lib/sealers.scm \
+	  goblins/actor-lib/simple-mint.scm \
           goblins/actor-lib/swappable.scm \
           goblins/actor-lib/ticker.scm \
           goblins/actor-lib/ward.scm \
           goblins/base-io-ports.scm \
+	  goblins/config.scm \
           goblins/contrib/syrup.scm \
           goblins/core.scm \
           goblins/default-vat-scheduler.scm \
@@ -73,21 +78,29 @@ SOURCES = goblins.scm \
           goblins/utils/assert-type.scm \
           goblins/utils/bytes-stuff.scm \
           goblins/utils/crypto.scm \
+	  goblins/utils/graphviz.scm \
           goblins/utils/random-name.scm \
           goblins/utils/simple-dispatcher.scm \
           goblins/utils/simple-sealers.scm \
           goblins/utils/weak-box.scm \
+          goblins/utils/ring-buffer.scm \
           goblins/vat.scm \
           goblins/vrun.scm \
           goblins/repl.scm \
+          tests/repl-driver.scm \
           tests/utils.scm
 
 TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-common.scm \
         tests/actor-lib/test-facet.scm \
         tests/actor-lib/test-joiners.scm \
+        tests/actor-lib/test-let-on.scm \
+	tests/actor-lib/test-nonce-registry.scm \
+        tests/actor-lib/test-opportunistic.scm \
 	tests/actor-lib/test-pubsub.scm \
+	tests/actor-lib/test-pushdown.scm \
 	tests/actor-lib/test-sealers.scm \
+	tests/actor-lib/test-simple-mint.scm \
         tests/actor-lib/test-swappable.scm \
         tests/actor-lib/test-ticker.scm \
         tests/actor-lib/test-ward.scm \
@@ -100,7 +113,9 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/test-ghash.scm \
         tests/test-inbox.scm \
         tests/test-vat.scm \
-        tests/utils/test-bytes-stuff.scm
+	tests/test-repl.scm \
+        tests/utils/test-bytes-stuff.scm \
+        tests/utils/test-ring-buffer.scm
 
 TEST_EXTENSIONS = .scm
 SCM_LOG_DRIVER =                                \
@@ -117,9 +132,20 @@ AM_SCM_LOG_FLAGS = --no-auto-compile -L "$(top_srcdir)"
 AM_TESTS_ENVIRONMENT = abs_top_srcdir="$(abs_top_srcdir)"
 
 info_TEXINFOS = doc/goblins.texi
+doc_goblin_TEXINFOS = doc/actor-lib-reference.texi \
+                      doc/api-reference.texi \
+                      doc/debugger.texi		\
+                      doc/apache-2.0.texi
+infoimagedir = $(infodir)/images
+dist_infoimage_DATA = doc/images/questie-lamport-diagram.png
+
 dvi: # Don't build dvi docs
 html-local:
 	$(GUILE) --no-auto-compile doc/build-html.scm
+
+EXAMPLES = examples/cauldron.scm		\
+           examples/try-captp-onion.scm		\
+           examples/try-base-netlayer.scm
 
 EXTRA_DIST += README.org \
               README \
@@ -137,9 +163,9 @@ EXTRA_DIST += README.org \
               live-guile.sh \
               .gitlab-ci.yml \
               build-aux/test-driver.scm \
-              doc/apache-2.0.texi \
               doc/goblins.css \
               doc/build-html.scm \
+              $(EXAMPLES) \
               $(TESTS)
 
 ACLOCAL_AMFLAGS = -I m4

@@ -1,4 +1,5 @@
 ;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -18,6 +19,9 @@
   #:export (all-of all-of*))
 
 (define (all-of* promises)
+  "Return a promise which resolves on resolution of all PROMISES.
+
+Type: (Listof Promise) -> Promise"
   (define-cell waiting
     promises)
   (define-cell results
@@ -55,4 +59,7 @@
   join-promise)
 
 (define (all-of . promises)
+  "Return a promise which resolves on resolution of all PROMISES.
+
+Type: Promise ... -> Promise"
   (all-of* promises))

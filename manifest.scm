@@ -11,6 +11,7 @@
 (use-modules (gnu packages code)
              (gnu packages emacs)
              (gnu packages emacs-xyz)
+             (gnu packages graphviz)
              (gnu packages guile-xyz)
              (gnu packages tor)
              (guix packages)
@@ -21,6 +22,7 @@
 
 (packages->manifest
  (cons*
+  graphviz
   guile-lib
   guile-syntax-highlight
   lcov

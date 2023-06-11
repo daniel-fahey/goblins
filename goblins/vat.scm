@@ -1,5 +1,7 @@
 ;;; Copyright 2021-2022 Christine Lemmer-Webber
 ;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2023 David Thompson
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -19,20 +21,71 @@
   #:use-module (goblins inbox)
   #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins utils random-name)
+  #:use-module (goblins utils ring-buffer)
   #:use-module (fibers)
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
+  #:use-module (ice-9 atomic)
   #:use-module (ice-9 control)
   #:use-module (ice-9 match)
-  #:use-module (ice-9 atomic)
+  #:use-module (ice-9 q)
   #:use-module (ice-9 threads)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
-  #:export (make-vat
+  #:export (vat-event?
+            vat-send-event?
+            vat-receive-event?
+            vat-event-listen?
+            vat-event-message?
+            vat-event-local?
+            vat-event-type
+            vat-event-churn
+            vat-event-timestamp
+            vat-event-far-timestamp
+            vat-event-message
+            vat-event-snapshot
+            vat-event-connector
+            vat-event-previous
+            vat-event-next
+            vat-event-trace
+            vat-event-tree
+            vat-event-tree-map
+            vat-event-tree-filter
+            vat-event-tree-remove
+            vat-event-tree->timeline
+
+            &vat-turn-error
+            vat-turn-error-event
+
+            vat-envelope?
+            vat-envelope-message
+            vat-envelope-timestamp
+            vat-envelope-return?
+
+            all-vats
+            lookup-vat
+            make-vat
             vat?
+            vat-id
             vat-name
+            vat-connector
+            vat-clock
+            vat-log-capacity
+            vat-log-length
+            vat-log-ref
+            vat-log-ref-by-time
+            vat-log-ref-by-message
+            vat-log-ref-previous
+            vat-log-ref-next
+            vat-log-error-for-event
+            vat-log-errors
+            vat-log-resize!
+            vat-log-clear!
+            set-vat-logging!
             vat-running?
+            vat-logging?
             vat-halt!
             vat-start!
             call-with-vat
@@ -57,7 +110,7 @@
 ;;;                .=======================.
 ;;;                |Internal Vat Schematics|
 ;;;                '======================='
-;;;  
+;;;
 ;;;             stack           heap
 ;;;              ($)         (actormap)
 ;;;           .-------.----------------------. -.
@@ -123,26 +176,413 @@
                  (current-error-port %base-error-port))
     (proc)))
 
-(define (generate-random-vat-name)
-  (random-name 8))
+;; Vat event logging
+;; =================
+
+(define-record-type <vat-event>
+  (make-vat-event type churn timestamp far-timestamp message snapshot)
+  vat-event?
+  (type vat-event-type) ; either 'send' or 'receive'
+  (churn vat-event-churn)
+  (timestamp vat-event-timestamp)
+  (far-timestamp vat-event-far-timestamp)
+  (message vat-event-message)
+  (snapshot vat-event-snapshot set-vat-event-snapshot!))
+
+(define (print-vat-event event port)
+  (format port
+          "#<vat-event type: ~a timestamp: ~a far-timestamp: ~a message: ~a>"
+          (vat-event-type event)
+          (vat-event-timestamp event)
+          (vat-event-far-timestamp event)
+          (vat-event-message event)))
+
+(set-record-type-printer! <vat-event> print-vat-event)
+
+(define (vat-send-event? event)
+  "Return #t if EVENT is a send event."
+  (and (vat-event? event) (eq? (vat-event-type event) 'send)))
+
+(define (vat-receive-event? event)
+  "Return #t if EVENT is a receive event."
+  (and (vat-event? event) (eq? (vat-event-type event) 'receive)))
+
+(define (vat-event-listen? event)
+  "Return #t if EVENT is for a listen request."
+  (listen-request? (vat-event-message event)))
+
+(define (vat-event-message? event)
+  "Return #t if EVENT is for a message."
+  (message? (vat-event-message event)))
+
+(define (vat-event-local? event)
+  "Return #t if EVENT is for a local message."
+  (local-object-refr?
+   (message-or-request-to (vat-event-message event))))
+
+(define (vat-event-connector event)
+  "Return the connector for the vat that EVENT belongs to. Send events
+belong to the sender.  Receive events belong to the receiver."
+  (let ((type (vat-event-type event))
+        (msg (vat-event-message event)))
+    (if (eq? type 'send)
+        (message-or-request-from-vat msg)
+        (local-refr-vat-connector
+         (message-or-request-to msg)))))
+
+(define (vat-event-previous event)
+  "Return the event that happened before EVENT, either in the same churn
+or, in the case of a receive event from another vat, the corresponding
+send event.  #f is returned if no such event is found."
+  (let ((far-timestamp (vat-event-far-timestamp event))
+        (vat-connector (message-or-request-from-vat
+                        (vat-event-message event))))
+    (if far-timestamp
+        (vat-connector 'find-event-by-time far-timestamp)
+        (vat-connector 'find-previous-event event))))
+
+(define (vat-event-next event)
+  "Return the events that happened after EVENT in the same churn, or #f
+if there are no such events."
+  (let ((vat-connector (vat-event-connector event)))
+    (vat-connector 'find-next-events event)))
+
+(define (vat-event-trace event)
+  "Return a list of events, starting with EVENT, and working back
+through previous events until a root event is reached or there is no
+more history to search.  Much like how backtraces are linear slices of
+call stacks, vat traces are linear slices of the event graph."
+  (if (vat-event? event)
+      (cons event (vat-event-trace (vat-event-previous event)))
+      '()))
+
+(define (vat-event-tree event)
+  "Return a tree of events that lead up to EVENT."
+  (define (build-event-tree root)
+    ;; Receive events may represent a leaf node if they did not
+    ;; asynchronously invoke any other actors.  Otherwise, create
+    ;; sub-trees for each additional event.
+    (if (vat-receive-event? root)
+        (match (vat-event-next root)
+          (() root)
+          (next-events
+           (cons root (map build-event-tree next-events))))
+        ;; Send events require talking to another vat and building a
+        ;; sub-tree.
+        (let* ((msg (vat-event-message root))
+               ;; Get the vat connector that the message was sent to.
+               (vat-connector (local-refr-vat-connector
+                               (message-or-request-to msg)))
+               ;; The message is the only context we have to search
+               ;; by, so that's what we do.
+               ;;
+               ;; "I *know* I sent you this message, now I need to
+               ;; know what happened once you got it!"
+               (far-event (vat-connector 'find-event-by-message msg)))
+          (if far-event
+              ;; Recur on the far event to build a sub-tree.
+              (cons root (list (build-event-tree far-event)))
+              ;; The other vat is either not logging or no longer has
+              ;; logs for this event, so we've disappointingly reached
+              ;; a leaf node.
+              root))))
+  ;; Find the root by getting the last event in the trace.  The *last*
+  ;; event in the trace is our *first* event because vat-event-trace
+  ;; returns events in backtrace style using reverse chronological
+  ;; order.
+  (match (vat-event-trace event)
+    ((_ ... root)
+     ;; Build a tree starting from the root.
+     (build-event-tree root))))
+
+(define (vat-event-tree-map proc tree)
+  "Recursively apply PROC to all leaf nodes and subtrees of TREE, a tree
+of vat events in the format produced by 'vat-event-tree', and return a
+new tree.  Post-order tree traversal is used so that PROC is applied
+to leaf nodes before their parent trees."
+  (match tree
+    ((root children ...)
+     (proc (cons root
+                 (map (lambda (child)
+                        (vat-event-tree-map proc child))
+                      children))))
+    ((? vat-event? leaf)
+     (proc leaf))))
+
+(define (vat-event-tree-filter pred tree)
+  "Recursively apply PRED to all leaf nodes and subtrees of TREE, a tree
+of vat events in the format produced by 'vat-event-tree', and return a
+new tree consisting of the nodes for which PRED returns #t.
+Post-order tree traversal is used so that PRED is applied to leaf
+nodes before their parent trees."
+  (match tree
+    (((? vat-event? root) children ..1)
+     (match (filter-map (lambda (child)
+                          (vat-event-tree-filter pred child))
+                        children)
+       (() root)
+       ((children* ...)
+        (let ((filtered (cons root children*)))
+          (and (pred filtered) filtered)))))
+    ((? vat-event? leaf)
+     (and (pred leaf) leaf))))
+
+(define (vat-event-tree-remove pred tree)
+  "Like 'vat-event-tree-filter', but nodes of TREE that match PRED are
+removed."
+  (vat-event-tree-filter (negate pred) tree))
+
+(define (vat-event-tree->timeline tree)
+  "Convert TREE, a tree of vat events as produced by 'vat-event-tree',
+to vat timeline form.  A vat timeline is a graph structure consisting
+of a hash table mapping vat connectors to their respective events in
+TREE.  The events within a timeline are also stored in hash tables,
+mapping timestamps to lists whose head is a local vat event and all
+subsequent elements are far events that were caused by the local
+event.
+
+Retrieving an event list for a given vat connector and timestamp looks
+like this:
+
+(hashv-ref (hashq-ref timeline vat-connector) timestamp)"
+  (let ((timeline (make-hash-table)))
+    (define (events-for-vat vat-connector)
+      (or (hashq-ref timeline vat-connector)
+          (let ((table (make-hash-table)))
+            (hashq-set! timeline vat-connector table)
+            table)))
+    (define (add-to-timeline vat-connector timestamp events)
+      (hashq-set! (events-for-vat vat-connector) timestamp events))
+    (define (loop tree)
+      (match tree
+        ((root children ...)
+         (let* ((vat-connector (vat-event-connector root))
+                ;; Build a list of *outgoing* send events with each
+                ;; element of the form (vat-connector timestamp).
+                (sends (filter-map (match-lambda
+                                     ((or (child _ ...) child) ; match subtree or leaf node
+                                      (let ((other-connector (vat-event-connector child)))
+                                        ;; Filter out child events that
+                                        ;; are from the same vat.  We only
+                                        ;; care about events in other vats
+                                        ;; here.
+                                        (and (not (eq? vat-connector other-connector))
+                                             (list other-connector (vat-event-timestamp child))))))
+                                   children)))
+           ;; Add root event to the timeline.
+           (add-to-timeline vat-connector
+                            (vat-event-timestamp root)
+                            (cons root sends))
+           ;; Recursively add child events to the timeline.
+           (for-each loop children)))
+        ;; Base case: A leaf node.
+        ((? vat-event? event)
+         (add-to-timeline (vat-event-connector event)
+                          (vat-event-timestamp event)
+                          (list event)))))
+    (loop tree)
+    timeline))
+
+;; The vat log maintains a finite amount of history about messages
+;; that have been sent/received in the vat.  These events are indexed
+;; for easy querying in a variety of situations.
+(define-record-type <vat-log>
+  (%make-vat-log events time-index message-index prev-index next-index
+                 error-index mutex)
+  vat-log?
+  (events vat-log-events)
+  (time-index vat-log-time-index)
+  (message-index vat-log-message-index)
+  (prev-index vat-log-prev-index)
+  (next-index vat-log-next-index)
+  (error-index vat-log-error-index)
+  (mutex vat-log-mutex))
+
+(define (print-vat-log log port)
+  (format port
+          "#<vat-log length: ~a time-index: ~a message-index: ~a prev-index: ~a next-index: ~a error-index: ~a>"
+          (ring-buffer-length (vat-log-events log))
+          (vat-log-time-index log)
+          (vat-log-message-index log)
+          (vat-log-prev-index log)
+          (vat-log-next-index log)
+          (vat-log-error-index log)))
+
+(set-record-type-printer! <vat-log> print-vat-log)
+
+(define (make-vat-log max-length)
+  (%make-vat-log (make-ring-buffer max-length)
+                 (make-hash-table)
+                 (make-hash-table)
+                 (make-hash-table)
+                 (make-hash-table)
+                 (make-hash-table)
+                 (make-mutex)))
+
+(define (vat-log-delete-from-index! log event)
+  (let ((time-index (vat-log-time-index log))
+        (message-index (vat-log-message-index log))
+        (prev-index (vat-log-prev-index log))
+        (next-index (vat-log-next-index log))
+        (error-index (vat-log-error-index log)))
+    (hashv-remove! time-index (vat-event-timestamp event))
+    (hashq-remove! message-index (vat-event-message event))
+    (hashq-remove! prev-index event)
+    (hashq-remove! next-index event)
+    (hashq-remove! error-index event)))
+
+(define (%vat-log-resize! log capacity)
+  (with-mutex (vat-log-mutex log)
+    ;; If the log size is shrinking, we need to delete indexed events
+    ;; for the items that no longer fit.
+    (let ((n (max (- (%vat-log-length log) capacity) 0)))
+      (let loop ((i 0))
+        (when (< i n)
+          (vat-log-delete-from-index! log (%vat-log-ref log i))))
+      (ring-buffer-resize! (vat-log-events log) capacity))))
+
+(define (%vat-log-clear! log)
+  (with-mutex (vat-log-mutex log)
+    (ring-buffer-clear! (vat-log-events log))
+    (hash-clear! (vat-log-time-index log))
+    (hash-clear! (vat-log-message-index log))
+    (hash-clear! (vat-log-prev-index log))
+    (hash-clear! (vat-log-next-index log))
+    (hash-clear! (vat-log-error-index log))))
+
+(define (%vat-log-append! log event prev)
+  (with-mutex (vat-log-mutex log)
+    (let ((events (vat-log-events log))
+          (time-index (vat-log-time-index log))
+          (message-index (vat-log-message-index log))
+          (prev-index (vat-log-prev-index log))
+          (next-index (vat-log-next-index log))
+          (error-index (vat-log-error-index log)))
+      ;; Remove indexed events as they are expired from the ring buffer.
+      (when (ring-buffer-full? events)
+        (vat-log-delete-from-index! log (ring-buffer-ref events 0)))
+      (ring-buffer-put! events event)
+      (hashv-set! time-index (vat-event-timestamp event) event)
+      (hashq-set! message-index (vat-event-message event) event)
+      ;; Only add to the prev/next indexes if there is a previous
+      ;; event.  This is particularly important for the next index,
+      ;; because otherwise every root event would be consed onto a
+      ;; list of events associated with the key #f.  This list would
+      ;; grow without bound, eventually exhausting all memory.
+      (when prev
+        (hashq-set! prev-index event prev)
+        (hashq-set! next-index prev
+                    (cons event (hashq-ref next-index prev '())))))))
+
+(define (%vat-log-error! log event exception)
+  (with-mutex (vat-log-mutex log)
+    (hashq-set! (vat-log-error-index log) event exception)))
+
+(define (%vat-log-error-for-event log event)
+  (hashq-ref (vat-log-error-index log) event))
+
+(define (%vat-log-errors log)
+  (hash-map->list cons (vat-log-error-index log)))
+
+(define (%vat-log-capacity log)
+  (ring-buffer-capacity (vat-log-events log)))
+
+(define (%vat-log-length log)
+  (ring-buffer-length (vat-log-events log)))
+
+(define (%vat-log-ref log i)
+  (ring-buffer-ref (vat-log-events log) i))
+
+(define (%vat-log-ref-by-time log t)
+  (hashv-ref (vat-log-time-index log) t))
+
+(define (%vat-log-ref-by-message log msg)
+  (hashq-ref (vat-log-message-index log) msg))
+
+(define (%vat-log-ref-previous log event)
+  (hashq-ref (vat-log-prev-index log) event))
+
+(define (%vat-log-ref-next log event)
+  ;; Events are stored in reverse order in which they were processed.
+  (reverse (hashq-ref (vat-log-next-index log) event '())))
+
+;; Vats
+;; ====
+
+(define &vat-turn-error
+  (make-exception-type '&vat-turn-error &error '(event)))
+
+(define make-vat-turn-error (record-constructor &vat-turn-error))
+
+(define vat-turn-error-event
+  (exception-accessor &vat-turn-error
+                      (record-accessor &vat-turn-error 'event)))
+
+;; Vat envelopes contain a message, are postmarked with a Lamport
+;; timestamp to indicate when it was sent, and have a flag that
+;; indicates if the sender wants a reply.  Currently, the return? flag
+;; is only used to support returning values to the user via
+;; call-with-vat.
+(define-record-type <vat-envelope>
+  (make-vat-envelope message timestamp return?)
+  vat-envelope?
+  (message vat-envelope-message)
+  (timestamp vat-envelope-timestamp)
+  (return? vat-envelope-return?))
 
 (define-record-type <vat>
-  (%make-vat name actormap running start-proc halt-proc send-proc)
+  (%make-vat id name actormap running connector current-churn
+             clock logging? log start-proc halt-proc send-proc)
   vat?
+  (id vat-id)
   (name vat-name)
   (actormap vat-actormap)
   (running vat-running)
+  (connector vat-connector)
+  (current-churn vat-current-churn set-vat-current-churn!)
+  (clock %vat-clock)
+  (logging? %vat-logging?)
+  (log vat-log)
   (start-proc vat-start-proc)
   (halt-proc vat-halt-proc)
   (send-proc vat-send-proc))
 
 (define (print-vat vat port)
-  (format port "#<vat ~a>" (vat-name vat)))
+  (format port "#<vat id: ~a name: ~a>"
+          (vat-id vat) (vat-name vat)))
 
 (set-record-type-printer! <vat> print-vat)
 
-(define* (make-vat #:key (name (generate-random-vat-name))
-                   start halt send)
+;; A global table of vats keyed by id.
+(define *vats* (make-weak-value-hash-table))
+
+(define (all-vats)
+  (hash-map->list (lambda (k v) v) *vats*))
+
+(define (lookup-vat id)
+  (hashv-ref *vats* id))
+
+(define register-vat!
+  (let ((mutex (make-mutex)))
+    (lambda (vat)
+      (with-mutex mutex
+        (hashv-set! *vats* (vat-id vat) vat)))))
+
+;; A global id counter for vats.
+(define *vat-id-counter* (make-atomic-box 0))
+
+(define (next-vat-id)
+  (let* ((id (atomic-box-ref *vat-id-counter*)))
+    ;; If the atomic box was updated in another thread then the id
+    ;; we've just generated is no good and the counter will not be
+    ;; updated.  Loop until we get a good one.
+    (if (eq? (atomic-box-compare-and-swap! *vat-id-counter* id (+ id 1)) id)
+        id
+        (next-vat-id))))
+
+(define default-log-capacity 256)
+
+(define* (make-vat #:key name start halt send log? (log-capacity default-log-capacity))
   "Return a new vat named NAME.  Vat behavior is determined by three
 event hooks:
 
@@ -155,30 +595,170 @@ HALT: A thunk that stops the vat process.
 
 SEND: A procedure that accepts a message to handle within the vat
 process and a boolean flag indicating if the message result needs to
-be returned to the sender or not."
-  (define running? (make-atomic-box #f))
-  (define (vat-connector . args)
+be returned to the sender or not.
+
+If LOG? is #t, event logging is enabled.  By default, logging is
+disabled.  LOG-CAPACITY events will be retained in the log.
+
+Type: (Optional (#:name (U String Symbol)))
+(Optional (#:start (Message -> Void))) (Optional (#:halt (-> Void)))
+(Optional (#:send (Message Boolean -> (U Void Any))))
+(Optional (#:log? Boolean))
+(Optional (#:log-capacity Positive-Number)) -> Void"
+  (define (connector . args)
     (match args
-      (('handle-message msg)
+      (('name) (vat-name vat))
+      (('handle-message timestamp msg)
        ;; TODO: We should indicate to the procedure which calls this that
        ;; the attempt to send the message failed... so, return an 'ok
        ;; or 'failed message here?
        (when (atomic-box-ref running?)
-         (send msg #f)))))
-  (define am (make-actormap #:vat-connector vat-connector))
-  (%make-vat name am running? start halt send))
+         (vat-send vat (make-vat-envelope msg timestamp #f))))
+      ;; Event log queries.
+      (('find-event-by-time timestamp)
+       (vat-log-ref-by-time vat timestamp))
+      (('find-event-by-message msg)
+       (vat-log-ref-by-message vat msg))
+      (('find-previous-event event)
+       (vat-log-ref-previous vat event))
+      (('find-next-events event)
+       (vat-log-ref-next vat event))))
+  (define am (make-actormap #:vat-connector connector))
+  (define id (next-vat-id))
+  (define clock (make-atomic-box 0))
+  (define running? (make-atomic-box #f))
+  (define logging? (make-atomic-box log?))
+  (define log (make-vat-log log-capacity))
+  (define index (make-hash-table))
+  (define vat
+    (%make-vat id name am running? connector 0 clock logging? log
+               start halt send))
+  (register-vat! vat)
+  vat)
 
 (define (vat-running? vat)
-  "Return #t if VAT is currently running."
+  "Return #t if VAT is currently running, else #f.
+
+Type: Vat -> Boolean"
   (atomic-box-ref (vat-running vat)))
 
+(define (vat-clock vat)
+  (atomic-box-ref (%vat-clock vat)))
+
+(define* (vat-next-timestamp vat #:optional (min-time 0))
+  (let* ((clock (%vat-clock vat))
+         (current-time (atomic-box-ref clock))
+         (next-time (+ (max current-time min-time) 1))
+         (prev-time (atomic-box-compare-and-swap! clock
+                                                  current-time
+                                                  next-time)))
+    ;; It is possible that another thread has updated the counter
+    ;; between getting the current value and attempting to increment
+    ;; it.  If that is the case then try again until we succeed.
+    (if (eq? current-time prev-time)
+        next-time
+        ;; Spin until we get our timestamp!
+        (vat-next-timestamp vat min-time))))
+
+(define (vat-next-churn-id vat)
+  (let ((id (+ (vat-current-churn vat) 1)))
+    (set-vat-current-churn! vat id)
+    id))
+
 (define (vat-halt! vat)
-  "Stop processing turns for VAT."
+  "Stop processing turns for VAT.
+
+Type: Vat -> Void"
   (atomic-box-set! (vat-running vat) #f)
   ((vat-halt-proc vat)))
 
+(define* (vat-churn vat msg sent-at)
+  (define churn-id (vat-next-churn-id vat))
+  (define near-q (make-q))
+  (define far-q (make-q))
+  (define am (vat-actormap vat))
+  (define snapshot (copy-whactormap am))
+  (define new-am (make-transactormap am))
+  (define this-vat-connector (actormap-vat-connector am))
+  (define (near-msg? msg)
+    (define to-refr (message-or-request-to msg))
+    (and (local-refr? to-refr)
+         (eq? (local-refr-vat-connector to-refr)
+              this-vat-connector)))
+  (define* (current-snapshot)
+    (define snapshot* (copy-whactormap snapshot))
+    (define transactormap (transactormap-reparent new-am snapshot*))
+    (transactormap-merge! transactormap)
+    snapshot*)
+  (define (queue-messages-appropriately! prev-event msgs)
+    (match msgs
+      (() 'done)
+      ((msg next-msgs ...)
+       ;; Last message first.
+       (queue-messages-appropriately! prev-event next-msgs)
+       ;; Create new event and put it in either the near or far queue.
+       (let* ((near? (near-msg? msg))
+              (event-type (if near? 'receive 'send))
+              (timestamp (vat-next-timestamp vat))
+              ;; For near messages, the snapshot will be set during
+              ;; its turn.  Far messages are not processed in the
+              ;; current vat, so we use the current snapshot so users
+              ;; can inspect the state of the actormap when the far
+              ;; message was sent.
+              (snapshot (if near? #f (current-snapshot)))
+              (q (if near? near-q far-q)))
+         (let ((event (make-vat-event event-type churn-id timestamp
+                                      #f msg snapshot)))
+           (vat-log-append! vat event prev-event)
+           (enq! q event))))))
+  (define (turn event)
+    (set-vat-event-snapshot! event (current-snapshot))
+    (define msg (vat-event-message event))
+    (define-values (result buffer-am new-msgs)
+      (actormap-turn-message new-am msg #:catch-errors? #t))
+    (define result*
+      (match result
+        (#('ok _)
+         (transactormap-buffer-merge! buffer-am)
+         result)
+        (#('fail exception)
+         ;; Decorate exception with the vat event context.
+         (let ((vat-error (make-exception (make-vat-turn-error event)
+                                          exception)))
+           (vat-log-error! vat event vat-error)
+           `#(fail ,vat-error)))))
+    ;; Queue messages after merging 'buffer-am' so we can take a
+    ;; snapshot to associate with far message events.
+    (queue-messages-appropriately! event new-msgs)
+    result*)
+  (define (churn)
+    (unless (q-empty? near-q)
+      (turn (deq! near-q))
+      ;; Continue processing the near messages.
+      (churn)))
+  ;; Take an initial turn.
+  (define received-at (vat-next-timestamp vat sent-at))
+  (define init-event
+    (make-vat-event 'receive churn-id received-at sent-at msg snapshot))
+  (vat-log-append! vat init-event #f)
+  (define result (turn init-event))
+  ;; Turn as many additional times as it takes to run this vat to
+  ;; quiescence.
+  (churn)
+  ;; Dispatch far messages.
+  (let loop ()
+    (unless (q-empty? far-q)
+      (let ((event (deq! far-q)))
+        (dispatch-message (vat-event-message event)
+                          (vat-event-timestamp event))
+        (loop))))
+  ;; And now let's return everything...
+  (values result new-am))
+
 (define (vat-start! vat)
-  "Start processing turns for VAT."
+  "Start processing turns for VAT.
+
+Type: Vat -> Void"
   (define running? (vat-running vat))
   (define actormap (vat-actormap vat))
   (define (maybe-merge returned am)
@@ -195,25 +775,34 @@ be returned to the sender or not."
          (newline (current-error-port))
          (abort (handler exn)))
        (with-exception-handler handle-error thunk))))
-  (define (churn msg)
+  (define (churn envelope)
     (call-with-error-handling
      (lambda ()
-       (define-values (returned new-actormap new-msgs)
-         (actormap-churn actormap msg))
-       (dispatch-messages new-msgs)
-       (maybe-merge returned new-actormap)
-       returned)
+       (let* ((msg (vat-envelope-message envelope))
+              (sent-at (vat-envelope-timestamp envelope)))
+         (define-values (returned new-actormap)
+           (vat-churn vat msg sent-at))
+         (maybe-merge returned new-actormap)
+         returned))
      (lambda (exn)
        `#(fail ,exn))))
   (unless (atomic-box-ref running?)
     (atomic-box-set! running? #t)
     ((vat-start-proc vat) churn)))
 
-(define (vat-send vat msg)
-  ((vat-send-proc vat) msg #t))
+(define (vat-send vat envelope)
+  ((vat-send-proc vat) envelope))
+
+;; This simple actor constructor is used to give a descriptive name to
+;; the one-off actors created by call-with-vat so that they are
+;; clearly marked when debugging.
+(define (^call-with-vat _bcom thunk)
+  thunk)
 
 (define (call-with-vat vat thunk)
-  "Run THUNK in the context of VAT and return the resulting values."
+  "Run THUNK in the context of VAT and return the resulting values.
+
+Type: Vat (-> Any) -> Any"
   (if (vat-running? vat)
       (let ((am (vat-actormap vat)))
         ;; The user provided thunk is going to be called
@@ -228,16 +817,83 @@ be returned to the sender or not."
           (call-with-values thunk list))
         ;; Spawn a throwaway actor whose behavior is just to apply the
         ;; thunk.
-        (define refr (actormap-spawn! am (lambda (_bcom) multi-value-thunk)))
-        (match (vat-send vat (make-message refr #f '()))
+        (define refr (actormap-spawn! am ^call-with-vat multi-value-thunk))
+        (define msg (make-message (vat-connector vat) refr #f '()))
+        (match (vat-send vat (make-vat-envelope msg 0 #t))
+          (#('ok '*awaited*) '*awaited*)
           (#('ok vals) (apply values vals))
           (#('fail err) (raise-exception err))))
       (error "vat is not running" vat)))
 
 (define-syntax-rule (with-vat vat body ...)
+  ;;; Evaluate BODY in the context of VAT and return resulting values.
+  ;;;
+  ;;; Type: Vat Expression ... -> Any
   (call-with-vat vat (lambda () body ...)))
 
-(define* (make-fibrous-vat #:key (name (generate-random-vat-name))
+(define (vat-logging? vat)
+  "Return #t if event logging is enabled for VAT."
+  (atomic-box-ref (%vat-logging? vat)))
+
+(define (set-vat-logging! vat log?)
+  "If LOG? is #t, enable event logging for VAT.  Otherwise, disable
+logging."
+  (atomic-box-set! (%vat-logging? vat) log?))
+
+(define (vat-log-capacity vat)
+  "Return the maximum number of events that VAT can keep in its log."
+  (%vat-log-capacity (vat-log vat)))
+
+(define (vat-log-length vat)
+  "Return the length of the event for VAT."
+  (%vat-log-length (vat-log vat)))
+
+(define (vat-log-ref vat i)
+  "Return the event at index I in VAT."
+  (%vat-log-ref (vat-log vat) i))
+
+(define (vat-log-ref-by-time vat t)
+  "Return the event at timestamp T in VAT."
+  (%vat-log-ref-by-time (vat-log vat) t))
+
+(define (vat-log-ref-by-message vat msg)
+  "Return the event associated with MSG in VAT."
+  (%vat-log-ref-by-message (vat-log vat) msg))
+
+(define (vat-log-ref-previous vat event)
+  "Return the event that caused EVENT in VAT, if any."
+  (%vat-log-ref-previous (vat-log vat) event))
+
+(define (vat-log-ref-next vat event)
+  "Return the event caused by EVENT in VAT, if any."
+  (%vat-log-ref-next (vat-log vat) event))
+
+(define (vat-log-append! vat event prev)
+  (when (vat-logging? vat)
+    (%vat-log-append! (vat-log vat) event prev)))
+
+(define (vat-log-error! vat event exception)
+  (when (vat-logging? vat)
+    (%vat-log-error! (vat-log vat) event exception)))
+
+(define (vat-log-resize! vat capacity)
+  "Resize the event log of VAT to CAPACITY."
+  (%vat-log-resize! (vat-log vat) capacity))
+
+(define (vat-log-clear! vat)
+  "Delete all logged events from VAT."
+  (%vat-log-clear! (vat-log vat)))
+
+(define (vat-log-error-for-event vat event)
+  "Return the error associated with EVENT in VAT, if any."
+  (%vat-log-error-for-event (vat-log vat) event))
+
+(define (vat-log-errors vat)
+  "Return all known errors that have occurred in VAT."
+  (%vat-log-errors (vat-log vat)))
+
+(define* (make-fibrous-vat #:key name log?
+                           (log-capacity default-log-capacity)
                            (scheduler (default-vat-scheduler))
                            (dynamic-wrap port-redirect-dynamic-wrap))
   (define done? (make-condition))
@@ -246,15 +902,15 @@ be returned to the sender or not."
   (define (start churn)
     (define (handle-message args)
       (match args
-        ((msg return-ch)
+        ((envelope return-ch)
          ;; We have the put-message be run in its own fiber so that if
          ;; the other side isn't listening for it anymore, the vat
          ;; itself doesn't end up blocked.
          (syscaller-free-fiber
           (lambda ()
-            (put-message return-ch (churn msg)))))
-        (msg
-         (churn msg))))
+            (put-message return-ch (churn envelope)))))
+        (envelope
+         (churn envelope))))
     (define (loop)
       ;; This loop will repeatedly handle a new message or detect if
       ;; the 'done?' condition has been signalled.  The message
@@ -268,42 +924,50 @@ be returned to the sender or not."
                               (wrap-operation (wait-operation done?)
                                               (lambda () #f))))
            (loop)))
-    ;; So much nesting you might think a bird wrote this.
-    (call-with-new-thread
+    (dynamic-wrap
      (lambda ()
-       (run-fibers
+       (syscaller-free
         (lambda ()
-          (dynamic-wrap
-           (lambda ()
-             (syscaller-free
-              (lambda ()
-                (spawn-fiber loop scheduler)
-                (wait done?))))))))))
+          (spawn-fiber loop scheduler))))))
   (define (halt)
     (signal-condition! done?)
     *unspecified*)
-  (define (send msg return?)
-    (if return?
+  (define (send envelope)
+    (if (vat-envelope-return? envelope)
         (let ((return-ch (make-channel)))
-          (put-message enq-ch (list msg return-ch))
+          (put-message enq-ch (list envelope return-ch))
           (get-message return-ch))
-        (put-message enq-ch msg)))
+        (put-message enq-ch envelope)))
   (make-vat #:name name
+            #:log? log?
+            #:log-capacity log-capacity
             #:start start
             #:halt halt
             #:send send))
 
-(define* (spawn-fibrous-vat #:key (name (generate-random-vat-name))
+(define* (spawn-fibrous-vat #:key name log?
+                            (log-capacity default-log-capacity)
                             (scheduler (default-vat-scheduler))
                             (dynamic-wrap port-redirect-dynamic-wrap))
   (let ((vat (make-fibrous-vat #:name name
+                               #:log? log?
+                               #:log-capacity log-capacity
                                #:scheduler scheduler
                                #:dynamic-wrap dynamic-wrap)))
     (vat-start! vat)
     vat))
 
-(define* (spawn-vat #:key (name (generate-random-vat-name)))
-  (spawn-fibrous-vat #:name name))
+(define* (spawn-vat #:key name log? (log-capacity default-log-capacity))
+  "Create and return a reference to a new vat. If provided, NAME is
+the debug name of the vat. If LOG? is #t, log vat events, otherwise
+do not. If provided, LOG-CAPACITY is the number of events to retain in
+the log.
+
+Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
+(Optional (#:log-capacity Positive-Number)) -> Vat"
+  (spawn-fibrous-vat #:name name
+                     #:log? log?
+                     #:log-capacity log-capacity))
 
 (define (syscaller-free-fiber thunk)
   (syscaller-free
@@ -340,6 +1004,8 @@ be returned to the sender or not."
   (syntax-rules ()
     ((define-vat-run vat-run-id vat)
      (begin
+       (issue-deprecation-warning
+        "`define-vat-run' is deprecated. Use `call-with-vat', `with-vat', or `,enter-vat' REPL command instead.")
        (define this-vat vat)
        (define-syntax vat-run-id
          (syntax-rules ::: ()

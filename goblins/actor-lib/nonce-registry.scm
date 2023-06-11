@@ -1,4 +1,5 @@
 ;;; Copyright 2020-2021 Christine Lemmer-Webber
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -20,8 +21,7 @@
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils assert-type)
   #:use-module (goblins utils crypto)
-  #:export (spawn-nonce-registry-locator-pair
-            spawn-nonce-registry-locator-values))
+  #:export (spawn-nonce-registry-and-locator))
 
 (define (make-swiss-num)
   (gen-random-bv 32 %gcry-strong-random))
@@ -47,7 +47,25 @@
         [(swiss-num dflt)
          (ghash-ref ht swiss-num dflt)])])))
 
-(define (spawn-nonce-registry-locator-pair)
+(define (spawn-nonce-registry-and-locator)
+  "Return a new Nonce-Registry and Nonce-Locator.
+
+A Nonce-Registry is an object containing Swiss numbers, unique IDs
+which provide access to some capability analogously to a Swiss bank
+account number. A Nonce-Locator is a proxy object granting access to
+but not storage of Swiss numbers in its related Nonce-Registry.
+
+Nonce-Registry Methods:
+`register refr [provided-swiss-num]': Add REFR to the registry using
+PROVIDED-SWISS-NUM or a newly-generated one; return the swiss-num.
+`fetch swiss-num [dflt]': Return the object associated with SWISS-NUM if
+it exists, or DFLT if it is provided and the SWISS-NUM is not registered.
+If DFLT is not provided and SWISS-NUM is not registered, error.
+
+Nonce-Locator Methods:
+`fetch swiss-num': Return the object associated with SWISS-NUM.
+
+Type: -> (Values Nonce-Registry Nonce-Locator)"
   (define registry
     (spawn ^nonce-registry))
   (define (^nonce-locator bcom)

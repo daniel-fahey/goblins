@@ -1,4 +1,5 @@
 ;;; Copyright 2019-2022 Christine Lemmer-Webber
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -22,6 +23,24 @@
   #:export (spawn-ticker))
 
 (define (spawn-ticker)
+  "Spawn and return a reference to a Ticker actor which invokes a set of
+actors each time its tick method is invoke.
+
+Ticker Methods:
+`to-tick give-ticky': Return a procedure accepting a single argument,
+a closure over spawning an actor with a Ticky actor as an argument.
+`get-ticked': Return a list holding references to each tickable actor.
+`tick': Invoke all actors which have a Ticky.
+`foldr proc init [#:include-new? #t]': A foldr procedure over the
+actors known to the Ticker. If INCLUDE-NEW? is #t, also operate on
+actors added since the last tick.
+
+Ticky Methods:
+`die': Set `dead/' to #t.
+`dead?': Return #t if `die' has been invoked, else #f.
+`to-tick': Same as a Ticker's `to-tick'.
+
+Type: -> Ticker"
   (define-cell new-ticked
     '())
 

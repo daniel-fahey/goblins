@@ -1,4 +1,5 @@
 ;;; Copyright 2019-2022 Christine Lemmer-Webber
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -14,13 +15,19 @@
 
 (define-module (goblins actor-lib facet)
   #:use-module (goblins)
+  #:use-module (goblins actor-lib opportunistic)
   #:use-module (ice-9 match)
   #:export (^facet facet))
 
 (define* (^facet bcom wrap-me
-                 #:key [sync? #f]
                  #:rest methods)
-  (define $/<- (if sync? $ <-))
+  "Construct an object which limits user access to methods of WRAP-ME.
+
+The METHODS argument is the collection of methods of WRAP-ME to be
+exposed to the user.
+
+The resulting actor can be invoke with any of METHODS."
+  (define $/<- (select-$/<- wrap-me))
   (lambda args
     (match args
       [((? symbol? method) args ...)
@@ -30,7 +37,12 @@
       [_ "Requires symbol-based method dispatch"])))
 
 (define* (facet wrap-me
-                #:key [sync? #f]
                 #:rest methods)
+  "Return an object which limits user access to methods of WRAP-ME.
+
+The METHODS argument is the collection of methods of WRAP-ME to be
+exposed to the user.
+
+Type: Actor (Optional (#:async? Boolean)) (Symbol ...) -> Actor"
   (apply spawn-named (procedure-name wrap-me) ^facet
-         #:sync? sync? methods))
+         methods))

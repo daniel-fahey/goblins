@@ -1,4 +1,5 @@
 ;;; Copyright 2020-2021 Christine Lemmer-Webber
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -64,15 +65,17 @@
     (ward-sealed-val sealed))
   (values seal unseal ward-sealed?))
 
-;; Keyword arguments:
-;;  - #:async?: If true, the incanter will use <- instead of $ to
-;;    proxy messages sends
-;;  - #:sealer-triplet: 
-;;
-;; Returns two values to its continuation:
-;;  - a warden, to be used with the ward procedure below
-;;  - an incanter, to access actors which have warded methods
 (define* (spawn-warding-pair #:key [async? #f] [sealer-triplet #f])
+  "Create a Warden and Incanter.
+
+The Warden is to be used with the ward procedure. The Incanter is used to
+access warded methods. The optional keyword argument ASYNC? indicates whether
+to use $ or <- for message proxying, and the optional keyword argument
+SEALER-TRIPLET is a sealer triplet.
+
+Type: (Optional (#:async? Boolean))
+(Optional (#:sealer-triplet (Values Sealer Unsealer Checker)))
+-> (Values Warden Incanter)"
   (define-values (seal unseal sealed?)
     (match sealer-triplet
       [(seal unseal sealed?)
@@ -94,16 +97,17 @@
 
   (values (spawn ^warden) (spawn ^incanter)))
 
-;; Sets up a magical barrier using the powers of `warden` to restrict
-;; access to `behavior`.
-;; #:extends, if provided, is a fallback procedure.
-;;
-;; If #:async? is #t, this will result in any call to this warded
-;; behavior will return a promise.
 (define* (ward warden behavior
                #:key
                [extends #f]
                [async? #f])
+  "Use WARDEN to restrict access to BEHAVIOR.
+
+The optional keyword argument EXTENDS is a fallback procedure. The optional
+keyword argument ASYNC? indicates whether to use $ or <- for message proxying.
+
+Type: Warden Behavior (Optional (#:extends Procedure))
+(Optional (#:async? Boolean)) -> Warded-Behavior"
   (define (error-out)
     (error "Not sealed args and no extended behavior"))
   (case-lambda
@@ -152,6 +156,9 @@
       ['() extends])))
 
 (define (warden->ward-proc warden)
+  "Return a procedure to ward with WARDEN.
+
+Type: Warden -> (Warded-Behavior Behavior -> Warded-Behavior)"
   (define (ward-proc warded-beh extends-beh)
     (ward warden warded-beh
           #:extends extends-beh))
@@ -168,4 +175,10 @@
 
 (define* (enchant incanter target
                   #:key [async? #f])
+  "Spawn a proxy using INCANTER to message TARGET.
+
+The optional keyword argument ASYNC? indicates whether to use $ or <- for
+message proxying.
+
+Type: Incanter Actor (Optional (#:async? Boolean)) -> Incantified-Actor"
   (spawn ^incantified incanter target #:async? async?))

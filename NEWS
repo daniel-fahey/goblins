@@ -1,6 +1,149 @@
 #+TITLE: Guile Goblins NEWS – history of user-visible changes
 
 * Releases
+** v0.11
+
+*** Highlights
+
+ - New time-traveling distributed debugger
+ - Substantially improved documentation and docstrings
+ - Several more actor-lib modules ported from Racket to Guile
+ - Updates to OCapN code
+
+*** New features and improvements
+**** Time traveling distributed debugger
+
+Goblins now includes a time traveling distributed debugger!  Yeah, you
+heard that right!
+
+The new Goblins debugger allows programmers to inspect and debug
+distributed computations that happen across many vats (communicating
+event loops.) The time travel feature allows for visiting past events
+and inspecting program state at the time the event happened.
+
+These tools are implemented as “meta-commands” for Guile's REPL,
+complementing the tools that Guile already provides for sequential
+debugging. In true Scheme fashion, this means that debugging happens
+live, while the program is running, allowing programmers to fix bugs
+and try again without having to stop and recompile/reboot their
+program.
+
+Blogpost, with examples:
+
+  https://spritely.institute/news/introducing-a-distributed-debugger-for-goblins-with-time-travel.html
+
+**** Documentation overhaul
+
+Documentation has received a major overhaul in this release:
+
+ - All key procedures now have docstrings, allowing for easier
+   discovery of API usage during development
+ - The manual's tutorial has been cleaned up for clarity and
+   correctness
+ - All core API procedures are now documented in the manual
+ - All modules in the actor-lib are now documented in the manual
+ - The manual now has an index, so finding procedures is much
+   easier
+
+**** More actor-lib libraries ported from Racket version of Goblins
+
+ - =(goblins actor-lib pushdown)= is a simple pushdown automata
+   implementation, useful for various kinds of state machines,
+   especially in some games
+ - =(goblins actor-lib opportunistic)= allows for proxying object
+   behavior, opportunistically using =$= for near objects but using
+   =<-= otherwise (known as select-swear in the Racket version)
+ - =(goblins actor-lib simple-mint)= is a very simple example
+   "bank" of sorts, ported from the example in
+   [[http://erights.org/elib/capability/ode/index.html][An Ode to the Granovetter Diagram]]
+ - =(goblins actor-lib let-on)= provides convenient code for promise
+   resolution which strongly resembles =let= in Scheme, but with the
+   behavior of =on= in Goblins
+
+**** ,vats repl meta-command
+
+It's now possible to list which vats are active via the =,vats=
+REPL command.
+
+**** OCapN / CapTP updates
+
+Work has continued on Goblins' implementation of OCapN, the Object
+Capability Network, the set of network abstractions which provide
+the fluid experience of distributed networked programming.
+
+Goblins' network architecture is still in active development; this
+release breaks compatibility with the =0.10= release of Goblins.
+
+***** Semantics closer to CapTP draft specification
+
+Goblins' implementation of the OCapN version of CapTP (the Capability
+Transfer Protocol) is aimed to be used as the starting point for
+revisions for the OCapN group.  We have submitted a
+[[https://github.com/ocapn/ocapn/pull/42][draft version of the protocol]] to the OCapN group.  Goblins 0.11 gets
+us closer to the aims of that draft; we are hoping within the next few
+releases to get full alignment and group consensus towards a unified
+OCapN protocol, and the =0.11-goblins= release of OCapN and CapTP
+shipped with Goblins gets us closer to that goal.
+
+***** Add acyclic distributed GC support to CapTP
+
+Goblins 0.11 now ships support for acyclic distributed garbage
+collection, meaning that references to cooperative freeing of objects
+shared over the network but no longer needed is possible
+
+**** Facets use opportunistic synchronicity now
+
+=(goblins actor-lib facet)= has been updated to use
+=(goblins-actor-lib opportunistic)=.  In effect, this means that
+the =#:sync?= keyword has been removed; facets now automatically
+do the right thing.
+
+*** Bug fixes
+
+**** Backtraces which hung backtrace printing fixed
+
+Previously certain backtraces would break and could hang Goblins.
+This was due to a bug in Fibers in conjunction with Guile's backtrace
+printer.  We have introduced a workaround which strips the frames
+which would break Goblins.  The additional advantage of this fix is
+that backtraces printed by Goblins are now significantly cleaner
+with irrelevant information reduced.
+
+**** Avoid explosion of threads on creation of new vats
+
+Previously, new schedulers were accidentally made every time
+new vats were made.  This would lead to an explosion of threads,
+sometimes causing Guile to crash abruptly.  This bug is fixed.
+
+**** Minor fixes
+
+ - Bad reference to ^broken-ben in tutorial fixed
+ - Nondeterministic test failures fixed
+ - Sealers now print using correct port
+
+*** Deprecations
+
+ - =define-vat-run= is now deprecated, use =call-with-vat= or
+   =with-vat= instead.
+
+*** Known issues
+
+ - Two machines simultaneously opening connections to each other on
+   the OCapN network through Goblins fail to behave correctly.  This
+   is known as the "crossed hellos" problem.  We are hoping to have
+   this fixed in the next release.
+ - We are still working towards full compatibility with the
+   OCapN CapTP draft specification.
+
+*** Thanks
+
+David Thompson
+Juliana Sims
+Christine Lemmer-Webber
+Jessica Tallon (Racket code ported to Goblins)
+Vivianne Langdon
+Geoffrey J. Teale
+
 ** v0.10
 
 *** New features and improvements

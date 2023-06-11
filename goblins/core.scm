@@ -1,6 +1,7 @@
 ;;; Copyright 2019-2023 Christine Lemmer-Webber
 ;;; Copyright 2023 David Thompson
 ;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -31,6 +32,8 @@
             make-transactormap
             make-whactormap
 
+            actormap-vat-connector
+
             actormap-spawn
             actormap-spawn!
             ;; actormap-spawn-mactor!
@@ -60,6 +63,7 @@
 
             whactormap?
             transactormap?
+            transactormap-reparent
             transactormap-merge!
             transactormap-buffer-merge!
 
@@ -81,7 +85,9 @@
             ;; TODO: separate this out!
             <message>
             make-message message?
-            message-to message-resolve-me
+            message-from-vat
+            message-to
+            message-resolve-me
             message-args
 
             <questioned>
@@ -90,9 +96,16 @@
 
             <listen-request>
             make-listen-request listen-request?
-            listen-request-to listen-request-listener
+            listen-request-from-vat
+            listen-request-to
+            listen-request-listener
             listen-request-wants-partial?
 
+            forward-to-captp?
+            forward-to-captp-msg
+
+            message-or-request-from-vat
+            message-or-request-to
             message-who-wants-response
 
             syscaller-free
@@ -102,6 +115,7 @@
             make-remote-object-refr
             make-remote-promise-refr
             local-object-refr-debug-name
+            local-refr-vat-connector
             remote-refr-captp-connector
             remote-refr-sealed-pos
 
@@ -153,7 +167,7 @@
            (display "<sealed: " port)
            (display name port)
            (display ">" port))
-         (display "<sealed>"))))
+         (display "<sealed>" port))))
   (values seal unseal sealed?))
 
 
@@ -460,11 +474,18 @@
   (make-actormap-metatype 'whactormap whactormap-ref whactormap-set!))
 
 (define* (make-whactormap #:key [vat-connector #f])
+  "Create and return a reference to a weak-hash actormap. If provided,
+VAT-CONNECTOR is the syscaller of the containing vat.
+
+Type: (Optional Syscaller) -> WHActormap"
   (_make-actormap whactormap-metatype
                   (make-whactormap-data (make-weak-key-hash-table))
                   vat-connector))
 
 (define (whactormap? obj)
+  "Return #t if OBJ is a weak-hash actormap, else #f.
+
+Type: Any -> Boolean"
   (and (actormap? obj)
        (eq? (actormap-metatype obj) whactormap-metatype)))
 
@@ -521,6 +542,9 @@
 
 ;; Not threadsafe, but probably doesn't matter
 (define (transactormap-merge! transactormap)
+  "Commit the changes in TRANSACTORMAP to the generational history.
+
+Type: TransActormap -> Void"
   ;; Serves two functions:
   ;;  - to extract the root weak-hasheq
   ;;  - to merge this transaction on top of the weak-hasheq
@@ -553,7 +577,10 @@
   _void)
 
 (define (transactormap-buffer-merge! transactormap)
-  "Merge TRANSACTORMAP against its parent buffer (also a transactormap)"
+  "Merge TRANSACTORMAP against its parent buffer (also a
+transactormap).
+
+Type: TransActormap -> Void"
   (define tm-data (actormap-data transactormap))
   (define parent (transactormap-data-parent tm-data))
   (define parent-mtype (actormap-metatype parent))
@@ -572,9 +599,20 @@
   (make-actormap-metatype 'transactormap transactormap-ref transactormap-set!))
 
 (define (make-transactormap parent)
+  "Create a return a reference to a transactional actormap
+representing the generation after PARENT.
+
+Type: Actormap -> TransActormap"
   (define vat-connector (actormap-vat-connector parent))
   (_make-actormap transactormap-metatype
                   (make-transactormap-data parent (make-hash-table) #f)
+                  vat-connector))
+
+(define (transactormap-reparent transactormap new-parent)
+  (define vat-connector (actormap-vat-connector new-parent))
+  (define delta (transactormap-data-delta (actormap-data transactormap)))
+  (_make-actormap transactormap-metatype
+                  (make-transactormap-data new-parent delta #f)
                   vat-connector))
 
 
@@ -607,6 +645,10 @@
    (display "#<local-promise>" port)))
 
 (define (local-refr? obj)
+  "Return #t if OBJ is an object or promise reference in the current
+process, else #f.
+
+Type: Any -> Boolean"
   (or (local-object-refr? obj) (local-promise-refr? obj)))
 
 (define (local-refr-vat-connector local-refr)
@@ -634,6 +676,9 @@
   (sealed-pos remote-promise-refr-sealed-pos))
 
 (define (promise-refr? maybe-promise)
+  "Return #t if MAYBE-PROMISE is a promise reference, else #f.
+
+Type: Any -> Boolean"
   (or (local-promise-refr? maybe-promise) (remote-promise-refr? maybe-promise)))
 
 (define (remote-refr-captp-connector remote-refr)
@@ -661,10 +706,18 @@
    (display "#<remote-promise>" port)))
 
 (define (remote-refr? obj)
+  "Return #t if OBJ is an object or promise reference in a different
+process, else #f.
+
+Type: Any -> Boolean"
   (or (remote-object-refr? obj)
       (remote-promise-refr? obj)))
 
 (define (live-refr? obj)
+  "Return #t if OBJ is a local or remote object or promise reference,
+else #f.
+
+Type: Any -> Boolean"
   (or (local-refr? obj)
       (remote-refr? obj)))
 
@@ -929,12 +982,18 @@
   (resolver-unsealer sealed-resolution))
 
 (define (near-refr? obj)
-  "Ensures that OBJ is an object reference within the same vat"
+  "Return #t if OBJ is an object or promise reference within the same
+vat, else #f.
+
+Type: Any -> Boolean"
   (and (local-refr? obj)
        (let ((sys (get-syscaller-or-die)))
          (sys 'near-refr? obj))))
 (define (far-refr? obj)
-  "Ensures that OBJ is a live refr, but is not within this vat"
+  "Return #t if OBJ is an object or promise reference within a
+different vat, else #f.
+
+Type: Any -> Boolean"
   (and (live-refr? obj)
        (not (near-refr? obj))))
 
@@ -992,8 +1051,10 @@
 
 ;; These are the main things that get sent as the toplevel of a turn in a vat!
 (define-record-type <message>
-  (make-message to resolve-me args)
+  (make-message from-vat to resolve-me args)
   message?
+  ;; which vat connector the message came from
+  (from-vat message-from-vat)
   ;; who's receiving the message (the invoked actor)
   (to message-to)
   ;; who's interested in the result (a resolver)
@@ -1012,8 +1073,9 @@
 
 ;; Sent in the same way as <message>, but does listen requests specifically
 (define-record-type <listen-request>
-  (make-listen-request to listener wants-partial?)
+  (make-listen-request from-vat to listener wants-partial?)
   listen-request?
+  (from-vat listen-request-from-vat)
   (to listen-request-to)
   (listener listen-request-listener)
   (wants-partial? listen-request-wants-partial?))
@@ -1031,6 +1093,14 @@
   forward-to-captp?
   (msg forward-to-captp-msg)
   (connector forward-to-captp-connector))
+
+(define message-or-request-from-vat
+  (match-lambda
+    [(? forward-to-captp? forward-me)
+     (message-or-request-from-vat (forward-to-captp-msg forward-me))]
+    [(? message? msg) (message-from-vat msg)]
+    [(? listen-request? lr) (listen-request-from-vat lr)]
+    [(? questioned? qstn) (message-from-vat (questioned-message qstn))]))
 
 (define message-or-request-to
   (match-lambda
@@ -1548,7 +1618,7 @@
             (cond
              [(near-refr? point-to)
               ;; (We don't use call-with-resolution because the next one will!)
-              (_handle-message (make-message point-to resolve-me args))]
+              (_handle-message (make-message vat-connector point-to resolve-me args))]
              [else
               ;; Otherwise, we need to forward this message to the appropriate
               ;; vat
@@ -1603,7 +1673,8 @@
                                                     #:captp-connector
                                                     captp-connector)])
                 (queue-new-msg! (make-forward-to-captp
-                                 (make-questioned (make-message to-question-finder
+                                 (make-questioned (make-message vat-connector
+                                                                to-question-finder
                                                                 followup-question-resolver
                                                                 args)
                                                   followup-question-finder)
@@ -1613,7 +1684,7 @@
              ;; void
              [else
               (queue-new-msg! (make-forward-to-captp
-                               (make-message to-question-finder #f args)
+                               (make-message vat-connector to-question-finder #f args)
                                captp-connector))
               _void])))])))
 
@@ -1623,7 +1694,7 @@
     (unless (live-refr? to-refr)
       (error 'send-message
              "Don't know how to send a message to:" to-refr))
-    (let* ((base-message (make-message to-refr resolve-me args))
+    (let* ((base-message (make-message vat-connector to-refr resolve-me args))
            (new-message
             (if answer-this-question
                 (make-questioned base-message answer-this-question)
@@ -1666,7 +1737,7 @@
     (match to-refr
       [(? live-refr?)
        (let ([listen-req
-              (make-listen-request to-refr listener wants-partial?)])
+              (make-listen-request vat-connector to-refr listener wants-partial?)])
          (set! new-msgs (cons listen-req new-msgs)))]
       [val (<-np listener 'fulfill val)]))
 
@@ -1820,37 +1891,68 @@
 
 ;; System calls
 (define (spawn constructor . args)
+  "Construct and return a reference to the actor described by
+CONSTRUCTOR, passing it ARGS.
+
+Type: Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args (procedure-name constructor)))
+
 (define (spawn-named name constructor . args)
+  "Construct and return a reference to an actor with the debug name
+NAME described by CONSTRUCTOR, passing it ARGS.
+
+Type: Symbol Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
   (sys 'spawn constructor args name))
+
 (define ($ refr . args)
+  "Synchronously invoke REFR with ARGS; return the result.
+
+Type: Actor Any ... -> Any"
   (define sys (get-syscaller-or-die))
   (sys '$ refr args))
+
 (define (<- refr . args)
+  "Asynchronously invoke REFR with ARGS; return a promise.
+
+Type: Actor Any ... -> Promise"
   (define sys (get-syscaller-or-die))
   (sys '<- refr args))
+
 (define (<-np refr . args)
+  "Asynchronously invoke REFR with ARGS; return nothing.
+
+Type: Actor Any ... -> Void"
   (define sys (get-syscaller-or-die))
   (sys '<-np refr args))
 
 (define (<-np-extern to-refr . args)
-  (define msg (make-message to-refr #f args))
+  "Asynchronously invoke the far REFR with ARGS; return nothing.
+
+Type: Actor Any ... -> Void"
   (match to-refr
     [(? local-refr?)
      (let ((vat-connector (local-refr-vat-connector to-refr)))
        (unless vat-connector
          (error "Can't use <-np-extern on local-refr with no vat-connector"))
-       (vat-connector 'handle-message msg)
+       (vat-connector 'handle-message 0
+                      (make-message vat-connector to-refr #f args))
        _void)]
     [(? remote-refr?)
      (let ((captp-connector (remote-refr-captp-connector to-refr)))
-       (captp-connector 'handle-message msg)
+       (captp-connector 'handle-message
+                        (make-message captp-connector to-refr #f args))
        _void)]))
+
 
 ;; Listen to a promise
 (define* (listen-to to-refr listener #:key [wants-partial? #f])
+  "Wait for TO-REFR to resolve then inform LISTENER. If WANTS-PARTIAL?
+is #t, return updates rather than waiting for full promise resolution.
+Return nothing.
+
+Type: Promise Actor -> Void"
   (define sys (get-syscaller-or-die))
   (sys 'send-listen to-refr listener wants-partial?))
 
@@ -1859,6 +1961,15 @@
              [catch #f]
              [finally #f]
              [promise? #f])
+  "Resolve the promise VOW, pass the result to FULFILLED-HANDLER if it
+is provided, and return the result. If the procedure CATCH is
+provided, it is called on the exception object of any errors. If
+FINALLY is provided, it is run after FULFILLED-HANDLER and/or CATCH.
+If PROMISE? is #t, the returned value is a promise.
+
+Type: Promise (Optional (Any -> Any))
+(Optional (#:catch (Exception -> Any)))
+(Optional (#:finally (-> Any))) (Optional Boolean) -> (U Any Promise)"
   (define broken-handler catch)
   (define finally-handler finally)
   (define sys (get-syscaller-or-die))
@@ -1967,10 +2078,16 @@
 ;; We don't want to expose the keyword arguments of the parent
 ;; procedure to just everyone, hence this indirection
 (define (spawn-promise-values)
+  "Return a promise and its associated resolver as a values object.
+
+Type: -> (Values Promise Resolver)"
   (_spawn-promise-values))
 
 ;; Convenient, sometimes
 (define (spawn-promise-cons)
+  "Return a promise and its associated resolver as a cons pair.
+
+Type: -> (Promise . Resolver)"
   (call-with-values spawn-promise-values cons))
 
 
@@ -2010,6 +2127,10 @@
 
 ;; non-committal version of actormap-spawn
 (define (actormap-spawn actormap actor-constructor . args)
+  "Create and return a reference to ACTOR-CONSTRUCTOR inside ACTORMAP,
+passing in ARGS; do not commit the transaction.
+
+Type: Actormap Constructor Any ... -> Actor"
   (define new-actormap
     (make-transactormap actormap))
   (call-with-fresh-syscaller
@@ -2021,6 +2142,10 @@
      (values actor-refr new-actormap))))
 
 (define (actormap-spawn! actormap actor-constructor . args)
+  "Create and return a reference to ACTOR-CONSTRUCTOR inside ACTORMAP,
+passing in ARGS; commit the transaction.
+
+Type: Actormap Constructor Any ... -> Actor"
   (define new-actormap
     (make-transactormap actormap))
   (define actor-refr
@@ -2049,6 +2174,12 @@
 ;;; ==========================
 
 (define (actormap-turn* actormap to-refr args)
+  "Invoke TO-REFR with ARGS in ACTORMAP, without creating a new
+generation. Return the result of the invoked behavior, a new Actormap,
+and a list of new Messages.
+
+Type: Actormap Actor Any ... ->
+(Values Any Actormap (List Message ...))"
   (call-with-fresh-syscaller
    actormap
    (lambda (sys get-sys-internals)
@@ -2058,6 +2189,12 @@
             (get-sys-internals)))))  ; actormap new-msgs
 
 (define (actormap-turn actormap to-refr . args)
+  "Invoke TO-REFR with ARGS in a new Actormap whose parent is
+ACTORMAP. Return the result of the invoked behavior, a reference to
+the new Actormap, and a list of new Messages.
+
+Type: Actormap Actor Any ... ->
+(Values Any Actormap (List Message ...))"
   (define new-actormap
     (make-transactormap actormap))
   (actormap-turn* new-actormap to-refr args))
@@ -2066,6 +2203,10 @@
 ;; we're not interested in committing the result
 ;; so we discard everything but the result.
 (define (actormap-peek actormap to-refr . args)
+  "Invoke TO-REFR with ARGS in ACTORMAP only to return the results;
+do not commit the transaction to the transaction history.
+
+Type: Actormap Actor Any ... -> Any"
   (define-values (returned-val _am _nm)
     (actormap-turn* (make-transactormap actormap)
                     to-refr args))
@@ -2073,6 +2214,10 @@
 
 ;; Note that this does nothing with the messages.
 (define (actormap-poke! actormap to-refr . args)
+  "Invoke TO-REFR with ARGS in ACTORMAP and commit the results, but do
+not propagate any messages. Return the results.
+
+Type: Actormap Actor Any ... -> Any"
   (define-values (returned-val transactormap _nm)
     (actormap-turn* (make-transactormap actormap)
                     to-refr args))
@@ -2080,12 +2225,22 @@
   returned-val)
 
 (define (actormap-reckless-poke! actormap to-refr . args)
+  "Invoke TO-REFR with ARGS in ACTORMAP, committing the results
+directly to ACTORMAP reather than creating a new generation. Return
+the results.
+
+Type: Actormap Actor Any ... -> Any"
   (define-values (returned-val transactormap _nm)
     (actormap-turn* actormap to-refr args))
   returned-val)
 
 ;; like actormap-run but also returns the new actormap, new-msgs
 (define (actormap-run* actormap thunk)
+  "Evaluate THUNK in ACTORMAP and commit the results. Return the
+results, the Actormap representing the latest generation of
+transaction, and any messages generated.
+
+Type: Actormap (-> Any) -> (Values Any Actormap (List Message ...))"
   (define-values (actor-refr new-actormap)
     (actormap-spawn (make-transactormap actormap) (lambda (bcom) thunk)))
   (define-values (returned-val new-actormap2 new-msgs)
@@ -2094,6 +2249,10 @@
 
 ;; non-committal version of actormap-run
 (define (actormap-run actormap thunk)
+  "Evaluate THUNK in ACTORMAP and return the results. Do not commit
+the results to the transaction history.
+
+Type: Actormap (-> Any) -> Any"
   (define-values (returned-val _am _nm)
     (actormap-run* (make-transactormap actormap) thunk))
   returned-val)
@@ -2102,6 +2261,13 @@
 ;; Run, and also commit the results of, the code in the thunk
 (define* (actormap-run! actormap thunk
                         #:key [reckless? #f])
+  "Evaluate THUNK in ACTORMAP and return the results. Commit the
+results.
+
+If RECKLESS? is #t, operate directly in ACTORMAP without creating a
+new generation.
+
+Type: Actormap (-> Any) (Optioan (#:reckless? Boolean)) -> Any"
   (define actor-refr
     (actormap-spawn! actormap
                      (lambda (bcom)
@@ -2130,25 +2296,11 @@
   ;; if it hasn't been set already.
   (unless (getenv "COLUMNS")
     (setenv "COLUMNS" "72"))
-  ;; Fibers >= 1.1.0 has a bug that causes backtrace printing to hang
-  ;; and CPU usage to go to 100%, so until that's fixed we don't want
-  ;; to print backtraces.  Fibers doesn't have a way to check its
-  ;; version, so as a crude check we see if (fibers internal) exists,
-  ;; because it was a module that was present in fibers 1.0.0 but not
-  ;; in later releases.  We don't want to call resolve-interface here
-  ;; because it throws an exception if the module can't be found, so
-  ;; instead we use resolve-module which creates a new fresh module
-  ;; that isn't linked to the file system if no such module exists on
-  ;; the load path.
-  (if (module-filename (resolve-module '(fibers internal)))
-      (begin
-        (display-backtrace stack (current-error-port))
-        (newline (current-error-port)))
-      (begin
-        (display "Backtrace omitted due to a bug in guile-fibers!\n"
-                 (current-error-port))
-        (display "See https://github.com/wingo/fibers/issues/76 for details.\n"
-                 (current-error-port)))))
+  ;; Specify stack frame range explicitly, otherwise display-backtrace
+  ;; will display additional frames in the current stack for some
+  ;; reason!
+  (display-backtrace stack (current-error-port) 0 (stack-length stack))
+  (newline (current-error-port)))
 
 (define (simple-display-error msg err stack)
   (newline (current-error-port))
@@ -2174,6 +2326,17 @@
                                 [error-handler simple-display-error]
                                 [reckless? #f]
                                 [catch-errors? #t])
+  "Invoke MSG in ACTORMAP and return the result.
+
+If provided, ERROR-HANDLER is a procedure to handle exceptions.
+If RECKLESS? is #t, operate directly in ACTORMAP without creating a
+new generation; otherwise create a new generation of Actormap. If
+CATCH-ERRORS? is #t, capture the stack and abort to a prompt;
+otherwise propogate the error.
+
+Type: Actormap Message (Optional (#:error-handler (Exception -> Any)))
+(Optional (#:reckless? Boolean)) (Optional (#:catch-errors? Boolean))
+-> Any"
   ;; TODO: Kuldgily reimplements part of actormap-turn*... maybe
   ;; there's some opportunity to combine things, dunno.
   (call-with-fresh-syscaller
@@ -2188,7 +2351,7 @@
          (message-who-wants-response msg))
        (define new-msgs
          (if resolve-me
-             (list (make-message resolve-me #f (list 'break err)))
+             (list (make-message (sys 'vat-connector) resolve-me #f (list 'break err)))
              '()))
        ;; Decorate the original exception with an actormap turn error
        ;; that captures the stack in which the original exception
@@ -2200,8 +2363,31 @@
        (values `#(fail ,turn-error) actormap new-msgs))
      (define handle-exn-tag (make-prompt-tag 'goblins-turn))
      (define (catch-stack-and-abort-to-prompt err)
+       ;; Prepare a slice of the call stack that only has the frames
+       ;; relevant to the actor behavior that threw the error.  This
+       ;; way we aren't exposing Goblins core stack frames, which
+       ;; would be a security leak in a fully OCap secure system.
        (define stack
-         (make-stack #t catch-stack-and-abort-to-prompt))
+         (make-stack #t            ; get the current stack
+                     ;; Trim inner frames up to and including this
+                     ;; error handling procedure.
+                     catch-stack-and-abort-to-prompt
+                     ;; Trim outer frames up to the prompt tag.  This
+                     ;; hides *most* of the core frames.
+                     handle-exn-tag
+                     ;; The frame trimming arguments go inner, outer,
+                     ;; inner, outer, etc. so we need to no-op here so
+                     ;; we can trim more outer frames.
+                     0
+                     ;; Trim 3 more outer frames that the tag doesn't
+                     ;; eliminate for us.
+                     ;;
+                     ;; The frames are:
+                     ;;
+                     ;; - with-exception-handler
+                     ;; - do-call
+                     ;; - _handle-message or _handle-listen
+                     3))
        (abort-to-prompt handle-exn-tag err stack))
      (define (do-call)
        (define result
@@ -2234,6 +2420,17 @@
                          #:key [catch-errors? #t]
                          ;; TODO: for consistency, replace with a #:reckless? flag
                          [make-transactormap? #t])
+  "Perform every turn possible in AM to resolve MSG without needing to
+send messages to far objects, then dispatch messages to far objects.
+
+If CATCH-ERRORS is #t, collect the stack and abort to a prompt on
+errors; otherwise, propogate errors.
+
+If MAKE-TRANSACTORMAP? is #t, create a new generation for the
+operation; otherwise, act directly in AM.
+
+Type: Actormap Message (Optional (#:catch-errors? Boolean))
+(Optional (#:make-transactormap? Boolean)) -> Void"
   (define churn-q (make-q))     ; message to churn on here
   ;; This one doesn't really need to be a queue.  Maybe it
   ;; makes things easier to think about though, I'm undecided.
@@ -2303,10 +2500,21 @@
 
 (define* (actormap-churn-run actormap thunk
                              #:key [catch-errors? #t])
+  "Evaluate THUNK in ACTORMAP, performing all possible invocations to
+resolve THUNK without sending messages to far objects. Return the
+results, a reference to an Actormap representing the new generation,
+and any messages generated.
+
+If CATCH-ERRORS? is #t, capture the stack and abort to a prompt on
+error; otherwise, propogate the error.
+
+Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) ->
+(Values Any Actormap (List Message))"
+  (define vat-connector (actormap-vat-connector actormap))
   (define-values (actor-refr new-actormap)
     (actormap-spawn actormap (lambda (_bcom) thunk)))
   (define-values (returned-val _nam new-msgs)
-    (actormap-churn new-actormap (make-message actor-refr #f '())
+    (actormap-churn new-actormap (make-message vat-connector actor-refr #f '())
                     #:catch-errors? catch-errors?
                     #:make-transactormap? #f))  ; reuses new-actormap
   (values returned-val new-actormap new-msgs))
@@ -2319,6 +2527,14 @@
 ;; Also sends out relevant messages, and re-raises exceptions if appropriate
 (define* (actormap-churn-run! actormap thunk
                               #:key [catch-errors? #t])
+  "Evaluate THUNK in ACTORMAP, performing all possible invocations to
+resolve THUNK without sending messages to far objects, then send out
+messages. Return the results.
+
+If CATCH-ERRORS? is #t, capture the stack and abort to a prompt on
+error; otherwise, propogate the error.
+
+Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (define (churn-run-values->list . args)
     (call-with-values thunk
       (lambda rvals
@@ -2339,7 +2555,7 @@
      ;; re-raise exception
      (raise-exception err)]))
 
-(define (dispatch-message msg)
+(define* (dispatch-message msg #:optional (timestamp 0))
   (cond
    ;; See the comment above <forward-to-captp> for why we're kind of
    ;; duplicating code with the final nested branch of this procedure.
@@ -2358,7 +2574,7 @@
           ;; TODO: When messages aren't going to be possible to deliver,
           ;; we should alert the waiting-on-message
           [(? procedure? vat-connector)
-           (vat-connector 'handle-message msg)]
+           (vat-connector 'handle-message timestamp msg)]
           ;; noplace like nowhere
           ;; TODO: Maybe we should give warnings about this, since
           ;; delivering messages to actors that can't receive them is...

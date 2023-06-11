@@ -1,4 +1,5 @@
 ;;; Copyright 2020-2021 Christine Lemmer-Webber
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -22,6 +23,14 @@
 
 ;; And the rest, eventually...
 (define (^seteq bcom . initial)
+  "Construct an actor representing a set where identity is compared
+with `eq?'.
+
+Methods:
+`add val': Add VAL to the set.
+`remove val': Remove VAL from the set.
+`member? val': Return #t if VAL is in the set, else #f.
+`as-list': Return the set as a cons list."
   (let next ((vh (fold (lambda (i vh)
                          (vhash-consq i #t vh))
                        vlist-null
@@ -40,6 +49,15 @@
                   vh)])))
 
 (define* (^ghash bcom #:optional [ht ghash-null])
+  "Construct an actor providing a transactional interface to (goblins ghash),
+a hashmap using `eq?' for refrs and `equal?' for everything else.
+
+Methods:
+`ref key [dflt]': Return the value associated with KEY or DFLT if it is not found.
+`set key val': Associate KEY with VAL.
+`has-key? key': Return #t if KEY is in the hashtable, else #f.
+`remove key': Delete KEY and its associated value.
+`data': Return the underlying hashtable."
   (methods
    [ref
     (case-lambda

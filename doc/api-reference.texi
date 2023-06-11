@@ -1,0 +1,987 @@
+This is the documentation for the core Goblins API. That is, this is
+the documentation for everything imported with
+@code{(use-modules (goblins))}.
+
+@menu
+* Objects::
+* Vats::
+* Actormaps::
+@end menu
+
+@node Objects
+@section Objects
+
+Objects are the core of Goblins.  In general, you'll need to be within
+an ambient Goblins Context in order to start programming
+against them.  See @ref{Vats} for most event loop type programming, or
+@ref{Actormaps} if you want to play with more low-level control over
+transactional operations.  Most users will just use vats.
+
+@menu
+* Object construction::
+* Synchronous calls::
+* Asynchronous calls::
+* Object reference predicates::
+@end menu
+
+@node Object construction
+@subsection Object construction
+
+Objects can be spawned with the @code{spawn} operator:
+
+@deffn {Procedure} spawn constructor args @dots{}
+
+Construct and return a reference to a new object.
+
+@itemize
+@item
+@var{constructor}: Procedure which returns a procedure representing
+the object's initial behavior; implicitly passed a first argument,
+@code{bcom}, which can be used to change the object's behavior.
+
+@item
+@var{args}: Remaining arguments passed to @var{constructor}.
+
+@end itemize
+
+For example, given the following constructor:
+
+@lisp
+(define* (^cell bcom #:optional val)  ; constructor (outer procedure)
+  (case-lambda                        ; behavior    (inner procedure)
+    (()                               ; 0-argument invocation (getter)
+     val)                             ;   (return current value)
+    ((new-val)                        ; 1-argument invocation (setter)
+     (bcom (^cell bcom new-val)))))   ;   ("become" ^cell with new value)
+@end lisp
+
+The instantiation@dots{}
+
+@lisp
+(define some-cell (spawn ^cell 42))
+@end lisp
+
+will bind @code{val} to @code{42}.
+
+@end deffn
+
+@cindex bcom
+The @code{bcom} argument warrants further explanation.  It is a
+capability which allows the actor to change its own behavior.  It must
+be called in a tail position, since @code{bcom} returns a
+datastructure demonstrating that this object is choosing to change its
+value (part of Goblins' quasi-functional design).
+
+@code{bcom} can also take a second argument which will be returned
+from the object's invocation as a return value. This allows an object
+to both change its behavior and return a value with the same
+invocation.
+
+The following actor represents a consumable object that returns a
+string explaining its current status:
+
+@lisp
+(define (^drink bcom drink-name portions)
+  (define (drinkable-beh portions)   ; "-beh" is a common suffix for "-behavior"
+    (lambda ()
+      (define portions-left
+        (- portions 1))
+      (if (zero? portions-left)
+          (bcom empty-beh
+                (format #f "*GLUG!* You drink your ~a. It's empty!"
+                        drink-name))
+          (bcom (drinkable-beh portions-left)
+                (format #f "*GLUG!* You drink your ~a. Still some left!"
+                        drink-name)))))
+  (define (empty-beh)
+    "Sadly, your glass appears to be empty!")
+  (drinkable-beh portions))
+@end lisp
+
+Here's how this works at the REPL:
+
+@lisp
+> ,vr (define root-beer (spawn ^drink "root beer" 3))
+> ,vr ($ root-beer)
+=> "*GLUG!* You drink your root beer. Still some left!"
+> ,vr ($ root-beer)
+=> "*GLUG!* You drink your root beer. Still some left!"
+> ,vr ($ root-beer)
+=> "*GLUG!* You drink your root beer. It's empty!"
+> ,vr ($ root-beer)
+=> "Sadly, your glass appears to be empty!"
+@end lisp
+
+As you can see above, @code{bcom} is also a handy way to construct
+state machines, as @code{^drink} moves from drinkable to empty as it
+is consumed.
+
+@code{spawn} also has a few variants:
+
+@deffn {Procedure} spawn-named name constructor args @dots{}
+
+Like @code{spawn}, and set the object's debug name to @var{name}.
+
+@end deffn
+
+@deffn {Procedure} spawn-promise-values
+
+Return a promise and its associated resolver.
+
+@lisp
+(define-values a-promise a-resolver (spawn-promise-values))
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} spawn-promise-cons
+
+Return a promise and its associated resolver as a @code{cons} pair.
+
+@lisp
+(define promise-pair (spawn-promise-cons))
+(define a-promise (car promise-pair))
+(define a-resolver (cdr promise-pair))
+@end lisp
+
+@end deffn
+
+@node Synchronous calls
+@subsection Synchronous calls
+
+Relative to a given @emph{vat}, there are two types of objects.  A
+@dfn{near} object is in the @emph{vat}.  A @dfn{far} object is in a
+different @emph{vat}.  Similarly, there are two ways to invoke objects:
+@dfn{synchronous}ly, or using traditional call-return, which only
+works for @emph{near} objects; or @dfn{asynchronous}ly, which works for
+either @emph{near} or @emph{far} objects, and usually returns a
+@emph{promise}. @emph{Synchronous} and @emph{asynchronous} invocation
+use different but similar procedures.
+
+@deffn {Procedure} $ to-refr args @dots{}
+
+Call a @emph{near} object's behavior and return the result.
+
+@itemize
+@item
+@var{to-refr}: @emph{Near} object to call.
+
+@item
+@var{args}: Arguments to the object's behavior.  If @var{to-refr}
+has methods, the first argument will conventionally be a symbol
+indicating the behavior/method to be invoked.
+
+@end itemize
+
+@lisp
+(define object-a (spawn ^some-object))
+;; in the same vat
+(define a-val ($ object-a arg1))
+(define b-val ($ object-a 'some-method arg2))
+@end lisp
+
+@end deffn
+
+@node Asynchronous calls
+@subsection Asynchronous calls
+
+@deffn {Procedure} <- to-refr args @dots{}
+
+Like @code{$}, but @var{to-refr} may be @emph{near} or @emph{far}, and
+@code{<-} returns a promise instead of a result.
+
+@lisp
+(define object-a (spawn ^some-object))
+;; in a different vat... or the same; it doesn't matter to <-
+(define a-promise (<- object-a arg1))
+(define b-promise (<- object-a 'some-method arg2))
+@end lisp
+
+@end deffn
+
+@code{<-} has a variant that does not return a promise:
+
+@deffn {Procedure} <-np to-refr args @dots{}
+
+Like @code{<-}, but return @code{void} instead of a promise.
+
+@lisp
+(define object-a (spawn ^some-object))
+;; in a different vat... or the same; it doesn't matter to <-np
+(<-np object-a arg1)                ; returns void
+(<-np object-a 'some-method arg2)   ; returns void
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} <-np-extern to-refr args @dots{}
+
+Like @code{<-np}, but only operate on @emph{far} objects.
+
+@end deffn
+
+@deffn {Procedure} on vow [fulfilled-handler #f] @
+       [#:catch #f] [#:finally #f] [#:promise? #f]
+
+Respond to a promise, optionally with error handling.  Return nothing
+unless @var{promise?} is @code{#t}, in which case return a promise.
+
+@itemize
+@item
+@var{vow}: Promise to which to respond.
+
+@item
+@var{fulfilled-handler}: Procedure called with the result of @var{vow}
+if it is fulfilled.
+
+@item
+@var{catch}: Procedure invoked on an error; passed one argument, the
+exception object.
+
+@item
+@var{finally}: Procedure invoked on success or failure after the
+appropriate handler.
+
+@end itemize
+
+As mentioned above, if @code{#:promise?} is @code{#t}, then @code{on}
+will itself return a promise.  This promise is resolved as follows:
+
+@itemize
+@item
+If @code{vow} is fulfilled and @code{fulfilled-handler} is not
+provided, the promise returned will share @code{vow}'s resolution.
+@item
+If @code{vow} is broken and @code{catch} is not provided, the promise
+returned will share @code{vow}'s broken result.
+@item
+If @code{vow} is fulfilled and @code{fulfilled-handler} is provided,
+the resolution will be whatever is returned from
+@code{fulfilled-handler}, unless @code{fulfilled-handler} raises an
+error, in which case the promise will be broken with its error-value
+set to this exception.
+@item
+If @code{vow} is broken and @code{catch} is provided, the resolution
+will be whatever is returned from @code{catch}, unless @code{catch}
+raises an error, in which case the promise will be broken with its
+error-value set to this exception (which may even be the original
+exception).
+
+@end itemize
+
+@lisp
+;; in the context of some vat
+(define object-a (spawn ^some-object))
+;; in the context of some vat, possibly different
+(on (<- object-a arg1)
+    (lambda (val)
+      (some-proc val))
+    #:catch
+    (lambda (err)
+      (handle-err err))
+    #:finally
+    (lambda _
+      (other-proc))
+    #:promise? #f)      ; the default, written out for demonstration
+@end lisp
+
+@end deffn
+
+You can also wait for the resolution of a promise without necessarily
+responding:
+
+@deffn {Procedure} listen-to to-refr listener [#:wants-partial? #f]
+
+Wait for @var{to-refr} to resolve, then inform @var{listener}.  If
+@var{wants-partial?} is @code{#t}, return updates rather than waiting
+for full promise resolution.
+
+@end deffn
+
+@node Object reference predicates
+@subsection Object reference predicates
+
+Goblins comes with a variety of predicates for identifying and working
+with objects.  While these are primarily for internal use, they are
+also helpful when defining custom @emph{vat} code.
+
+@deffn {Procedure} local-object-refr? obj
+
+Return @code{#t} if @var{obj} is an object in the current process,
+else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} local-promise-refr? obj
+
+Return @code{#t} if @var{obj} is a promise in the current process,
+else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} local-refr? obj
+
+Return @code{#t} if @var{obj} is an object or promise in the current
+process, else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} remote-object-refr? obj
+
+Return @code{#t} if @var{obj} is an object in a different process,
+else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} remote-promise-refr? obj
+
+Return @code{#t} if @var{obj} is a promise in a different process,
+else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} remote-refr? obj
+
+Return @code{#t} if @var{obj} is an object or promise in a different
+process, else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} promise-refr? maybe-promise
+
+Return @code{#t} if @var{maybe-promise} is a local or remote promise,
+else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} live-refr? obj
+
+Return @code{#t} if @var{obj} is a local or remote object or promise,
+else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} near-refr? obj
+
+Return @code{#t} if @var{obj} is a @emph{near} object or promise, else
+@code{#f}.
+
+@end deffn
+
+@deffn {Procedure} far-refr? obj
+
+Return @code{#t} if @var{obj} is a @emph{far} object or promise, else
+@code{#f}.
+
+@end deffn
+
+@node Vats
+@section Vats
+
+A @dfn{vat} is an event loop that runs continuously in a single thread
+and manages a set of objects which are @emph{near} to each other,
+including passing messages between @emph{vats}.  They are one of the
+central abstractions of Spritely Goblins facilitating the object
+capabilities security model as well as transactionality and
+distributed programming through their use of the underlying
+@code{actormap} data structure.  All Goblins objects live inside a
+@emph{vat}.
+
+@menu
+* Vats overview::
+* Making vats::
+* Using vats::
+@end menu
+
+@node Vats overview
+@subsection Vats overview
+
+In order to start programming with Goblins, you will need to boot up a
+vat somewhere.  In general, Goblins uses
+@uref{https://github.com/wingo/fibers/, Fibers} to implement vats.
+However, you can also roll your own vats should you have ``unusual''
+event loop needs (see @code{make-vat}).
+
+@lisp
+> (define my-vat (spawn-vat))
+> my-vat
+=> #<vat izvD0DJT>
+@end lisp
+
+Running @code{spawn-vat} returns a vat object.  Code can be run within
+the context of a vat using the @code{call-with-vat} procedure.  This
+is useful for bootstrapping vats or hacking at the REPL:
+
+@lisp
+> (define my-vat (spawn-vat))
+> (call-with-vat my-vat
+   (lambda ()
+     (define alice (spawn ^greeter "Alice"))
+     ($ alice "Bob")))
+=> "Hello Alice, my name is Bob!"
+@end lisp
+
+For convenience, the @code{with-vat} macro can be used instead of
+@code{call-with-vat}.  Here's the above example rewritten to use
+@code{with-vat}:
+
+@lisp
+> (define my-vat (spawn-vat))
+> (with-vat my-vat
+   (define alice (spawn ^greeter "Alice"))
+   ($ alice "Bob"))
+=> "Hello Alice, my name is Bob!"
+@end lisp
+
+You can also use the @code{vat-halt!} procedure to stop the vat, and
+@code{vat-running?} to check its status:
+
+@lisp
+> (vat-halt! my-vat)
+> (vat-running? my-vat)
+=> #f
+@end lisp
+
+@strong{NOTE:} In the future, we would like vats to automatically halt
+when no more references exist and thus the vat can do no more work.
+The Racket version of vats works this way; it would be good for the
+Guile version to do the same.  In the meanwhile, you'll need to call
+@code{vat-halt!} manually.
+
+@node Making vats
+@subsection Making vats
+
+At a high level, users generally will spawn a @emph{vat}, bind it to a
+name in the local namespace, and use it for various operations. This
+will usually use @code{spawn-vat}:
+
+@deffn {Procedure} spawn-vat [#:name] [#:log?] @
+       [log-capacity]
+
+Create and return a reference to a new @emph{vat}.
+
+@itemize
+@item
+@var{name}: Name of the vat.  Note that this is @emph{not} the name it is
+bound to in the current namespace.
+
+@item
+@var{log?}: If @code{#t}, log @emph{vat} events; otherwise, do not.
+
+@item
+@var{log-capacity}: Number of events to be retained in the log.
+Defaults to 256.
+
+@end itemize
+
+@lisp
+(define a-vat (spawn-vat))
+@end lisp
+
+@end deffn
+
+Sometimes, it is useful to make and manage a @emph{vat} at a slightly
+lower level, such as when using Goblins with a foreign event loop (like
+a GUI toolkit or game engine).  In such cases, @code{make-vat} comes
+into play:
+
+@deffn {Procedure} make-vat [#:name] [#:start] [#:halt] [#:send] @
+       [#:log?] [log-capacity]
+
+Return a new vat named @var{name}.  Vat behavior is determined by
+three event hooks, and logging is controlled by the remaining
+arguments:
+
+@itemize
+@item
+@var{start}: Procedure to start @emph{vat} process in non-blocking
+manner such as a new thread.  Accepts a procedure which takes a
+message as its single argument and churns the underlying
+@emph{actormap} for the @emph{vat}.
+
+@item
+@var{halt}: Thunk to stop @emph{vat} process.
+
+@item
+@var{send}: Procedure accepting a ``vat envelope'' containing a
+message to handle within the @emph{vat} process.  The envelope also
+indicates if the caller wants a response, in which case the send
+procedure must block until the message has been processed and return
+the result.
+
+@item
+@var{log?}: If @code{#t}, event logging is enabled, otherwise it is
+disabled (the default).
+
+@item
+@var{log-capacity}: Number of events to be retained in the log.
+Defaults to 256.
+
+@end itemize
+
+Here is a pseudocode example illustrating the basic pattern:
+
+@lisp
+(define (make-custom-vat)
+  (define thread #f)
+  (define (start churn)
+    (define (loop)
+      (churn (dequeue-msg))
+      (loop))
+    (set! thread (call-with-new-thread loop)))
+  (define (halt)
+    (cancel-thread thread))
+  (define (send envelope)
+    (if (vat-envelope-return? envelope)
+        (enqueue-and-wait-for-result envelope)
+        (enqueue enevelope)))
+  (make-vat #:start start
+            #:halt halt
+            #:send send))
+@end lisp
+
+How to implement @code{enqueue-msg},
+@code{enqueue-and-wait-for-result}, and @code{dequeue} depends on the
+integration target and is left as an exercise for the implementer.
+
+Custom vat implementations @emph{must} enqueue and dequeue messages in
+a thread-safe manner because incoming messages from other vats may be,
+and likely are, running in a different thread.
+
+The above custom vat would be used like so:
+
+@lisp
+> (define custom-vat (make-custom-vat))
+> (vat-start! custom-vat)
+@end lisp
+
+@end deffn
+
+Custom vats are expected to handle ``vat envelope'' objects which
+contain a message, a logical timestamp, and a flag indicating if the
+sender wants to know the result of processing the message.
+
+@deffn {Procedure} vat-envelope? obj
+
+Return @code{#t} if @var{obj} is a vat envelope, or @code{#f}
+otherwise.
+
+@end deffn
+
+@deffn {Procedure} vat-envelope-message envelope
+
+Return the message contained in @var{envelope}.
+
+@end deffn
+
+@deffn {Procedure} vat-envelope-timestamp envelope
+
+Return the logical timestamp for @var{envelope}.  This timestamp
+indicates when @var{envelope} was sent from its origin vat.
+
+@end deffn
+
+@deffn {Procedure} vat-envelope-return? envelope
+
+Return @code{#t} if the result of processing the message within
+@var{envelope} should be returned to the caller who deposited the
+envelope, or @code{#f} otherwise.  When @code{#t}, a custom vat
+implementation @emph{must} block until a result can be returned to the
+caller.  Notably, @code{call-with-vat} relies upon this behavior.
+
+@end deffn
+
+@node Using vats
+@subsection Using vats
+
+Regardless of whether a @emph{vat} is standard or custom, there are
+several procedures supporting their use.
+
+@deffn {Procedure} vat? obj
+
+Return @code{#t} if @var{obj} is a @emph{vat}, else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} vat-name vat
+
+Return the name of @var{vat}.
+
+@end deffn
+
+@deffn {Procedure} vat-running? vat
+
+Return @code{#t} if @var{vat} is running, else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} vat-halt! vat
+
+Stop processing @emph{turn}s for @var{vat}.
+
+@end deffn
+
+@deffn {Procedure} vat-start! vat
+
+Start processing @emph{turn}s for @var{vat}.
+
+@end deffn
+
+@deffn {Procedure} call-with-vat vat thunk
+
+Run @var{thunk} in the context of @var{vat} and return the resulting
+values.
+
+@lisp
+(define a-vat (spawn-vat))
+(call-with-vat a-vat
+  (lambda ()
+    (define an-object (spawn ^some-object))
+    ($ an-object 'a-message an-arg)))
+@end lisp
+
+@end deffn
+
+@deffn {Syntax} with-vat vat body @dots{}
+
+Execute @var{body} in the context of @var{vat} and return the result.
+This is syntax for @code{call-with-vat} so the user does not have to
+write a separate lambda expression.
+
+@end deffn
+
+@deffn {Syntax} define-vat-run vat-run-id [vat (spawn-vat)]
+
+This procedure is deprecated.
+
+Return a procedure bound to @var{vat-run-id} accepting a body to be
+evaulated in the context of @var{vat}.
+
+@lisp
+(define-vat-run run-in-vat)
+(run-in-vat
+  (define a-near-object (spawn ^some-object))
+  (<- a-far-object 'some-message an-arg)
+  ($ a-near-object 'some-message))
+@end lisp
+
+@end deffn
+
+@node Actormaps
+@section Actormaps
+
+An @dfn{actormap} is the transactional data structure underlying
+@emph{vat}s.  They are useful for building a custom event loop (such
+as for a video game) or as a synchronous one-turn-at-a-time mapping of
+actor references to their current behaviors.
+
+@menu
+* Actormaps overview::
+* Actormap objects::
+* Using actormaps::
+@end menu
+
+@node Actormaps overview
+@subsection Actormaps overview
+
+An @emph{actormap} is fundamentally a place in memory holding
+references to objects so that they may be manipulated.  There are two
+types of @emph{actormap}s: @dfn{whactormap}s, which use
+@url{https://www.gnu.org/software/guile/manual/html_node/Weak-References.html, weak-key hash tables}
+as the backing data structure so objects may be garbage collected
+automatically, and which serve as the root of a generational
+transaction history of @emph{actormap} actions; and
+@dfn{transactormap}s, which are backed by standard hash tables and
+constitute every other generation of a transaction history.  Aside
+from their backing data structures and resulting use cases, all
+@emph{actormap}s are very similar; @emph{transactormaps} simply also
+hold a reference to a parent, which is either another
+@emph{transactormap} or the root @emph{whactormap}.
+
+The best way to understand @emph{actormap}s is by using them.  First,
+create one:
+
+@lisp
+(define am (make-actormap))
+@end lisp
+
+@emph{Actormap}s need actors, so add a simple @code{cell}:
+
+@lisp
+(define lunchbox
+  (actormap-spawn! am ^cell))
+@end lisp
+
+Actors can then be invoked, such as by @code{actormap-poke!}:
+
+@lisp
+> (actormap-poke! am lunchbox 'peanut-butter-and-jelly)
+> (actormap-peek am lunchbox)
+; => 'peanut-butter-and-jelly
+@end lisp
+
+For some situations, @code{actormap-poke!} and @code{actormap-peek}
+can be interchanged, such as in this version of the above example:
+
+@lisp
+> (actormap-poke! am lunchbox 'bbq-tofu)
+> (actormap-poke! am lunchbox)
+; => 'bbq-tofu
+@end lisp
+
+For other situations, they cannot:
+
+@lisp
+> (actormap-peek am lunchbox 'chickpea-salad)
+> (actormap-peek am lunchbox)
+; => 'bbq-tofu
+@end lisp
+
+This is due to the @emph{transactional} nature of @emph{actormap}s.
+In these examples, you can see that @code{actormap-poke!} returns a
+value and commits changes to the transaction history, while
+@code{actormap-peek} returns a value and throws away changes.  Both
+of these procedures are conveniences over the more powerful and more
+cumbersome @code{actormap-turn} family of procedures.
+
+The next sections will cover these and related procedures in greater
+detail.
+
+@node Actormap objects
+@subsection Actormap objects
+
+At its base level, every @emph{actormap} is either a @emph{whactormap}
+or a @emph{transactormap}, as discussed in the last section.
+
+@deffn {Procedure} make-whactormap [#:vat-connector #f]
+
+Return a reference to a new @emph{whactormap}.  @var{vat-connector}, if
+provided, is the @emph{syscaller} for the containing @emph{vat}.
+
+@end deffn
+
+@deffn {Procedure} make-actormap
+
+Return a reference to a new @emph{actormap}.  This is a convenience
+wrapper around @code{make-whactormap}.
+
+@lisp
+(define an-actormap (make-actormap))
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} make-transactormap parent
+
+Return a reference to a new @emph{transactormap} with @var{parent} as
+its preceding generation.
+
+@end deffn
+
+The two types of @emph{actormap} have corresponding identity
+predicates:
+
+@deffn {Procedure} whactormap? obj
+
+Return @code{#t} if @var{obj} is a @emph{whactormap}, else @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} transactormap? obj
+
+Return @code{#t} if @var{obj} is a @emph{transactormap}, else
+@code{#f}.
+
+@end deffn
+
+@node Using actormaps
+@subsection Using actormaps
+
+As already shown, before using objects in an @emph{actormap}, one must
+first create those objects in the context of that @emph{actormap}:
+
+@deffn {Procedure} actormap-spawn actormap actor-constructor args @dots{}
+
+Spawn an actor inside @var{actormap}, but do not commit the
+transaction.  Return a reference to the spawned object and a
+@emph{transactormap}.
+
+@itemize
+@item
+@var{actor-constructor}: Constructor for the actor to be spawned.
+
+@item
+@var{args}: Arguments to @var{actor-constructor}.
+
+@end itemize
+
+@end deffn
+
+@deffn {Procedure} actormap-spawn! actormap actor-constructor args @dots{}
+
+Like @code{actormap-spawn}, but do commit the transaction.
+
+@end deffn
+
+Once objects have been put into an @emph{actormap}, they may be invoked
+to perform some action or other.  There are several ways to do this,
+falling into one of two general categories: @emph{turn}s and
+@emph{churn}s.  A @dfn{turn} can be thought of as the performance of a
+single action, or the processesing of a single message.  A @dfn{churn}
+is best understand in terms of a @emph{turn} as all @emph{turn}s a given
+@emph{actormap} can handle without invoking @emph{far} objects.
+
+@deffn {Procedure} actormap-turn* actormap to-refr args
+
+Perform a single turn in @var{actormap} by invoking @var{to-refr}
+with the list of arguments @var{args}.  Return the result of the
+invoked behavior, a new @emph{actormap}, and a list of new messages
+generated by the turn.
+
+@end deffn
+
+@deffn {Procedure} actormap-turn actormap to-refr args @dots{}
+
+Like @code{actormap-turn*}, but create a new generation of
+transaction with @var{actormap} as the parent and operate in it
+instead.
+
+@end deffn
+
+@deffn {Procedure} actormap-turn-message actormap msg @
+       [#:error-handler simple-display-error] [#:reckless? #f] @
+       [#:catch-errors? #t]
+
+Return the result of @var{msg} in the context of @var{actormap}.
+How to handle errors and transactions is controlled by keyword args:
+
+@itemize
+@item
+@var{error-handler}: Procedure to handle errors.  It is passed
+@var{msg}, the error, and the stack at the time of the error.
+
+@item
+@var{reckless?}: If @code{#t}, operate within @var{actormap} instead
+of creating a new generation; otherwise, create a new generation.
+
+@item
+@var{catch-errors?}: If @code{#t}, capture the stack and abort to a
+prompt; otherwise, propagate the error.
+
+@end itemize
+
+@end deffn
+
+@deffn {Procedure} actormap-peek actormap to-refr args @dots{}
+
+Perform a turn in @var{actormap} only to return the results; do not
+commit the transaction to the transaction history.
+
+@itemize
+@item
+@var{to-refr}: Object to be invoked.
+
+@item
+@var{args}: Arguments passed to @var{to-refr}.
+
+@end itemize
+
+@end deffn
+
+@deffn {Procedure} actormap-poke! actormap to-refr args @dots{}
+
+Perform a turn in @var{actormap} and commit the results, but ignore
+any messages generated by it.  Return the results.
+
+@itemize
+@item
+@var{to-refr}: Object to be invoked.
+
+@item
+@var{args}: Arguments passed to @var{to-refr}.
+
+@end itemize
+
+@end deffn
+
+@deffn {Procedure} actormap-reckless-poke! actormap to-refr args @dots{}
+
+Like @code{actormap-poke!}, but commit the results to the current
+transaction generation without creating a new one.  This voids
+Goblin's transactionality guarantees like time travel.
+
+@end deffn
+
+@deffn {Procedure} actormap-run actormap thunk
+
+Execute @var{thunk} in @var{actormap}, but do not commit the results.
+Return the results.
+
+@end deffn
+
+@deffn {Procedure} actormap-run! actormap thunk [#:reckless? #f]
+
+Like @code{actormap-run}, and commit the results.  If @var{reckless?}
+is @code{#t}, do not create a new generation for the turn.
+
+@end deffn
+
+@deffn {Procedure} actormap-run* actormap thunk
+
+Like @code{actormap-run}, and return a reference to the new
+@emph{actormap} as well as any messages generated.
+
+@end deffn
+
+@deffn {Procedure} actormap-churn am msg [#:catch-errors? #t] @
+       [#:make-transactormap? #t]
+
+Perform every turn in @var{am} possible without needing to invoke
+@emph{far} objects to resolve @var{msg}, then dispatch messages to
+the appropriate @emph{far} objects.
+
+@itemize
+@item
+@var{catch-errors?}: If @code{#f}, do not handle errors.
+
+@item
+@var{make-transactormap?}: If @code{#f}, operate and commit in
+@var{am} instead of creating a new generation.
+
+@end itemize
+
+@end deffn
+
+@deffn {Procedure} actormap-churn-run actormap thunk @
+       [#:catch-errors? #t]
+
+Evaluate @var{thunk} in the context of @var{actormap}, performing all
+possible local invocations to resolve @var{thunk}.  If
+@code{catch-errors?} is @code{#f}, do not handle errors.  Return the
+results, a reference to the new actormap, and any messages generated.
+
+@end deffn
+
+@deffn {Procedure} actormap-churn-run! actormap thunk @
+       [#:catch-errors? #t]
+
+Like @code{actormap-churn-run}, but dispatch messages and only return
+the results of the @emph{churn}.
+
+@end deffn
+
+When performing any action in a @emph{transactormap}, one may wish to
+(but, as has been shown, does not have to) commit the changes to the
+generational history of the overarching @emph{actormap}.
+
+@deffn {Procedure} transactormap-merge! transactormap
+
+Commit the changes in @var{transactormap} to the generational history.
+
+@end deffn
+
+@deffn {Procedure} transactormap-buffer-merge! transactormap
+
+Commit the changes in @var{transactormap} to its parent.
+
+@end deffn

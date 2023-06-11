@@ -18,3 +18,4 @@
 doc/*.info
 /INSTALL
 /doc/goblins.html/
+/goblins/config.scm

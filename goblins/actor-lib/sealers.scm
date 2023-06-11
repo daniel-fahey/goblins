@@ -1,5 +1,6 @@
 ;;; Copyright 2020-2021 Christine Lemmer-Webber
 ;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -20,6 +21,17 @@
 
 (define* (spawn-sealer-triplet #:optional name
                                #:key (make-sealer-triplet simple:make-sealer-triplet))
+  "Return seal, unseal, and check capabilities.
+
+The optional NAME argument is the name of the record type when printed by the
+Guile display, write, etc. procedures. The optional keyword MAKE-SEALER-TRIPLET
+argument is a procedure creating a seal record and setting its NAME as
+described.
+
+Type: (Optional (U String Symbol))
+(Optional (#:make-sealer-triplet
+            ((Optional (U String Symbol)) -> (Values Sealer Unsealer Checker))))
+-> (Values Sealer Unsealer Checker)"
   (define-values (seal unseal sealed?)
     (make-sealer-triplet name))
 

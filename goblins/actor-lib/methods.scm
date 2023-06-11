@@ -1,4 +1,5 @@
 ;;; Copyright 2019-2021 Christine Lemmer-Webber
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -46,6 +47,13 @@
   (error "No such method" method args))
 
 (define-syntax-rule (methods method-defns ...)
+  ;;; Describe a collection of methods that an actor accepts.
+  ;;;
+  ;;; A Method-Defn has the form `((name args...) expr)' where 'NAME is the symbol
+  ;;; upon which the method dispatches, ARGS are the arguments it accepts, and
+  ;;; EXPR is the expression evaluated when the method is called.
+  ;;;
+  ;;; Type: (Method-Defn ...) -> Methods
   (methods* no-such-method method-defns ...))
 
 (define (extend-actor extends-actor)
@@ -53,6 +61,14 @@
     (apply $C extends-actor method args)))
 
 (define-syntax-rule (extend-methods extends method-defns ...)
+  ;;; Extend EXTENDS with METHOD-DEFNS.
+  ;;;
+  ;;; A METHOD-DEFN has the form `((name args...) expr)' where 'NAME is the symbol
+  ;;; upon which the method dispatches, ARGS are the arguments it accepts, and
+  ;;; EXPR is the expression evaluated when the method is called.
+  ;;;
+  ;;; Type: (U Actor Procedure) (Method-Defn ...) -> Methods
+
   ;; We need to capture extended in a an outer let here otherwise
   ;; it re-runs the extended code every time the procedure returned by
   ;; methods is invoked

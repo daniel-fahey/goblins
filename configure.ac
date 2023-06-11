@@ -1,17 +1,16 @@
 
 dnl -*- Autoconf -*-
 
-AC_INIT(guile-goblins, 0.10)
-AC_SUBST(HVERSION, "\"0.10\"")
+AC_INIT(guile-goblins, 0.11.0)
 AC_SUBST(AUTHOR, "\"The Spritely Institute\"")
-AC_SUBST(COPYRIGHT, "'(2022)")
+AC_SUBST(COPYRIGHT, "'(2023)")
 AC_SUBST(LICENSE, asl2.0)
 AC_CONFIG_SRCDIR(goblins.scm)
 AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE([1.12 gnu silent-rules subdir-objects  color-tests parallel-tests -Woverride -Wno-portability])
 AM_SILENT_RULES([yes])
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile goblins/config.scm])
 AC_CONFIG_FILES([pre-inst-env], [chmod +x pre-inst-env])
 
 dnl Search for 'guile' and 'guild'.  This macro defines
@@ -43,5 +42,9 @@ AS_IF([test "x$with_debug" != xno],
   [guile_debug_flags=-O0],
   [guile_debug_flags=])
 AC_SUBST([guile_debug_flags])
+
+dnl Look up absolute file name of 'dot' executable, falling back to
+dnl just 'dot' to look it up on $PATH at runtime.
+AC_PATH_PROG([DOT], [dot], [dot])
 
 AC_OUTPUT

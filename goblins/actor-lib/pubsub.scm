@@ -1,4 +1,5 @@
 ;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -19,6 +20,14 @@
   #:export (^pubsub))
 
 (define (^pubsub bcom . initial-subscribers)
+  "Construct an actor which publishes messages to INITIAL-SUBSCRIBERS
+as well as subscribing, unsubscribing, and listing these subscribers.
+
+Methods:
+`subscribe subscriber': Add SUBSCRIBER to the list of subscribers.
+`unsubscribe subscriber': Remove SUBSCRIBER from the list of subscribers.
+`publish args ...': Invoke each subscriber asynchronously with ARGS.
+`subscribers': Return the list of subscribers."
   (define subscribers
     (apply spawn ^seteq initial-subscribers))
 
