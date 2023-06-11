@@ -29,19 +29,3 @@
     ;; now transition to the version with self
     ($ self self)
     self))
-
-;; Racket test
-;; (module+ test
-;;   (require rackunit)
-;;   (define am (make-actormap))
-;;   (define (^narcissus bcom self stare-object)
-;;     (lambda (how-i-feel)
-;;       `(i-am ,self i-stare-into ,stare-object and-i-feel ,how-i-feel)))
-;;   (define narcissus
-;;     (actormap-run!
-;;      am (lambda ()
-;;           (selfish-spawn ^narcissus 'water))))
-;;   (test-equal?
-;;    "selfish-spawned actors know themselves"
-;;    (actormap-peek am narcissus 'transfixed)
-;;    `(i-am ,narcissus i-stare-into water and-i-feel transfixed)))
