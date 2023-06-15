@@ -31,5 +31,7 @@
 
 (test-equal
     "selfish-spawned actors know themselves"
-  (with-vat a-vat ($ narcissus 'transfixed))
-  `(i-am ,narcissus i-stare-into water and-i-feel transfixed))
+  `(i-am ,narcissus i-stare-into water and-i-feel transfixed)
+  (with-vat a-vat ($ narcissus 'transfixed)))
+
+(test-end "test-selfish-spawn")

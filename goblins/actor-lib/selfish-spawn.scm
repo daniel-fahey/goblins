@@ -17,13 +17,11 @@
   #:export (selfish-spawn))
 
 (define (selfish-spawn constructor . args)
-
   (define (^selfish bcom)
     (lambda (self)
       (bcom (apply constructor bcom self args))))
 
-  (let ((cons-name (procedure-property constructor 'name)))
-    (set-procedure-property! ^selfish 'name cons-name))
+  (set-procedure-property! ^selfish 'name (procedure-name constructor))
 
   (let ((self (spawn ^selfish)))
     ;; now transition to the version with self
