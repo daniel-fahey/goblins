@@ -55,6 +55,7 @@ SOURCES = goblins.scm \
 	  goblins/actor-lib/pubsub.scm \
 	  goblins/actor-lib/pushdown.scm \
 	  goblins/actor-lib/sealers.scm \
+          goblins/actor-lib/selfish-spawn.scm \
 	  goblins/actor-lib/simple-mint.scm \
           goblins/actor-lib/swappable.scm \
           goblins/actor-lib/ticker.scm \
@@ -100,6 +101,7 @@ TESTS = tests/actor-lib/test-cell.scm \
 	tests/actor-lib/test-pubsub.scm \
 	tests/actor-lib/test-pushdown.scm \
 	tests/actor-lib/test-sealers.scm \
+        tests/actor-lib/test-selfish-spawn.scm \
 	tests/actor-lib/test-simple-mint.scm \
         tests/actor-lib/test-swappable.scm \
         tests/actor-lib/test-ticker.scm \
