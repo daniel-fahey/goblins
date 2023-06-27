@@ -190,13 +190,7 @@ you can ignore. E.g.
 
 * A note on licensing
 
-Note that this code is all [[file:./LICENSE.txt][Apache v2]], however it does link to
-[[https://notabug.org/cwebber/guile-gcrypt][guile-gcrypt]], which is GPLv3+.  So you could say that in effect, the
-library's terms are really GPLv3+.
-
-However we might not be linking to such a library forever, and also
-the [[https://docs.racket-lang.org/goblins/index.html][Racket version]] is Apache v2, so keeping our code licensed Apache
-v2 enables easier portability between those systems.
+Spritely Goblins is released under [[file:./LICENSE.txt][Apache v2]].
 
 Note that this is not anti-copyleft positioning; copyleft is a viable
 strategy for preserving user freedom.  In the case of Spritely, we are
