@@ -36,8 +36,8 @@ brew install guile-goblins
 
 ** Building from a release tarball
 
-If you're reading this file after downloading and extracting a release
-tarball, then these build instructions are for you!
+If you're reading this file [[https://spritely.institute/goblins/][after downloading and extracting a release tarball]],
+then these build instructions are for you!
 
 Build requirements:
 
@@ -58,6 +58,10 @@ commands:
   make
   sudo make install
 #+END_SRC
+
+Note that =./configure= uses a default prefix. You can check the load path with ~guile -c "(display %load-path)";~.
+E.g. if this shows =(/usr/local/share/guile/3.0 /usr/local/share/guile/site/3.0 /usr/local/share/guile/site /usr/local/share/guile)=,
+you can set the corrrect prefix with ~./configure GUILE=$(which guile) --prefix=/usr/local~.
 
 * Contributing
 
