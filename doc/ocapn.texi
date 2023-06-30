@@ -383,5 +383,105 @@ providing them. An example of this is:
 > (define-values (onion-netlayer _private-key _service-id)
     (restore-onion-netlayer private-key service-id))
 @end lisp
-@end enumerate
 
+@item
+@anchor{TCP + TLS}TCP + TLS
+
+The TCP + TLS netlayer is available as a simpler option than Tor or
+other peer-to-peer networks.  Direct connections are made over
+standard TCP sockets and all traffic is encrypted with self-signed TLS
+keys.  A new netlayer instance can be spawned using the
+@code{new-tcp-tls-netlayer} procedure in the @code{(goblins ocapn
+netlayer tcp-tls)} module.
+
+@lisp
+> (define netlayer (new-tcp-tls-netlayer "example.com"))
+> (define mycapn (spawn-mycapn netlayer))
+@end lisp
+
+Users of this netlayer can either bring their own X.509 key and
+certificate by importing them from the file system, or let Goblins
+automatically generate them.  Automatically generated keys and
+certificates are useful for machines that do not need persistent
+identity across process lifetimes, but machines that do should import
+from the file system.
+
+The @emph{current major limitation} of this netlayer is the lack of
+both ``store and forward'' and NAT hole punching support.  Most
+machines that are not dedicated servers are not accessible from the
+public Internet due to the presence of a NAT gateway between the local
+network and the Internet.  Currently, the only way to reach peers
+behind NAT gateways is if those peers have setup the necessary port
+forwarding configuration on their local network's firewall and have
+configured the netlayer to use their public IP as the host name.  In
+the future, we would like to provide automated NAT hole punching via a
+public rendezvous OCapN machine, falling back to a store and forward
+approach if that fails.  In the meanwhile, if your application would
+benefit from a more peer-to-peer netlayer, consider using the @ref{Tor
+Onion Services} netlayer instead.
+
+Sturdyrefs for this netlayer use a SHA-256D hash of the TLS
+certificate as the machine identifier.  The address and port where the
+machine can be found on the network are encoded as hints.
+
+Also, note that the current version of this netlayer is robust against
+man-in-the-middle attacks in the sense that an attacker cannot
+manipulate or decode communication occuring over the TLS encrypted
+stream.  However, no attempt has been made to prevent network
+monitoring attacks where an attacker provides a sturdyref with hints
+pointing at an intermediary server where the attacker can observe
+@emph{when} and @emph{how much} traffic is occuring, even though they
+cannot interpret the contents.  In addition, the attacker could choose
+to sever the connection when it is convenient for them.  This is
+generally the case already on nation-state level attacks against TLS,
+but is more readily available as a possible avenue of attack here.  In
+the future, hints might be signed in order to prevent this.
+
+@deffn {Procedure} new-tcp-tls-netlayer host [#:port] [#:max-connections 32] @
+                                        [#:key] [#:cert]
+
+Spawn and return a new TCP + TLS netlayer.  @var{host} specifies the
+hostname that appears in the OCapN sturdyrefs that use this netlayer.
+
+If @var{port} is specified, the netlayer will listen for incoming
+connections on that port or throw an error if the port is already in
+use.  If @var{port} is not specified, an open port will be chosen
+automatically.
+
+@var{max-connections} specifies the number of peers that may be
+connected to the netlayer at any given time.
+
+@var{key} and @var{cert} specify the X.509 private key and certificate
+to use for encrypting connections.  If one or both are unspecified,
+they will be automatically generated provided that the version of
+Guile-GnuTLS is new enough to do so.  To import PEM encoded private
+keys and certificates from the file system, use
+@code{load-tls-private-key} and @code{load-tls-certificate},
+respectively.
+@end deffn
+
+@deffn {Procedure} generate-tls-private-key
+
+Return a freshly generated X.509 private key.
+
+@end deffn
+
+@deffn {Procedure} generate-tls-certificate key
+
+Return a freshly generated X.509 certificate for @var{key}.
+
+@end deffn
+
+@deffn {Procedure} load-tls-private-key file-name
+
+Load the PEM encoded X.509 private key in @var{file-name}.
+
+@end deffn
+
+@deffn {Procedure} load-tls-certificate file-name
+
+Load the PEM encoded X.509 certificate in @var{file-name}.
+
+@end deffn
+
+@end enumerate

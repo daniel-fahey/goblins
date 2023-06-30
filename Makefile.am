@@ -73,6 +73,7 @@ SOURCES = goblins.scm \
           goblins/ocapn/netlayer/fake.scm \
           goblins/ocapn/netlayer/onion-socks.scm \
           goblins/ocapn/netlayer/onion.scm \
+          goblins/ocapn/netlayer/tcp-tls.scm \
           goblins/ocapn/netlayer/testuds.scm \
           goblins/ocapn/netlayer/utils.scm \
           goblins/utils/assert-type.scm \
