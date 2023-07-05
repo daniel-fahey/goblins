@@ -21,6 +21,7 @@
   (gnu packages guile-xyz)
   (gnu packages pkg-config)
   (gnu packages texinfo)
+  (gnu packages tls)
   (srfi srfi-1))
 
 (define (keep-file? file stat)
@@ -51,7 +52,7 @@
      texinfo))
   (inputs (list guile-3.0))
   (propagated-inputs
-   (list guile-fibers guile-gcrypt))
+   (list guile-fibers guile-gcrypt guile-gnutls))
   (synopsis "Transactional, distributed object programming environment")
   (description
    "Spritely Goblins is a transactional, distributed object programming
