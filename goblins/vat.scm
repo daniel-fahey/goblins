@@ -220,6 +220,19 @@
   (local-object-refr?
    (message-or-request-to (vat-event-message event))))
 
+(define (refr-vat-connector refr)
+  (if (local-refr? refr)
+      (local-refr-vat-connector refr)
+      ;; HACK: Return a fake remote vat connector.  We are not
+      ;; currently able to inspect remote vat events but we
+      ;; don't want the debugging tools to throw an error.
+      (match-lambda*
+        (('name) "Remote")
+        (('find-event-by-time _) #f)
+        (('find-event-by-message _) #f)
+        (('find-previous-event _) #f)
+        (('find-next-events _) '()))))
+
 (define (vat-event-connector event)
   "Return the connector for the vat that EVENT belongs to. Send events
 belong to the sender.  Receive events belong to the receiver."
@@ -227,8 +240,7 @@ belong to the sender.  Receive events belong to the receiver."
         (msg (vat-event-message event)))
     (if (eq? type 'send)
         (message-or-request-from-vat msg)
-        (local-refr-vat-connector
-         (message-or-request-to msg)))))
+        (refr-vat-connector (message-or-request-to msg)))))
 
 (define (vat-event-previous event)
   "Return the event that happened before EVENT, either in the same churn
@@ -271,7 +283,7 @@ call stacks, vat traces are linear slices of the event graph."
         ;; sub-tree.
         (let* ((msg (vat-event-message root))
                ;; Get the vat connector that the message was sent to.
-               (vat-connector (local-refr-vat-connector
+               (vat-connector (refr-vat-connector
                                (message-or-request-to msg)))
                ;; The message is the only context we have to search
                ;; by, so that's what we do.
