@@ -9,7 +9,7 @@ Spritely, and Spritely Goblins, are developed under the stewardship
 of the [[https://spritely.institute/][Spritely Institute]].  Support Spritely!
 
 Goblins is a distributed programming system with local transactions
-and following object capability security principles.  See [[https://gitlab.com/spritely/guile-goblins/-/blob/main/doc/goblins.org][the manual]]
+and following object capability security principles.  See [[https://spritely.institute/files/docs/guile-goblins/latest][the manual]]
 for more details.
 
 It's very early, so I'd caution against using it for anything
