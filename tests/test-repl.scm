@@ -34,7 +34,7 @@
            (meta vats))
 
 (test-repl ",vats with a vat"
-           "0\trunning\tdisabled\talice"
+           "  0\trunning\t  ✗ \t    0\talice"
            (eval (define a-vat (spawn-vat #:name 'alice)))
            (meta vats))
 
