@@ -236,16 +236,12 @@ Display a list of vats."
      (format #t " id\tstatus \tlog?\tclock\tname\n")
      (format #t " --\t------ \t----\t-----\t----\n")
      (for-each (lambda (vat)
-                 (let ((id (vat-id vat))
+                 (let ((id (string-pad (number->string (vat-id vat)) 3))
                        (name (or (vat-name vat) ""))
                        (status (if (vat-running? vat) "running" "stopped"))
                        (logging (if (vat-logging? vat) "  ✓ " "  ✗ "))
-                       (clock (vat-clock vat)))
-                   (format #t "~a\t~a\t~a\t~a\t~a\n"
-                           (string-pad (number->string id) 3)
-                           status logging
-                           (string-pad (number->string clock) 5)
-                           name)))
+                       (clock (string-pad (number->string (vat-clock vat)) 5)))
+                   (format #t "~a\t~a\t~a\t~a\t~a\n" id status logging clock name)))
                vats))))
 
 (define (maybe-lookup-vat x)
