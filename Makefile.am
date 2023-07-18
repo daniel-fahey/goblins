@@ -78,6 +78,7 @@ SOURCES = goblins.scm \
           goblins/ocapn/netlayer/testuds.scm \
           goblins/ocapn/netlayer/utils.scm \
           goblins/utils/assert-type.scm \
+          goblins/utils/base32.scm \
           goblins/utils/bytes-stuff.scm \
           goblins/utils/crypto.scm \
 	  goblins/utils/graphviz.scm \
@@ -117,6 +118,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/test-inbox.scm \
         tests/test-vat.scm \
 	tests/test-repl.scm \
+	tests/utils/test-base32.scm \
         tests/utils/test-bytes-stuff.scm \
         tests/utils/test-ring-buffer.scm
 
