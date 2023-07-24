@@ -68,7 +68,7 @@
            (<-np-extern conn-establisher
                         (make-message-reader me-deq-ch)
                         (make-message-writer them-enq-ch)
-                        #t))))))
+                        #f))))))
 
   (define (^netlayer bcom)
     (define base-beh
@@ -97,7 +97,7 @@
           (<- conn-establisher
               (make-message-reader me-deq-ch)
               (make-message-writer them-enq-ch)
-              #f)))
+              remote-machine)))
            #:promise? #t)))]))
     pre-setup-beh)
   (spawn ^netlayer))

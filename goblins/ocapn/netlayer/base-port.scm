@@ -45,7 +45,7 @@
       (define incoming-port (incoming-accept))
       (define-values (read-message write-message)
         (read-write-procs incoming-port incoming-port))
-      (<-np-extern conn-establisher read-message write-message #t)
+      (<-np-extern conn-establisher read-message write-message #f)
       (listen))
     ;; Simplified while we're trying to get this to work.
     ;; But the dynamic-wind hack above won't work anyway because,
@@ -95,6 +95,6 @@
       (on read-write-message-vow
           (match-lambda
             ((read-message write-message)
-             (<- conn-establisher read-message write-message #f)))
+             (<- conn-establisher read-message write-message remote-machine)))
           #:promise? #t)]))
   pre-setup-beh)
