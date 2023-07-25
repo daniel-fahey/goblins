@@ -1456,14 +1456,6 @@
       (define our-location-sig
         ($C coordinator 'get-location-sig))
 
-      (define (send-op-start-session)
-        ;; Send our op:start-session message to the other side, which will be
-        ;; handled by the ^setup-completer below.
-        (send-to-remote (op:start-session captp-version
-                                          handoff-pubkey
-                                          our-location
-                                          our-location-sig)))
-
       ;; We don't actually have a bootstrap vow until setup completion, so
       ;; we'll have to return a vow to a vow
       (define-values (meta-bootstrap-vow meta-bootstrap-resolver)
@@ -1541,7 +1533,8 @@
            (define can-continue?
              (let* ((chr ($C locations->crossed-hellos-resolver 'ref remote-location #f))
                     (their-side-name ($C coordinator 'get-remote-side-name))
-                    (must-abort? (if (and chr (null? remote-connect-location)) ($C chr their-side-name) #f)))
+                    (outgoing? (ocapn-machine? remote-connect-location))
+                    (must-abort? (if (and chr (not outgoing?)) ($C chr their-side-name) #f)))
                ;; Clean up the crossed hellos resolver actor, we won't need it after this.
                (unless (null? chr)
                  ($C locations->crossed-hellos-resolver 'remove remote-location))
@@ -1556,10 +1549,6 @@
                  (spawn ^bootstrap coordinator)))
 
            (when can-continue?
-             ;; When it's an incoming connection, send our op:start-session here.
-             (unless (ocapn-machine? remote-connect-location)
-               (send-op-start-session))
-
              (let*-values (((session-name) ($C coordinator 'get-session-name))
                            ((local-bootstrap-obj) (make-local-bootstrap-obj))
                            ((captp-incoming-handler remote-bootstrap-vow)
@@ -1645,8 +1634,14 @@
       (when (ocapn-machine? remote-connect-location)
         ($C locations->crossed-hellos-resolver 'set
            remote-connect-location
-           (spawn ^crossed-hellos-resolver ($C coordinator 'get-our-side-name)))
-        (send-op-start-session))
+           (spawn ^crossed-hellos-resolver ($C coordinator 'get-our-side-name))))
+
+      ;; Send our op:start-session message to the other side, which will be
+      ;; handled by the ^setup-completer above.
+      (send-to-remote (op:start-session captp-version
+                                        handoff-pubkey
+                                        our-location
+                                        our-location-sig))
 
       ;; Return the meta-bootstrap-vow, which will be completed as above
       meta-bootstrap-vow]
