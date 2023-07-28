@@ -57,7 +57,7 @@
 (define _spawn-promise-values
   (@@ (goblins core) _spawn-promise-values))
 
-(define captp-version "goblins-0.11")
+(define captp-version "goblins-0.12")
 
 
 ;; This should be better documented, and will when it becomes more of
