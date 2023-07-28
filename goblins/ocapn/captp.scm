@@ -1012,6 +1012,7 @@
   (define core-beh
     (methods
      [(get-suite) 'prot0]
+     [(get-our-side-name) our-side-name]
      [get-handoff-pubkey get-handoff-pubkey]
      ;; TODO: Horrible, we need to protect against this
      [(get-handoff-privkey) handoff-privkey]
@@ -1117,7 +1118,6 @@
           ;; don't bother to deduplicate while attempting a connection...
           ;; oops)
           ;;
-          ;; TODO: Fix crossed hellos problem
           ;; TODO: Fix simultaneous outgoing connections problem, which
           ;;   is related, but easier to fix.  To do so we just need to
           ;;   recognize that we're "in the middle of" establishing a
@@ -1257,10 +1257,14 @@
     (define open-session-names->sessionmeta
       (spawn ^ghash))
 
+    ;; For keeping track of new outbound sessions to detect crossed hellos
+    (define locations->crossed-hellos-mitigator
+      (spawn ^ghash))
+
     (define (^connection-establisher bcom netlayer netlayer-name)
-      (lambda (read-message write-message incoming?)
+      (lambda (read-message write-message remote-connect-location)
         ($C self 'new-connection netlayer netlayer-name
-            read-message write-message)))
+            read-message write-message remote-connect-location)))
 
     (define* (^bootstrap bcom coordinator #:key [extends #f])
       (define session-name ($C coordinator 'get-session-name))
@@ -1435,7 +1439,7 @@
      ;; somewhere...
      ;; TODO: Should this still be an exposed method?  Maybe it's something only
      ;; the ^connection-establisher should call...
-     [(new-connection netlayer netlayer-name read-message write-message)
+     [(new-connection netlayer netlayer-name read-message write-message remote-connect-location)
       (define-values (captp-outgoing-enq-ch captp-outgoing-deq-ch captp-outgoing-stop?)
         (spawn-delivery-agent))
       (define (send-to-remote msg)
@@ -1524,35 +1528,48 @@
                remote-handoff-pubkey
                remote-location)
 
-           (define local-bootstrap-obj
+           ;; Handle potential crossed hellos mitigation - incoming connections decide if we
+           ;; should continue or abort.
+           ;; See the comment below for more information about this (above ^crossed-hellos-mitigator).
+           (define can-continue?
+             (let* ((chm ($C locations->crossed-hellos-mitigator 'ref remote-location #f))
+                    (their-side-name ($C coordinator 'get-remote-side-name))
+                    (outgoing? (ocapn-machine? remote-connect-location))
+                    (must-abort? (and chm (not outgoing?) ($C chm their-side-name))))
+               ;; Clean up the crossed hellos resolver actor, we won't need it after this.
+               (unless (null? chm)
+                 ($C locations->crossed-hellos-mitigator 'remove remote-location))
+               ;; Send internal shutdown if needed.
+               (when must-abort?
+                 (<-np incoming-forwarder (internal-shutdown 'abort "Crossed hellos mitigation")))
+               (not must-abort?)))
+
+           (define (make-local-bootstrap-obj)
              (if custom-bootstrap
                  (custom-bootstrap ^bootstrap coordinator)
                  (spawn ^bootstrap coordinator)))
 
-           ;; and finally we can actually kick off setting up the rest
-           ;; of the connection
-           (define-values (captp-incoming-handler remote-bootstrap-vow)
-             (setup-captp-conn send-to-remote coordinator
-                               local-bootstrap-obj
-                               intra-machine-warden intra-machine-incanter))
-           ;; Fulfill the meta-bootstrap-promise with the promise that
-           ;; setup-captp-conn gave us
-           ($C meta-bootstrap-resolver 'fulfill remote-bootstrap-vow)
-           ;; And set things up so that the incoming-forwarder now goes
-           ;; to the captp-incoming-handler
-           (incoming-swap captp-incoming-handler)
+           (when can-continue?
+             (let*-values (((session-name) ($C coordinator 'get-session-name))
+                           ((local-bootstrap-obj) (make-local-bootstrap-obj))
+                           ((captp-incoming-handler remote-bootstrap-vow)
+                            (setup-captp-conn send-to-remote coordinator
+                                              local-bootstrap-obj
+                                              intra-machine-warden intra-machine-incanter)))
+               ;; Fulfill the meta-bootstrap-promise with the promise that
+               ;; setup-captp-conn gave us
+               ($C meta-bootstrap-resolver 'fulfill remote-bootstrap-vow)
+               ;; And set things up so that the incoming-forwarder now goes
+               ;; to the captp-incoming-handler
+               (incoming-swap captp-incoming-handler)
 
-           ;; TODO: Deal with duplicate sessions and also "crossed connections"
-
-           ;; And now install in the open sessions in the directory
-           (define session-name
-             ($C coordinator 'get-session-name))
-           ($C locations->open-session-names 'set remote-location session-name)
-           ($C open-session-names->sessionmeta 'set
-               session-name
-               (make-sessionmeta remote-location
-                                 local-bootstrap-obj remote-bootstrap-vow
-                                 coordinator session-name))
+               ;; And now install in the open sessions in the directory
+               ($C locations->open-session-names 'set remote-location session-name)
+               ($C open-session-names->sessionmeta 'set
+                   session-name
+                   (make-sessionmeta remote-location
+                                     local-bootstrap-obj remote-bootstrap-vow
+                                     coordinator session-name))))
            _void]
           ;; Handle shutdown requests that happen before the setup
           ;; completer hands control to the internal handler.
@@ -1590,8 +1607,36 @@
            ;; (force-output network-out-port)
            (lp))))
 
-      ;; Now we'll need to send our side of the start-session and get the
-      ;; other side... which will be handled by the ^setup-completer above
+      ;; The crossed hellos problem is where we try to connect to a location
+      ;; at the same time, they are trying to connect to us. Only one of these
+      ;; connections should be allowed to succeed.
+      ;;
+      ;; In CapTP when each side opens a connection it MUST send its op:start-session
+      ;; message first. When each side has received this, it then should look and
+      ;; detect crossed hellos (we look in the locations->crossed-hellos-mitigator map).
+      ;;
+      ;; If we detect the crossed hellos problem we take our key from our outbound
+      ;; connection and compute the side name (our-side-name) and the remote key
+      ;; from the inbound connection and calculate their name (their-side-name).
+      ;; With both of these, we sort them bytewise and whichever is lower, that
+      ;; session ends, the higher of the two continues.
+      (define (^crossed-hellos-mitigator bcom our-side-name)
+        (define voided-beh (lambda _ _void))
+        (lambda (remote-side-name)
+          (let ([sorted-names (sort (list our-side-name remote-side-name) bytes<?)])
+            (if (equal? (car sorted-names) our-side-name)
+                (begin
+                  (<-np incoming-forwarder (internal-shutdown 'abort "Crossed hellos mitigation"))
+                  (bcom voided-beh #f))
+                (bcom voided-beh #t)))))
+
+      (when (ocapn-machine? remote-connect-location)
+        ($C locations->crossed-hellos-mitigator 'set
+           remote-connect-location
+           (spawn ^crossed-hellos-mitigator ($C coordinator 'get-our-side-name))))
+
+      ;; Send our op:start-session message to the other side, which will be
+      ;; handled by the ^setup-completer above.
       (send-to-remote (op:start-session captp-version
                                         handoff-pubkey
                                         our-location
