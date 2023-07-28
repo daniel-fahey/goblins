@@ -231,7 +231,7 @@
          (tls-port (make-tls-port tls-session port))
          ;; Before the TLS handshake is performed, the client needs to
          ;; fetch the cert from the server and verify that its hash matches
-         ;; the expected hash given in the machine location.
+         ;; the expected hash given in the node location.
          (cert-length (u32vector-ref (get-bytevector-n port 4) 0))
          (server-cert (get-bytevector-n port cert-length))
          (server-cert-hash (sha256d server-cert))
@@ -253,13 +253,13 @@
     (tls-validate-peer-certificate tls-session)
     tls-port))
 
-(define (ocapn-machine-hint:host machine)
-  (match (assq-ref (ocapn-machine-hints machine) 'host)
+(define (ocapn-node-hint:host node)
+  (match (assq-ref (ocapn-node-hints node) 'host)
     (() #f)
     ((host) host)))
 
-(define (ocapn-machine-hint:port machine)
-  (or (match (assq-ref (ocapn-machine-hints machine) 'port)
+(define (ocapn-node-hint:port node)
+  (or (match (assq-ref (ocapn-node-hints node) 'port)
         (() #f)
         ((port)
          (string->number port)))
@@ -269,7 +269,7 @@
   (define-values (server-socket server-port)
     (make-server-socket+port port max-connections))
   (define our-location
-    (make-ocapn-machine 'tcp-tls
+    (make-ocapn-node 'tcp-tls
                         (bytevector->base16-string (sha256d cert))
                         `((host ,host)
                           (port ,(number->string server-port)))))
@@ -280,12 +280,12 @@
        (use-nonblocking-i/o client-socket)
        (make-server-tls-port client-socket cert key))))
   (define (outgoing-connect-location location)
-    (unless (eq? (ocapn-machine-transport location) 'tcp-tls)
+    (unless (eq? (ocapn-node-transport location) 'tcp-tls)
       (error "Wrong netlayer! Expected `tcp-tls'" location))
-    (let* ((host (ocapn-machine-hint:host location))
-           (port (ocapn-machine-hint:port location))
+    (let* ((host (ocapn-node-hint:host location))
+           (port (ocapn-node-hint:port location))
            (server-cert-hash (base16-string->bytevector
-                              (ocapn-machine-address location)))
+                              (ocapn-node-designator location)))
            (client-socket (make-client-socket host port)))
       (make-client-tls-port client-socket cert key server-cert-hash)))
   (^base-port-netlayer bcom our-location incoming-accept
@@ -312,7 +312,7 @@ automatically generated provided that the version of Guile-GnuTLS is
 new enough to do so.  To import PEM encoded private keys and
 certificates from the file system, use 'load-tls-private-key' and
 'load-tls-certificate', respectively.  Automatically generated keys
-and certificates are useful for machines that do not need persistent
-identity across process lifetimes, but machines that do should import
+and certificates are useful for nodes that do not need persistent
+identity across process lifetimes, but nodes that do should import
 from the file system."
   (spawn ^tcp-tls-netlayer host port max-connections cert key))

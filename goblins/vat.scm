@@ -154,7 +154,7 @@
 ;;; might result in building up more messages by calls sent to <-, which,
 ;;; if to refrs in the same vat, will be put on the queue (FIFO order), but
 ;;; if they are in another vat will be sent there using the reference's vat
-;;; or machine connector (depending on if local/remote).
+;;; or CapTP connector (depending on if local/remote).
 ;;;
 ;;; Anyway, you could implement a vat-like event loop yourself, but this
 ;;; module implements the general behavior.  The most important thing if

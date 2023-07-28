@@ -222,7 +222,7 @@
    ;;   : handoff-key?
   (recipient-key desc:handoff-give-recipient-key)
    ;; exporter-location(-hint(s)): how to connect to get this
-   ;;   : ocap-machine-uri?
+   ;;   : ocap-node-uri?
    ;;   Note that currently this requires a certain amount of VatTP
    ;;   crossover, since we have to give a way to connect to VatTP...
   (exporter-location desc:handoff-give-exporter-location)
@@ -263,7 +263,7 @@
 (define-values (marshall::op:start-session unmarshall::op:start-session)
   (make-marshallers <op:start-session> #:name 'op:start-session))
 
-;; TODO: 3 vat/machine handoff versions (Promise3Desc, Far3Desc)
+;; TODO: 3 vat/node handoff versions (Promise3Desc, Far3Desc)
 
 (define marshallers
   (list marshall::op:bootstrap
@@ -282,7 +282,7 @@
         marshall::desc:handoff-receive
         marshall::op:start-session
 
-        marshall::ocapn-machine
+        marshall::ocapn-node
         marshall::ocapn-sturdyref))
 
 (define unmarshallers
@@ -302,7 +302,7 @@
         unmarshall::desc:handoff-receive
         unmarshall::op:start-session
 
-        unmarshall::ocapn-machine
+        unmarshall::ocapn-node
         unmarshall::ocapn-sturdyref))
 
 ;; Doesn't verify that it's *valid*, just that it's *signed*
@@ -367,7 +367,7 @@
                           ;; handoffs, etc.
                           coordinator
                           bootstrap-obj
-                          intra-machine-warden intra-machine-incanter)
+                          intra-node-warden intra-node-incanter)
   ;; position sealers, so we know this really is from our imports/exports
   ;; @@: Not great protection, subject to a reuse attack, but really
   ;;   this is just an extra step... in general we shouldn't be exposing
@@ -381,7 +381,7 @@
   ;; look up what question corresponds to an entry in the table.
   ;; Used by mactor:question (a special kind of promise),
   ;; since messages sent to a question are pipelined through the answer
-  ;; side of some "remote" machine.
+  ;; side of some "remote" node.
   (define-record-type <question-finder>
     (make-question-finder sealed-pos)
     question-finder?
@@ -418,7 +418,7 @@
                                   wants-partial?)))
 
   (define (^connector-obj _bcom)
-    (define intra-machine-beh
+    (define intra-node-beh
       (methods
        [(get-handoff-privkey)
         ($C coordinator 'get-handoff-privkey)]
@@ -444,7 +444,7 @@
           (spawn ^cancel-sever-notification))]
        [(cancel-sever-interest sever-resolver)
         ($C interested-in-sever 'remove sever-resolver)]))
-    (ward intra-machine-warden intra-machine-beh
+    (ward intra-node-warden intra-node-beh
           #:extends main-beh))
   (define connector-obj (spawn ^connector-obj))
   (define (_get-connector-obj) connector-obj)
@@ -738,7 +738,7 @@
               unknown-record-tag)]
       [(? signed-handoff-give? sig-envelope-and-handoff)
        ;; We need to send this message to the coordinator, which will
-       ;; work with the machine to (hopefully) get it to the right
+       ;; work with the node to (hopefully) get it to the right
        ;; destination
        ($C coordinator 'start-retrieve-handoff sig-envelope-and-handoff)]
       [_ obj]))
@@ -763,7 +763,7 @@
           [(eq? refr-captp-connector captp-connector)
            (desc:export (pos-unseal (remote-refr-sealed-pos obj)))]
           [else
-           (error 'captp-to-wrong-machine)]))]))
+           (error 'captp-to-wrong-node)]))]))
 
   (define (install-answer! answer-pos resolve-me-desc)
     (define resolve-me
@@ -971,10 +971,8 @@
   (values captp-incoming-handler remote-bootstrap-vow))
 
 (define* (^coordinator bcom router our-location
-                       intra-machine-warden intra-machine-incanter
-                       #:key [handoff-key-pair (generate-key-pair)]
-                       ;; #:local-machine-location [local-machine-location #f]
-                       )
+                       intra-node-warden intra-node-incanter
+                       #:key [handoff-key-pair (generate-key-pair)])
   ;; counters used to increment how many handoff requests have been
   ;; made in this session to prevent replay attacks.
   ;; every time a *request* is made, this should be incremented.
@@ -1030,9 +1028,7 @@
 
   (define (ready-beh remote-encoded-key
                      remote-key
-                     remote-location
-                     ;; remote-machine-location     ;; auughhhhhh
-                     )
+                     remote-location)
     (define remote-side-name
       (sha256d (syrup-encode remote-encoded-key)))
     (when (equal? remote-side-name our-side-name)
@@ -1063,13 +1059,13 @@
         (exported-captp-connector 'connector-obj))
       (define recipient-key remote-encoded-key)
       (define exporter-location
-        ($C intra-machine-incanter
+        ($C intra-node-incanter
             exported-connector-obj 'get-remote-location))
       (define gifter-and-exporter-session
-        ($C intra-machine-incanter exported-connector-obj
+        ($C intra-node-incanter exported-connector-obj
             'get-session-name))
       (define gifter-side
-        ($C intra-machine-incanter exported-connector-obj
+        ($C intra-node-incanter exported-connector-obj
             'get-our-side-name))
       (define gift-id (strong-random-bytes 32))
 
@@ -1081,11 +1077,11 @@
       (define handoff-give-sig
         (sign (syrup-encode handoff-give
                             #:marshallers marshallers)
-              ($C intra-machine-incanter
+              ($C intra-node-incanter
                   exported-connector-obj 'get-handoff-privkey)))
 
       (define exporter-session-bootstrap
-        ($C intra-machine-incanter
+        ($C intra-node-incanter
             exported-connector-obj 'get-remote-bootstrap))
 
       (unless (exported-captp-connector 'same-connection? exported-remote-refr)
@@ -1249,8 +1245,8 @@
       (spawn-nonce-registry-and-locator))
 
     ;; Warden and incanter for collaborating parties in this
-    ;; particular machine
-    (define-values (intra-machine-warden intra-machine-incanter)
+    ;; particular node
+    (define-values (intra-node-warden intra-node-incanter)
       (spawn-warding-pair))
     (define locations->open-session-names
       (spawn ^ghash))
@@ -1318,7 +1314,7 @@
 
           ;; If we made it this far, it's ok... so time to get that referenced
           ;; object!
-          ($C intra-machine-incanter cert-session-local-bootstrap-obj
+          ($C intra-node-incanter cert-session-local-bootstrap-obj
               'pull-out-gift
               (desc:handoff-give-gift-id handoff-give))))
 
@@ -1350,7 +1346,7 @@
                   ($C waiting-gifts 'set id (list gift-promise gift-resolver))
                   gift-promise))])]))
 
-      (ward intra-machine-warden cross-gift-beh #:extends main-beh))
+      (ward intra-node-warden cross-gift-beh #:extends main-beh))
 
     #;(define (^bootstrap bcom coordinator #:extends [extends #f])
     (define session-name ($C coordinator 'get-session-name))
@@ -1363,23 +1359,23 @@
     (pk 'retrieve-gift signed-handoff-receive)
     'TODO]))
 
-    ;; TODO: Rename this to connect-to-machine I guess?
-    (define (retrieve-or-setup-session-vow remote-machine-loc)
-      (if ($C locations->open-session-names 'has-key? remote-machine-loc)
+    ;; TODO: Rename this to connect-to-node I guess?
+    (define (retrieve-or-setup-session-vow remote-node-loc)
+      (if ($C locations->open-session-names 'has-key? remote-node-loc)
           ;; found an open session for this location
           (let ([session-name ($C locations->open-session-names
-                                  'ref remote-machine-loc)])
+                                  'ref remote-node-loc)])
             (sessionmeta-remote-bootstrap-obj
              ($C open-session-names->sessionmeta 'ref session-name)))
           ;; Guess we'll make a new one
-          (let ([netlayer (get-netlayer-for-location remote-machine-loc)])
-            ($C netlayer 'connect-to remote-machine-loc))))
+          (let ([netlayer (get-netlayer-for-location remote-node-loc)])
+            ($C netlayer 'connect-to remote-node-loc))))
 
     (define (get-netlayer-for-location loc)
-      (define transport-tag (ocapn-machine-transport loc))
+      (define transport-tag (ocapn-node-transport loc))
       (unless ($C netlayer-map 'has-key? transport-tag)
         (error 'unsupported-transport
-               "NETLAYER not supported for this machine: ~a" transport-tag))
+               "NETLAYER not supported for this node: ~a" transport-tag))
       ($C netlayer-map 'ref transport-tag))
 
     (define (self-location? loc)
@@ -1393,14 +1389,14 @@
       (assert-type netlayer-name symbol?)
       (unless ($C netlayer-map 'has-key? netlayer-name)
         (error 'unsupported-transport
-               "NETLAYER not supported for this machine: ~a" netlayer-name))
+               "NETLAYER not supported for this node: ~a" netlayer-name))
       (let* ((netlayer ($C netlayer-map 'ref netlayer-name))
-             (machine-loc ($C netlayer 'our-location))
+             (node-loc ($C netlayer 'our-location))
              (nonce ($C registry 'register obj)))
-        (make-ocapn-sturdyref machine-loc nonce)))
+        (make-ocapn-sturdyref node-loc nonce)))
     (define (enliven sturdyref)
       (assert-type sturdyref ocapn-sturdyref?)
-      (let ((sref-loc (ocapn-sturdyref-machine sturdyref))
+      (let ((sref-loc (ocapn-sturdyref-node sturdyref))
             (sref-swiss-num (ocapn-sturdyref-swiss-num sturdyref)))
         ;; Is it local?
         (if (self-location? sref-loc)
@@ -1449,7 +1445,7 @@
         ($C netlayer 'our-location))
       (define coordinator
         (spawn ^coordinator self our-location
-               intra-machine-warden intra-machine-incanter))
+               intra-node-warden intra-node-incanter))
       (define handoff-pubkey
         ($C coordinator 'get-handoff-pubkey))
       (define our-location-sig
@@ -1460,7 +1456,7 @@
       (define-values (meta-bootstrap-vow meta-bootstrap-resolver)
         (spawn-promise-values))
 
-      ;; Complete the initialization step against the remote machine.
+      ;; Complete the initialization step against the remote node.
       ;; Basically this allows the coordinator to know of what remote
       ;; key will be used in this session.
       (define (^setup-completer bcom)
@@ -1476,7 +1472,7 @@
               ;;   two.
               #;(and remote-encoded-pubkey
                  ('eddsa 'public 'ed25519 _))
-              (? ocapn-machine? claimed-remote-location)
+              (? ocapn-node? claimed-remote-location)
               encoded-remote-location-sig)
 
            ;; Check we are speaking the same language!
@@ -1496,7 +1492,7 @@
            ;;   for the start-session message...
            ;;   So, remove this if we can.  Or realistically, move this whole part
            ;;   to the NETLAYER code.
-           #;(unless (same-machine-location? claimed-remote-location remote-location)
+           #;(unless (same-node-location? claimed-remote-location remote-location)
            (error (format "Supplied location mismatch. Claimed: ~s Expected: ~s"
            claimed-remote-location remote-location)))
 
@@ -1534,7 +1530,7 @@
            (define can-continue?
              (let* ((chm ($C locations->crossed-hellos-mitigator 'ref remote-location #f))
                     (their-side-name ($C coordinator 'get-remote-side-name))
-                    (outgoing? (ocapn-machine? remote-connect-location))
+                    (outgoing? (ocapn-node? remote-connect-location))
                     (must-abort? (and chm (not outgoing?) ($C chm their-side-name))))
                ;; Clean up the crossed hellos resolver actor, we won't need it after this.
                (unless (null? chm)
@@ -1555,7 +1551,7 @@
                            ((captp-incoming-handler remote-bootstrap-vow)
                             (setup-captp-conn send-to-remote coordinator
                                               local-bootstrap-obj
-                                              intra-machine-warden intra-machine-incanter)))
+                                              intra-node-warden intra-node-incanter)))
                ;; Fulfill the meta-bootstrap-promise with the promise that
                ;; setup-captp-conn gave us
                ($C meta-bootstrap-resolver 'fulfill remote-bootstrap-vow)
@@ -1630,7 +1626,7 @@
                   (bcom voided-beh #f))
                 (bcom voided-beh #t)))))
 
-      (when (ocapn-machine? remote-connect-location)
+      (when (ocapn-node? remote-connect-location)
         ($C locations->crossed-hellos-mitigator 'set
            remote-connect-location
            (spawn ^crossed-hellos-mitigator ($C coordinator 'get-our-side-name))))
@@ -1647,7 +1643,7 @@
 
      [self-location? self-location?]
      ;; ... is that it?
-     [connect-to-machine retrieve-or-setup-session-vow]
+     [connect-to-node retrieve-or-setup-session-vow]
 
      [(install-netlayer netlayer)
       (define netlayer-name ($C netlayer 'netlayer-name))

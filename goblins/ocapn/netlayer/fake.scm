@@ -57,7 +57,7 @@
                  (syrup-encode msg #:marshallers marshallers))))
 
 (define (^fake-netlayer _bcom our-name network new-conn-ch)
-  (define our-location (make-ocapn-machine 'fake our-name #f))
+  (define our-location (make-ocapn-node 'fake our-name #f))
   (define (start-listening conn-establisher)
     (syscaller-free-fiber
      (lambda ()
@@ -87,17 +87,17 @@
       (extend-methods
        base-beh
        [(self-location? loc)
-    (same-machine-location? our-location loc)]
-       [(connect-to remote-machine)
-    (match remote-machine
-      (($ <ocapn-machine> 'fake name #f)
+    (same-node-location? our-location loc)]
+       [(connect-to remote-node)
+    (match remote-node
+      (($ <ocapn-node> 'fake name #f)
        (on (<- network 'connect-to name)
            (match-lambda
                  (('*outgoing-new-conn* me-deq-ch them-enq-ch)
           (<- conn-establisher
               (make-message-reader me-deq-ch)
               (make-message-writer them-enq-ch)
-              remote-machine)))
+              remote-node)))
            #:promise? #t)))]))
     pre-setup-beh)
   (spawn ^netlayer))
