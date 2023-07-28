@@ -1118,7 +1118,6 @@
           ;; don't bother to deduplicate while attempting a connection...
           ;; oops)
           ;;
-          ;; TODO: Fix crossed hellos problem
           ;; TODO: Fix simultaneous outgoing connections problem, which
           ;;   is related, but easier to fix.  To do so we just need to
           ;;   recognize that we're "in the middle of" establishing a
@@ -1259,7 +1258,7 @@
       (spawn ^ghash))
 
     ;; For keeping track of new outbound sessions to detect crossed hellos
-    (define locations->crossed-hellos-resolver
+    (define locations->crossed-hellos-mitigator
       (spawn ^ghash))
 
     (define (^connection-establisher bcom netlayer netlayer-name)
@@ -1529,18 +1528,20 @@
                remote-handoff-pubkey
                remote-location)
 
-           ;; Mitigation here.
+           ;; Handle potential crossed hellos mitigation - incoming connections decide if we
+           ;; should continue or abort.
+           ;; See the comment below for more information about this (above ^crossed-hellos-mitigator).
            (define can-continue?
-             (let* ((chr ($C locations->crossed-hellos-resolver 'ref remote-location #f))
+             (let* ((chm ($C locations->crossed-hellos-mitigator 'ref remote-location #f))
                     (their-side-name ($C coordinator 'get-remote-side-name))
                     (outgoing? (ocapn-machine? remote-connect-location))
-                    (must-abort? (if (and chr (not outgoing?)) ($C chr their-side-name) #f)))
+                    (must-abort? (and chm (not outgoing?) ($C chm their-side-name))))
                ;; Clean up the crossed hellos resolver actor, we won't need it after this.
-               (unless (null? chr)
-                 ($C locations->crossed-hellos-resolver 'remove remote-location))
+               (unless (null? chm)
+                 ($C locations->crossed-hellos-mitigator 'remove remote-location))
                ;; Send internal shutdown if needed.
                (when must-abort?
-                 (<- incoming-forwarder (internal-shutdown 'abort "Crossed hellos mitigation")))
+                 (<-np incoming-forwarder (internal-shutdown 'abort "Crossed hellos mitigation")))
                (not must-abort?)))
 
            (define (make-local-bootstrap-obj)
@@ -1561,8 +1562,6 @@
                ;; And set things up so that the incoming-forwarder now goes
                ;; to the captp-incoming-handler
                (incoming-swap captp-incoming-handler)
-
-               ;; TODO: Deal with duplicate sessions and also "crossed connections"
 
                ;; And now install in the open sessions in the directory
                ($C locations->open-session-names 'set remote-location session-name)
@@ -1614,27 +1613,27 @@
       ;;
       ;; In CapTP when each side opens a connection it MUST send its op:start-session
       ;; message first. When each side has received this, it then should look and
-      ;; detect crossed hellos (we look in the locations->crossed-hellos-resolver table).
+      ;; detect crossed hellos (we look in the locations->crossed-hellos-mitigator map).
       ;;
       ;; If we detect the crossed hellos problem we take our key from our outbound
       ;; connection and compute the side name (our-side-name) and the remote key
       ;; from the inbound connection and calculate their name (their-side-name).
       ;; With both of these, we sort them bytewise and whichever is lower, that
       ;; session ends, the higher of the two continues.
-      (define (^crossed-hellos-resolver bcom our-side-name)
+      (define (^crossed-hellos-mitigator bcom our-side-name)
         (define voided-beh (lambda _ _void))
         (lambda (remote-side-name)
           (let ([sorted-names (sort (list our-side-name remote-side-name) bytes<?)])
             (if (equal? (car sorted-names) our-side-name)
                 (begin
-                  (<- incoming-forwarder (internal-shutdown 'abort "Crossed hellos mitigation"))
+                  (<-np incoming-forwarder (internal-shutdown 'abort "Crossed hellos mitigation"))
                   (bcom voided-beh #f))
                 (bcom voided-beh #t)))))
 
       (when (ocapn-machine? remote-connect-location)
-        ($C locations->crossed-hellos-resolver 'set
+        ($C locations->crossed-hellos-mitigator 'set
            remote-connect-location
-           (spawn ^crossed-hellos-resolver ($C coordinator 'get-our-side-name))))
+           (spawn ^crossed-hellos-mitigator ($C coordinator 'get-our-side-name))))
 
       ;; Send our op:start-session message to the other side, which will be
       ;; handled by the ^setup-completer above.
