@@ -1608,7 +1608,8 @@
       (define netlayer-name ($C netlayer 'netlayer-name))
       (when ($C netlayer-map 'has-key? netlayer-name)
         (error (format #f "Already has netlayer key ~a" netlayer-name)))
-      ($C netlayer-map 'set netlayer-name netlayer)]
+      ($C netlayer-map 'set netlayer-name netlayer)
+      ($C netlayer 'setup (spawn ^connection-establisher netlayer netlayer-name))]
      [register register]
      [enliven enliven]
      ;; Get the nonce registry used for sturdyrefs to be able to tweak
