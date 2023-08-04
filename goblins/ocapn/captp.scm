@@ -1606,7 +1606,7 @@
 
      [(install-netlayer netlayer)
       (define netlayer-name ($C netlayer 'netlayer-name))
-      (when ($C netlayer-map 'hash-has-key? netlayer-name)
+      (when ($C netlayer-map 'has-key? netlayer-name)
         (error (format #f "Already has netlayer key ~a" netlayer-name)))
       ($C netlayer-map 'set netlayer-name netlayer)]
      [register register]
