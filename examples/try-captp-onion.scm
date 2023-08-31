@@ -27,20 +27,20 @@
 
 (define* (tor-server #:key (greeter-name "Alice")
                      tor-onion-pair)
-  (define-values (machine-vat onion-netlayer mycapn)
+  (define-values (node-vat onion-netlayer mycapn)
     (setup-tor-mycapn tor-onion-pair))
   (define alice
-    (with-vat machine-vat (spawn ^greeter greeter-name)))
+    (with-vat node-vat (spawn ^greeter greeter-name)))
   (define alice-sref
-    (with-vat machine-vat ($ mycapn 'register alice 'onion)))
-  (values machine-vat onion-netlayer mycapn alice alice-sref))
+    (with-vat node-vat ($ mycapn 'register alice 'onion)))
+  (values node-vat onion-netlayer mycapn alice alice-sref))
 
 (use-modules (fibers conditions))
 (use-modules (goblins ocapn netlayer utils)
              (goblins ocapn netlayer onion-socks))
 
 (define (main args)
-  (define-values (a-machine-vat a-onion-netlayer a-mycapn alice alice-sref)
+  (define-values (a-node-vat a-onion-netlayer a-mycapn alice alice-sref)
     (tor-server))
 
   (format #t "Connect to: ~a\n" (ocapn-id->string alice-sref))

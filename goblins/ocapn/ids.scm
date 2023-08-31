@@ -19,72 +19,72 @@
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (ice-9 match)
-  #:export (<ocapn-machine>
-            make-ocapn-machine
-            ocapn-machine?
-            ocapn-machine-transport
-            ocapn-machine-address
-            ocapn-machine-hints
-            ocapn-id->ocapn-machine
-            marshall::ocapn-machine
-            unmarshall::ocapn-machine
+  #:export (<ocapn-node>
+            make-ocapn-node
+            ocapn-node?
+            ocapn-node-transport
+            ocapn-node-designator
+            ocapn-node-hints
+            ocapn-id->ocapn-node
+            marshall::ocapn-node
+            unmarshall::ocapn-node
 
             <ocapn-sturdyref>
             ocapn-sturdyref
             ocapn-sturdyref?
             make-ocapn-sturdyref
             ocapn-sturdyref?
-            ocapn-sturdyref-machine
+            ocapn-sturdyref-node
             ocapn-sturdyref-swiss-num
             uri->ocapn-sturdyref
             marshall::ocapn-sturdyref
             unmarshall::ocapn-sturdyref
 
             ocapn-id?
-            same-machine-location?
+            same-node-location?
             ocapn-id->uri
             ocapn-id->string
             string->ocapn-id))
 
-;; Ocapn machine type URI:
+;; Ocapn node type URI:
 ;;
-;;   ocapn://<transport-address>.<transport>[?<transport-hints>]
+;;   ocapn://<designator>.<transport>[?<transport-hints>]
 ;;
-;;   <ocapn-machine $transport $transport-address $transport-hints>
+;;   <ocapn-node $transport $transport-designator $transport-hints>
 ;;
 ;; . o O (Are hints really a good idea or needed anymore?)
 
 ;; EG: "ocapn://wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.onion?foo=bar"
-(define-record-type <ocapn-machine>
-  (make-ocapn-machine transport address hints)
-  ocapn-machine?
-  (transport ocapn-machine-transport)
-  (address ocapn-machine-address)
-  (hints ocapn-machine-hints))
+(define-record-type <ocapn-node>
+  (make-ocapn-node transport designator hints)
+  ocapn-node?
+  (transport ocapn-node-transport)
+  (designator ocapn-node-designator)
+  (hints ocapn-node-hints))
 
-(define-values (marshall::ocapn-machine unmarshall::ocapn-machine)
-  (make-marshallers <ocapn-machine> #:name 'ocapn-machine))
+(define-values (marshall::ocapn-node unmarshall::ocapn-node)
+  (make-marshallers <ocapn-node> #:name 'ocapn-node))
 
-;; ocapn machines give the capability to access the machine, these shouldn't be
+;; ocapn nodes give the capability to access the node, these shouldn't be
 ;; leaked in tracebacks.
 (set-record-type-printer!
- <ocapn-machine>
- (lambda (machine port)
-   (format port "#<ocapn-machine transport: ~a address: *redacted*>"
-           (ocapn-machine-transport machine))))
+ <ocapn-node>
+ (lambda (node port)
+   (format port "#<ocapn-node transport: ~a designator: *redacted*>"
+           (ocapn-node-transport node))))
 
 ;; Ocapn swissnum URI:
 ;;
 ;;   ocapn://abpoiyaspodyoiapsdyiopbasyop.onion/s/3cbe8e02-ca27-4699-b2dd-3e284c71fa96?foo=bar
 ;;
-;;   ocapn://<transport-address>.<transport>/s/<swiss-num>[?<transport-hints>]
+;;   ocapn://<designator>.<transport>/s/<swiss-num>[?<transport-hints>]
 ;;
-;;   <ocapn-sturdyref <ocapn-machine $transport $transport-address $transport-hints>
+;;   <ocapn-sturdyref <ocapn-node $transport $transport-designator $transport-hints>
 ;;                    $swiss-num>
 (define-record-type <ocapn-sturdyref>
-  (make-ocapn-sturdyref machine swiss-num)
+  (make-ocapn-sturdyref node swiss-num)
   ocapn-sturdyref?
-  (machine ocapn-sturdyref-machine)
+  (node ocapn-sturdyref-node)
   (swiss-num ocapn-sturdyref-swiss-num))
 
 (define-values (marshall::ocapn-sturdyref unmarshall::ocapn-sturdyref)
@@ -95,19 +95,19 @@
 (set-record-type-printer!
  <ocapn-sturdyref>
  (lambda (sturdyref port)
-   (format port "#<ocapn-sturdyref machine: ~a swiss-num: *redacted*>"
-           (ocapn-sturdyref-machine sturdyref))))
+   (format port "#<ocapn-sturdyref node: ~a swiss-num: *redacted*>"
+           (ocapn-sturdyref-node sturdyref))))
 
 ;; Ocapn certificate URI:
 ;;
-;;   ocapn://<transport-address>.<transport>/c/<cert>
+;;   ocapn://<designator>.<transport>/c/<cert>
 ;;
-;;   <ocapn-cert <ocapn-machine $transport $transport-address $transport-hints>
+;;   <ocapn-cert <ocapn-node $transport $transport-designator $transport-hints>
 ;;               $cert>
 ;; (define-record-type <ocapn-cert>
-;;   (make-ocapn-cert machine certdata)
+;;   (make-ocapn-cert node certdata)
 ;;   ocapn-cert?
-;;   (machine ocapn-cert-machine)
+;;   (node ocapn-cert-node)
 ;;   (certdata ocapn-cert-certdata))
 ;;
 ;; (define-values (marshall::ocapn-cert unmarshall::ocapn-cert)
@@ -115,10 +115,10 @@
 
 ;; Ocapn bearer certificate union URI:
 ;;
-;;   ocapn://<transport-address>.<transport>/b/<cert>/<key-type>.<private-key>
+;;   ocapn://<designator>.<transport>/b/<cert>/<key-type>.<private-key>
 ;;
-;;   <ocapn-bearer-union <ocapn-cert <ocapn-machine $transport
-;;                                                  $transport-address
+;;   <ocapn-bearer-union <ocapn-cert <ocapn-node $transport
+;;                                                  $transport-designator
 ;;                                                  $transport-hints>
 ;;                                   $cert>
 ;;                       $key-type
@@ -134,26 +134,26 @@
 ;;   (make-marshallers <ocapn-bearer-union> #:name 'ocapn-bearer-union))
 
 (define (ocapn-id? obj)
-  (or (ocapn-machine? obj)
+  (or (ocapn-node? obj)
       (ocapn-sturdyref? obj)))
 
-(define (ocapn-id->ocapn-machine ocapn-id)
+(define (ocapn-id->ocapn-node ocapn-id)
   (match ocapn-id
-    [(? ocapn-machine?) ocapn-id]
-    [($ <ocapn-sturdyref> ocapn-machine _sn) ocapn-machine]))
+    [(? ocapn-node?) ocapn-id]
+    [($ <ocapn-sturdyref> ocapn-node _sn) ocapn-node]))
 
-;; Checks for the equivalence between two ocapn-machines (including
-;; ocapn-machines that are nested within other ocapn ID structs),
+;; Checks for the equivalence between two ocapn-nodes (including
+;; ocapn-nodes that are nested within other ocapn ID structs),
 ;; ignoring hints.
-(define (same-machine-location? ocapn-id1 ocapn-id2)
-  (define machine1 (ocapn-id->ocapn-machine ocapn-id1))
-  (define machine2 (ocapn-id->ocapn-machine ocapn-id2))
-  (match-let ((($ <ocapn-machine> m1-transport m1-address _m1-hints)
-               machine1)
-              (($ <ocapn-machine> m2-transport m2-address _m2-hints)
-               machine2))
+(define (same-node-location? ocapn-id1 ocapn-id2)
+  (define node1 (ocapn-id->ocapn-node ocapn-id1))
+  (define node2 (ocapn-id->ocapn-node ocapn-id2))
+  (match-let ((($ <ocapn-node> m1-transport m1-designator _m1-hints)
+               node1)
+              (($ <ocapn-node> m2-transport m2-designator _m2-hints)
+               node2))
     (and (equal? m1-transport m2-transport)
-         (equal? m1-address m2-address))))
+         (equal? m1-designator m2-designator))))
 
 (define (string->ocapn-id string-uri)
   (define (query->hints query)
@@ -171,23 +171,23 @@
                          (uri-decode value)))))
               (string-split query #\&))))
 
-  (define (uri->ocapn-machine uri)
+  (define (uri->ocapn-node uri)
     (let* ((host (uri-host uri))
            (final-part (string-rindex host #\.))
            (transport (string->symbol (substring host (+ 1 final-part))))
-           (address (substring host 0 final-part))
+           (designator (substring host 0 final-part))
            (hints (query->hints (uri-query uri))))
-      (make-ocapn-machine transport address hints)))
+      (make-ocapn-node transport designator hints)))
 
   (define (uri->ocapn-sturdyref uri)
     (let ((path (string-trim (uri-path uri) #\/)))
       (make-ocapn-sturdyref
-       (uri->ocapn-machine uri)
+       (uri->ocapn-node uri)
        (url-base64-decode (substring path (+ 1 (string-index path #\/)))))))
 
   (define (uri->ocapn-id uri)
     (let ((path (uri-path uri)))
-      (cond [(or (string=? path "") (string=? path "/")) (uri->ocapn-machine uri)]
+      (cond [(or (string=? path "") (string=? path "/")) (uri->ocapn-node uri)]
             [(string-prefix? "/s/" path) (uri->ocapn-sturdyref uri)]
             [#t (error "Unknown ocapn URI type" uri)])))
 
@@ -214,17 +214,17 @@
     (error "Not a OCapN ID" ocapn-id))
 
   (match ocapn-id
-    [($ <ocapn-machine> transport address hints)
+    [($ <ocapn-node> transport designator hints)
      (build-uri
       'ocapn
-      #:host (string-join (list address (symbol->string transport)) ".")
+      #:host (string-join (list designator (symbol->string transport)) ".")
       #:query (hints->query hints))]
 
-    [($ <ocapn-sturdyref> ($ <ocapn-machine> transport address hints)
+    [($ <ocapn-sturdyref> ($ <ocapn-node> transport designator hints)
                           swiss-num)
      (build-uri
       'ocapn
-      #:host (string-join (list address (symbol->string transport)) ".")
+      #:host (string-join (list designator (symbol->string transport)) ".")
       #:path (string-append "/s/" (url-base64-encode swiss-num))
       #:query (hints->query hints))]))
 

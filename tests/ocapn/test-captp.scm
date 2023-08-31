@@ -13,20 +13,20 @@
 
 (test-begin "test-captp")
 
-(define (make-new-machine name)
+(define (make-new-node name)
   "Create a new vat, spawns a fake netlayer & mycapn for given `name'"
-  (define machine-vat (spawn-vat #:name name))
+  (define node-vat (spawn-vat #:name name))
   (define new-conn-ch (make-channel))
   (with-vat test-vat
     ($ test-network 'register name new-conn-ch))
-  (define location (make-ocapn-machine 'fake name #f))
+  (define location (make-ocapn-node 'fake name #f))
   (define netlayer
-    (with-vat machine-vat
+    (with-vat node-vat
      (spawn ^fake-netlayer name test-network new-conn-ch)))
   (define mycapn
-    (with-vat machine-vat
+    (with-vat node-vat
      (spawn-mycapn netlayer)))
-  (values machine-vat netlayer mycapn))
+  (values node-vat netlayer mycapn))
 
 (define test-vat (spawn-vat #:name "test"))
 (define test-network
@@ -34,13 +34,13 @@
    (spawn ^fake-network)))
 
 
-;; Spawn different machines.
+;; Spawn different nodes.
 (define-values (a-vat a-netlayer a-mycapn)
-  (make-new-machine "a"))
+  (make-new-node "a"))
 (define-values (b-vat b-netlayer b-mycapn)
-  (make-new-machine "b"))
+  (make-new-node "b"))
 (define-values (c-vat c-netlayer c-mycapn)
-  (make-new-machine "c"))
+  (make-new-node "c"))
 
 (define (^greeter _bcom our-name)
   (lambda (their-name)
@@ -120,7 +120,7 @@
               (lambda (meeter-bob)
                 (<- introducer-alice meeter-bob chatty-carol))
               #:promise? #t)))))
-  (test-equal "A and C on one machine, B on another with introductions"
+  (test-equal "A and C on one node, B on another with introductions"
     result
     #(ok (hello-back-from carol))))
 

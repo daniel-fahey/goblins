@@ -37,7 +37,7 @@
                              outgoing-connect-location)
   "A basis for defining netlayers."
   (define our-netlayer-name
-    (ocapn-machine-transport our-location))
+    (ocapn-node-transport our-location))
 
   ;; (define shutdown-time (make-condition))
   (define (start-listen-thread conn-establisher)
@@ -63,7 +63,7 @@
   (define pre-setup-beh
     (extend-methods
      base-beh
-     ;; The machine is now wiring us up with the appropriate behavior for
+     ;; The node is now wiring us up with the appropriate behavior for
      ;; when a new connection comes in
      [(setup conn-establisher)
       (start-listen-thread conn-establisher)
@@ -73,12 +73,12 @@
     (extend-methods
      base-beh
      [(self-location? loc)
-      (same-machine-location? our-location loc)]
-     [(connect-to remote-machine)
-      (unless (eq? (ocapn-machine-transport remote-machine)
+      (same-node-location? our-location loc)]
+     [(connect-to remote-node)
+      (unless (eq? (ocapn-node-transport remote-node)
                    our-netlayer-name)
         (error "Mismatched netlayer:"
-               (ocapn-machine-transport remote-machine)
+               (ocapn-node-transport remote-node)
                our-netlayer-name))
       ;; Asynchronously set up connection.  Once it's ready, we'll
       ;; return the value from the connection establisher
@@ -87,7 +87,7 @@
         (spawn-fibrous-vow
          (lambda ()
            (define connected-port
-             (outgoing-connect-location remote-machine))
+             (outgoing-connect-location remote-node))
            (define-values (read-message write-message)
              (read-write-procs connected-port connected-port))
            (list read-message write-message))))
@@ -95,6 +95,6 @@
       (on read-write-message-vow
           (match-lambda
             ((read-message write-message)
-             (<- conn-establisher read-message write-message remote-machine)))
+             (<- conn-establisher read-message write-message remote-node)))
           #:promise? #t)]))
   pre-setup-beh)

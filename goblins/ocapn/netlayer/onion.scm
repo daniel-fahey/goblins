@@ -144,11 +144,11 @@
        (setvbuf client 'block 1024)
        client)))
   (define (outgoing-connect-location location)
-    (unless (eq? (ocapn-machine-transport location) 'onion)
+    (unless (eq? (ocapn-node-transport location) 'onion)
       (error "Wrong netlayer! Expected onion" location))
-    (let* ((address (ocapn-machine-address location))
+    (let* ((designator (ocapn-node-designator location))
            (sock (make-client-unix-domain-socket tor-socks-path)))
-      (onion-socks5-setup! sock (string-append address ".onion")
+      (onion-socks5-setup! sock (string-append designator ".onion")
                            9045)
       sock))
   (^base-port-netlayer bcom our-location
@@ -162,7 +162,7 @@
     (delete-file ocapn-sock-path))
 
   (define our-location
-    (make-ocapn-machine 'onion service-id #f))
+    (make-ocapn-node 'onion service-id #f))
 
   (values
    (spawn ^onion-netlayer our-location ocapn-sock-listener

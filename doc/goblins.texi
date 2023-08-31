@@ -219,8 +219,8 @@ wired to communicate with each other:
 
 @example
 .----------------------------------.         .----------------------.
-|            Machine 1             |         |       Machine 2      |
-|            =========             |         |       =========      |
+|              Node 1              |         |         Node 2       |
+|              =======             |         |         ======       |
 |                                  |         |                      |
 | .--------------.  .---------.   .-.       .-.                     |
 | |    Vat A     |  |  Vat B  |   |  \______|  \_   .------------.  |
@@ -242,14 +242,14 @@ In the above diagram, you see:
 
 @itemize
 @item
-Two machines (@code{Machine 1} and @code{Machine 2}, running
+Two nodes (@code{Node 1} and @code{Node 2}, running
 separately from each other, but connected to each other over the
 network via OCapN and CapTP@.
 
 @item
 @code{Vat A} and @code{Vat B} are event loops which live on
-@code{Machine 1}, and @code{Vat C} is an event loop which lives on
-@code{Machine 2}.
+@code{Node 1}, and @code{Vat C} is an event loop which lives on
+@code{Node 2}.
 
 @item
 The individual objects (represented by circles) live in @emph{vats},
@@ -282,13 +282,13 @@ Another way to think about this is via the following abstraction
 nesting dolls:
 
 @lisp
-(machine (vat (actormap @{refr: object-behavior@})))
+(node (vat (actormap @{refr: object-behavior@})))
 @end lisp
 
 @itemize
 @item
-@strong{Machines}, which are computers on the network, or more
-realistically, operating system processes, which contain@dots{}
+@strong{Nodes}, which are CapTP capable endpointson a network, these are
+operating system processes, which contain@dots{}
 @item
 @strong{Vats}, which are communicating event loops, which contain@dots{}
 @item
@@ -609,8 +609,8 @@ goblins[1]> ($ julius 'get-times-called)
 
 You have seen that the behavior of objects may be invoked
 synchronously with @code{$}.  However, this only works if two objects
-are both defined on the same machine on the network and the same event
-loop within that machine.
+are both defined on the same node within and the same event
+loop (vat) within that node.
 
 Now, recall your friend @code{alice} who you defined on vat A@.  The
 following works just fine if you're still executing within
@@ -643,9 +643,9 @@ goblins[1]> ($ alice "Bob")
 @end lisp
 
 This is where @code{<-} comes in.  In contrast to @code{$}, @code{<-}
-can be used against objects which live anywhere, even on remote
-machines.  However, unlike invocation with @code{$}, you do not get
-back an immediate result; you get a promise:
+can be used against objects which live anywhere, even on nodes on remote
+machines across a network.  However, unlike invocation with @code{$}, you
+do not get back an immediate result; you get a promise:
 
 @lisp
 goblins[1]> (<- alice "Bob")
@@ -806,11 +806,11 @@ goblins[1]> (define fork-motors
 @end lisp
 
 Since asynchronous message passing with @code{<-} works across
-machines, it does not matter whether interactions with
+nodes, it does not matter whether interactions with
 @code{fork-motors} are local or via objects communicating over the
-network.  This example treat @code{fork-motors} as living on machine A,
+network.  This example treat @code{fork-motors} as living on node A,
 and so the following interactions will happen with invocations
-originating from machine B@.
+originating from node B@.
 
 Now send a message to @code{fork-motors} invoking the
 @code{'make-car} method, receiving back a promise for the car which
@@ -820,7 +820,7 @@ conventional suffix given for promises in Goblins):
 @lisp
 goblins[1]> ,q
 scheme> ,enter-vat b-vat
-;; Interaction on machine B, communicating with fork-motors on A
+;; Interaction on node B, communicating with fork-motors on A
 goblins[1]> (define car-vow
               (<- fork-motors 'make-car "Explorist" "blue"))
 @end lisp
@@ -835,7 +835,7 @@ following the pattern most other distributed programming systems use),
 you would end up with something like:
 
 @lisp
-;; Interaction on machine B, communicating with A
+;; Interaction on node B, communicating with A
 goblins[1]> (on car-vow                    ; B->A: first resolve the car-vow
                 (lambda (our-car)          ; A->B: car-vow resolved as our-car
                   (on (<- our-car 'drive)  ; B->A: now we can message our-car
@@ -849,7 +849,7 @@ that you do not need to do an @code{on} of @code{car-vow} to later
 message @code{our-car}; you can simply message @code{car-vow} directly:
 
 @lisp
-;; Interaction on machine B, communicating with A
+;; Interaction on node B, communicating with A
 goblins[1]> (on (<- car-vow 'drive)       ; B->A: send message to future car
                 (lambda (val)             ; A->B: result of that message
                   (format #t "Heard: ~a\n" val)))
@@ -857,7 +857,7 @@ goblins[1]> (on (<- car-vow 'drive)       ; B->A: send message to future car
 
 While clearly a considerable programming convenience, the other
 advantage of promise pipelining is a reduction of round-trips, whether
-between event-loop @emph{vats} or across machines on the network.
+between event-loop @emph{vats} or across nodes on the network.
 
 This can be understood by looking at the comments to the right of the
 two above code interactions.  The message flow in the first case looks
@@ -874,7 +874,7 @@ B => A => B
 @end example
 
 
-In other words, machine B can say to machine A: ``Make me a car, and
+In other words, node B can say to node A: ``Make me a car, and
 as soon as that car is ready, I want to drive it!''
 
 With this in mind, the promise behind Mark Miller's quote at the

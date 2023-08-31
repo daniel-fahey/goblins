@@ -29,7 +29,7 @@
   (define a-loc (with-vat a-vat ($ a-nl 'our-location)))
   (define b-loc (with-vat b-vat ($ b-nl 'our-location)))
   (with-vat a-vat
-    (on ($ a-mycapn 'connect-to-machine b-loc)
+    (on ($ a-mycapn 'connect-to-node b-loc)
         (lambda (loc)
           (pk 'horray-connected-to loc)))))
 
