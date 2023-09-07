@@ -27,6 +27,7 @@
      (lambda (driver)
        (repl-driver-meta driver '(import (goblins)))
        (let ((output (repl-driver-run driver '(commands ...))))
+         (format #t "REPL output:\n~a\n" output);
          (string-match regexp output))))))
 
 (test-repl ",vats with no vats"
