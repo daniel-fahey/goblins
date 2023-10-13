@@ -27,6 +27,7 @@
      (lambda (driver)
        (repl-driver-meta driver '(import (goblins)))
        (let ((output (repl-driver-run driver '(commands ...))))
+         (format #t "REPL output:\n~a\n" output);
          (string-match regexp output))))))
 
 (test-repl ",vats with no vats"
@@ -34,7 +35,7 @@
            (meta vats))
 
 (test-repl ",vats with a vat"
-           "  0\trunning\t  ✗ \t    0\talice"
+           "  0\trunning\t  [✗?] \t    0\talice"
            (eval (define a-vat (spawn-vat #:name 'alice)))
            (meta vats))
 
