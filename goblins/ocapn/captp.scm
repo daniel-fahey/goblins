@@ -22,6 +22,7 @@
   #:use-module (goblins inbox)
   #:use-module (goblins ocapn marshalling)
   #:use-module (goblins ocapn ids)
+  #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib nonce-registry)
@@ -977,10 +978,8 @@
   ;; made in this session to prevent replay attacks.
   ;; every time a *request* is made, this should be incremented.
   (define our-handoff-count 0)
-  ;; TODO TODO TODO: We need to make use of this and also check the
-  ;;   session listed on the receive certificate to prevent a replay
-  ;;   attack
-  (define remote-handoff-count 0)
+  (define remote-handoff-count
+    (spawn ^cell 0))
 
   ;; (define handoff-key-pair
   ;;   (generate-key
@@ -1177,7 +1176,7 @@
                                              ;; with the gifter, but with the receiver)
                                              (? bytevector? _handoff-session)
                                              (? bytevector? _handoff-session-side)
-                                             (? integer? _this-handoff-count)
+                                             (? integer? this-handoff-count)
                                              signed-handoff-give))
                                        (? signature-sexp? receive-sig-sexp))
                     signed-handoff-receive)
@@ -1193,8 +1192,18 @@
                    (receive-sig
                     (gcrypt:pk-crypto:sexp->canonical-sexp
                      receive-sig-sexp)))
-        (and (give-handoff-legit? signed-handoff-give)
-             (verify receive-sig encoded-handoff-receive give-recipient-key))))
+
+        (define valid-handoff?
+          (and (give-handoff-legit? signed-handoff-give)
+               (>= this-handoff-count ($C remote-handoff-count))
+               (verify receive-sig encoded-handoff-receive give-recipient-key)))
+
+        ;; If it is in fact a valid handoff, let's increment the count so
+        ;; it can't be replayed.
+        (when valid-handoff?
+          ($C remote-handoff-count (+ this-handoff-count 1)))
+
+        valid-handoff?))
 
     (extend-methods core-beh
       [(get-remote-side-name) remote-side-name]
