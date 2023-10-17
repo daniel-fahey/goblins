@@ -85,7 +85,7 @@
 
             make-aurenv
             portraitize
-            actormap-live-portrait
+            actormap-take-portrait
 
             ;; TODO: separate this out!
             <message>
@@ -699,31 +699,6 @@ Type: Actormap -> TransActormap"
                   vat-connector
                   aurie-manager))
 
-;; Aurie portraiting
-(define (actormap-live-portrait am)
-  "Produces a live self portrait of the actormap"
-  (define aurie-manager
-    (actormap-aurie-manager am))
-
-  (unless aurie-manager
-    (error "Only aurie aware actormaps can produce a live portrait"))
-
-  (define refr->self-portrait
-    (aurie-manager-refr->self-portrait aurie-manager))
-
-  (define-values (portrait-sealer portrait-unsealer _brand)
-    (make-sealer-triplet))
-
-  (values
-    (hash-fold
-      (lambda (refr self-portrait live-portrait)
-        ;; TODO: run in an actormap?
-        (hashq-set! live-portrait refr (self-portrait portrait-sealer))
-        live-portrait)
-      (make-hash-table)
-      refr->self-portrait)
-    portrait-unsealer))
-
 
 ;; Ref(r)s
 ;; =======
@@ -829,6 +804,95 @@ Type: Any -> Boolean"
   (or (local-refr? obj)
       (remote-refr? obj)))
 
+;; Aurie portraiting
+(define-record-type <depiction>
+  (make-depiction type data)
+  depiction?
+  (type depiction-type)
+  (data depiction-data))
+
+(define (actormap-take-portrait am . roots)
+  "Produces a live self portrait of the actormap"
+  (when (null? roots)
+    (error "At least one root object must be specified for a portrait"))
+
+  ;; TODO: maybe port allow-broken?
+  (define aurie-manager
+    (actormap-aurie-manager am))
+  (unless aurie-manager
+    (error "Only aurie aware actormaps can produce a live portrait"))
+  (define refr->self-portrait
+    (aurie-manager-refr->self-portrait aurie-manager))
+
+  (define process-queue
+    (make-q))
+  (define-values (session-seal session-unseal _session-brand)
+    (make-sealer-triplet))
+
+  (define next-id 0)
+  (define val->slot
+    (make-hash-table))
+  (define slot->val
+    (make-hash-table))
+  (define slot->depiction
+    (make-hash-table))
+
+  (define (slot-maybe-queue-near-ref! obj)
+    (or (hashq-ref val->slot obj #f)
+        (let ([this-slot next-id])
+          (set! next-id (+ 1 next-id))
+          (hashq-set! val->slot obj this-slot)
+          (hashq-set! slot->val this-slot obj)
+          (enq! process-queue obj)
+          this-slot)))
+
+  (define root-slots
+    (map slot-maybe-queue-near-ref! roots))
+
+  (define (read-next-portrait!)
+    (define this-obj
+      (deq! process-queue))
+    (define this-obj-self-portrait
+      (hashq-ref refr->self-portrait this-obj))
+
+    ;; well at this point if it isn't queued already we're in trouble
+    (define slot
+      (hashq-ref val->slot this-obj))
+
+    (define (process-one depiction)
+      (match depiction
+        [(? local-object-refr?)
+         (make-depiction 'near-refr (slot-maybe-queue-near-ref! depiction))]
+        [(? local-promise-refr?)
+         (unless (near-promise-settled? depiction)
+           (error "Can't depict unsettled promise: " depiction))
+         (process-one (near-settled-promise-value depiction))]
+        [_ depiction]))
+
+    (define (process-depiction depiction phase)
+      (match depiction
+        [(? list? args)
+           (define processed-unsealed-depiction
+             (map process-one args))
+
+           (make-depiction 'object processed-unsealed-depiction)]))
+
+    ;; TODO: Run this in the actormap
+    (define returned-depiction
+      (session-unseal (this-obj-self-portrait session-seal)))
+
+    (define depiction-to-save
+      (process-depiction returned-depiction 'outer))
+
+    (hashq-set! slot->depiction slot depiction-to-save))
+
+  ;; Blahhh, while?
+  (let lp ()
+    (read-next-portrait!)
+    (unless (q-empty? process-queue)
+      (lp)))
+
+  (values slot->depiction val->slot slot->val root-slots))
 
 
 ;; "Become" sealer/unsealers

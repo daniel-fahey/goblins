@@ -39,12 +39,10 @@
 
 (pk 'robot1 robot1 'robot2 robot2)
 
-(define-values (live-portrait portrait-unsealer)
-  (actormap-live-portrait my-actormap))
+(define-values (slots->depictions val->slot slot->val root-slots)
+  (actormap-take-portrait my-actormap robot1))
 
-(pk 'live-portrait live-portrait)
-
-(hash-for-each
-  (lambda (refr portrait)
-    (pk 'refr refr 'portrait (portrait-unsealer portrait)))
-  live-portrait)
+(pk 'slots->depictions slots->depictions
+    'val->slot val->slot
+    'slot->val slot->val
+    'root-slots root-slots)
