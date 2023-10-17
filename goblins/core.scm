@@ -83,6 +83,10 @@
             spawn-promise-cons
             spawn-promise-values
 
+            make-aurenv
+            portraitize
+            actormap-live-portrait
+
             ;; TODO: separate this out!
             <message>
             make-message message?
@@ -168,6 +172,68 @@
          (display "<sealed>" port))))
   (values seal unseal sealed?))
 
+;;
+;; Aurie manager
+;; =============
+(define-record-type <aurie-manager>
+  (make-aurie-manager refr->self-portrait aurenv)
+  aurie-manager?
+  (refr->self-portrait aurie-manager-refr->self-portrait)
+  (aurenv aurie-manager-aurenv))
+
+(define (aurie-manager-add-self-portrait aurie-manager refr self-portrait)
+  (make-aurie-manager
+    (hashq-set! (aurie-manager-refr->self-portrait aurie-manager) refr self-portrait)
+    (aurie-manager-aurenv aurie-manager)))
+
+(define (aurie-manager-find-self-portrait aurie-manager refr)
+  (hash-ref (aurie-manager-refr->self-portrait aurie-manager) refr))
+
+;; Portraitized behavior
+(define-record-type <portraitized-behavior>
+  (make-portraitized-behavior beh self-portrait)
+  portraitized-behavior?
+  (beh portraitized-behavior-behavior)
+  (self-portrait portraitized-behavior-self-portrait))
+
+(define portraitize make-portraitized-behavior)
+
+;; Aurie environments
+(define-record-type <aurenv>
+  (make-aurenv bindings extends)
+  aurenv?
+  (bindings aurenv-bindings)
+  (extends aurenv-extends))
+
+(define (aurenv-find aurenv match?)
+  (define (match-bindings bindings)
+    (if (null? bindings)
+      #f
+      (let ([matched? (match? (car bindings))])
+        (if matched?
+          (car bindings)
+          (match-bindings (cdr bindings))))))
+
+  (define (match-extends extends)
+    (if (null? extends)
+      #f
+      (let ([result (aurenv-find (car extends) match?)])
+        (if result result (match-extends (cdr extends))))))
+
+  (define found-in-bindings
+    (match-bindings (aurenv-bindings aurenv)))
+
+  (if found-in-bindings
+    found-in-bindings
+    (match-extends (aurenv-extends aurenv))))
+
+(define (aurenv-name->auriable aurenv name)
+  "Finds the auriable within a given aurenv tree by the provided name"
+  (aurenv-find
+    (lambda (auriable)
+      ;; TODO: does eq? work here, I don't think so.
+      (equal? auriable name))
+    aurenv))
 
 
 ;;;                  .============================.
@@ -425,11 +491,12 @@
 
 (define-record-type <actormap>
   ;; TODO: This is confusing, naming-wise? (see make-actormap alias)
-  (_make-actormap metatype data vat-connector)
+  (_make-actormap metatype data vat-connector aurie-manager)
   actormap?
   (metatype actormap-metatype)
   (data actormap-data)
-  (vat-connector actormap-vat-connector))
+  (vat-connector actormap-vat-connector)
+  (aurie-manager actormap-aurie-manager actormap-aurie-manager-set!))
 
 ;; (set-record-type-printer!
 ;;  <actormap>
@@ -471,14 +538,19 @@
 (define whactormap-metatype
   (make-actormap-metatype 'whactormap whactormap-ref whactormap-set!))
 
-(define* (make-whactormap #:key [vat-connector #f])
+(define* (make-whactormap #:key [vat-connector #f] [aurenv #f])
   "Create and return a reference to a weak-hash actormap. If provided,
 VAT-CONNECTOR is the syscaller of the containing vat.
 
 Type: (Optional Syscaller) -> WHActormap"
+  (define aurie-manager
+    (if aurenv
+      (make-aurie-manager (make-hash-table) aurenv)
+      #f))
   (_make-actormap whactormap-metatype
                   (make-whactormap-data (make-weak-key-hash-table))
-                  vat-connector))
+                  vat-connector
+                  aurie-manager))
 
 (define (whactormap? obj)
   "Return #t if OBJ is a weak-hash actormap, else #f.
@@ -501,7 +573,8 @@ Type: Any -> Boolean"
   ;; Return newly made whactormap
   (_make-actormap whactormap-metatype
                   (make-whactormap-data new-ht)
-                  (actormap-vat-connector am)))
+                  (actormap-vat-connector am)
+                  (actormap-aurie-manager am)))
 
 
 ;; Transactional actormaps
@@ -548,6 +621,7 @@ Type: TransActormap -> Void"
   ;;  - to merge this transaction on top of the weak-hasheq
   (define (do-merge! transactormap)
     (define tm-data (actormap-data transactormap))
+    (define tm-aurie-manager (actormap-aurie-manager transactormap))
     (define parent (transactormap-data-parent tm-data))
     (define parent-mtype (actormap-metatype parent))
     ;; TODO: Should we actually return the root-wht instead,
@@ -570,6 +644,14 @@ Type: TransActormap -> Void"
          (hashq-set! root-wht key val))
        (transactormap-data-delta tm-data))
       (set-transactormap-data-merged?! tm-data #t))
+
+    ;; Copy over the refr self portrait functions
+    (define root-aurie-manager (actormap-aurie-manager root-actormap))
+    (define root-refr->self-portrait (aurie-manager-refr->self-portrait root-aurie-manager))
+    (hash-for-each
+      (lambda (key val)
+        (hashq-set! root-refr->self-portrait key val))
+      (aurie-manager-refr->self-portrait tm-aurie-manager))
     root-actormap)
   (do-merge! transactormap)
   *unspecified*)
@@ -602,17 +684,45 @@ representing the generation after PARENT.
 
 Type: Actormap -> TransActormap"
   (define vat-connector (actormap-vat-connector parent))
+  (define aurie-manager (actormap-aurie-manager parent))
   (_make-actormap transactormap-metatype
                   (make-transactormap-data parent (make-hash-table) #f)
-                  vat-connector))
+                  vat-connector
+                  aurie-manager))
 
 (define (transactormap-reparent transactormap new-parent)
   (define vat-connector (actormap-vat-connector new-parent))
+  (define aurie-manager (actormap-aurie-manager new-parent))
   (define delta (transactormap-data-delta (actormap-data transactormap)))
   (_make-actormap transactormap-metatype
                   (make-transactormap-data new-parent delta #f)
-                  vat-connector))
+                  vat-connector
+                  aurie-manager))
 
+;; Aurie portraiting
+(define (actormap-live-portrait am)
+  "Produces a live self portrait of the actormap"
+  (define aurie-manager
+    (actormap-aurie-manager am))
+
+  (unless aurie-manager
+    (error "Only aurie aware actormaps can produce a live portrait"))
+
+  (define refr->self-portrait
+    (aurie-manager-refr->self-portrait aurie-manager))
+
+  (define-values (portrait-sealer portrait-unsealer _brand)
+    (make-sealer-triplet))
+
+  (values
+    (hash-fold
+      (lambda (refr self-portrait live-portrait)
+        ;; TODO: run in an actormap?
+        (hashq-set! live-portrait refr (self-portrait portrait-sealer))
+        live-portrait)
+      (make-hash-table)
+      refr->self-portrait)
+    portrait-unsealer))
 
 
 ;; Ref(r)s
@@ -2140,23 +2250,36 @@ Type: -> (Promise . Resolver)"
                            [debug-name (procedure-name actor-constructor)])
   (define vat-connector
     (actormap-vat-connector actormap))
+  (define aurie-manager
+    (actormap-aurie-manager actormap))
   (define-values (become become-unseal become?)
     (make-become-sealer-triplet))
   (define actor-handler
     (apply actor-constructor become args))
-  (match actor-handler
-    ;; New procedure, so let's set it
-    [(? procedure?)
-     (let ((actor-refr
-            (make-local-object-refr debug-name vat-connector)))
-       (actormap-set! actormap actor-refr
-                      (make-mactor:object actor-handler
-                                          become-unseal become?))
-       actor-refr)]
-    [(? live-refr? pre-existing-refr)
-     pre-existing-refr]
-    [_
-     (error 'invalid-actor-handler "Not a procedure or live refr:" actor-handler)]))
+  (define (handler->refr handler deportraitized?)
+    (match handler
+      ;; We can't use match record unpacking because of goblin's $ function.
+      [(? portraitized-behavior? portraitized-beh)
+       (let* ([beh (portraitized-behavior-behavior portraitized-beh)]
+              [self-portrait (portraitized-behavior-self-portrait portraitized-beh)]
+              [refr (handler->refr beh #t)])
+         (when (aurie-manager? aurie-manager)
+            (aurie-manager-add-self-portrait aurie-manager refr self-portrait))
+         refr)]
+      [(? procedure?)
+       (when (and (aurie-manager? aurie-manager) (not deportraitized?))
+         (error "Spawing non-aurie aware actor within aurie aware actormap" handler))
+       (let ((actor-refr
+              (make-local-object-refr debug-name vat-connector)))
+         (actormap-set! actormap actor-refr
+                        (make-mactor:object handler
+                                            become-unseal become?))
+         actor-refr)]
+      [(? live-refr? pre-existing-refr)
+       pre-existing-refr]
+      [_
+       (error 'invalid-actor-handler "Not a procedure, aurie or live refr:" handler)]))
+  (handler->refr actor-handler #f))
 
 ;; These two are user-facing procedures.  Thus, they set up
 ;; their own syscaller.

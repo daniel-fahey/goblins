@@ -76,6 +76,10 @@
                spawn-promise-cons
                spawn-promise-values
 
+               portraitize
+               make-aurenv
+               actormap-live-portrait
+
                make-vat
                vat?
                vat-name
