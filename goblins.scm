@@ -78,7 +78,7 @@
 
                portraitize
                make-aurenv
-               actormap-live-portrait
+               actormap-take-portrait
 
                make-vat
                vat?
