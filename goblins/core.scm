@@ -1345,16 +1345,23 @@ Type: Any -> Boolean"
          ;; I guess watching for this guarantees that an immediate call
          ;; against a local actor will not be tail recursive.
          ;; TODO: We need to document that.
-         (define-values (new-behavior return-val)
+         (define-values (new-behavior return-val self-portrait)
            (let ([returned
                   (call-with-prompt *actor-await-prompt*
                     _do-actor-call _handle-await)])
              (if (become? returned)
                  ;; The unsealer unseals both the behavior and return-value anyway
-                 (become-unsealer returned)
+                 (let-values ([(new-beh return-val) (become-unsealer returned)])
+                   (match (become-unsealer returned)
+                     [(? portraitized-behavior? pb)
+                      (values (portraitized-behavior-behavior pb)
+                              return-val
+                              (portraitized-behavior-self-portrait pb))]
+                     [_ (values new-beh return-val (mactor:object-self-portrait mactor))]))
+
                  ;; In this case, we're not becoming anything, so just give us
                  ;; the return-val
-                 (values #f returned))))
+                 (values #f returned (mactor:object-self-portrait mactor)))))
 
          ;; if a new behavior for this actor was specified,
          ;; let's replace it
@@ -1365,7 +1372,7 @@ Type: Any -> Boolean"
            (actormap-set! actormap to-refr
                           (make-mactor:object
                            new-behavior
-                           (mactor:object-self-portrait mactor) ;; We should take from new beh.
+                           self-portrait
                            (mactor:object-become-unsealer mactor)
                            (mactor:object-become? mactor))))
 
