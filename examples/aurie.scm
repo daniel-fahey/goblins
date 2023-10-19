@@ -29,7 +29,7 @@
     (list)))
 
 (define my-actormap
-  (make-actormap #:aurenv robot-aurenv))
+  (make-actormap))
 
 (define robot1
   (actormap-spawn! my-actormap ^robot "MegaCrusher3000" #:hp 40))
