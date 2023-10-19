@@ -1,8 +1,5 @@
 (use-modules (goblins)
-             (goblins ghash)
-             (goblins actor-lib methods)
-             (srfi srfi-9)
-             (srfi srfi-11))
+             (goblins actor-lib methods))
 
 ;; Test code
 (define* (^robot bcom name #:key [hp 0])
@@ -18,12 +15,21 @@
 
   (portraitize main-beh self-portrait))
 
-(define (robot-depict name hp)
-  (spawn ^robot name #:hp hp))
+(define* (^arena bcom #:optional [robots '()])
+  (define main-beh
+    (methods
+     ([add-robot robot]
+      (bcom (^arena bcom (cons robot robots))))
+     ([get-robots] robots)))
+
+  (define (self-portrait session)
+    (session (list robots)))
+  (portraitize main-beh self-portrait))
 
 (define robot-aurenv
   (make-aurenv
-    (list (list '((sandbox aurie) ^robot) robot-depict))
+    (list (list '((sandbox aurie) ^robot) ^robot)
+          (list '((example aurie) ^arena) ^arena))
     (list)))
 
 (define my-actormap
@@ -35,12 +41,22 @@
 (define robot2
   (actormap-spawn! my-actormap ^robot "ElectroSlicer8451" #:hp 50))
 
-(pk 'robot1 robot1 'robot2 robot2)
+(define arena
+  (actormap-spawn! my-actormap ^arena (list robot1)))
+
+(actormap-run!
+ my-actormap
+ (lambda ()
+   ($ arena 'add-robot robot2)))
 
 (define-values (slots->depictions val->slot slot->val root-slots)
-  (actormap-take-portrait my-actormap robot1))
+  (actormap-take-portrait my-actormap arena))
 
 (pk 'slots->depictions slots->depictions
     'val->slot val->slot
     'slot->val slot->val
     'root-slots root-slots)
+(hash-for-each
+ (lambda (k v)
+   (pk 'key k 'value v))
+ slots->depictions)
