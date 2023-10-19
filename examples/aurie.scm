@@ -1,6 +1,4 @@
 (use-modules (goblins)
-             (goblins vat)
-             (goblins contrib aurie)
              (goblins ghash)
              (goblins actor-lib methods)
              (srfi srfi-9)

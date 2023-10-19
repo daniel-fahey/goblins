@@ -2697,12 +2697,11 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (type depiction-type)
   (data depiction-data))
 
+;; TODO: maybe port allow-broken?
 (define (actormap-take-portrait am . roots)
   "Produces a live self portrait of the actormap"
   (when (null? roots)
     (error "At least one root object must be specified for a portrait"))
-
-  ;; TODO: maybe port allow-broken?
 
   (define process-queue
     (make-q))
