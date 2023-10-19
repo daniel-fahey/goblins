@@ -172,23 +172,6 @@
          (display "<sealed>" port))))
   (values seal unseal sealed?))
 
-;;
-;; Aurie manager
-;; =============
-(define-record-type <aurie-manager>
-  (make-aurie-manager refr->self-portrait aurenv)
-  aurie-manager?
-  (refr->self-portrait aurie-manager-refr->self-portrait)
-  (aurenv aurie-manager-aurenv))
-
-(define (aurie-manager-add-self-portrait aurie-manager refr self-portrait)
-  (make-aurie-manager
-    (hashq-set! (aurie-manager-refr->self-portrait aurie-manager) refr self-portrait)
-    (aurie-manager-aurenv aurie-manager)))
-
-(define (aurie-manager-find-self-portrait aurie-manager refr)
-  (hash-ref (aurie-manager-refr->self-portrait aurie-manager) refr))
-
 ;; Portraitized behavior
 (define-record-type <portraitized-behavior>
   (make-portraitized-behavior beh self-portrait)
@@ -227,7 +210,7 @@
     found-in-bindings
     (match-extends (aurenv-extends aurenv))))
 
-(define (aurenv-name->auriable aurenv name)
+(define (aurenv-ref aurenv name)
   "Finds the auriable within a given aurenv tree by the provided name"
   (aurenv-find
     (lambda (auriable)
@@ -491,12 +474,11 @@
 
 (define-record-type <actormap>
   ;; TODO: This is confusing, naming-wise? (see make-actormap alias)
-  (_make-actormap metatype data vat-connector aurie-manager)
+  (_make-actormap metatype data vat-connector)
   actormap?
   (metatype actormap-metatype)
   (data actormap-data)
-  (vat-connector actormap-vat-connector)
-  (aurie-manager actormap-aurie-manager actormap-aurie-manager-set!))
+  (vat-connector actormap-vat-connector))
 
 ;; (set-record-type-printer!
 ;;  <actormap>
@@ -538,19 +520,14 @@
 (define whactormap-metatype
   (make-actormap-metatype 'whactormap whactormap-ref whactormap-set!))
 
-(define* (make-whactormap #:key [vat-connector #f] [aurenv #f])
+(define* (make-whactormap #:key [vat-connector #f])
   "Create and return a reference to a weak-hash actormap. If provided,
 VAT-CONNECTOR is the syscaller of the containing vat.
 
 Type: (Optional Syscaller) -> WHActormap"
-  (define aurie-manager
-    (if aurenv
-      (make-aurie-manager (make-hash-table) aurenv)
-      #f))
   (_make-actormap whactormap-metatype
                   (make-whactormap-data (make-weak-key-hash-table))
-                  vat-connector
-                  aurie-manager))
+                  vat-connector))
 
 (define (whactormap? obj)
   "Return #t if OBJ is a weak-hash actormap, else #f.
@@ -573,8 +550,7 @@ Type: Any -> Boolean"
   ;; Return newly made whactormap
   (_make-actormap whactormap-metatype
                   (make-whactormap-data new-ht)
-                  (actormap-vat-connector am)
-                  (actormap-aurie-manager am)))
+                  (actormap-vat-connector am)))
 
 
 ;; Transactional actormaps
@@ -621,7 +597,6 @@ Type: TransActormap -> Void"
   ;;  - to merge this transaction on top of the weak-hasheq
   (define (do-merge! transactormap)
     (define tm-data (actormap-data transactormap))
-    (define tm-aurie-manager (actormap-aurie-manager transactormap))
     (define parent (transactormap-data-parent tm-data))
     (define parent-mtype (actormap-metatype parent))
     ;; TODO: Should we actually return the root-wht instead,
@@ -645,13 +620,6 @@ Type: TransActormap -> Void"
        (transactormap-data-delta tm-data))
       (set-transactormap-data-merged?! tm-data #t))
 
-    ;; Copy over the refr self portrait functions
-    (define root-aurie-manager (actormap-aurie-manager root-actormap))
-    (define root-refr->self-portrait (aurie-manager-refr->self-portrait root-aurie-manager))
-    (hash-for-each
-      (lambda (key val)
-        (hashq-set! root-refr->self-portrait key val))
-      (aurie-manager-refr->self-portrait tm-aurie-manager))
     root-actormap)
   (do-merge! transactormap)
   *unspecified*)
@@ -684,20 +652,16 @@ representing the generation after PARENT.
 
 Type: Actormap -> TransActormap"
   (define vat-connector (actormap-vat-connector parent))
-  (define aurie-manager (actormap-aurie-manager parent))
   (_make-actormap transactormap-metatype
                   (make-transactormap-data parent (make-hash-table) #f)
-                  vat-connector
-                  aurie-manager))
+                  vat-connector))
 
 (define (transactormap-reparent transactormap new-parent)
   (define vat-connector (actormap-vat-connector new-parent))
-  (define aurie-manager (actormap-aurie-manager new-parent))
   (define delta (transactormap-data-delta (actormap-data transactormap)))
   (_make-actormap transactormap-metatype
                   (make-transactormap-data new-parent delta #f)
-                  vat-connector
-                  aurie-manager))
+                  vat-connector))
 
 
 ;; Ref(r)s
@@ -804,95 +768,6 @@ Type: Any -> Boolean"
   (or (local-refr? obj)
       (remote-refr? obj)))
 
-;; Aurie portraiting
-(define-record-type <depiction>
-  (make-depiction type data)
-  depiction?
-  (type depiction-type)
-  (data depiction-data))
-
-(define (actormap-take-portrait am . roots)
-  "Produces a live self portrait of the actormap"
-  (when (null? roots)
-    (error "At least one root object must be specified for a portrait"))
-
-  ;; TODO: maybe port allow-broken?
-  (define aurie-manager
-    (actormap-aurie-manager am))
-  (unless aurie-manager
-    (error "Only aurie aware actormaps can produce a live portrait"))
-  (define refr->self-portrait
-    (aurie-manager-refr->self-portrait aurie-manager))
-
-  (define process-queue
-    (make-q))
-  (define-values (session-seal session-unseal _session-brand)
-    (make-sealer-triplet))
-
-  (define next-id 0)
-  (define val->slot
-    (make-hash-table))
-  (define slot->val
-    (make-hash-table))
-  (define slot->depiction
-    (make-hash-table))
-
-  (define (slot-maybe-queue-near-ref! obj)
-    (or (hashq-ref val->slot obj #f)
-        (let ([this-slot next-id])
-          (set! next-id (+ 1 next-id))
-          (hashq-set! val->slot obj this-slot)
-          (hashq-set! slot->val this-slot obj)
-          (enq! process-queue obj)
-          this-slot)))
-
-  (define root-slots
-    (map slot-maybe-queue-near-ref! roots))
-
-  (define (read-next-portrait!)
-    (define this-obj
-      (deq! process-queue))
-    (define this-obj-self-portrait
-      (hashq-ref refr->self-portrait this-obj))
-
-    ;; well at this point if it isn't queued already we're in trouble
-    (define slot
-      (hashq-ref val->slot this-obj))
-
-    (define (process-one depiction)
-      (match depiction
-        [(? local-object-refr?)
-         (make-depiction 'near-refr (slot-maybe-queue-near-ref! depiction))]
-        [(? local-promise-refr?)
-         (unless (near-promise-settled? depiction)
-           (error "Can't depict unsettled promise: " depiction))
-         (process-one (near-settled-promise-value depiction))]
-        [_ depiction]))
-
-    (define (process-depiction depiction phase)
-      (match depiction
-        [(? list? args)
-           (define processed-unsealed-depiction
-             (map process-one args))
-
-           (make-depiction 'object processed-unsealed-depiction)]))
-
-    ;; TODO: Run this in the actormap
-    (define returned-depiction
-      (session-unseal (this-obj-self-portrait session-seal)))
-
-    (define depiction-to-save
-      (process-depiction returned-depiction 'outer))
-
-    (hashq-set! slot->depiction slot depiction-to-save))
-
-  ;; Blahhh, while?
-  (let lp ()
-    (read-next-portrait!)
-    (unless (q-empty? process-queue)
-      (lp)))
-
-  (values slot->depiction val->slot slot->val root-slots))
 
 
 ;; "Become" sealer/unsealers
@@ -982,9 +857,10 @@ Type: Any -> Boolean"
 ;; handler specifies that this actor would like to "become" a new
 ;; version of itself (get a new handler)
 (define-record-type <mactor:object>
-  (make-mactor:object behavior become-unsealer become?)
+  (make-mactor:object behavior self-portrait become-unsealer become?)
   mactor:object?
   (behavior mactor:object-behavior)
+  (self-portrait mactor:object-self-portrait)
   (become-unsealer mactor:object-become-unsealer)
   (become? mactor:object-become?))
 
@@ -1489,6 +1365,7 @@ Type: Any -> Boolean"
            (actormap-set! actormap to-refr
                           (make-mactor:object
                            new-behavior
+                           (mactor:object-self-portrait mactor) ;; We should take from new beh.
                            (mactor:object-become-unsealer mactor)
                            (mactor:object-become? mactor))))
 
@@ -1513,20 +1390,26 @@ Type: Any -> Boolean"
       (make-become-sealer-triplet))
     (define initial-behavior
       (apply constructor become args))
-    (match initial-behavior
-      ;; New procedure, so let's set it
-      [(? procedure?)
-       (let ((actor-refr
-              (make-local-object-refr debug-name vat-connector)))
-         (actormap-set! actormap actor-refr
-                        (make-mactor:object initial-behavior
-                                            become-unsealer become-sealed?))
-         actor-refr)]
-      ;; If someone returns another actor, just let that be the actor
-      [(? live-refr? pre-existing-refr)
-       pre-existing-refr]
-      [_
-       (error 'invalid-actor-handler "Not a procedure or live refr:" initial-behavior)]))
+    (define* (create-refr beh #:optional maybe-self-portrait)
+      (match beh
+        [(? portraitized-behavior?)
+         (create-refr (portraitized-behavior-behavior beh)
+                      (portraitized-behavior-self-portrait beh))]
+        ;; New procedure, so let's set it
+        [(? procedure?)
+         (let ((actor-refr
+                (make-local-object-refr debug-name vat-connector)))
+           (actormap-set! actormap actor-refr
+                          (make-mactor:object initial-behavior
+                                              maybe-self-portrait
+                                              become-unsealer become-sealed?))
+           actor-refr)]
+        ;; If someone returns another actor, just let that be the actor
+        [(? live-refr? pre-existing-refr)
+         pre-existing-refr]
+        [_
+         (error 'invalid-actor-handler "Not a procedure or live refr:" initial-behavior)]))
+    (create-refr initial-behavior))
 
   (define (spawn-mactor mactor debug-name)
     (actormap-spawn-mactor! actormap mactor debug-name))
@@ -2314,29 +2197,21 @@ Type: -> (Promise . Resolver)"
                            [debug-name (procedure-name actor-constructor)])
   (define vat-connector
     (actormap-vat-connector actormap))
-  (define aurie-manager
-    (actormap-aurie-manager actormap))
   (define-values (become become-unseal become?)
     (make-become-sealer-triplet))
   (define actor-handler
     (apply actor-constructor become args))
-  (define (handler->refr handler deportraitized?)
+  (define* (handler->refr handler #:optional maybe-self-portrait)
     (match handler
       ;; We can't use match record unpacking because of goblin's $ function.
-      [(? portraitized-behavior? portraitized-beh)
-       (let* ([beh (portraitized-behavior-behavior portraitized-beh)]
-              [self-portrait (portraitized-behavior-self-portrait portraitized-beh)]
-              [refr (handler->refr beh #t)])
-         (when (aurie-manager? aurie-manager)
-            (aurie-manager-add-self-portrait aurie-manager refr self-portrait))
-         refr)]
+      [(? portraitized-behavior?)
+       (handler->refr (portraitized-behavior-behavior handler)
+                      (portraitized-behavior-self-portrait handler))]
       [(? procedure?)
-       (when (and (aurie-manager? aurie-manager) (not deportraitized?))
-         (error "Spawing non-aurie aware actor within aurie aware actormap" handler))
        (let ((actor-refr
               (make-local-object-refr debug-name vat-connector)))
          (actormap-set! actormap actor-refr
-                        (make-mactor:object handler
+                        (make-mactor:object handler maybe-self-portrait
                                             become-unseal become?))
          actor-refr)]
       [(? live-refr? pre-existing-refr)
@@ -2814,3 +2689,88 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 (define (syscaller-free proc)
   (parameterize ([current-syscaller #f])
     (proc)))
+
+;; Aurie portraiting
+(define-record-type <depiction>
+  (make-depiction type data)
+  depiction?
+  (type depiction-type)
+  (data depiction-data))
+
+(define (actormap-take-portrait am . roots)
+  "Produces a live self portrait of the actormap"
+  (when (null? roots)
+    (error "At least one root object must be specified for a portrait"))
+
+  ;; TODO: maybe port allow-broken?
+
+  (define process-queue
+    (make-q))
+  (define-values (session-seal session-unseal _session-brand)
+    (make-sealer-triplet))
+
+  (define next-id 0)
+  (define val->slot
+    (make-hash-table))
+  (define slot->val
+    (make-hash-table))
+  (define slot->depiction
+    (make-hash-table))
+
+  (define (slot-maybe-queue-near-ref! obj)
+    (or (hashq-ref val->slot obj #f)
+        (let ([this-slot next-id])
+          (set! next-id (+ 1 next-id))
+          (hashq-set! val->slot obj this-slot)
+          (hashq-set! slot->val this-slot obj)
+          (enq! process-queue obj)
+          this-slot)))
+
+  (define root-slots
+    (map slot-maybe-queue-near-ref! roots))
+
+  (define (read-next-portrait!)
+    (define this-obj
+      (deq! process-queue))
+    (define this-obj-self-portrait
+      (mactor:object-self-portrait (actormap-ref am this-obj)))
+
+    ;; well at this point if it isn't queued already we're in trouble
+    (define slot
+      (hashq-ref val->slot this-obj))
+    (define (process-one depiction)
+      (match depiction
+        [(? list?)
+         (map process-one depiction)]
+        [(? local-object-refr?)
+         (make-depiction 'near-refr (slot-maybe-queue-near-ref! depiction))]
+        [(? local-promise-refr?)
+         (unless (near-promise-settled? depiction)
+           (error "Can't depict unsettled promise: " depiction))
+         (process-one (near-settled-promise-value depiction))]
+        [_ depiction]))
+
+    (define (process-depiction depiction phase)
+      (match depiction
+        [(? list? args)
+         (define processed-unsealed-depiction
+           (map process-one args))
+
+         (make-depiction 'object processed-unsealed-depiction)]))
+
+    ;; TODO: Run this in the actormap
+    (define returned-depiction
+      (session-unseal (this-obj-self-portrait session-seal)))
+
+    (define depiction-to-save
+      (process-depiction returned-depiction 'outer))
+
+    (hashq-set! slot->depiction slot depiction-to-save))
+
+  ;; Blahhh, while?
+  (let lp ()
+    (read-next-portrait!)
+    (unless (q-empty? process-queue)
+      (lp)))
+
+  (values slot->depiction val->slot slot->val root-slots))
