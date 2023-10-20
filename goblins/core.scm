@@ -84,8 +84,18 @@
             spawn-promise-values
 
             make-aurenv
+            aurenv-ref
+            make-auriable
+            auriable?
+            auriable-name
+            auriable-constructor
+            auriable-depictor
             portraitize
             actormap-take-portrait
+            <depiction>
+            depiction?
+            depiction-type
+            depiction-data
 
             ;; TODO: separate this out!
             <message>
@@ -188,35 +198,54 @@
   (bindings aurenv-bindings)
   (extends aurenv-extends))
 
-(define (aurenv-find aurenv match?)
+(define-record-type <auriable>
+  (_make-auriable name constructor depictor)
+  auriable?
+  (name auriable-name)
+  (constructor auriable-constructor)
+  (depictor auriable-depictor))
+
+(define* (make-auriable name constructor #:optional maybe-depictor)
+  (define depictor
+    (if maybe-depictor
+        maybe-depictor
+        (lambda args (apply spawn constructor args))))
+  (_make-auriable name constructor depictor))
+
+(define (aurenv-find match? aurenv)
   (define (match-bindings bindings)
     (if (null? bindings)
       #f
       (let ([matched? (match? (car bindings))])
         (if matched?
-          (car bindings)
+          (values (car bindings) aurenv)
           (match-bindings (cdr bindings))))))
 
   (define (match-extends extends)
     (if (null? extends)
-      #f
+      (values #f #f)
       (let ([result (aurenv-find (car extends) match?)])
         (if result result (match-extends (cdr extends))))))
 
-  (define found-in-bindings
+  (define-values (found-auriable found-aurenv)
     (match-bindings (aurenv-bindings aurenv)))
 
-  (if found-in-bindings
-    found-in-bindings
+  (if (and found-auriable found-aurenv)
+    (values found-auriable found-aurenv)
     (match-extends (aurenv-extends aurenv))))
 
 (define (aurenv-ref aurenv name)
   "Finds the auriable within a given aurenv tree by the provided name"
   (aurenv-find
     (lambda (auriable)
-      ;; TODO: does eq? work here, I don't think so.
-      (equal? auriable name))
+      (eq? (auriable-name auriable) name))
     aurenv))
+
+(define (aurenv-ref-by-constructor aurenv constructor)
+  (aurenv-find
+   (lambda (auriable)
+     (eq? (auriable-constructor auriable) constructor))
+   aurenv))
 
 
 ;;;                  .============================.
@@ -857,9 +886,10 @@ Type: Any -> Boolean"
 ;; handler specifies that this actor would like to "become" a new
 ;; version of itself (get a new handler)
 (define-record-type <mactor:object>
-  (make-mactor:object behavior self-portrait become-unsealer become?)
+  (make-mactor:object behavior constructor self-portrait become-unsealer become?)
   mactor:object?
   (behavior mactor:object-behavior)
+  (constructor mactor:object-constructor)
   (self-portrait mactor:object-self-portrait)
   (become-unsealer mactor:object-become-unsealer)
   (become? mactor:object-become?))
@@ -1372,6 +1402,7 @@ Type: Any -> Boolean"
            (actormap-set! actormap to-refr
                           (make-mactor:object
                            new-behavior
+                           (mactor:object-constructor mactor)
                            self-portrait
                            (mactor:object-become-unsealer mactor)
                            (mactor:object-become? mactor))))
@@ -1407,7 +1438,8 @@ Type: Any -> Boolean"
          (let ((actor-refr
                 (make-local-object-refr debug-name vat-connector)))
            (actormap-set! actormap actor-refr
-                          (make-mactor:object initial-behavior
+                          (make-mactor:object beh
+                                              constructor
                                               maybe-self-portrait
                                               become-unsealer become-sealed?))
            actor-refr)]
@@ -2218,7 +2250,8 @@ Type: -> (Promise . Resolver)"
        (let ((actor-refr
               (make-local-object-refr debug-name vat-connector)))
          (actormap-set! actormap actor-refr
-                        (make-mactor:object handler maybe-self-portrait
+                        (make-mactor:object handler actor-constructor
+                                            maybe-self-portrait
                                             become-unseal become?))
          actor-refr)]
       [(? live-refr? pre-existing-refr)
@@ -2705,7 +2738,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (data depiction-data))
 
 ;; TODO: maybe port allow-broken?
-(define (actormap-take-portrait am . roots)
+(define (actormap-take-portrait am aurenv . roots)
   "Produces a live self portrait of the actormap"
   (when (null? roots)
     (error "At least one root object must be specified for a portrait"))
@@ -2723,6 +2756,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (define slot->depiction
     (make-hash-table))
 
+  ;; TODO: probably want to cache constructor->name
   (define (slot-maybe-queue-near-ref! obj)
     (or (hashq-ref val->slot obj #f)
         (let ([this-slot next-id])
@@ -2740,6 +2774,10 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       (deq! process-queue))
     (define this-obj-self-portrait
       (mactor:object-self-portrait (actormap-ref am this-obj)))
+    (define this-obj-constructor
+      (mactor:object-constructor (actormap-ref am this-obj)))
+    (define-values (this-obj-auriable this-obj-aurenv)
+      (aurenv-ref-by-constructor aurenv this-obj-constructor))
 
     ;; well at this point if it isn't queued already we're in trouble
     (define slot
@@ -2753,23 +2791,23 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
         [(? local-promise-refr?)
          (unless (near-promise-settled? depiction)
            (error "Can't depict unsettled promise: " depiction))
-         (process-one (near-settled-promise-value depiction))]
+         (make-depiction 'near-refr (process-one (near-settled-promise-value depiction)))]
         [_ depiction]))
 
-    (define (process-depiction depiction phase)
+    (define (process-depiction auriable depiction phase)
       (match depiction
         [(? list? args)
          (define processed-unsealed-depiction
            (map process-one args))
 
-         (make-depiction 'object processed-unsealed-depiction)]))
+         (make-depiction 'object (list (auriable-name auriable) processed-unsealed-depiction))]))
 
     ;; TODO: Run this in the actormap
     (define returned-depiction
       (session-unseal (this-obj-self-portrait session-seal)))
 
     (define depiction-to-save
-      (process-depiction returned-depiction 'outer))
+      (process-depiction this-obj-auriable returned-depiction 'outer))
 
     (hashq-set! slot->depiction slot depiction-to-save))
 
