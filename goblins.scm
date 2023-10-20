@@ -78,7 +78,17 @@
 
                portraitize
                make-aurenv
+               aurenv-ref
+               make-auriable
+               auriable?
+               auriable-name
+               auriable-constructor
+               auriable-depictor
                actormap-take-portrait
+               <depiction>
+               depiction?
+               depiction-type
+               depiction-data
 
                make-vat
                vat?
