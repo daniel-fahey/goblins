@@ -565,19 +565,24 @@ resulting promises are bound to their corresponding @var{var}s; and
 finally @var{body} is evaluated in an environment where all promises
 are resolved.
 
-For example, this use of @code{let-on}@dots{}
+For example, given a @code{doubler} object defined as:
 
 @lisp
 (define (^doubler bcom)
   (lambda (x)
     (* x 2)))
 (define doubler (spawn ^doubler))
+@end lisp
+
+This use of @code{let-on}@dots{}
+
+@lisp
 (let-on ((four (<- doubler 2))
          (eight (<- doubler 4)))
   (+ four eight))
 @end lisp
 
-@dots{}is equivalent to@dots{}
+is equivalent to@dots{}
 
 @lisp
 (use-modules (goblins actor-lib joiners))
