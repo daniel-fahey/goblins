@@ -812,7 +812,7 @@ of subscribed actors.
 > (define c-chest (spawn ^cell 'wand))
 > (define pubsub (spawn ^pubsub a-chest b-chest))
 > ($ pubsub 'subscribers)
-=> ($<local-object ^cell> #<local-object ^cell>)
+=> (#<local-object ^cell> #<local-object ^cell>)
 > ($ pubsub 'publish 'boots)
 => #t
 > ($ a-chest)
@@ -883,7 +883,7 @@ whatever arguments it is passed.
 ;; enter a vat
 > (define a-chest (spawn ^cell 'sword))
 > (define b-chest (spawn ^cell 'gold))
-> (define-values (pd-stack pd-fowarder)
+> (define-values (pd-stack pd-forwarder)
     (spawn-pushdown-pair a-chest))
 > ($ pd-forwarder)
 => 'sword
@@ -1243,7 +1243,7 @@ provided, is an actor to extend with the warded @var{behavior}.  If
 @var{async?} is @code{#t}, invoke @var{behavior} using @code{<-};
 otherwise us @code{$}.
 
-The returned behavior can be invoked with either a singe list of
+The returned behavior can be invoked with either a single list of
 sealed arguments or any number of unsealed arguments.
 
 @end deffn
