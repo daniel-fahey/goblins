@@ -84,6 +84,7 @@
                auriable-name
                auriable-constructor
                auriable-depictor
+               actormap-replace-behavior
                actormap-take-portrait
                <depiction>
                depiction?

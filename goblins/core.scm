@@ -92,6 +92,7 @@
             auriable-depictor
             portraitize
             actormap-take-portrait
+            actormap-replace-behavior
             <depiction>
             depiction?
             depiction-type
@@ -246,6 +247,31 @@
    (lambda (auriable)
      (eq? (auriable-constructor auriable) constructor))
    aurenv))
+
+(define (aurenv-diff old new)
+  ;; use lset-adjoin?
+  (define (flatten aurenv)
+    (define flattened-extends (map flatten (aurenv-extends aurenv)))
+    (append (aurenv-bindings aurenv) (apply append flattened-extends)))
+
+  (define (build-name->auriable auriable-lst)
+    (define tbl (make-hash-table))
+    (map (lambda (auriable)
+           (hashq-set! tbl (auriable-name auriable) auriable))
+         auriable-lst)
+    tbl)
+
+  (define old-map (build-name->auriable (flatten old)))
+  (define new-map (build-name->auriable (flatten new)))
+
+  (hash-fold
+   (lambda (name auriable diff)
+     (define auriable-in-new (hashq-ref new-map name))
+     (if (eq? auriable auriable-in-new)
+         diff
+         (cons name diff)))
+   (list)
+   old-map))
 
 
 ;;;                  .============================.
@@ -2818,3 +2844,62 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       (lp)))
 
   (values slot->depiction val->slot slot->val root-slots))
+
+;; Change this behavior to accept an aurenv instead.
+(define (actormap-replace-behavior am old-aurenv new-aurenv)
+  (define metatype (actormap-metatype am))
+
+  ;; For now just deal with whactormaps (maybe always only do this?)
+  (unless (eq? (actormap-metatype-name metatype) 'whactormap)
+    (error "Not a whactormap, fixme. (maybe?)"))
+  (define whactormap (actormap-data am))
+  (define whactormap-table (whactormap-data-wht whactormap))
+
+  ;; Go through the new aurenv looking for changed actors
+  (define changed-auriables (aurenv-diff old-aurenv new-aurenv))
+
+  ;; For speed build up these tables ahead of time.
+  (define old-constructor->name (make-hash-table))
+  (map (lambda (name)
+         (hashq-set! old-constructor->name
+                     (auriable-constructor (aurenv-ref old-aurenv name))
+                     name))
+       changed-auriables)
+  (define name->new-auriable (make-hash-table))
+  (map (lambda (name)
+         (hashq-set! name->new-auriable name (aurenv-ref new-aurenv name)))
+       changed-auriables)
+
+  (define-values (session-sealer session-unsealer session?)
+    (make-sealer-triplet))
+
+  (define new-actormap
+    (make-transactormap am))
+  (hash-for-each
+   (lambda (refr mactor)
+     (pk 'refr refr 'mactor mactor)
+     (define name
+       (if (mactor:object? mactor)
+           (hashq-ref old-constructor->name (mactor:object-constructor mactor) #f)
+           #f))
+     (when name
+       (let* ([take-self-portrait (mactor:object-self-portrait mactor)]
+              [self-portrait (session-unsealer (take-self-portrait session-sealer))]
+              [new-auriable (hashq-ref name->new-auriable name)]
+              [depictor (auriable-depictor new-auriable)])
+         ;; The depictor will call =spawn= which will create a new refr, that's not actually
+         ;; what we want so allow that to happen, but pull out the mactor created and use
+         ;; the old refr instead.
+         ;; TODO: if the depictor spawns multiple things this won't work!!!!!
+         ;; this is not an edge case, eeeeek.
+         ;; TODO: but seriously, address the above
+         (define-values (tmp-refr tmp-am _msgs)
+           (actormap-run*
+            new-actormap
+            (lambda ()
+              (apply depictor self-portrait))))
+
+         (actormap-set! new-actormap refr
+                        (actormap-ref tmp-am tmp-refr)))))
+       whactormap-table)
+  (transactormap-merge! new-actormap))
