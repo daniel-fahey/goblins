@@ -148,7 +148,9 @@
   #:use-module (ice-9 control)
   #:use-module (ice-9 vlist)
   #:use-module (ice-9 q)
-  #:use-module (ice-9 suspendable-ports))
+  #:use-module (ice-9 suspendable-ports)
+  #:use-module (rnrs bytevectors)
+  #:use-module (goblins ghash))
 
 
 ;;; Utilities (which should be moved to their own modules)
@@ -2805,19 +2807,30 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     ;; well at this point if it isn't queued already we're in trouble
     (define slot
       (hashq-ref val->slot this-obj))
-    (define (process-one depiction)
-      (match depiction
-        [(? list?)
-         (map process-one depiction)]
-        [(? local-object-refr?)
-         (make-depiction 'near-refr (slot-maybe-queue-near-ref! depiction))]
-        [(? local-promise-refr?)
-         (unless (near-promise-settled? depiction)
-           (error "Can't depict unsettled promise: " depiction))
-         (make-depiction 'near-refr (process-one (near-settled-promise-value depiction)))]
-        [_ depiction]))
+    (define (process-one value)
+      (match value
+        [(? depictable-atom? atom) atom]
+          [(? list?)
+           (make-depiction 'list (map process-one value))]
+          [(? vector? vector)
+           (make-depiction 'vector (map process-one (vector->list vector)))]
+          [(? ghash?)
+           (ghash-fold
+            (lambda (k v prev)
+              (ghash-set prev (process-one k) (process-one v)))
+            (make-ghash)
+            value)]
+          [(? keyword? kw)
+           (make-depiction 'keyword (keyword->symbol kw))]
+          [(? local-object-refr?)
+           (make-depiction 'near-refr (slot-maybe-queue-near-ref! value))]
+          [(? local-promise-refr? vow)
+           (unless (near-promise-settled? vow)
+             (error "Can't depict unsettled promise: " vow))
+           (process-one (near-settled-promise-value vow))]
+          [_ (error "Unserializable value" value)]))
 
-    (define (process-depiction auriable depiction phase)
+    (define (process-depiction auriable depiction)
       (match depiction
         [(? list? args)
          (define processed-unsealed-depiction
@@ -2830,11 +2843,11 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       (this-obj-self-portrait))
 
     (define depiction-to-save
-      (process-depiction this-obj-auriable returned-depiction 'outer))
+      (process-depiction this-obj-auriable returned-depiction))
 
     (hashq-set! slot->depiction slot depiction-to-save))
 
-  ;; Blahhh, while?
+  ;; Go through the queue of objects to read and process them.
   (while (not (q-empty? process-queue))
     (read-next-portrait!))
 
@@ -2872,7 +2885,6 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (make-transactormap am))
   (hash-for-each
    (lambda (refr mactor)
-     (pk 'refr refr 'mactor mactor)
      (define name
        (if (mactor:object? mactor)
            (hashq-ref old-constructor->name (mactor:object-constructor mactor) #f)
@@ -2899,6 +2911,10 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
        whactormap-table)
   (transactormap-merge! new-actormap))
 
+(define (depictable-atom? obj)
+  (or (number? obj) (boolean? obj) (string? obj)
+      (symbol? obj) (bytevector? obj)))
+
 (define (actormap-restore am aurenv depictions roots)
   "Restore a self portrait in an actormap"
   (define slots->promises
@@ -2922,26 +2938,38 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
         (car depiction))
       (define obj-depiction
         (cadr depiction))
-      (define processed-args
-        (map process-one obj-depiction))
+      (define restored-args
+        (map restore-one obj-depiction))
       (define-values (auriable obj-aurenv)
         (aurenv-ref aurenv obj-name))
       (define depictor
         (auriable-depictor auriable))
 
-      (define (process-one value)
-        (match value
-          [($ <depiction> 'near-refr refr-slot)
-           (hashq-ref slots->promises refr-slot)]
-          [(? list?)
-           (map process-one value)]
-          [_ value]))
+      (define (restore-one depicted)
+        (match depicted
+          [(? depiction? depiction)
+           (let ([type (depiction-type depiction)]
+                 [data (depiction-data depiction)])
+             (match type
+               ['list (map restore-one data)]
+               ['vector (list->vector (map restore-one data))]
+               ['keyword (symbol->keyword data)]
+               ['ghash
+                (ghash-fold
+                 (lambda (k v prev)
+                   (ghash-set prev (restore-one k) (restore-one v)))
+                 (make-ghash)
+                 data)]
+               ['set (error "TODO")]
+               ['near-refr (hashq-ref slots->promises data)]
+               [_ (error "Unknown depiction type" type)]))]
+           [_ depicted]))
 
       (actormap-run!
        am
        (lambda ()
          (define restored-obj
-           (apply depictor processed-args))
+           (apply depictor restored-args))
          ($ resolver 'fulfill restored-obj))))
 
     ;; Restore all the objects in the depictions
