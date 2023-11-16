@@ -84,7 +84,6 @@
             spawn-promise-values
 
             make-aurenv
-            aurenv-ref
             make-auriable
             auriable?
             auriable-name
@@ -93,6 +92,7 @@
             portraitize
             actormap-take-portrait
             actormap-replace-behavior
+            actormap-restore
             <depiction>
             depiction?
             depiction-type
@@ -185,12 +185,10 @@
 
 ;; Portraitized behavior
 (define-record-type <portraitized-behavior>
-  (make-portraitized-behavior beh self-portrait)
+  (portraitize beh self-portrait)
   portraitized-behavior?
   (beh portraitized-behavior-behavior)
   (self-portrait portraitized-behavior-self-portrait))
-
-(define portraitize make-portraitized-behavior)
 
 ;; Aurie environments
 (define-record-type <aurenv>
@@ -1408,7 +1406,7 @@ Type: Any -> Boolean"
              (if (become? returned)
                  ;; The unsealer unseals both the behavior and return-value anyway
                  (let-values ([(new-beh return-val) (become-unsealer returned)])
-                   (match (become-unsealer returned)
+                   (match new-beh
                      [(? portraitized-behavior? pb)
                       (values (portraitized-behavior-behavior pb)
                               return-val
@@ -2763,11 +2761,10 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (type depiction-type)
   (data depiction-data))
 
-;; TODO: maybe port allow-broken?
 (define (actormap-take-portrait am aurenv . roots)
-  "Produces a live self portrait of the actormap"
+  "Produces a self portrait of the actormap"
   (when (null? roots)
-    (error "At least one root object must be specified for a portrait"))
+    (error "At least one root object must be specified to take a portrait"))
 
   (define process-queue
     (make-q))
@@ -2830,7 +2827,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
     ;; TODO: Run this in the actormap
     (define returned-depiction
-      (session-unseal (this-obj-self-portrait session-seal)))
+      (this-obj-self-portrait))
 
     (define depiction-to-save
       (process-depiction this-obj-auriable returned-depiction 'outer))
@@ -2838,10 +2835,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (hashq-set! slot->depiction slot depiction-to-save))
 
   ;; Blahhh, while?
-  (let lp ()
-    (read-next-portrait!)
-    (unless (q-empty? process-queue)
-      (lp)))
+  (while (not (q-empty? process-queue))
+    (read-next-portrait!))
 
   (values slot->depiction val->slot slot->val root-slots))
 
@@ -2903,3 +2898,64 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
                         (actormap-ref tmp-am tmp-refr)))))
        whactormap-table)
   (transactormap-merge! new-actormap))
+
+(define (actormap-restore am aurenv depictions roots)
+  "Restore a self portrait in an actormap"
+  (define slots->promises
+    (make-hash-table))
+  (define slots->resolvers
+    (make-hash-table))
+
+  (hash-for-each
+   (lambda (slot _depiction)
+     (let* ([promise-pair (actormap-run! am spawn-promise-cons)]
+            [vow (car promise-pair)]
+            [resolver (cdr promise-pair)])
+       (hashq-set! slots->promises slot vow)
+       (hashq-set! slots->resolvers slot resolver)))
+   depictions)
+
+    (define (restore-slot! slot depiction)
+      (define resolver
+        (hashq-ref slots->resolvers slot))
+      (define obj-name
+        (car depiction))
+      (define obj-depiction
+        (cadr depiction))
+      (define processed-args
+        (map process-one obj-depiction))
+      (define-values (auriable obj-aurenv)
+        (aurenv-ref aurenv obj-name))
+      (define depictor
+        (auriable-depictor auriable))
+
+      (define (process-one value)
+        (match value
+          [($ <depiction> 'near-refr refr-slot)
+           (hashq-ref slots->promises refr-slot)]
+          [(? list?)
+           (map process-one value)]
+          [_ value]))
+
+      (actormap-run!
+       am
+       (lambda ()
+         (define restored-obj
+           (apply depictor processed-args))
+         ($ resolver 'fulfill restored-obj))))
+
+    ;; Restore all the objects in the depictions
+    (hash-for-each
+     (lambda (slot depiction)
+       (restore-slot! slot (depiction-data depiction)))
+     depictions)
+
+    (match roots
+      [(? list? root-slots)
+       (define restored-roots
+         (map (lambda (slot)
+              (hashq-ref slots->promises slot))
+            root-slots))
+       (apply values restored-roots)]
+      [(? integer? slot)
+       (hashq-ref slots->promises slot)]))
