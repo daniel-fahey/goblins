@@ -144,10 +144,39 @@
 (define-values (restored-arena)
   (actormap-restore another-am robot-aurenv slots->depictions root-slots))
 
+(define robot1
+  (actormap-run!
+   another-am
+   (lambda ()
+     (pk 'robots ($C restored-arena 'get-robots))
+     (define robot1 (car ($C restored-arena 'get-robots)))
+     (pk 'robot1-name ($C robot1 'get-name)
+         'robot1-hp ($C robot1 'get-hp))
+     robot1)))
+
+(define* (^new-robot bcom name #:key [hp 0])
+  (define main-beh
+    (methods
+     [(get-hp) hp]
+     [(get-name) (format #f "robo ~a" name)]
+     [(alive?) (> hp 0)]
+     [(attack damage)
+      (bcom (^robot name #:hp (- hp damage)))]))
+  (define (self-portrait session)
+    (session (list name #:hp hp)))
+
+  (portraitize main-beh self-portrait))
+
+;; TODO: write a function to update a constructor in an aurenv
+(define new-robot-aurenv
+  (make-aurenv
+    (list (make-auriable '((sandbox aurie) ^robot) ^new-robot)
+          (make-auriable '((example aurie) ^arena) ^arena))
+    (list)))
+
+(actormap-replace-behavior another-am robot-aurenv new-robot-aurenv)
+
 (actormap-run
  another-am
  (lambda ()
-   (pk 'robots ($C restored-arena 'get-robots))
-   (define robot1 (car ($C restored-arena 'get-robots)))
-   (pk 'robot1-name ($C robot1 'get-name)
-       'robot1-hp ($C robot1 'get-hp))))
+   (pk 'name ($C robot1 'get-name))))
