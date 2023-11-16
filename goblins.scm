@@ -76,16 +76,16 @@
                spawn-promise-cons
                spawn-promise-values
 
-               portraitize
                make-aurenv
-               aurenv-ref
                make-auriable
                auriable?
                auriable-name
                auriable-constructor
                auriable-depictor
-               actormap-replace-behavior
+               portraitize
                actormap-take-portrait
+               actormap-replace-behavior
+               actormap-restore
                <depiction>
                depiction?
                depiction-type
