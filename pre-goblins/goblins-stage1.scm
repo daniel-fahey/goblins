@@ -33,9 +33,6 @@
   #:use-module (srfi srfi-9 gnu)
   #:use-module (ice-9 match))
 
-;; Old hack to get the "unspecified/undefined type"
-(define _void (if #f #f))
-
 (define-record-type <actormap>
   (make-actormap metatype data vat-connector)
   actormap?
@@ -58,7 +55,7 @@
 (define (actormap-set! am key val)
   ((actormap-metatype-set!-proc (actormap-metatype am))
    am key val)
-  _void)
+  *unspecified*)
 
 ;; (-> actormap? local-refr? (or/c mactor? #f))
 (define (actormap-ref am key)
@@ -145,7 +142,7 @@
     become-sealed?
     (new-behavior unseal-behavior)
     (return-val unseal-return-val))
-  (define* (become new-behavior #:optional [return-val _void])
+  (define* (become new-behavior #:optional [return-val *unspecified*])
     (make-become-seal new-behavior return-val))
   (define (unseal sealed)
     (values (unseal-behavior sealed)

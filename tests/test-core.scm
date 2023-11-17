@@ -115,15 +115,13 @@
     [() val]
     [(new-val) (bcom (^cell bcom new-val))]))
 
-(define _void (if #f #f))
-
 (actormap-run!
  am
  (lambda ()
    (define cell (spawn ^cell))
-   (test-equal ($ cell) #f)          ; initial val
-   (test-equal ($ cell 'foo) _void)  ; update (no return value)
-   (test-equal ($ cell) 'foo)))      ; new val
+   (test-equal ($ cell) #f)                  ; initial val
+   (test-equal ($ cell 'foo) *unspecified*)  ; update (no return value)
+   (test-equal ($ cell) 'foo)))              ; new val
 
 ;; Actor updates: update and return value at same time
 (define* (^counter bcom #:optional [n 0])

@@ -51,9 +51,6 @@
 (define local-promise? local-promise-refr?)
 (define local-object? local-object-refr?)
 (define add1 1+)
-;; Old hack to get the "unspecified/undefined type"
-(define _void (if #f #f))
-(define (void? x) (eq? x _void))
 
 (define _spawn-promise-values
   (@@ (goblins core) _spawn-promise-values))
@@ -407,7 +404,7 @@
        (<-np-extern internal-handler
                     (cmd-send-listen to-refr listener
                                      wants-partial?))])
-    _void)
+    *unspecified*)
 
   (define (_partition-unsealer-tm-cons)
     (cons partition-unseal partition-tm?))
@@ -688,7 +685,7 @@
           ;; elsewhere, let the coordinator do it
           [else
            ($C coordinator 'make-handoff-base-cert obj)]))]
-      [(? void?)
+      [(? unspecified?)
        (make-syrec* 'void)]
       [(? keyword?)
        (make-syrec* 'kw (keyword->symbol obj))]
@@ -728,7 +725,7 @@
         (make-exception-with-message "Unknown error occured with remote object")
         (make-exception-with-irritants '()))]
       [($ <syrec> 'void '())
-       _void]
+       *unspecified*]
       [($ <syrec> 'kw `(,keyword))
        (symbol->keyword keyword)]
       ;; unserialize user-defined records
@@ -815,7 +812,7 @@
                        (install-answer! answer-pos resolve-me-desc)))
            ;; And since we're bootstrapping, we resolve it immediately
            ($C answer-resolver 'fulfill bootstrap-obj)
-           _void)]
+           *unspecified*)]
         ;; TODO: Handle case where the target doesn't exist?
         ;;   Or maybe just generally handle unmarshalling errors :P
         [($ <op:deliver-only> to-desc args-marshalled)
@@ -823,7 +820,7 @@
                         (incoming-post-unmarshall! args-marshalled))
                        ((target) (unmarshall-to-desc to-desc)))
            (apply <-np target args)
-           _void)]
+           *unspecified*)]
         [($ <op:deliver> to-desc
                          args-marshalled
                          ;; answer-pos is either an integer (promise pipelining)
@@ -857,7 +854,7 @@
              (let ((to-resolve
                     (maybe-install-import! resolve-me-desc)))
                (<-np to-resolve 'fulfill sent-promise))])
-           _void)
+           *unspecified*)
          (do-it)]
 
         ;; TODO: Here's where we have to record that a listening interest
@@ -879,7 +876,7 @@
                 (incoming-post-unmarshall! listener-desc)))
            (listen-to to-refr listener
                       #:wants-partial? wants-partial?)
-           _void)]
+           *unspecified*)]
         [($ <op:gc-answer> answer-pos)
          (hashv-remove! answers answer-pos)]
         [($ <op:gc-export> (? integer? export-pos) (? integer? wire-delta))
@@ -1449,7 +1446,7 @@
         (spawn-delivery-agent))
       (define (send-to-remote msg)
         (put-message captp-outgoing-enq-ch msg)
-        _void)
+        *unspecified*)
       (define our-location
         ($C netlayer 'our-location))
       (define coordinator
@@ -1575,7 +1572,7 @@
                    (make-sessionmeta remote-location
                                      local-bootstrap-obj remote-bootstrap-vow
                                      coordinator session-name))))
-           _void]
+           *unspecified*]
           ;; Handle shutdown requests that happen before the setup
           ;; completer hands control to the internal handler.
           [($ <internal-shutdown> (? symbol? type) (? string? reason))
@@ -1583,7 +1580,7 @@
              (send-to-remote (op:abort reason)))
            ;; Since we're shutting down, our new behavior will be to
            ;; ignore all further messages.
-           (bcom (lambda _ _void))]))
+           (bcom (lambda _ *unspecified*))]))
 
       (define-values (incoming-forwarder incoming-swap)
         (swappable (spawn ^setup-completer)))
@@ -1626,7 +1623,7 @@
       ;; With both of these, we sort them bytewise and whichever is lower, that
       ;; session ends, the higher of the two continues.
       (define (^crossed-hellos-mitigator bcom our-side-name)
-        (define voided-beh (lambda _ _void))
+        (define voided-beh (lambda _ *unspecified*))
         (lambda (remote-side-name)
           (let ([sorted-names (sort (list our-side-name remote-side-name) bytes<?)])
             (if (equal? (car sorted-names) our-side-name)

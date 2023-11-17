@@ -140,9 +140,6 @@
 
 ;;; Here's basically your pre-goblins area.
 
-;; Old hack to get the "unspecified/undefined type"
-(define _void (if #f #f))
-
 ;; mimic Racket's seteq
 (define (vseteq . items)
   (alist->vhash (map (lambda (x) (cons x #t)) items) hashq))
@@ -448,7 +445,7 @@
 (define (actormap-set! am key val)
   ((actormap-metatype-set!-proc (actormap-metatype am))
    am key val)
-  _void)
+  *unspecified*)
 
 ;; (-> actormap? local-refr? (or/c mactor? #f))
 (define (actormap-ref am key)
@@ -538,7 +535,7 @@ Type: Any -> Boolean"
   (when (transactormap-merged? transactormap)
     (error "Can't use transactormap-set! on merged transactormap"))
   (hashq-set! tm-delta key val)
-  _void)
+  *unspecified*)
 
 ;; Not threadsafe, but probably doesn't matter
 (define (transactormap-merge! transactormap)
@@ -574,7 +571,7 @@ Type: TransActormap -> Void"
       (set-transactormap-data-merged?! tm-data #t))
     root-actormap)
   (do-merge! transactormap)
-  _void)
+  *unspecified*)
 
 (define (transactormap-buffer-merge! transactormap)
   "Merge TRANSACTORMAP against its parent buffer (also a
@@ -732,7 +729,7 @@ Type: Any -> Boolean"
     become-sealed?
     (new-behavior unseal-behavior)
     (return-val unseal-return-val))
-  (define* (become new-behavior #:optional [return-val _void])
+  (define* (become new-behavior #:optional [return-val *unspecified*])
     (make-become-seal new-behavior return-val))
   (define (unseal sealed)
     (values (unseal-behavior sealed)
@@ -1381,7 +1378,7 @@ Type: Any -> Boolean"
        (define (forward-messages)
          (let send-rest ([waiting-messages orig-waiting-messages])
            (match waiting-messages
-             ['() _void]
+             ['() *unspecified*]
              ;; TODO: add support for <questioned> here, right?!?!
              [((? message? msg) rest-waiting ...)
               (let ((resolve-me (message-resolve-me msg))
@@ -1596,10 +1593,10 @@ Type: Any -> Boolean"
             ;; it's not near so we need to pass this along
             [else
              (_send-message point-to resolve-me args)
-             _void]))]
+             *unspecified*]))]
         [(? mactor:broken?)
          (_<-np resolve-me (list 'break (mactor:broken-problem orig-mactor)))
-         _void]
+         *unspecified*]
         [(? mactor:remote-link?)
          (let ([point-to (mactor:remote-link-point-to orig-mactor)])
            (call-with-resolution
@@ -1623,7 +1620,7 @@ Type: Any -> Boolean"
               ;; Otherwise, we need to forward this message to the appropriate
               ;; vat
               (_send-message point-to resolve-me args)
-              _void])]
+              *unspecified*])]
            ;; But if it's a remote promise then we queue it in the waiting
            ;; messages because we prefer to have messages "swim as close
            ;; as possible to the CapTP barrier where possible", with
@@ -1641,7 +1638,7 @@ Type: Any -> Boolean"
                              (make-mactor:closer
                               unresolved point-to history
                               (cons msg waiting-messages))))
-            _void])]
+            *unspecified*])]
         ;; Similar to the above w/ remote promises, except that we really
         ;; just don't know where things go *at all* yet, so no swimming
         ;; occurs.
@@ -1651,7 +1648,7 @@ Type: Any -> Boolean"
            (actormap-set! actormap to-refr
                           (make-mactor:naive unresolved
                                              (cons msg waiting-messages)))
-           _void)]
+           *unspecified*)]
         ;; Questions should forward their messages to the captp thread
         ;; to deal with using the relevant question-finder.
         [(? mactor:question?)
@@ -1686,7 +1683,7 @@ Type: Any -> Boolean"
               (queue-new-msg! (make-forward-to-captp
                                (make-message vat-connector to-question-finder #f args)
                                captp-connector))
-              _void])))])))
+              *unspecified*])))])))
 
   ;; helper to the below two methods
   (define* (_send-message to-refr resolve-me args
@@ -1703,7 +1700,7 @@ Type: Any -> Boolean"
 
   (define (_<-np to-refr args)
     (_send-message to-refr #f args)
-    _void)
+    *unspecified*)
 
   ;; Well, this does do a bit more heavy lifting than *just* call
   ;; _send-message.
@@ -1776,7 +1773,7 @@ Type: Any -> Boolean"
         ;; For remote links, we resolve directly to that reference
         [(? mactor:remote-link? mactor)
          (_<-np listener (list 'fulfill (mactor:remote-link-point-to mactor)))])
-      _void)
+      *unspecified*)
     #;(with-exception-handler handle-exn
       do-call
       #:unwind? #t
@@ -1831,10 +1828,10 @@ Type: Any -> Boolean"
       (match-lambda*
         [('fulfill val)
          (handle-fulfilled val)
-         _void]
+         *unspecified*]
         [('break problem)
          (handle-broken problem)
-         _void]))
+         *unspecified*]))
     (define listener
       (_spawn ^on-listener '() '^on-listener))
     (_send-listen on-refr listener)
@@ -1938,12 +1935,12 @@ Type: Actor Any ... -> Void"
          (error "Can't use <-np-extern on local-refr with no vat-connector"))
        (vat-connector 'handle-message 0
                       (make-message vat-connector to-refr #f args))
-       _void)]
+       *unspecified*)]
     [(? remote-refr?)
      (let ((captp-connector (remote-refr-captp-connector to-refr)))
        (captp-connector 'handle-message
                         (make-message captp-connector to-refr #f args))
-       _void)]))
+       *unspecified*)]))
 
 
 ;; Listen to a promise
@@ -2310,7 +2307,7 @@ Type: Actormap (-> Any) (Optioan (#:reckless? Boolean)) -> Any"
   (display-backtrace* stack))
 
 (define (make-no-op msg)
-  (lambda _ _void))
+  (lambda _ *unspecified*))
 
 (define &actormap-turn-error
   (make-exception-type '&actormap-turn-error &error '(stack)))
