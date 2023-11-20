@@ -19,9 +19,6 @@
   #:export ()
   #:use-module (srfi srfi-9))
 
-;; Old hack to get the "unspecified/undefined type"
-(define _void (if #f #f))
-
 (define-record-type <actormap>
   (make-actormap metatype data vat-connector)
   actormap?
@@ -39,7 +36,7 @@
 (define (actormap-set! am key val)
   ((actormap-metatype-set!-proc (actormap-metatype am))
    am key val)
-  _void)
+  *unspecified*)
 (define (actormap-ref am key)
   ((actormap-metatype-ref-proc (actormap-metatype am)) am key))
 

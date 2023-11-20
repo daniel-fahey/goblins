@@ -307,9 +307,6 @@
 ;; Actormaps, etc
 ;; ==============
 
-;; Old hack to get the "unspecified/undefined type"
-(define _void (if #f #f))
-
 (define-record-type <actormap>
   ;; TODO: This is confusing, naming-wise? (see make-actormap alias)
   (_make-actormap metatype data vat-connector)
@@ -333,7 +330,7 @@
 (define (actormap-set! am key val)
   ((actormap-metatype-set!-proc (actormap-metatype am))
    am key val)
-  _void)
+  *unspecified*)
 
 ;; (-> actormap? local-refr? (or/c mactor? #f))
 (define (actormap-ref am key)
@@ -404,7 +401,7 @@
     (error "Can't use transactormap-set! on merged transactormap"))
   (define tm-delta (transactormap-data-delta (actormap-data transactormap)))
   (hashq-set! tm-delta key val)
-  _void)
+  *unspecified*)
 
 ;; Not threadsafe, but probably doesn't matter
 (define (transactormap-merge! transactormap)
@@ -437,7 +434,7 @@
       (set-transactormap-data-merged?! tm-data #t))
     root-actormap)
   (do-merge! transactormap)
-  _void)
+  *unspecified*)
 
 (define transactormap-metatype
   (make-actormap-metatype 'transactormap transactormap-ref transactormap-set!))
@@ -507,7 +504,7 @@
     become-sealed?
     (new-behavior unseal-behavior)
     (return-val unseal-return-val))
-  (define* (become new-behavior #:optional [return-val _void])
+  (define* (become new-behavior #:optional [return-val *unspecified*])
     (make-become-seal new-behavior return-val))
   (define (unseal sealed)
     (values (unseal-behavior sealed)
@@ -1287,7 +1284,7 @@
 
   (define (_<-np to-refr args)
     (_send-message to-refr #f args)
-    _void)
+    *unspecified*)
 
   ;; Well, this does do a bit more heavy lifting than *just* call
   ;; _send-message.
