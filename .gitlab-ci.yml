@@ -1,10 +1,5 @@
 image: metacall/guix
 
-default:
-  before_script:
-    - echo "(list (channel (name 'guix) (url \"https://git.savannah.gnu.org/git/guix.git\") (branch \"master\")))" >> /tmp/current-channel.scm
-    - guix pull --channels=/tmp/current-channel.scm
-
 stages:
   - test
 
