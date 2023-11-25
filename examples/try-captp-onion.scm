@@ -39,10 +39,29 @@
 (use-modules (goblins ocapn netlayer utils)
              (goblins ocapn netlayer onion-socks))
 
-(define (main args)
+(define (onion-server)
   (define-values (a-node-vat a-onion-netlayer a-mycapn alice alice-sref)
     (tor-server))
-
   (format #t "Connect to: ~a\n" (ocapn-id->string alice-sref))
-
   (wait (make-condition)))
+
+(define (onion-client greeter-sref-arg)
+  (define-values (onion-vat onion-netlayer mycapn)
+    (setup-tor-mycapn))
+  (define stop-condition (make-condition))
+  (with-vat onion-vat
+    (define greeter-sref (string->ocapn-id greeter-sref-arg))
+    (define greeter-vow (<- mycapn 'enliven greeter-sref))
+    (format #t "Connecting to alice on ~a, this can take a while.\n" greeter-sref-arg)
+    (on (<- greeter-vow "Bob")
+        (lambda (alice-said)
+          (format #t "Alice said: ~a\n" alice-said)
+          (signal-condition! stop-condition))))
+  (wait stop-condition))
+
+(define (main args)
+  ;; If called with no arguments, we're the server, otherwise assume the argument
+  ;; is a sturdyref to the greeter and message it.
+  (cond [(= 1 (length args)) (onion-server)]
+        [(= 2 (length args)) (onion-client (list-ref args 1))]
+        [else (error "Wrong number of arguments given" args)]))
