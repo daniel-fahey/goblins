@@ -1530,7 +1530,7 @@
                ;; to the captp-incoming-handler
                (incoming-swap captp-incoming-handler)
 
-                              ;; And now install in the open sessions in the directory
+               ;; And now install in the open sessions in the directory
                ($C locations->open-session-names 'set remote-location session-name)
                ($C open-session-names->sessionmeta 'set
                    session-name
