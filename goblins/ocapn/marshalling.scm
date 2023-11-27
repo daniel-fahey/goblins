@@ -12,6 +12,7 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 (define-module (goblins ocapn marshalling)
+  #:use-module (goblins abstract-types)
   #:use-module (goblins contrib syrup)
   #:export (make-marshallers))
 
@@ -38,7 +39,7 @@
        (our-record? obj))
      (lambda (obj)
        (apply
-	make-syrec*
+	make-tagged*
 	syrup-label
 	(map (lambda (get-field) (get-field obj))
 	     field-accessors)))))

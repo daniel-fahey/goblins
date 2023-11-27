@@ -20,6 +20,7 @@
   #:use-module (goblins vat)
   #:use-module (goblins ghash)
   #:use-module (goblins inbox)
+  #:use-module (goblins abstract-types)
   #:use-module (goblins ocapn marshalling)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins actor-lib cell)
@@ -688,13 +689,13 @@
       [(? unspecified?)
        (make-syrec* 'void)]
       [(? keyword?)
-       (make-syrec* 'kw (keyword->symbol obj))]
+       (make-tagged* 'kw (keyword->symbol obj))]
       [(? error?)
-       (make-syrec* 'exn:fail:mystery)]
+       (make-tagged* 'exn:fail:mystery)]
       ;; And here's the general-purpose record that users can use
       ;; for whatever purpose is appropriate
-      [($ <syrec> record-tag record-args)
-       (make-syrec* 'user-record record-tag record-args)]
+      [($ <tagged> label data)
+       (make-tagged* 'user-record label data)]
       [_ obj]))
 
   (define (incoming-post-unmarshall! obj)
@@ -719,7 +720,7 @@
        (maybe-install-import! obj)]
       [($ <desc:export> pos)
        (hashv-ref exports-pos2val pos)]
-      [($ <syrec> 'exn:fail:mystery '())
+      [($ <tagged> 'exn:fail:mystery '())
        (make-exception
         (make-mystery-exception)
         (make-exception-with-message "Unknown error occured with remote object")
@@ -729,11 +730,11 @@
       [($ <syrec> 'kw `(,keyword))
        (symbol->keyword keyword)]
       ;; unserialize user-defined records
-      [($ <syrec> 'user-record (list record-tag record-args))
-       (make-syrec record-tag record-args)]
-      [($ <syrec> unknown-record-tag record-args)
-       (error 'captp-unknown-record-rag "Unknown record tag: ~a"
-              unknown-record-tag)]
+      [($ <tagged> 'user-record (list label data))
+       (make-tagged label data)]
+      [($ <tagged> unknown-tag data)
+       (error 'captp-unknown-record-rag "Unknown tag: ~a"
+              unknown-tag)]
       [(? signed-handoff-give? sig-envelope-and-handoff)
        ;; We need to send this message to the coordinator, which will
        ;; work with the node to (hopefully) get it to the right
@@ -999,7 +1000,7 @@
   (define our-location-sig
     (let ((encoded-location
            (syrup-encode
-            (make-syrec* 'my-location our-location)
+            (make-tagged* 'my-location our-location)
             #:marshallers marshallers)))
       (sign encoded-location handoff-privkey)))
 
@@ -1504,7 +1505,7 @@
 
            (define encoded-location
              (syrup-encode
-              (make-syrec* 'my-location claimed-remote-location)
+              (make-tagged* 'my-location claimed-remote-location)
               #:marshallers marshallers))
            (define remote-location-sig
              (gcrypt:pk-crypto:sexp->canonical-sexp encoded-remote-location-sig))
