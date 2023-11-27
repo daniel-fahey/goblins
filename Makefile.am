@@ -44,6 +44,7 @@ SUFFIXES = .scm .go
 	$(AM_V_GEN)$(top_builddir)/pre-inst-env $(GUILE_TOOLS) compile $(GUILE_TARGET) $(GUILE_WARNINGS) $(GUILE_DEBUG_FLAGS) -o "$@" "$<"
 
 SOURCES = goblins.scm \
+          goblins/abstract-types.scm \
           goblins/actor-lib/cell.scm \
           goblins/actor-lib/common.scm \
           goblins/actor-lib/facet.scm \
