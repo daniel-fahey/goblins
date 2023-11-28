@@ -687,7 +687,7 @@
           [else
            ($C coordinator 'make-handoff-base-cert obj)]))]
       [(? unspecified?)
-       (make-syrec* 'void)]
+       (make-label* 'void)]
       [(? keyword?)
        (make-tagged* 'kw (keyword->symbol obj))]
       [(? error?)
@@ -725,9 +725,9 @@
         (make-mystery-exception)
         (make-exception-with-message "Unknown error occured with remote object")
         (make-exception-with-irritants '()))]
-      [($ <syrec> 'void '())
+      [($ <tagged> 'void '())
        *unspecified*]
-      [($ <syrec> 'kw `(,keyword))
+      [($ <tagged> 'kw `(,keyword))
        (symbol->keyword keyword)]
       ;; unserialize user-defined records
       [($ <tagged> 'user-record (list label data))
