@@ -1538,6 +1538,8 @@
                                      local-bootstrap-obj remote-bootstrap-obj
                                      coordinator session-name))))
            *unspecified*]
+          [($ <op:abort> reason)
+           (bcom (lambda _ *unspecified*))]
           ;; Handle shutdown requests that happen before the setup
           ;; completer hands control to the internal handler.
           [($ <internal-shutdown> (? symbol? type) (? string? reason))
