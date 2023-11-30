@@ -29,7 +29,6 @@
   #:use-module (goblins actor-lib swappable)
   #:use-module (goblins actor-lib ward)
   #:use-module (goblins utils assert-type)
-  #:use-module (goblins utils simple-dispatcher)
   #:use-module (goblins utils simple-sealers)
   #:use-module (goblins utils bytes-stuff)
   #:use-module (goblins utils crypto)
@@ -81,14 +80,6 @@
   captp-session-severed?)
 
 ;;; Messages
-(define-record-type <op:bootstrap>
-  (op:bootstrap answer-pos resolve-me-desc)
-  op:bootstrap?
-  (answer-pos op:bootstrap-answer-pos)
-  (resolve-me-desc op:bootstrap-resolve-me-desc))
-
-(define-values (marshall::op:bootstrap unmarshall::op:bootstrap)
-  (make-marshallers <op:bootstrap> #:name 'op:bootstrap))
 
 ;; Queue a delivery of verb(args..) to recip, discarding the outcome.
 (define-record-type <op:deliver-only>
@@ -264,8 +255,7 @@
 ;; TODO: 3 vat/node handoff versions (Promise3Desc, Far3Desc)
 
 (define marshallers
-  (list marshall::op:bootstrap
-        marshall::op:deliver-only
+  (list marshall::op:deliver-only
         marshall::op:deliver
         marshall::op:abort
         marshall::op:listen
@@ -284,8 +274,7 @@
         marshall::ocapn-sturdyref))
 
 (define unmarshallers
-  (list unmarshall::op:bootstrap
-        unmarshall::op:deliver-only
+  (list unmarshall::op:deliver-only
         unmarshall::op:deliver
         unmarshall::op:abort
         unmarshall::op:listen
@@ -423,7 +412,7 @@
        [(get-remote-location)
         ($C coordinator 'get-remote-location)]
        [(get-remote-bootstrap)
-        remote-bootstrap-vow]
+        remote-bootstrap-obj]
        [(get-session-name)
         ($C coordinator 'get-session-name)]
        [(get-our-side-name)
@@ -451,14 +440,15 @@
     (and (remote-refr? refr)
          (eq? (remote-refr-captp-connector refr) captp-connector)))
 
-  (define-simple-dispatcher captp-connector
-    [handle-message _handle-message]
-    [new-question-finder new-question-finder]
-    [listen _listen-request]
-    [partition-unsealer-tm-cons _partition-unsealer-tm-cons]
-    [same-connection? same-connection?]
-    ;; For all the things that we don't want thread stompiness on...
-    [connector-obj _get-connector-obj])
+  (define captp-connector
+    (methods
+     [handle-message _handle-message]
+     [new-question-finder new-question-finder]
+     [listen _listen-request]
+     [partition-unsealer-tm-cons _partition-unsealer-tm-cons]
+     [same-connection? same-connection?]
+     ;; For all the things that we don't want thread stompiness on...
+     [connector-obj _get-connector-obj]))
 
   (define next-export-pos 0)
   (define next-question-pos 0)
@@ -801,18 +791,20 @@
   ;; error occurs
   ;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  ;; The bootstrap on every session must be exported at position 0
+  ;; Lets setup both the remote bootstrap refr for that object
+  ;; and export our local one.
+  (define remote-bootstrap-obj
+    (maybe-install-import! (desc:import-object 0)))
+  (unless (eq? (maybe-install-export! bootstrap-obj) 0)
+    (error "Bootstrap object MUST be exported at position 0"))
+
   (define (^captp-incoming-handler bcom)
     (lambda (msg)
       (unless running?
         (error 'captp-breakage "Captp session is no longer running but got ~a"
                msg))
       (match msg
-        [($ <op:bootstrap> (? integer? answer-pos) resolve-me-desc)
-         (let-values (((_answer-promise answer-resolver)
-                       (install-answer! answer-pos resolve-me-desc)))
-           ;; And since we're bootstrapping, we resolve it immediately
-           ($C answer-resolver 'fulfill bootstrap-obj)
-           *unspecified*)]
         ;; TODO: Handle case where the target doesn't exist?
         ;;   Or maybe just generally handle unmarshalling errors :P
         [($ <op:deliver-only> to-desc args-marshalled)
@@ -951,22 +943,7 @@
   (define internal-handler
     (spawn ^internal-handler))
 
-  ;; BEGIN REMOTE BOOTSTRAP OPERATION
-  ;; ================================
-  (define this-question-finder
-    (new-question-finder))
-  (define-values (remote-bootstrap-vow remote-bootstrap-resolver)
-    (_spawn-promise-values #:question-finder
-                           this-question-finder
-                           #:captp-connector
-                           captp-connector))
-  (define bootstrap-msg
-    (op:bootstrap (hashq-ref questions this-question-finder)
-                  (outgoing-pre-marshall! remote-bootstrap-resolver)))
-  (send-to-remote bootstrap-msg)
-  ;; END REMOTE BOOTSTRAP OPERATION
-  ;; ==============================
-  (values captp-incoming-handler remote-bootstrap-vow))
+  (values captp-incoming-handler remote-bootstrap-obj))
 
 (define* (^coordinator bcom router our-location
                        intra-node-warden intra-node-incanter
@@ -1354,17 +1331,6 @@
 
       (ward intra-node-warden cross-gift-beh #:extends main-beh))
 
-    #;(define (^bootstrap bcom coordinator #:extends [extends #f])
-    (define session-name ($C coordinator 'get-session-name))
-    (methods
-    #:extends extends
-    [(deposit-gift gift-id obj)
-    (pk 'deposit-gift gift-id obj)
-    'TODO]
-    [(withdraw-gift signed-handoff-receive)
-    (pk 'retrieve-gift signed-handoff-receive)
-    'TODO]))
-
     ;; TODO: Rename this to connect-to-node I guess?
     (define (retrieve-or-setup-session-vow remote-node-loc)
       (if ($C locations->open-session-names 'has-key? remote-node-loc)
@@ -1457,10 +1423,10 @@
       (define our-location-sig
         ($C coordinator 'get-location-sig))
 
-      ;; We don't actually have a bootstrap vow until setup completion, so
-      ;; we'll have to return a vow to a vow
-      (define-values (meta-bootstrap-vow meta-bootstrap-resolver)
+      (define-values (remote-bootstrap-vow remote-bootstrap-resolver)
         (spawn-promise-values))
+
+
 
       ;; Complete the initialization step against the remote node.
       ;; Basically this allows the coordinator to know of what remote
@@ -1554,13 +1520,12 @@
            (when can-continue?
              (let*-values (((session-name) ($C coordinator 'get-session-name))
                            ((local-bootstrap-obj) (make-local-bootstrap-obj))
-                           ((captp-incoming-handler remote-bootstrap-vow)
+                           ((captp-incoming-handler remote-bootstrap-obj)
                             (setup-captp-conn send-to-remote coordinator
                                               local-bootstrap-obj
                                               intra-node-warden intra-node-incanter)))
-               ;; Fulfill the meta-bootstrap-promise with the promise that
-               ;; setup-captp-conn gave us
-               ($C meta-bootstrap-resolver 'fulfill remote-bootstrap-vow)
+               ($C remote-bootstrap-resolver 'fulfill remote-bootstrap-obj)
+
                ;; And set things up so that the incoming-forwarder now goes
                ;; to the captp-incoming-handler
                (incoming-swap captp-incoming-handler)
@@ -1570,9 +1535,11 @@
                ($C open-session-names->sessionmeta 'set
                    session-name
                    (make-sessionmeta remote-location
-                                     local-bootstrap-obj remote-bootstrap-vow
+                                     local-bootstrap-obj remote-bootstrap-obj
                                      coordinator session-name))))
            *unspecified*]
+          [($ <op:abort> reason)
+           (bcom (lambda _ *unspecified*))]
           ;; Handle shutdown requests that happen before the setup
           ;; completer hands control to the internal handler.
           [($ <internal-shutdown> (? symbol? type) (? string? reason))
@@ -1644,8 +1611,7 @@
                                         our-location
                                         our-location-sig))
 
-      ;; Return the meta-bootstrap-vow, which will be completed as above
-      meta-bootstrap-vow]
+      remote-bootstrap-vow]
 
      [self-location? self-location?]
      ;; ... is that it?
