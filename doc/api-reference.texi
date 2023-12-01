@@ -101,14 +101,16 @@ string explaining its current status:
 Here's how this works at the REPL:
 
 @lisp
-> ,vr (define root-beer (spawn ^drink "root beer" 3))
-> ,vr ($ root-beer)
+> (define a-vat (spawn-vat))
+> ,enter-vat a-vat
+> (define root-beer (spawn ^drink "root beer" 3))
+> ($ root-beer)
 => "*GLUG!* You drink your root beer. Still some left!"
-> ,vr ($ root-beer)
+> ($ root-beer)
 => "*GLUG!* You drink your root beer. Still some left!"
-> ,vr ($ root-beer)
+> ($ root-beer)
 => "*GLUG!* You drink your root beer. It's empty!"
-> ,vr ($ root-beer)
+> ($ root-beer)
 => "Sadly, your glass appears to be empty!"
 @end lisp
 
