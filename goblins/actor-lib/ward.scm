@@ -95,7 +95,7 @@ Type: (Optional (#:async? Boolean))
     (lambda (target . args)
       ($/<- target (seal args))))
 
-  (values (spawn ^warden) (spawn ^incanter)))
+  (values (spawn-named 'warden ^warden) (spawn-named 'incanter ^incanter)))
 
 (define* (ward warden behavior
                #:key
@@ -181,4 +181,4 @@ The optional keyword argument ASYNC? indicates whether to use $ or <- for
 message proxying.
 
 Type: Incanter Actor (Optional (#:async? Boolean)) -> Incantified-Actor"
-  (spawn ^incantified incanter target #:async? async?))
+  (spawn-named 'incantified ^incantified incanter target #:async? async?))

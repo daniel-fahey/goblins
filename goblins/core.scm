@@ -2069,7 +2069,7 @@ Type: Promise (Optional (Any -> Any))
              (make-mactor:naive m-unresolved '()))
          #f))
   (define resolver
-    (spawn ^resolver promise sealer))
+    (spawn-named 'resolver ^resolver promise sealer))
   (values promise resolver))
 
 ;; We don't want to expose the keyword arguments of the parent
