@@ -13,6 +13,7 @@ actor model patterns.
 * Opportunistic::
 * Pubsub::
 * Pushdown::
+* Queue::
 * Sealers::
 * Simple Mint::
 * Swappable::
@@ -603,6 +604,33 @@ whatever arguments it is passed.
 > ($ pd-stack 'empty?)
 => #f
 @end lisp
+
+@end deffn
+
+@node Queue
+@section Queue
+
+The @code{(goblins actor-lib queue)} module provides a FIFO queue.
+
+@deffn {Constructor} ^queue bcom
+
+Constructs a FIFO queue actor which has the following methods:
+
+@itemize
+
+@item
+@code{length}: Return the length of the queue.
+
+@item
+@code{empty?}: Return @code{#t} if the queue is empty, @code{#f} otherwise.
+
+@item
+@code{enqueue val}: Pushes @code{val} onto the queue.
+
+@item
+@code{dequeue}: Removes and returns the oldest inserted value from the queue.
+
+@end itemize
 
 @end deffn
 
