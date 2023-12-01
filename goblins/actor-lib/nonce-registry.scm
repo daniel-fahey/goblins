@@ -67,11 +67,11 @@ Nonce-Locator Methods:
 
 Type: -> (Values Nonce-Registry Nonce-Locator)"
   (define registry
-    (spawn ^nonce-registry))
+    (spawn-named 'nonce-registry ^nonce-registry))
   (define (^nonce-locator bcom)
     (methods
      [(fetch swiss-num)
       ($ registry 'fetch swiss-num)]))
   (define locator
-    (spawn ^nonce-locator))
+    (spawn-named 'nonce-locator ^nonce-locator))
   (values registry locator))
