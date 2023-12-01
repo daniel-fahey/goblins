@@ -479,15 +479,6 @@
   (define (increment-spare-imports-count! import-pos)
     (hashv-set! spare-import-counts import-pos
                 (add1 (hashv-ref spare-import-counts import-pos 0))))
-  ;; Go through all the "spare imports" and reset them
-  (define (handle-spare-imports!)
-    (hash-for-each
-     (lambda (import-pos count)
-       ;; Send a gc-export message for this many
-       (send-to-remote (op:gc-export import-pos count))
-       ;; Reset these
-       (hashv-remove! spare-import-counts import-pos))
-     spare-import-counts))
   (define (decrement-exports-count-maybe-remove! export-pos delta)
     (assert-type export-pos integer?)
     (assert-type delta integer?)
@@ -782,14 +773,6 @@
                                        reason)))
      ($C interested-in-sever 'as-list))
     (set! interested-in-sever #f))
-
-  ;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ;; TODO TODO TODO: EACH of these needs to call (handle-spare-imports!)
-  ;; at the end of its behavior!  Probably the best thing to do is to
-  ;; make a wrapper for each of these that does so... and also which
-  ;; adds an error handler which aborts the whole thing if such an
-  ;; error occurs
-  ;; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ;; The bootstrap on every session must be exported at position 0
   ;; Lets setup both the remote bootstrap refr for that object
