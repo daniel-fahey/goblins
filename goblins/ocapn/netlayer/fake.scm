@@ -80,24 +80,24 @@
       (extend-methods
        base-beh
        [(setup conn-establisher)
-    (start-listening conn-establisher)
-    (bcom (ready-beh conn-establisher))]))
+        (start-listening conn-establisher)
+        (bcom (ready-beh conn-establisher))]))
 
     (define (ready-beh conn-establisher)
       (extend-methods
        base-beh
        [(self-location? loc)
-    (same-node-location? our-location loc)]
+        (same-node-location? our-location loc)]
        [(connect-to remote-node)
-    (match remote-node
-      (($ <ocapn-node> 'fake name #f)
-       (on (<- network 'connect-to name)
-           (match-lambda
+        (match remote-node
+          (($ <ocapn-node> 'fake name #f)
+           (on (<- network 'connect-to name)
+               (match-lambda
                  (('*outgoing-new-conn* me-deq-ch them-enq-ch)
-          (<- conn-establisher
-              (make-message-reader me-deq-ch)
-              (make-message-writer them-enq-ch)
-              remote-node)))
-           #:promise? #t)))]))
+                  (<- conn-establisher
+                      (make-message-reader me-deq-ch)
+                      (make-message-writer them-enq-ch)
+                      remote-node)))
+               #:promise? #t)))]))
     pre-setup-beh)
   (spawn ^netlayer))
