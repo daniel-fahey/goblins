@@ -2009,14 +2009,14 @@ Type: Promise (Optional (Any -> Any))
   (define captp-connector
     (remote-refr-captp-connector remote-object-refr))
   (define connector-obj
-    (captp-connector captp-connector))
+    (captp-connector 'connector-obj))
   (define connector-cancel-vow
     (<- connector-obj 'resolve-on-sever sever-resolver))
 
   (on sever-vow
       (match-lambda
         ['canceled *unspecified*]
-        [(list 'severed shutdown-type reason)
+        [('severed shutdown-type reason)
          (sever-handler shutdown-type reason)]))
 
   ;; Notifies the captp connector we're no longer interested and cancels
