@@ -2017,7 +2017,11 @@ Type: Promise (Optional (Any -> Any))
       (match-lambda
         ['canceled *unspecified*]
         [('severed shutdown-type reason)
-         (sever-handler shutdown-type reason)]))
+         (match sever-handler
+           [(? live-refr?)
+            (<-np sever-handler shutdown-type reason)]
+           [(? procedure?)
+            (sever-handler shutdown-type reason)])]))
 
   ;; Notifies the captp connector we're no longer interested and cancels
   ;; the handler here locally too.

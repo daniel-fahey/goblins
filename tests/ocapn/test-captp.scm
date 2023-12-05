@@ -269,8 +269,32 @@
                           (lambda (shutdown-type reason)
                             ($ sever-resolver 'fulfill `(severed ,shutdown-type ,reason))))))
           sever-vow))))
-  (test-equal "on-sever notifies handler on connection abort"
+  (test-equal "on-sever notifies handler on connection sever"
     result
     #(ok (severed abort "testing on-sever"))))
+
+(let ((result
+       (resolve-vow-and-return-result
+        c-vat
+        (lambda ()
+          (define-values (sever-vow sever-resolver)
+            (spawn-promise-values))
+          (define (^notifier _bcom)
+            (lambda (shutdown-type reason)
+              ($ sever-resolver 'fulfill `(severed ,shutdown-type ,reason))))
+          (define bob-vow ($ c-mycapn 'enliven bob-sref))
+          (on bob-vow
+              (lambda (bob)
+                ;; To sever the connection send a op:abort
+                (define captp-connector
+                  (remote-refr-captp-connector bob))
+                (captp-connector 'handle-message
+                                 (op:abort "testing on-sever with actor handler"))
+                (on-sever bob (spawn ^notifier))))
+
+          sever-vow))))
+  (test-equal "on-sever notifies actor handler on connection sever"
+    result
+    #(ok (severed abort "testing on-sever with actor handler"))))
 
 (test-end "test-captp")
