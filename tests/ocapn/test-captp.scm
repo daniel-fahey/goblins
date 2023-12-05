@@ -1,5 +1,6 @@
 (define-module (tests ocapn test-captp)
   #:use-module (goblins)
+  #:use-module (goblins core)
   #:use-module (goblins vat)
   #:use-module (goblins actor-lib joiners)
   #:use-module (goblins actor-lib methods)
@@ -248,6 +249,28 @@
     result
     #(ok (is-the-same? #t))))
 
-
+;; Test on-sever
+(define op:abort (@ (goblins ocapn captp) op:abort))
+(let ((result
+       (resolve-vow-and-return-result
+        a-vat
+        (lambda ()
+          (define-values (sever-vow sever-resolver)
+            (spawn-promise-values))
+          (define bob-vow ($ a-mycapn 'enliven bob-sref))
+          (on bob-vow
+              (lambda (bob)
+                ;; To sever the connection send a op:abort
+                (define captp-connector
+                  (remote-refr-captp-connector bob))
+                (captp-connector 'handle-message
+                                 (op:abort "testing on-sever"))
+                (on-sever bob
+                          (lambda (shutdown-type reason)
+                            ($ sever-resolver 'fulfill `(severed ,shutdown-type ,reason))))))
+          sever-vow))))
+  (test-equal "on-sever notifies handler on connection abort"
+    result
+    #(ok (severed abort "testing on-sever"))))
 
 (test-end "test-captp")
