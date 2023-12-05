@@ -141,10 +141,11 @@ AM_SCM_LOG_FLAGS = --no-auto-compile -L "$(top_srcdir)"
 AM_TESTS_ENVIRONMENT = abs_top_srcdir="$(abs_top_srcdir)"
 
 info_TEXINFOS = doc/goblins.texi
-doc_goblin_TEXINFOS = doc/actor-lib-reference.texi \
-                      doc/api-reference.texi \
-                      doc/debugger.texi		\
-                      doc/apache-2.0.texi
+doc_goblins_TEXINFOS = doc/actor-lib-reference.texi	\
+                       doc/api-reference.texi		\
+                       doc/debugger.texi		\
+                       doc/ocapn.texi			\
+                       doc/apache-2.0.texi
 infoimagedir = $(infodir)/images
 dist_infoimage_DATA = doc/images/questie-lamport-diagram.png
 
