@@ -129,22 +129,32 @@ respectively."
 
 (define (^session-relay-in bcom deliver-in)
   "Constructs a RELAY-IN object, used to send objects to us"
-  (methods
-   ;; Pass along message to user's deliver-in
-   ((deliver encoded-message)
-    (<-np deliver-in 'deliver encoded-message))
-   ;; Halt the connection.
-   ;; TODO: Needs work.
-   ((abort)
-    (error "TODO: abort behavior not implemented"))))
+  (define base-beh
+    (methods
+     ;; Pass along message to user's deliver-in
+     ((deliver encoded-message)
+      (<-np deliver-in 'deliver encoded-message))
+     ;; Halt the connection.
+     ;; TODO: Needs work.
+     ((abort)
+      (<-np deliver-in 'abort)
+      (bcom closed-beh))))
+  (define closed-beh
+    (lambda _ (error "Relay session closed")))
+  base-beh)
 
 (define (^session-relay-out bcom their-relay-in)
   "Constructs a RELAY-OUT object, which we use to send to the other side"
-  (methods
-   ((deliver encoded-message)
-    (<-np their-relay-in 'deliver encoded-message))
-   ((abort)
-    (error "TODO: abort behavior not implemented"))))
+  (define base-beh
+    (methods
+     ((deliver encoded-message)
+      (<-np their-relay-in 'deliver encoded-message))
+     ((abort)
+      (<-np their-relay-in 'abort)
+      (bcom closed-beh))))
+  (define closed-beh
+    (lambda _ (error "Relay session closed")))
+  base-beh)
 
 
 
@@ -255,17 +265,23 @@ Takes three arguments at spawn time:
   ;; messages (since we're going to need to give it to the other
   ;; endpoint)
   (define (^client-deliver-in _bcom)
-    (methods
-     ((deliver encoded-message)
-      ;; We don't decode the message ourselves at this point, we let
-      ;; the other side of the fiber, which has the unmarshallers, do
-      ;; that
-      (put-message incoming-enq-ch encoded-message)
-      ;; No significant value returned (but don't want a zero valued
-      ;; continuation error)
-      *unspecified*)
-     ((abort)
-      (error "TODO: abort behavior not implemented"))))
+    (define main-beh
+      (methods
+       ((deliver encoded-message)
+        ;; We don't decode the message ourselves at this point, we let
+        ;; the other side of the fiber, which has the unmarshallers, do
+        ;; that
+        (put-message incoming-enq-ch encoded-message)
+        ;; No significant value returned (but don't want a zero valued
+        ;; continuation error)
+        *unspecified*)
+       ((abort)
+        ;; TODO: We also want to message and inform captp's machinery that
+        ;; things have broken here, when we have a good way to do so.
+        (bcom closed-beh))))
+    (define closed-beh
+      (lambda _ (error "Relay session closed")))
+    main-beh)
   (define client-deliver-in (spawn ^client-deliver-in))
   (values client-deliver-in incoming-deq-ch incoming-stop?))
 
