@@ -72,6 +72,7 @@
             spawn spawn-named
             $ <-np <-
             on
+            on-sever
 
             <-np-extern
             listen-to
@@ -1993,6 +1994,44 @@ Type: Promise (Optional (Any -> Any))
        (maybe-actorize broken-handler 'broken-handler)
        (maybe-actorize finally-handler 'finally-handler)
        promise?))
+
+;; Note that this is on severance of the *connection of this reference*,
+;; and if it's a promise, does not follow the promise to its resolution.
+;; It will naively treat it as the connection of the *promise*.
+;; If you need a more precise object, use `on` to get the fully resolved
+;; object.
+;;
+;; The thing that gets returned is the ability to cancel interest.
+(define (on-sever remote-object-refr sever-handler)
+  "Register `sever-handler' when connection for `remote-object-refr' is severed"
+  (define-values (sever-vow sever-resolver)
+    (spawn-promise-values))
+  (define captp-connector
+    (remote-refr-captp-connector remote-object-refr))
+  (define connector-obj
+    (captp-connector 'connector-obj))
+  (define connector-cancel-vow
+    (<- connector-obj 'resolve-on-sever sever-resolver))
+
+  (on sever-vow
+      (match-lambda
+        ['canceled *unspecified*]
+        [('severed shutdown-type reason)
+         (match sever-handler
+           [(? procedure?)
+            (sever-handler shutdown-type reason)]
+           [(? live-refr?)
+            (<-np sever-handler shutdown-type reason)])]))
+
+
+  ;; Notifies the captp connector we're no longer interested and cancels
+  ;; the handler here locally too.
+  (define (^cancel-interest bcom)
+    (lambda ()
+      (<-np connector-obj 'cancel-sever-interest sever-resolver)
+      (<-np sever-resolver 'resolve 'canceled)
+      (bcom (lambda _ *unspecified*))))
+  (spawn ^cancel-interest))
 
 
 

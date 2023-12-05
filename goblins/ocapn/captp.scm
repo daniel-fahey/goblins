@@ -389,6 +389,9 @@
       [(or (? message?) (? questioned?))
        (<-np-extern internal-handler
                     (cmd-send-message msg))]
+      [($ <op:abort> reason)
+       (<-np-extern internal-handler
+                    (internal-shutdown 'abort reason))]
       [($ <listen-request> _ to-refr listener wants-partial?)
        (<-np-extern internal-handler
                     (cmd-send-listen to-refr listener
@@ -897,7 +900,11 @@
           [($ <cmd-send-gc-answer> (? integer? answer-pos))
            (send-to-remote (op:gc-answer answer-pos))]
           [($ <cmd-send-gc-export> (? integer? export-pos) (? integer? wire-delta))
-           (send-to-remote (op:gc-export export-pos wire-delta))]))
+           (send-to-remote (op:gc-export export-pos wire-delta))]
+          [($ <internal-shutdown> shutdown-type reason)
+           (when (eq? shutdown-type 'abort)
+             (send-to-remote (op:abort reason)))
+           (tear-it-down shutdown-type reason)]))
       (define (broken-handle-cmd cmd)
         (match cmd
           [($ <cmd-send-message> msg)
@@ -916,6 +923,8 @@
           [($ <cmd-send-gc-answer> (? integer? answer-pos))
            'no-op]
           [($ <cmd-send-gc-export> (? integer? export-pos))
+           'no-op]
+          [($ <internal-shutdown> _shutdown-type _reason)
            'no-op]))
       (if running?
           (running-handle-cmd cmd)
