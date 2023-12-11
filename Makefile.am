@@ -76,6 +76,7 @@ SOURCES = goblins.scm \
           goblins/ocapn/netlayer/onion-socks.scm \
           goblins/ocapn/netlayer/onion.scm \
           goblins/ocapn/netlayer/relay.scm \
+          goblins/ocapn/netlayer/relay-utils.scm \
           goblins/ocapn/netlayer/tcp-tls.scm \
           goblins/ocapn/netlayer/testuds.scm \
           goblins/ocapn/netlayer/utils.scm \
