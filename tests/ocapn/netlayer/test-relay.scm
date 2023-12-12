@@ -83,16 +83,16 @@
 ;;; Now to create the relay and register it with Alice and Bob's mycapns
 (define a-relay-netlayer
   (with-vat a-vat
-    (spawn ^relay-netlayer (lambda (sref) ($ a-mycapn 'enliven sref))
-           ra-endpoint-sref ($ a-mycapn 'enliven ra-controller-sref))))
+    (spawn ^relay-netlayer ra-endpoint-sref
+           ($ a-mycapn 'enliven ra-controller-sref))))
 
 (with-vat a-vat
   ($ a-mycapn 'install-netlayer a-relay-netlayer))
 
 (define b-relay-netlayer
   (with-vat b-vat
-    (spawn ^relay-netlayer (lambda (sref) ($ b-mycapn 'enliven sref))
-           rb-endpoint-sref ($ b-mycapn 'enliven rb-controller-sref))))
+    (spawn ^relay-netlayer rb-endpoint-sref
+           ($ b-mycapn 'enliven rb-controller-sref))))
 
 (with-vat b-vat
   ($ b-mycapn 'install-netlayer b-relay-netlayer))
