@@ -20,8 +20,10 @@
   #:use-module (goblins ocapn netlayer relay)
   #:use-module (goblins ocapn netlayer onion)
   #:use-module (goblins ocapn netlayer tcp-tls)
+  #:use-module (goblins ocapn netlayer fake)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib joiners)
+  #:use-module (fibers channels)
   #:use-module (ice-9 match)
   #:export (^relay-admin
             fetch-and-spawn-relay-netlayer))
@@ -56,7 +58,9 @@
      accounts)]))
 
 (define* (fetch-and-spawn-relay-netlayer account-setup-sref
-                                         #:key (tcp-tls-hostname "localhost")
+                                         #:key
+                                         (tcp-tls-hostname "localhost")
+                                         (fake-network #f)
                                          (additional-netlayers '()))
   "Retrieves account from account-setup-sref and provides relay-netlayer"
   ;; TODO: Replace me when we have a better way of setting up a netlayer
@@ -66,7 +70,8 @@
   (define account-netlayer
     (match (ocapn-node-transport account-setup-node)
       ('onion (new-onion-netlayer))
-      ('tcp-tls (new-tcp-tls-netlayer "localhost"))))
+      ('tcp-tls (new-tcp-tls-netlayer "localhost"))
+      ('fake (spawn ^fake-netlayer "fake-network" fake-network (make-channel)))))
   (define account-netlayer-mycapn
     (apply spawn-mycapn account-netlayer additional-netlayers))
   (define account-setup-vow

@@ -116,6 +116,7 @@ TESTS = tests/actor-lib/test-cell.scm \
 	tests/ocapn/test-captp.scm \
         tests/ocapn/netlayer/test-fake.scm \
         tests/ocapn/netlayer/test-relay.scm \
+        tests/ocapn/netlayer/test-relay-utils.scm \
         tests/ocapn/test-ids.scm \
         tests/test-await.scm \
         tests/test-core.scm \
