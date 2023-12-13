@@ -31,29 +31,26 @@
 (define relay-vat
   (spawn-vat #:name "relay-vat"))
 
-(define (valid-port? str-port)
-  (define port
-    (string->number str-port))
-  (and (>= 1 port)
-       (<= 65535 port)))
-
 (define (spawn-netlayer-by-name name options)
   (match name
     ["onion" (new-onion-netlayer)]
     ["tcp-tls"
      (match options
-       [(host (? valid-port? port))
+       [(host port)
         (new-tcp-tls-netlayer host #:port (string->number port))]
        [(host)
         (new-tcp-tls-netlayer host)]
        [something-else
         (error "Insufficient options provided for tcp-tls netlayer, expected at least host")])]))
 
+;; We need a condition to decide when we're able to quit (or rather stop waiting), we shouldn't quit until
+;; weäve finished doing what we need to which often will rely on promises resolving. This condition is
+;; triggered by the code below once we've finished doing what we need to.
 (define can-quit?
   (make-condition))
 
 (match (command-line)
-  [(cmd "new-relay" netlayer-name netlayer-options ...)
+  [(_cmd "new-relay" netlayer-name netlayer-options ...)
    (with-vat relay-vat
      (define base-netlayer
        (spawn-netlayer-by-name netlayer-name netlayer-options))
@@ -71,7 +68,7 @@
      ;; NOTE: This has no quit condition as the relay wants to stay open until
      ;;       we shutdown.
      )]
-  [(cmd "add-account" relay-admin-sref-str account-name)
+  [(_cmd "add-account" relay-admin-sref-str account-name)
    (define relay-admin-sref
      (string->ocapn-id relay-admin-sref-str))
    (define relay-admin-node
@@ -92,7 +89,7 @@
          #:finally
          (lambda ()
            (signal-condition! can-quit?))))]
-  [(cmd "list-accounts" relay-admin-sref-str)
+  [(_cmd "list-accounts" relay-admin-sref-str)
    (define relay-admin-sref
      (string->ocapn-id relay-admin-sref-str))
    (define relay-admin-node

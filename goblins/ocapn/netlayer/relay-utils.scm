@@ -60,8 +60,7 @@
 (define* (fetch-and-spawn-relay-netlayer account-setup-sref
                                          #:key
                                          (tcp-tls-hostname "localhost")
-                                         (fake-network #f)
-                                         (additional-netlayers '()))
+                                         (fake-network #f))
   "Retrieves account from account-setup-sref and provides relay-netlayer"
   ;; TODO: Replace me when we have a better way of setting up a netlayer
   ;;       automatically so we don't need to do this.
@@ -70,17 +69,16 @@
   (define account-netlayer
     (match (ocapn-node-transport account-setup-node)
       ('onion (new-onion-netlayer))
-      ('tcp-tls (new-tcp-tls-netlayer "localhost"))
+      ('tcp-tls (new-tcp-tls-netlayer tcp-tls-hostname))
       ('fake (spawn ^fake-netlayer "fake-network" fake-network (make-channel)))))
   (define account-netlayer-mycapn
-    (apply spawn-mycapn account-netlayer additional-netlayers))
+    (apply spawn-mycapn account-netlayer))
   (define account-setup-vow
     (<- account-netlayer-mycapn 'enliven account-setup-sref))
   (on (<- account-setup-vow)
       (match-lambda
         ((relay-endpoint-sref relay-controller) 
          (spawn ^relay-netlayer
-                (lambda (sref) (<- account-netlayer-mycapn 'enliven sref))
                 relay-endpoint-sref
                 relay-controller)))
       #:promise? #t))
