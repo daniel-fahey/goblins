@@ -170,11 +170,10 @@ respectively."
 ;;    messages to a blocking interface without itself blocking
 ;;  - Outgoing messages: These are much easier, as we can simply
 ;;    serialize the message and fire it off to the remote actor.
-(define (^relay-netlayer bcom enliven relay-endpoint-sref relay-controller)
+(define (^relay-netlayer bcom relay-endpoint-sref relay-controller)
   "Constructs the relay netlayer which lives on the client.
 
 Takes three arguments at spawn time:
- - ENLIVEN: facet of MyCapN object to enliven a sturdyref
  - RELAY-ENDPOINT-SREF: Sturdyref of the endpoint we will use to
    communicate with
  - RELAY-CONTROLLER: Live, probably remote, reference which we use to
