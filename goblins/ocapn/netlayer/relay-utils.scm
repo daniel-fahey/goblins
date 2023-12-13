@@ -29,6 +29,14 @@
             fetch-and-spawn-relay-netlayer))
 
 (define* (^relay-admin bcom enliven register #:optional [accounts (make-ghash)])
+  "Allows for creating new relay netlayer accounts with a name
+
+It has two methods, the first `add-account' takes a name and creates a relay account
+for that name. It provides a sturdyref back which can be used by the client exactly
+once to configure and setup the relay.
+
+The second method is `get-accounts' which lists all the account names that have been
+created on this relay-admin."
   (define (^relay-account bcom)
     (lambda ()
       (define-values (relay-endpoint relay-controller)
