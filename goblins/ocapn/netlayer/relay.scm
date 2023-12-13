@@ -100,7 +100,7 @@ respectively."
     (methods
      ;; Connect to TO-ENDPOINT, which can be a live ref or a sturdyref
      ((connect to-endpoint deliver-in)
-      ;; TODO: Do we allow deliver-in to either be a sturdyref or a live
+      ;; TODO: Do we allow deliver-in
       ;; refr or is it always a sturdyref?
       ;; TODO: Do we need to transform this node?
       (define to-endpoint-vow (enliven (relay-node->relay-sturdyref to-endpoint)))
@@ -276,8 +276,7 @@ Takes three arguments at spawn time:
         ;; continuation error)
         *unspecified*)
        ((abort)
-        ;; TODO: We also want to message and inform captp's machinery that
-        ;; things have broken here, when we have a good way to do so.
+        (put-message incoming-enq-ch the-eof-object)
         (bcom closed-beh))))
     (define closed-beh
       (lambda _ (error "Relay session closed")))
