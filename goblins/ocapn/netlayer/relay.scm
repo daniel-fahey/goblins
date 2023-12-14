@@ -79,7 +79,8 @@ This sturdyref represents the underlying relay endpoint."
 (define (spawn-relay-pair enliven)
   "Spawn a pair of relay objects: the endpoint (public) and controller (private)
 
-ENLIVEN is a capability to enliven a sturdyref, and returns a promise.
+ENLIVEN is a capability to enliven a sturdyref, provided with the method 'enliven
+and a sturdyref, it should return a promise.
 Probably a facet of the MyCapN object.
 
 Returns two values to its continuation, the ENDPOINT and CONTROLLER
@@ -103,7 +104,8 @@ respectively."
       ;; TODO: Do we allow deliver-in
       ;; refr or is it always a sturdyref?
       ;; TODO: Do we need to transform this node?
-      (define to-endpoint-vow (enliven (relay-node->relay-sturdyref to-endpoint)))
+      (define to-endpoint-vow
+        (<- enliven 'enliven (relay-node->relay-sturdyref to-endpoint)))
       (define our-relay-in
         (spawn ^session-relay-in deliver-in))
       (define their-relay-in-vow
