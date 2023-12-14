@@ -68,6 +68,12 @@
   (lambda (your-name)
     (format #f "Hello ~a, my name is ~a!" your-name my-name)))
 
+(define (spawn-fake-netlayer name)
+  (let* ((new-conn-ch (make-channel))
+         (netlayer (spawn ^fake-netlayer name fake-network new-conn-ch)))
+    (<-np fake-network 'register name new-conn-ch)
+    netlayer))
+
 ;; Setup alice's end
 (define alice-vat
   (spawn-vat #:name "alice"))
@@ -77,7 +83,7 @@
         (lambda (alice-account-activate-sref)
           (fetch-and-spawn-relay-netlayer
            alice-account-activate-sref
-           #:fake-network fake-network))
+           #:netlayer (spawn-fake-netlayer "alice")))
         #:promise? #t)))
 (define alice-relay-mycapn-vow
   (with-vat alice-vat
@@ -110,7 +116,7 @@
         (lambda (bob-account-sref)
           (fetch-and-spawn-relay-netlayer
            bob-account-sref
-           #:fake-network fake-network))
+           #:netlayer (spawn-fake-netlayer "bob")))
         #:promise? #t)))
 (define bob-relay-mycapn-vow
   (with-vat bob-vat

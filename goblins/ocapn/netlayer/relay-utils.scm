@@ -20,7 +20,6 @@
   #:use-module (goblins ocapn netlayer relay)
   #:use-module (goblins ocapn netlayer onion)
   #:use-module (goblins ocapn netlayer tcp-tls)
-  #:use-module (goblins ocapn netlayer fake)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib joiners)
   #:use-module (fibers channels)
