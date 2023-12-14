@@ -100,7 +100,7 @@ respectively."
     (methods
      ;; Connect to TO-ENDPOINT, which can be a live ref or a sturdyref
      ((connect to-endpoint deliver-in)
-      ;; TODO: Do we allow deliver-in to either be a sturdyref or a live
+      ;; TODO: Do we allow deliver-in
       ;; refr or is it always a sturdyref?
       ;; TODO: Do we need to transform this node?
       (define to-endpoint-vow (enliven (relay-node->relay-sturdyref to-endpoint)))
@@ -129,22 +129,32 @@ respectively."
 
 (define (^session-relay-in bcom deliver-in)
   "Constructs a RELAY-IN object, used to send objects to us"
-  (methods
-   ;; Pass along message to user's deliver-in
-   ((deliver encoded-message)
-    (<-np deliver-in 'deliver encoded-message))
-   ;; Halt the connection.
-   ;; TODO: Needs work.
-   ((abort)
-    (error "TODO: abort behavior not implemented"))))
+  (define base-beh
+    (methods
+     ;; Pass along message to user's deliver-in
+     ((deliver encoded-message)
+      (<-np deliver-in 'deliver encoded-message))
+     ;; Halt the connection.
+     ;; TODO: Needs work.
+     ((abort)
+      (<-np deliver-in 'abort)
+      (bcom closed-beh))))
+  (define closed-beh
+    (lambda _ (error "Relay session closed")))
+  base-beh)
 
 (define (^session-relay-out bcom their-relay-in)
   "Constructs a RELAY-OUT object, which we use to send to the other side"
-  (methods
-   ((deliver encoded-message)
-    (<-np their-relay-in 'deliver encoded-message))
-   ((abort)
-    (error "TODO: abort behavior not implemented"))))
+  (define base-beh
+    (methods
+     ((deliver encoded-message)
+      (<-np their-relay-in 'deliver encoded-message))
+     ((abort)
+      (<-np their-relay-in 'abort)
+      (bcom closed-beh))))
+  (define closed-beh
+    (lambda _ (error "Relay session closed")))
+  base-beh)
 
 
 
@@ -170,11 +180,10 @@ respectively."
 ;;    messages to a blocking interface without itself blocking
 ;;  - Outgoing messages: These are much easier, as we can simply
 ;;    serialize the message and fire it off to the remote actor.
-(define (^relay-netlayer bcom enliven relay-endpoint-sref relay-controller)
+(define (^relay-netlayer bcom relay-endpoint-sref relay-controller)
   "Constructs the relay netlayer which lives on the client.
 
 Takes three arguments at spawn time:
- - ENLIVEN: facet of MyCapN object to enliven a sturdyref
  - RELAY-ENDPOINT-SREF: Sturdyref of the endpoint we will use to
    communicate with
  - RELAY-CONTROLLER: Live, probably remote, reference which we use to
@@ -256,17 +265,22 @@ Takes three arguments at spawn time:
   ;; messages (since we're going to need to give it to the other
   ;; endpoint)
   (define (^client-deliver-in _bcom)
-    (methods
-     ((deliver encoded-message)
-      ;; We don't decode the message ourselves at this point, we let
-      ;; the other side of the fiber, which has the unmarshallers, do
-      ;; that
-      (put-message incoming-enq-ch encoded-message)
-      ;; No significant value returned (but don't want a zero valued
-      ;; continuation error)
-      *unspecified*)
-     ((abort)
-      (error "TODO: abort behavior not implemented"))))
+    (define main-beh
+      (methods
+       ((deliver encoded-message)
+        ;; We don't decode the message ourselves at this point, we let
+        ;; the other side of the fiber, which has the unmarshallers, do
+        ;; that
+        (put-message incoming-enq-ch encoded-message)
+        ;; No significant value returned (but don't want a zero valued
+        ;; continuation error)
+        *unspecified*)
+       ((abort)
+        (put-message incoming-enq-ch the-eof-object)
+        (bcom closed-beh))))
+    (define closed-beh
+      (lambda _ (error "Relay session closed")))
+    main-beh)
   (define client-deliver-in (spawn ^client-deliver-in))
   (values client-deliver-in incoming-deq-ch incoming-stop?))
 
