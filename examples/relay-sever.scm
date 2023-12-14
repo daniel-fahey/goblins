@@ -41,11 +41,12 @@
        [(host)
         (new-tcp-tls-netlayer host)]
        [something-else
-        (error "Insufficient options provided for tcp-tls netlayer, expected at least host")])]))
+        (error "Expected arguments: tcp-tls <hostname> [<port>]")])]))
 
-;; We need a condition to decide when we're able to quit (or rather stop waiting), we shouldn't quit until
-;; weäve finished doing what we need to which often will rely on promises resolving. This condition is
-;; triggered by the code below once we've finished doing what we need to.
+;; We need a condition to decide when we're able to quit (or rather stop
+;; waiting), we shouldn't quit until we've finished doing what we need to which
+;; often will rely on promises resolving. This condition is triggered by the
+;; code below once we've finished doing what we need to.
 (define can-quit?
   (make-condition))
 
@@ -113,6 +114,20 @@
                       accounts))))
          #:finally
          (lambda ()
-           (signal-condition! can-quit?))))])
+           (signal-condition! can-quit?))))]
+  [unknown-cmd
+   (let ((program-name (car unknown-cmd)))
+     (format #t "Unknown command: ~a, please use one of the following:
+
+~a new-relay <netlayer> [<netlayer-options> ...]              Sets up a new relay on specified netlayer.
+~a add-account <relay-server-sturdyref> <account-name>        Adds a new account with given name.
+~a list-accounts <relay-server-sturdyref>                     Lists all account names configured by this admin.
+
+Currently supported netlayers:
+- tcp-tls <hostname> [<port>]
+- onion\n"
+             unknown-cmd
+             program-name program-name program-name))
+   (signal-condition! can-quit?)])
 
 (wait can-quit?)

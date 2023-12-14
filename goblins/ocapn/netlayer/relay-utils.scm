@@ -67,22 +67,29 @@ created on this relay-admin."
 
 (define* (fetch-and-spawn-relay-netlayer account-setup-sref
                                          #:key
-                                         (tcp-tls-hostname "localhost")
-                                         (fake-network #f))
+                                         [netlayer #f]
+                                         [mycapn #f])
   "Retrieves account from account-setup-sref and provides relay-netlayer"
-  ;; TODO: Replace me when we have a better way of setting up a netlayer
-  ;;       automatically so we don't need to do this.
   (define account-setup-node
     (ocapn-sturdyref-node account-setup-sref))
-  (define account-netlayer
-    (match (ocapn-node-transport account-setup-node)
-      ('onion (new-onion-netlayer))
-      ('tcp-tls (new-tcp-tls-netlayer tcp-tls-hostname))
-      ('fake (spawn ^fake-netlayer "fake-network" fake-network (make-channel)))))
-  (define account-netlayer-mycapn
-    (apply spawn-mycapn account-netlayer))
+  (define base-netlayer
+    (or netlayer
+        (match (ocapn-node-transport account-setup-node)
+          ('onion (new-onion-netlayer))
+          ('tcp-tls (new-tcp-tls-netlayer "localhost")))))
+
+  ;; While most OCapN connections normally would expect connections to many
+  ;; different nodes and support for handoffs between those, this situation is a
+  ;; bit different.  We're just looking for a connection between this node and
+  ;; the relay "server", this is what this mycapn object is that we're setting
+  ;; up. We should not expect any shortening or connection to ourselves problems
+  ;; with this setup.
+  (define base-mycapn
+    (or mycapn (spawn-mycapn base-netlayer)))
+
+  ;; Enliven the "setup" sturdyref and then setup the relay netlayer with that.
   (define account-setup-vow
-    (<- account-netlayer-mycapn 'enliven account-setup-sref))
+    (<- base-mycapn 'enliven account-setup-sref))
   (on (<- account-setup-vow)
       (match-lambda
         ((relay-endpoint-sref relay-controller) 
