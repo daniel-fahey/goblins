@@ -264,7 +264,7 @@ Takes three arguments at spawn time:
   ;; Now we need to set up our delivery proxy which will receive
   ;; messages (since we're going to need to give it to the other
   ;; endpoint)
-  (define (^client-deliver-in _bcom)
+  (define (^client-deliver-in bcom)
     (define main-beh
       (methods
        ((deliver encoded-message)
