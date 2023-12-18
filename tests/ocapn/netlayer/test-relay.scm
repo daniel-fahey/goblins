@@ -19,6 +19,7 @@
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer fake)
   #:use-module (goblins ocapn netlayer relay)
+  #:use-module (goblins actor-lib facet)
   #:use-module (tests utils)
   #:use-module (fibers)
   #:use-module (fibers channels)
@@ -64,7 +65,7 @@
 
 (define-values (ra-endpoint ra-controller)
   (with-vat relay-vat
-    (spawn-relay-pair (lambda (sref) ($ relay-mycapn 'enliven sref)))))
+    (spawn-relay-pair (spawn ^facet relay-mycapn 'enliven))))
 
 (define-values (ra-endpoint-sref ra-controller-sref)
   (with-vat relay-vat
@@ -73,7 +74,7 @@
 
 (define-values (rb-endpoint rb-controller)
   (with-vat relay-vat
-    (spawn-relay-pair (lambda (sref) ($ relay-mycapn 'enliven sref)))))
+    (spawn-relay-pair (spawn ^facet relay-mycapn 'enliven))))
 
 (define-values (rb-endpoint-sref rb-controller-sref)
   (with-vat relay-vat
