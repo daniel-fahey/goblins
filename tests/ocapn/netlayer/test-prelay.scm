@@ -12,13 +12,13 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (tests ocapn netlayer test-relay)
+(define-module (tests ocapn netlayer test-prelay)
   #:use-module (goblins core)
   #:use-module (goblins vat)
   #:use-module (goblins ocapn captp)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer fake)
-  #:use-module (goblins ocapn netlayer relay)
+  #:use-module (goblins ocapn netlayer prelay)
   #:use-module (goblins actor-lib facet)
   #:use-module (tests utils)
   #:use-module (fibers)
@@ -26,7 +26,7 @@
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-64))
 
-(test-begin "test-relay")
+(test-begin "test-prelay")
 
 (define fakenl-vat (spawn-vat #:name "fakenl-vat"))
 (define fakenl-network
@@ -65,7 +65,7 @@
 
 (define-values (ra-endpoint ra-controller)
   (with-vat relay-vat
-    (spawn-relay-pair (spawn ^facet relay-mycapn 'enliven))))
+    (spawn-prelay-pair (spawn ^facet relay-mycapn 'enliven))))
 
 (define-values (ra-endpoint-sref ra-controller-sref)
   (with-vat relay-vat
@@ -74,35 +74,35 @@
 
 (define-values (rb-endpoint rb-controller)
   (with-vat relay-vat
-    (spawn-relay-pair (spawn ^facet relay-mycapn 'enliven))))
+    (spawn-prelay-pair (spawn ^facet relay-mycapn 'enliven))))
 
 (define-values (rb-endpoint-sref rb-controller-sref)
   (with-vat relay-vat
     (values ($ relay-mycapn 'register rb-endpoint 'fake)
             ($ relay-mycapn 'register rb-controller 'fake))))
 
-;;; Now to create the relay and register it with Alice and Bob's mycapns
-(define a-relay-netlayer
+;;; Now to create the prelay and register it with Alice and Bob's mycapns
+(define a-prelay-netlayer
   (with-vat a-vat
-    (spawn ^relay-netlayer ra-endpoint-sref
+    (spawn ^prelay-netlayer ra-endpoint-sref
            ($ a-mycapn 'enliven ra-controller-sref))))
 
 (with-vat a-vat
-  ($ a-mycapn 'install-netlayer a-relay-netlayer))
+  ($ a-mycapn 'install-netlayer a-prelay-netlayer))
 
-(define b-relay-netlayer
+(define b-prelay-netlayer
   (with-vat b-vat
-    (spawn ^relay-netlayer rb-endpoint-sref
+    (spawn ^prelay-netlayer rb-endpoint-sref
            ($ b-mycapn 'enliven rb-controller-sref))))
 
 (with-vat b-vat
-  ($ b-mycapn 'install-netlayer b-relay-netlayer))
+  ($ b-mycapn 'install-netlayer b-prelay-netlayer))
 
 (define bob-greeter-sref
   (with-vat b-vat
-    ($ b-mycapn 'register bob-greeter 'relay)))
+    ($ b-mycapn 'register bob-greeter 'prelay)))
 
-(test-assert "Relay netlayer sturdyref resolves to a remote reference"
+(test-assert "Prelay netlayer sturdyref resolves to a remote reference"
   (match (resolve-vow-and-return-result
           a-vat
           (lambda ()
@@ -110,7 +110,7 @@
     (#(ok (? remote-object-refr?)) #t)
     (_ #f)))
 
-(test-assert "Simple messaging over the relay netlayer works"
+(test-assert "Simple messaging over the prelay netlayer works"
   (match (resolve-vow-and-return-result
           a-vat
           (lambda ()
@@ -118,4 +118,4 @@
     (#(ok "Hello Alice, my name is Bob!") #t)
     (_ #f)))
 
-(test-end "test-relay")
+(test-end "test-prelay")

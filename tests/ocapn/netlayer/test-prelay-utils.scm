@@ -13,12 +13,12 @@
 ;;; limitations under the License.
 
 
-(define-module (tests ocapn netlayer test-relay-utils)
+(define-module (tests ocapn netlayer test-prelay-utils)
   #:use-module (goblins core)
   #:use-module (goblins vat)
   #:use-module (goblins ocapn captp)
   #:use-module (goblins ocapn netlayer fake)
-  #:use-module (goblins ocapn netlayer relay-utils)
+  #:use-module (goblins ocapn netlayer prelay-utils)
   #:use-module (goblins actor-lib facet)
   #:use-module (goblins actor-lib joiners)
   #:use-module (tests utils)
@@ -27,44 +27,44 @@
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-64))
 
-(test-begin "test-relay-utils")
+(test-begin "test-prelay-utils")
 
 (define fake-network-vat (spawn-vat #:name "interwebs, but fake"))
 (define fake-network
   (with-vat fake-network-vat
     (spawn ^fake-network)))
 
-(define relay-server-vat
-  (spawn-vat #:name "relay server"))
-(define relay-server-fake-netlayer
-  (with-vat relay-server-vat
+(define prelay-server-vat
+  (spawn-vat #:name "prelay server"))
+(define prelay-server-fake-netlayer
+  (with-vat prelay-server-vat
     (let ((new-conn-ch (make-channel)))
-      (<-np fake-network 'register "relay-server-fake" new-conn-ch)
+      (<-np fake-network 'register "prelay-server-fake" new-conn-ch)
       (spawn ^fake-netlayer
-             "relay-server-fake"
+             "prelay-server-fake"
              fake-network
              new-conn-ch))))
 
-(define relay-admin
-  (with-vat relay-server-vat
+(define prelay-admin
+  (with-vat prelay-server-vat
     (define relay-mycapn
-      (spawn-mycapn relay-server-fake-netlayer))
-    (spawn ^relay-admin
+      (spawn-mycapn prelay-server-fake-netlayer))
+    (spawn ^prelay-admin
            (spawn ^facet relay-mycapn 'enliven)
            (spawn (lambda _
                     (lambda (obj)
                       (<- relay-mycapn 'register obj 'fake)))))))
 
-;; Create a user on the relay
+;; Create a user on the prelay
 (define alice-account-activate-sref-vow
-  (with-vat relay-server-vat
-    (<- relay-admin 'add-account "alice")))
+  (with-vat prelay-server-vat
+    (<- prelay-admin 'add-account "alice")))
 
-(test-equal "Relay admin get-accounts lists one account"
+(test-equal "Prelay admin get-accounts lists one account"
   (resolve-vow-and-return-result
-   relay-server-vat
+   prelay-server-vat
    (lambda ()
-     (<- relay-admin 'get-accounts)))
+     (<- prelay-admin 'get-accounts)))
   #(ok ("alice")))
 
 (define (^greeter _bcom my-name)
@@ -80,57 +80,57 @@
 ;; Setup alice's end
 (define alice-vat
   (spawn-vat #:name "alice"))
-(define alice-relay-netlayer-vow
+(define alice-prelay-netlayer-vow
   (with-vat alice-vat
     (on alice-account-activate-sref-vow
         (lambda (alice-account-activate-sref)
-          (fetch-and-spawn-relay-netlayer
+          (fetch-and-spawn-prelay-netlayer
            alice-account-activate-sref
            #:netlayer (spawn-fake-netlayer "alice")))
         #:promise? #t)))
-(define alice-relay-mycapn-vow
+(define alice-prelay-mycapn-vow
   (with-vat alice-vat
-    (on alice-relay-netlayer-vow
+    (on alice-prelay-netlayer-vow
         spawn-mycapn
         #:promise? #t)))
 (define alice-greeter-sref-vow
   (with-vat alice-vat
-    (<- alice-relay-mycapn-vow 'register (spawn ^greeter "Alice") 'relay)))
+    (<- alice-prelay-mycapn-vow 'register (spawn ^greeter "Alice") 'prelay)))
 
 ;; Setup bob's end
 (define bob-account-activate-sref-vow
-  (with-vat relay-server-vat
-    (<- relay-admin 'add-account "bob")))
+  (with-vat prelay-server-vat
+    (<- prelay-admin 'add-account "bob")))
 
-(test-assert "Relay admin get-accounts lists both accounts"
+(test-assert "Prelay admin get-accounts lists both accounts"
   (match (resolve-vow-and-return-result
-          relay-server-vat
+          prelay-server-vat
           (lambda ()
-            (<- relay-admin 'get-accounts)))
+            (<- prelay-admin 'get-accounts)))
   [#(ok accounts)
    (equal? '("alice" "bob") (sort accounts string<=?))]
   [_ #f]))
 
 (define bob-vat
   (spawn-vat #:name "bob"))
-(define bob-relay-netlayer-vow
+(define bob-prelay-netlayer-vow
   (with-vat bob-vat
     (on bob-account-activate-sref-vow
         (lambda (bob-account-sref)
-          (fetch-and-spawn-relay-netlayer
+          (fetch-and-spawn-prelay-netlayer
            bob-account-sref
            #:netlayer (spawn-fake-netlayer "bob")))
         #:promise? #t)))
-(define bob-relay-mycapn-vow
+(define bob-prelay-mycapn-vow
   (with-vat bob-vat
-    (on bob-relay-netlayer-vow
+    (on bob-prelay-netlayer-vow
         spawn-mycapn
         #:promise? #t)))
 (define alice-greeter-on-bob-vow
   (with-vat bob-vat
     (on alice-greeter-sref-vow
         (lambda (alice-greeter-sref)
-          (<- bob-relay-mycapn-vow 'enliven alice-greeter-sref))
+          (<- bob-prelay-mycapn-vow 'enliven alice-greeter-sref))
         #:promise? #t)))
 (test-equal "Able to send message across after setup"
   (resolve-vow-and-return-result
@@ -139,5 +139,4 @@
      (<- alice-greeter-on-bob-vow "Bob")))
   #(ok "Hello Bob, my name is Alice!"))
 
-(test-end "test-relay-utils")
-
+(test-end "test-prelay-utils")
