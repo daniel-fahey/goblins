@@ -19,6 +19,7 @@
   #:use-module (goblins ocapn captp)
   #:use-module (goblins ocapn netlayer fake)
   #:use-module (goblins ocapn netlayer relay-utils)
+  #:use-module (goblins actor-lib facet)
   #:use-module (goblins actor-lib joiners)
   #:use-module (tests utils)
   #:use-module (fibers)
@@ -26,7 +27,7 @@
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-64))
 
-(test-begin "test-relay")
+(test-begin "test-relay-utils")
 
 (define fake-network-vat (spawn-vat #:name "interwebs, but fake"))
 (define fake-network
@@ -46,11 +47,13 @@
 
 (define relay-admin
   (with-vat relay-server-vat
-    (define mycapn
+    (define relay-mycapn
       (spawn-mycapn relay-server-fake-netlayer))
     (spawn ^relay-admin
-           (lambda (sref) (<- mycapn 'enliven sref))
-           (lambda (obj) (<- mycapn 'register obj 'fake)))))
+           (spawn ^facet relay-mycapn 'enliven)
+           (spawn (lambda _
+                    (lambda (obj)
+                      (<- relay-mycapn 'register obj 'fake)))))))
 
 ;; Create a user on the relay
 (define alice-account-activate-sref-vow
@@ -135,3 +138,6 @@
    (lambda ()
      (<- alice-greeter-on-bob-vow "Bob")))
   #(ok "Hello Bob, my name is Alice!"))
+
+(test-end "test-relay-utils")
+
