@@ -46,7 +46,7 @@ created on this relay-admin."
 
       (bcom already-setup-beh
             (all-of
-             (register relay-endpoint)
+             (<- register relay-endpoint)
              relay-controller))))
 
   (methods
@@ -56,7 +56,7 @@ created on this relay-admin."
     (define new-account (spawn ^relay-account))
     (bcom (^relay-admin bcom enliven register
                         (ghash-set accounts name new-account))
-          (register new-account))]
+          (<- register new-account))]
    [(get-accounts)
     (ghash-fold
      (lambda (name revoke account-list)
