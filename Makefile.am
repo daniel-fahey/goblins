@@ -75,8 +75,8 @@ SOURCES = goblins.scm \
           goblins/ocapn/netlayer/fake.scm \
           goblins/ocapn/netlayer/onion-socks.scm \
           goblins/ocapn/netlayer/onion.scm \
-          goblins/ocapn/netlayer/relay.scm \
-          goblins/ocapn/netlayer/relay-utils.scm \
+          goblins/ocapn/netlayer/prelay.scm \
+          goblins/ocapn/netlayer/prelay-utils.scm \
           goblins/ocapn/netlayer/tcp-tls.scm \
           goblins/ocapn/netlayer/testuds.scm \
           goblins/ocapn/netlayer/utils.scm \
@@ -115,8 +115,8 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/ocapn/marshalling.scm \
 	tests/ocapn/test-captp.scm \
         tests/ocapn/netlayer/test-fake.scm \
-        tests/ocapn/netlayer/test-relay.scm \
-        tests/ocapn/netlayer/test-relay-utils.scm \
+        tests/ocapn/netlayer/test-prelay.scm \
+        tests/ocapn/netlayer/test-prelay-utils.scm \
         tests/ocapn/test-ids.scm \
         tests/test-await.scm \
         tests/test-core.scm \
