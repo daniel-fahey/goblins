@@ -627,4 +627,68 @@
  (try-promise-to-promise 'break 'yikes)
  '((got-err yikes) #t))
 
+;; Aurie tests
+(define* (^aurie-cell bcom #:optional value)
+  (define main-beh
+    (case-lambda
+      [() value]
+      [(new-value)
+       (bcom (^aurie-cell bcom new-value))]))
+  (define (self-portrait)
+    (list value))
+  (portraitize main-beh self-portrait))
+
+(define* (^aurie-greeter bcom our-name #:optional [init-number-of-times #f])
+  (define number-of-times
+    (or init-number-of-times (spawn ^aurie-cell 0)))
+  (define (main-beh your-name)
+    ($ number-of-times (+ ($ number-of-times) 1))
+    (bcom (^aurie-greeter bcom our-name number-of-times)
+          (format #f "Hello ~a, my name is ~a (called ~a)."
+                  your-name our-name ($ number-of-times))))
+  (define (self-portrait)
+    (list our-name number-of-times))
+  (portraitize main-beh self-portrait))
+
+(define (restored-greeter-rehydrate our-name number-of-times)
+  (spawn ^aurie-greeter
+         (format #f "*restored ~a*" our-name)
+         number-of-times))
+
+(define first-actormap
+  (make-actormap))
+
+(define astrid-greeter
+  (actormap-run!
+   first-actormap
+   (lambda ()
+     (define astrid
+       (spawn ^aurie-greeter "Astrid"))
+     ($ astrid "Lars")
+     ($ astrid "Johan")
+     astrid)))
+
+(define cell-aurenv
+  (make-aurenv
+   (list (make-auriable '((tests test-core) ^aurie-cell) ^aurie-cell))
+   (list)))
+
+(define greeter-aurenv
+  (make-aurenv
+   (list (make-auriable '((tests test-core) ^aurie-greeter) ^aurie-greeter restored-greeter-rehydrate))
+   (list cell-aurenv)))
+
+(define-values (astrid-greeter-depiction _val->slots _slots->val astrid-greeter-roots)
+  (actormap-take-portrait first-actormap greeter-aurenv astrid-greeter))
+
+(define second-actormap
+  (make-actormap))
+
+(define restored-astrid-greeter
+  (actormap-restore second-actormap greeter-aurenv astrid-greeter-depiction astrid-greeter-roots))
+
+(test-equal "Depicted greeter reports correct number of times called after resturation"
+  (actormap-peek second-actormap restored-astrid-greeter "Ludvig")
+  "Hello Ludvig, my name is *restored Astrid* (called 3).")
+
 (test-end "test-goblins-core")

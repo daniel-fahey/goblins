@@ -216,7 +216,7 @@
 (define (aurenv-find match? aurenv)
   (define (match-bindings bindings)
     (if (null? bindings)
-      #f
+      (values #f #f)
       (let ([matched? (match? (car bindings))])
         (if matched?
           (values (car bindings) aurenv)
@@ -225,8 +225,10 @@
   (define (match-extends extends)
     (if (null? extends)
       (values #f #f)
-      (let ([result (aurenv-find (car extends) match?)])
-        (if result result (match-extends (cdr extends))))))
+      (let ([result (aurenv-find match? (car extends))])
+        (if result
+            (values result aurenv)
+            (match-extends (cdr extends))))))
 
   (define-values (found-auriable found-aurenv)
     (match-bindings (aurenv-bindings aurenv)))
@@ -2797,7 +2799,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (define (read-next-portrait!)
     (define this-obj
       (deq! process-queue))
-    (define this-obj-self-portrait
+    (define this-obj-self-portrait-fn
       (mactor:object-self-portrait (actormap-ref am this-obj)))
     (define this-obj-constructor
       (mactor:object-constructor (actormap-ref am this-obj)))
@@ -2840,7 +2842,9 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
     ;; TODO: Run this in the actormap
     (define returned-depiction
-      (this-obj-self-portrait))
+      (if this-obj-self-portrait-fn
+          (this-obj-self-portrait-fn)
+          (error "No self portrait function found for object" this-obj)))
 
     (define depiction-to-save
       (process-depiction this-obj-auriable returned-depiction))
