@@ -59,6 +59,11 @@
 (define alice-account-activate-sref-vow
   (with-vat prelay-server-vat
     (<- prelay-admin 'add-account "alice")))
+(define alice-account-activate-sref
+  (match (resolve-vow-and-return-result
+          prelay-server-vat
+          (lambda () alice-account-activate-sref-vow))
+    (#('ok sref) sref)))
 
 (test-equal "Prelay admin get-accounts lists one account"
   (resolve-vow-and-return-result
@@ -82,12 +87,9 @@
   (spawn-vat #:name "alice"))
 (define alice-prelay-netlayer-vow
   (with-vat alice-vat
-    (on alice-account-activate-sref-vow
-        (lambda (alice-account-activate-sref)
-          (fetch-and-spawn-prelay-netlayer
-           alice-account-activate-sref
-           #:netlayer (spawn-fake-netlayer "alice")))
-        #:promise? #t)))
+    (fetch-and-spawn-prelay-netlayer
+     alice-account-activate-sref
+     #:netlayer (spawn-fake-netlayer "alice"))))
 (define alice-prelay-mycapn-vow
   (with-vat alice-vat
     (on alice-prelay-netlayer-vow
@@ -101,6 +103,11 @@
 (define bob-account-activate-sref-vow
   (with-vat prelay-server-vat
     (<- prelay-admin 'add-account "bob")))
+(define bob-account-activate-sref
+  (match (resolve-vow-and-return-result
+          prelay-server-vat
+          (lambda () bob-account-activate-sref-vow))
+    (#('ok sref) sref)))
 
 (test-assert "Prelay admin get-accounts lists both accounts"
   (match (resolve-vow-and-return-result
@@ -115,12 +122,9 @@
   (spawn-vat #:name "bob"))
 (define bob-prelay-netlayer-vow
   (with-vat bob-vat
-    (on bob-account-activate-sref-vow
-        (lambda (bob-account-sref)
-          (fetch-and-spawn-prelay-netlayer
-           bob-account-sref
-           #:netlayer (spawn-fake-netlayer "bob")))
-        #:promise? #t)))
+    (fetch-and-spawn-prelay-netlayer
+     bob-account-activate-sref
+     #:netlayer (spawn-fake-netlayer "bob"))))
 (define bob-prelay-mycapn-vow
   (with-vat bob-vat
     (on bob-prelay-netlayer-vow
