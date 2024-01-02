@@ -40,5 +40,7 @@
                (put-message results-ch (vector 'err err))))
             'err)))
      (perform-operation
-      (choice-operation (sleep-operation timeout)
+      (choice-operation (wrap-operation (sleep-operation timeout)
+                                        (lambda _
+                                          (vector 'err '*timeout*)))
                         (get-operation results-ch))))))
