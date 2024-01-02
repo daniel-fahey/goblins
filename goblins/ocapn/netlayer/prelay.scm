@@ -70,6 +70,34 @@ This sturdyref represents the underlying prelay endpoint."
                              swiss-num)))))
 
 
+;;; Other utilities
+;;; ===============
+
+;; A little utility that maybe, possibly, could be useful for other
+;; things and might be worth moving out.  Might be worth supporting
+;; both "fulfilled" and "broken" resolutions in that case.
+(define (spawn-swappable-promise-pair)
+  "Spawn a forwarder, which mostly works like a promise, and a resolver,
+which is like a promise resolver which can only be fulfilled, but can
+be fulfilled more than once"
+  (define-values (initial-send-to-vow initial-send-to-resolver)
+    (spawn-promise-values))
+  (define-cell send-to initial-send-to-vow)
+  (define (^forwarder bcom)
+    (lambda args
+      (apply <- ($ send-to) args)))
+  (define (^resolver bcom)
+    (define (unresolved-beh resolve-to)
+      ($ initial-send-to-resolver 'fulfill resolve-to)
+      ($ send-to resolve-to)
+      (bcom already-resolved-beh))
+    (define (already-resolved-beh resolve-to)
+      ($ send-to resolve-to))
+    unresolved-beh)
+  (values (spawn ^forwarder) (spawn ^resolver)))
+
+
+
 ;;; PRELAY CODE
 ;;; ===========
 
@@ -85,14 +113,14 @@ Probably a facet of the MyCapN object.
 
 Returns two values to its continuation, the ENDPOINT and CONTROLLER
 respectively."
-  (define-cell client-session-listener #f)
+  (define-values (client-session-listener
+                  client-session-listener-resolver)
+    (spawn-swappable-promise-pair))
   (define (^prelay-endpoint bcom)
     (lambda (their-prelay-in)
-      (unless ($ client-session-listener)
-        (error "Prelay endpoint not configured!"))
       (define our-prelay-out (spawn ^session-prelay-out their-prelay-in))
       (define our-prelay-in-vow
-        (on (<- ($ client-session-listener) 'incoming-session our-prelay-out)
+        (on (<- client-session-listener 'incoming-session our-prelay-out)
             (lambda (client-deliver-incoming)
               (spawn ^session-prelay-in client-deliver-incoming))
             #:promise? #t))
@@ -125,7 +153,7 @@ respectively."
       ;; once everything is correctly configured
       our-prelay-out-vow)
      ((set-session-listener session-listener)
-      ($ client-session-listener session-listener))))
+      ($ client-session-listener-resolver session-listener))))
   (values (spawn ^prelay-endpoint)
           (spawn ^prelay-controller)))
 
