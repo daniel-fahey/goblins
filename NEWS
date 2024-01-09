@@ -12,15 +12,15 @@
 *** New features and improvements
 **** Prelay Netlayer
 
-The Prelay netlayer is a new netlayer using the existing netlayers, it's
-designed to have a relay server and relay client. This works especially well
-with, for example the new TCP-TLS netlayer as often users will be behind
-firewalls and routers which require special configuration to allow for
-peer-to-peer connections.
+The Prelay netlayer (the "preview of relay" netlayer) is a new netlayer using
+the existing netlayers, it's designed to have a relay server and relay
+client. This works especially well with, for example the new TCP-TLS netlayer as
+often users will be behind firewalls and routers which require special
+configuration to allow for peer-to-peer connections.
 
 This new netlayer hopefully will help connect more nodes who otherwise couldn't
 have connected to each other. It's currently an early version of itself with
-some limitations, those being that traffic is unencrypted and unauthenticatted,
+some limitations, those being that traffic is unencrypted and unauthenticated,
 something akin to IRC or vanilla ActivityPub. It currently requires trusting the
 relay server, however in the near future we will be looking to address those
 limitations.
@@ -36,7 +36,7 @@ connections is difficult due to firewall or router configurations.
 
 **** Improved CapTP support
 
-There has been multiple fixes and enhancements to the CapTP support, these are:
+There has been multiple fixes and enhancements to CapTP support, which are:
 
 - Crossed hellos mitigation (when two nodes try to connect to each other at the
   same time)
@@ -44,9 +44,9 @@ There has been multiple fixes and enhancements to the CapTP support, these are:
   always exporting the bootstrap object at position =0=).
 - Verification of the handoff count on Third Party Handoff certificates.
 
-In addition the [[https://github.com/ocapn/ocapn-test-suite][OCapN test suite]] can be now run. There is the test support added
-to examples/ocapn-test-suite.scm which when run provide a OCapN node address
-which can be provided with the test suite to allow the suite to run.
+In addition, the [[https://github.com/ocapn/ocapn-test-suite][OCapN test suite]] can be now run. There is the test support
+added to examples/ocapn-test-suite.scm which when run provide a OCapN node
+address which can be provided with the test suite to allow the suite to run.
 
 **** A new Queue actor
 
@@ -55,6 +55,7 @@ This new queue actor exists =(goblins actor-lib queue)= and represents a queue
 documentation to see how to use this.
 
 *** Bug fixes
+
 - Fix =live-guile.sh= live hacking script when certain Geiser incompatible
   configurations were in the =.guile= config file.
 - REPL test is fixes when locale has a limited character set.
