@@ -1,6 +1,85 @@
 #+TITLE: Guile Goblins NEWS – history of user-visible changes
 
 * Releases
+** v0.12
+*** Highlights
+
+- New Prelay netlayer
+- New TCP-TLS netlayer
+- Various fixes and enhancements to CapTP support
+- A new Queue (FIFO) actor in our actor-lib library
+
+*** New features and improvements
+**** Prelay Netlayer
+
+The Prelay netlayer is a new netlayer using the existing netlayers, it's
+designed to have a relay server and relay client. This works especially well
+with, for example the new TCP-TLS netlayer as often users will be behind
+firewalls and routers which require special configuration to allow for
+peer-to-peer connections.
+
+This new netlayer hopefully will help connect more nodes who otherwise couldn't
+have connected to each other. It's currently an early version of itself with
+some limitations, those being that traffic is unencrypted and unauthenticatted,
+something akin to IRC or vanilla ActivityPub. It currently requires trusting the
+relay server, however in the near future we will be looking to address those
+limitations.
+
+**** TCP-TLS Netlayer
+
+This netlayer supports connection over TCP sockets with encryption built in with
+TLS. Unlike the tor netlayer which requires extra software (the Tor daemon) and
+configuration, this allows for both simpler and quicker communication between
+two nodes. Encryption occurs with self signed certificates. This netlayer works
+particularly well with the new Prelay netlayer as often making peer-to-peer
+connections is difficult due to firewall or router configurations.
+
+**** Improved CapTP support
+
+There has been multiple fixes and enhancements to the CapTP support, these are:
+
+- Crossed hellos mitigation (when two nodes try to connect to each other at the
+  same time)
+- Removal of the now deprecated =op:bootstrap= operation (this is now done by
+  always exporting the bootstrap object at position =0=).
+- Verification of the handoff count on Third Party Handoff certificates.
+
+In addition the [[https://github.com/ocapn/ocapn-test-suite][OCapN test suite]] can be now run. There is the test support added
+to examples/ocapn-test-suite.scm which when run provide a OCapN node address
+which can be provided with the test suite to allow the suite to run.
+
+**** A new Queue actor
+
+This new queue actor exists =(goblins actor-lib queue)= and represents a queue
+(i.e. FIFO) where new items can be queued or removed. Please refer to the new
+documentation to see how to use this.
+
+*** Bug fixes
+- Fix =live-guile.sh= live hacking script when certain Geiser incompatible
+  configurations were in the =.guile= config file.
+- REPL test is fixes when locale has a limited character set.
+- Fix bug in =install-netlayer= method on mycapn which used an invalid method
+  causing it not to work.
+
+*** Known issues
+**** Prelay connections are unencrypted and unauthenticated
+
+Messages send through the Prelay netlayer can be viewed by the relay server,
+modified and new messages inserted by the server or silently removed and thus
+not delivered by the Prelay netlayer.
+
+This means that you should only use the Prelay netlayers where you can place
+high trust in the relaying server.
+
+**** Lack of dialback within CapTP
+
+When a node connects to another node in Goblins it provides the location where
+it's accessable (i.e. the OCapN node address). One feature of OCapN is to ensure
+only one connection exists to any given node, since the address provided by a
+new incoming connection is never authenticated, this could lead to a denial of
+service by a malicious actor claiming to be a node it is not.
+
+
 ** v0.11
 
 *** Highlights
