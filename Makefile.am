@@ -157,7 +157,8 @@ html-local:
 
 EXAMPLES = examples/cauldron.scm		\
            examples/try-captp-onion.scm		\
-           examples/try-base-netlayer.scm
+           examples/try-base-netlayer.scm	\
+           examples/relay-server.scm
 
 EXTRA_DIST += README.org \
               README \
