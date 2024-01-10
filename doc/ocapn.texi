@@ -353,10 +353,13 @@ registered object in mycapn. The following is how this can be done:
 @node Netlayers
 @section Netlayers
 
-@enumerate
-@item
-@anchor{Tor Onion Services}Tor Onion Services
+While OCapN's CapTP provides the glue of object-to-object remote
+invocation machinery, OCapN's netlayers are an abstraction over message
+transmission protocols which give OCapN the flexibility to use a
+number of underlying networking substrates.
 
+@node Tor Onion Services
+@subsection Tor Onion Services
 
 Assuming a Tor daemon is running, a Goblins Onion netlayer can be
 created using the @code{new-onion-netlayer} procedure from the
@@ -384,8 +387,9 @@ providing them. An example of this is:
     (restore-onion-netlayer private-key service-id))
 @end lisp
 
-@item
-@anchor{TCP + TLS}TCP + TLS
+
+@node TCP + TLS
+@subsection TCP + TLS
 
 The TCP + TLS netlayer is available as a simpler option than Tor or
 other peer-to-peer networks.  Direct connections are made over
@@ -487,8 +491,8 @@ Load the PEM encoded X.509 certificate in @var{file-name}.
 
 @end deffn
 
-@item
-@anchor{Prelay}Prelay (Unencrypted, v0)
+@node Prelay
+@subsection Prelay (Unencrypted, v0)
 
 The purpose of the prelay netlayer is to permit connections between two
 parties which cannot feasibly directly connect.  For instance, some
@@ -575,10 +579,10 @@ use to pilot the relay we communicate through.
 
 @end deffn
 
-@item
-@anchor{Prelay Utils}Prelay Utils
+@node Prelay Utils
+@subsection Prelay Utils
 
-The Prelay netlayer is built around there being a Prelay server which
+The @ref{Prelay} netlayer is built around there being a Prelay server which
 accepts connections, allowing the controlling user to open new connections
 and facilitates passing messages back and forth for established
 connections. This Prelay server must be setup somewhere accessible on
@@ -640,5 +644,3 @@ for the netlayer specified in @var{#:netlayer}, then you can pass that
 in with the @var{#:mycapn} argument.
 
 @end deffn
-
-@end enumerate
