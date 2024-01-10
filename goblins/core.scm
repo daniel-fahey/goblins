@@ -2855,7 +2855,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (while (not (q-empty? process-queue))
     (read-next-portrait!))
 
-  (values slot->depiction val->slot slot->val root-slots))
+  (values slot->depiction root-slots))
 
 ;; Change this behavior to accept an aurenv instead.
 (define (actormap-replace-behavior am old-aurenv new-aurenv)
@@ -2882,9 +2882,6 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
          (hashq-set! name->new-auriable name (aurenv-ref new-aurenv name)))
        changed-auriables)
 
-  (define-values (session-sealer session-unsealer session?)
-    (make-sealer-triplet))
-
   (define new-actormap
     (make-transactormap am))
   (hash-for-each
@@ -2895,7 +2892,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
            #f))
      (when name
        (let* ([take-self-portrait (mactor:object-self-portrait mactor)]
-              [self-portrait (session-unsealer (take-self-portrait session-sealer))]
+              [self-portrait (take-self-portrait)]
               [new-auriable (hashq-ref name->new-auriable name)]
               [depictor (auriable-depictor new-auriable)])
          ;; The depictor will call =spawn= which will create a new refr, that's not actually
