@@ -1,0 +1,226 @@
+Goblins has a secure persistance mechanism that's called Aurie. The
+mechanism allows actors to describe themselves with only the
+capabilities they have, this protects against one actor claiming it has
+more abilities than it actually does.
+
+@menu
+* Aurie aware actors::
+* Aurie operations on actormaps::
+* Aurenvs (Aurie Environments)::
+@end menu
+
+@node Aurie aware actors
+@section Aurie aware actors
+
+When using the persistance mechanism you take a snapshot of a graph, the
+graph has one or more roots. Once a snapshot has been created this can
+be serialized and stored and at anytime rehydrated and restored to an
+actormap. The current persistance system only currently works on
+actormaps, however support for vats and automatic snapshotting will be
+coming in a future version.
+
+In order an actor to have persistance support it must be able to create
+a self portrait of itself (i.e. a snapshot of itsself). This can be done
+by creating a function will be called upon taking a snapshot and should
+return a list of all arguments to restore the object. The arguments can
+include references to other local objects.
+
+Lets take the following example of an object which has a name and greets
+the callee, keeping track of the number of times it's been called:
+
+@lisp
+(use-modules (goblins)
+             (goblins actor-lib cell))
+
+(define* (^greeter _bcom our-name #:optional (init-number-of-times #f))
+  (define number-of-times
+    (or init-number-of-times (spawn ^cell 0)))
+  (lambda (their-name)
+    ($ number-of-times (+ ($ number-of-times) 1))
+    (format #f "Hello ~a, my name is ~a (called: ~a)"
+            their-name our-name ($ number-of-times))))
+@end lisp
+
+This actor is not aurie capable, that is it does not currently have a
+mechanism to describe itself to create the snapshot. Trying to snapshot
+a graph with an non-aurie aware actor will result in an error. To
+convert this actor to an aurie aware one we add a self portrait
+function:
+
+@lisp
+(define* (^greeter _bcom our-name #:optional (init-number-of-times #f))
+  (define number-of-times
+    (or init-number-of-times (spawn ^cell 0)))
+  (define (main-beh their-name)
+    ($ number-of-times (+ ($ number-of-times) 1))
+    (format #f "Hello ~a, my name is ~a (called: ~a)"
+            their-name our-name ($ number-of-times)))
+  (define (self-portrait)
+    (list our-name number-of-times))
+  (portraitize main-beh self-portrait))
+@end lisp
+
+This defines the @code{self-portrait} function which includes our-name
+(a string) and a reference to the cell object containing the number of
+times it's been called. The cell object would also have to be aurie
+aware, however since this actor comes with goblins, it is already aurie
+aware.
+
+@end node
+
+@node Aurie operations on actormaps
+@section Aurie operations on actormaps
+
+Using aurie on an actormap allows for snapshotting its current state,
+rehydrating a snapshot into an actormap and updating the behavior of an
+actor through an upgrade mechanism.
+
+@deffn {Procedure} actormap-take-portrait am aurenv . roots
+(TODO: is this how you define =roots=)
+
+Takes a snapshot / depiction of the objects within the actormap starting
+with the supplied roots.
+
+This takes an actormap, @var{am} which contains the objects being
+snapshotted and an @var{aurenv} which describes the aurie environment
+(see TODO: link to aurenv section). Followed by all the root objects
+within the graph.
+
+The snapshot is a map where each object within the snapshot is
+represented by an integer which maps to its respective self portrait
+data (in a serializable form), this integer is known as a slot. When an
+object contains a reference to another object, that object is referred
+to by its slot.
+
+The procedure returns two values to its continuation, those are:
+
+1. the snapshot
+2. the root slots: these are in order the integers of the root objects.
+
+@end deffn
+
+@deffn {Procedure} actormap-restore am aurenv depictions roots
+
+This restores the objects in the actormap @var{am} depicted within
+@var{depictions} using the rehydration data stored in @var{aurenv} with
+the given @var{roots}.
+
+Due to the way rehydration of depictions works each object is
+represented as a vow which will be resolved when returned.
+
+This procedure returns to the continuation all the references to the
+restored objects for the given @var{roots}. This is that the number of
+values returned is equal to the number of roots provided.
+
+@end deffn
+
+@deffn {Procedure} actormap-replace-behavior am old-aurenv new-aurenv
+
+Replaces all the objects in @var{am} that have different between the two
+aurie environments, using the rehydration procedure given for the object
+in @var{new-aurenv}.
+
+It's often desirable, especially when developing a system, to update or
+otherwise change the bahavior of actors which already exist in an
+actormap. This can easily be done by using aurie. Each object can
+describe itself to Goblins and then be rehydrated into its new behavior
+allowing seemless upgrades.
+
+This procedure will first calculate a list of all the objects that have
+a different definition in @var{old-aurenv} than in @var{new-aurenv}. It
+will then snapshot all those objects, then using those rehydrate them
+with the new behavior keeping the object references the same.
+
+The procedure returns one argument which is a new updated actormap
+following the upgrade.
+
+@end deffn
+
+
+
+@end node
+
+@node Aurenvs (Aurie Environments)
+@section Aurenvs (Aurie Environments)
+
+All objects need be defined in what's known as an aurenv, or Aurie
+Environment. These environments specify a set of information which must
+exist to be able to snapshot and/or rehydrate objects. This is a unique
+name for the object, the constructor, and if different the function to
+rehydrate (or depict) the object upon rehydration.
+
+When depicting or restoring objects every single object must be present
+in the given aurenv, this would obviously be quite tedious as object
+graphs get larger and contain lots of different objects. This is made
+easier by aurenvs being able to inherit from other auenvs. Lets take the
+idea of our greeter:
+
+@lisp
+
+(use-modules (goblins)
+             (goblins actor-lib cell))
+
+(define* (^greeter _bcom our-name #:optional (init-number-of-times #f))
+  (define number-of-times
+    (or init-number-of-times (spawn ^cell 0)))
+  (lambda (their-name)
+    ($ number-of-times (+ ($ number-of-times) 1))
+    (format #f "Hello ~a, my name is ~a (called: ~a)"
+            their-name our-name ($ number-of-times))))
+@end lisp
+
+The aurenv here would need to specify two objects, the @code{^greeter}
+object and the @code{^cell} object. This is made a little more
+complicated by the fact that we didn't define @code{^cell}, we're using
+that from a library, Goblins' actor-lib library.
+
+This is where aurenv inheritance helps, we can specify the actors we've
+defined (i.e. @code{^greeter}) and specify the aurenv that actor-lib's
+cell module provides for us:
+
+@lisp
+(define greeter-aurenv
+  (make-aurenv
+   (list (make-aurable '((greeter) ^greeter) ^greeter))
+   (list cell-aurenv)))
+@end lisp
+
+If we later wanted to define another aurenv which uses our greeter, we
+could define a new aurenv which inherits @var{greeter-aurenv}.
+
+@deffn {Procedure} make-aurable name constructor depictor
+
+Creates a object definition to be used inside an aurenv.
+
+This takes a @var{name} which should be a unique name for an object, the
+convention is to use a fully qualified module path with object
+constructor, however this name can be any symbol which can be assured to
+be unique within a given depiction. It also takes the @var{constructor}
+which must be the constructor of the object itself. Finally it can
+optionally take a @var{depictor} procedure which is used when
+rehydrating the object, if no depiction function is specified it assumes
+the self-portrait can be provided to the object constructor to produce
+the correct object.
+
+TODO: mention the depictor wrt upgrading & version numbers.
+
+@end deffn
+
+@deffn {Procedure} make-aurenv bindings extends
+
+This creates an aurie environment, or aurenv based on a set of object
+aurable definitions and other aurenvs to inherit from.
+
+This takes two arguments, each being a list. The first is @var{bindings}
+which is a list of all the auriables (i.e. aurie object definitions)
+that exist within this aurenv. The second is an optional argument,
+@var{extends} which is a list of other aurenvs that this extends from.
+
+Important: Care should be taken to prevent cycles within aurenv
+definitions.
+
+This procedure returns a single value, an aurie environment.
+
+@end deffn
+
+@end node
