@@ -575,4 +575,70 @@ use to pilot the relay we communicate through.
 
 @end deffn
 
+@item
+@anchor{Prelay Utils}Prelay Utils
+
+The Prelay netlayer is built around there being a Prelay server which
+accepts connections, allowing the controlling user to open new connections
+and facilitates passing messages back and forth for established
+connections. This Prelay server must be setup somewhere accessible on
+the network it operates.
+
+Goblins comes with a set of Prelay utils which are designed to offer one
+way to setup the server with multiple accounts. There are many ways this
+could be done, however other Prelay server designs are left to the
+reader to build. The Prelay utils are available in the
+@code{(goblins ocapn netlayer prelay-utils)} module, and an example of how
+to use them to run a daemon can be found in @code{examples/relay-server.scm},
+as shipped with Spritely Goblins.
+
+@code{(goblins ocapn netlayer prelay-utils)} provides the following functions:
+
+@deffn {Constructor} ^prelay-admin bcom enliven register
+
+This constructs an admin actor to manage prelay accounts. This is to be
+used on the ``server'' side.
+
+It takes two arguments: @var{enliven} which is a facet object that when
+provided the symbol @code{'enliven} followed by a OCapN sturdyref
+returns a vow of the enlivened sturdyref. It also takes @var{register}
+which when provided an object will make that object available at a given
+sturdyref and return that to the caller. Both of these are likely facets
+of the Mycapn object.
+
+The admin object itself has two methods, those are:
+
+@itemize
+@item
+@code{add-account} which takes a name of an account and returns a
+sturdyref. This sturdyref is designed to be given to the user who is
+controlling the relay account. The user can then enliven said
+sturdyref and send a message to the enlivened object to get the prelay
+endpoint and prelay controller objects.
+
+@item
+@code{get-accounts} which provides a list of all account names
+registered with this prelay admin.
+@end itemize
+
+@end deffn
+
+@deffn {Procedure} fetch-and-spawn-prelay-netlayer account-setup-sref [#:netlayer] [#:mycapn]
+
+This takes a account setup sturdyref, that retrieved from the
+@code{add-account} method on the Prelay admin and spawns and returns a
+setup Prelay netlayer. This is to be used on the ``client'' side.
+
+By default when using the relay over @ref{Tor Onion Services} netlayer
+or @ref{TCP + TLS} netlayer it will setup a new netlayer to use to speak
+with the relay over. If a different netlayer is to be used, or any of
+the default options need changing, the netlayer should be setup before
+and passed in through the @var{#:netlayer} argument.
+
+By default it will create a new mycapn, however if one already exists
+for the netlayer specified in @var{#:netlayer}, then you can pass that
+in with the @var{#:mycapn} argument.
+
+@end deffn
+
 @end enumerate

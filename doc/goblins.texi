@@ -934,7 +934,7 @@ and Juliana Sims provided review and feedback.
 @node License
 @chapter License
 
-@emph{(C) 2019-2023 Christine Lemmer-Webber, David Thompson, Jessica
+@emph{(C) 2019-2024 Christine Lemmer-Webber, David Thompson, Jessica
 Tallon, Juliana Sims, the Spritely Institute, and other contributors.
 See @file{AUTHORS} for details.}
 
