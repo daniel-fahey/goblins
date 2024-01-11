@@ -593,7 +593,7 @@ way to setup the server with multiple accounts. There are many ways this
 could be done, however other Prelay server designs are left to the
 reader to build. The Prelay utils are available in the
 @code{(goblins ocapn netlayer prelay-utils)} module, and an example of how
-to use them to run a daemon can be found in @code{examples/relay-server.scm},
+to use them to run a daemon can be found in @code{examples/prelay-server.scm},
 as shipped with Spritely Goblins.
 
 @code{(goblins ocapn netlayer prelay-utils)} provides the following functions:
