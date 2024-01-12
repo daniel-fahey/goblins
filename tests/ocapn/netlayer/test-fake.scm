@@ -65,13 +65,6 @@
 (define b-mycapn
   (with-vat b-vat (spawn-mycapn b-netlayer)))
 
-(define a->b-vow
-  (with-vat a-vat
-   ($ a-mycapn 'connect-to-node b-location)))
-(define b->a-vow
-  (with-vat b-vat
-   ($ b-mycapn 'connect-to-node a-location)))
-
 (define (^greeter _bcom my-name)
   (lambda (your-name)
     (format #f "Hello ~a, my name is ~a!" your-name my-name)))
