@@ -91,7 +91,7 @@
             auriable-depictor
             portraitize
             actormap-take-portrait
-            actormap-replace-behavior
+            actormap-replace-behavior!
             actormap-restore
             <depiction>
             depiction?
@@ -241,7 +241,7 @@
   "Finds the auriable within a given aurenv tree by the provided name"
   (aurenv-find
     (lambda (auriable)
-      (eq? (auriable-name auriable) name))
+      (equal? (auriable-name auriable) name))
     aurenv))
 
 (define (aurenv-ref-by-constructor aurenv constructor)
@@ -2840,10 +2840,9 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
          (make-depiction 'object (list (auriable-name auriable) processed-unsealed-depiction))]))
 
-    ;; TODO: Run this in the actormap
     (define returned-depiction
       (if this-obj-self-portrait-fn
-          (this-obj-self-portrait-fn)
+          (actormap-run am this-obj-self-portrait-fn)
           (error "No self portrait function found for object" this-obj)))
 
     (define depiction-to-save
@@ -2859,6 +2858,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
 ;; Change this behavior to accept an aurenv instead.
 (define (actormap-replace-behavior am old-aurenv new-aurenv)
+  "Depicts all the actors with different behavior and rehydrates them with the new behavior"
   (define metatype (actormap-metatype am))
 
   ;; For now just deal with whactormaps (maybe always only do this?)
@@ -2878,12 +2878,14 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
                      name))
        changed-auriables)
   (define name->new-auriable (make-hash-table))
+
   (map (lambda (name)
          (hashq-set! name->new-auriable name (aurenv-ref new-aurenv name)))
        changed-auriables)
 
   (define new-actormap
     (make-transactormap am))
+
   (hash-for-each
    (lambda (refr mactor)
      (define name
@@ -2893,7 +2895,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
      (when name
        (let* ([take-self-portrait (mactor:object-self-portrait mactor)]
               [self-portrait (take-self-portrait)]
-              [new-auriable (hashq-ref name->new-auriable name)]
+              [new-auriable (hashv-ref name->new-auriable name)]
               [depictor (auriable-depictor new-auriable)])
          ;; The depictor will call =spawn= which will create a new refr, that's not actually
          ;; what we want so allow that to happen, but pull out the mactor created and use

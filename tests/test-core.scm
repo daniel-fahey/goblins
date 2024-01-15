@@ -674,7 +674,7 @@
    (list (make-auriable '((tests test-core) ^aurie-greeter) ^aurie-greeter restored-greeter-rehydrate))
    (list incrementer-aurenv)))
 
-(define-values (astrid-greeter-depiction _val->slots _slots->val astrid-greeter-roots)
+(define-values (astrid-greeter-depiction astrid-greeter-roots)
   (actormap-take-portrait first-actormap greeter-aurenv astrid-greeter))
 
 (define second-actormap
@@ -702,12 +702,10 @@
    (list (make-auriable '((tests test-core) ^aurie-greeter) ^fancy-greeter))
    (list incrementer-aurenv)))
 
-(define fancy-astrid-actormap
-  (actormap-replace-behavior second-actormap greeter-aurenv new-greeter-aurenv))
+(actormap-replace-behavior! second-actormap greeter-aurenv new-greeter-aurenv)
 
 (test-equal "Actors are updated when the behavior is replaced by new behavior"
-  (actormap-peek fancy-astrid-actormap astrid-greeter "Ludvig")
-  "Hello Ludvig, my name is *restored Astrid* (called 3).")
-
+  (actormap-peek second-actormap restored-astrid-greeter "Ludvig")
+  "Salutations Ludvig, I am called *restored Astrid*, delighted to make your acquaintance! (called: 3)")
 
 (test-end "test-goblins-core")
