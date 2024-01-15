@@ -84,7 +84,7 @@
                auriable-depictor
                portraitize
                actormap-take-portrait
-               actormap-replace-behavior
+               actormap-replace-behavior!
                actormap-restore
                <depiction>
                depiction?
