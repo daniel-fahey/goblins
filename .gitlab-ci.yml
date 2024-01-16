@@ -17,10 +17,8 @@ perf-tests:
   script:
     - sh ./bootstrap.sh
     - ./configure
-    - make
+    - make -j$(nproc)
     - ./pre-inst-env guile --no-auto-compile -e main misc/perf-tests.scm > perf-metrics.txt
   artifacts:
-    expose_as: 'performance tests'
-    paths: ['perf-metrics.txt']
     reports:
       metrics: 'perf-metrics.txt'
