@@ -2,6 +2,7 @@ image: registry.gitlab.com/spritely/guile-goblins:latest
 
 stages:
   - test
+  - perf-tests
 
 unit-tests:
   stage: test
@@ -11,3 +12,14 @@ unit-tests:
     - make distcheck
     # Check we can build the HTML docs
     - make html
+
+perf-tests:
+  stage: perf-tests
+  script:
+    sh ./bootstrap.sh
+    ./configure
+    make
+    ./pre-inst-env guile --no-auto-compile -e main misc/perf-tests.scm > perf-results.txt
+  artifacts:
+    expose_as: 'performance tests'
+    paths: ['perf-results.txt']

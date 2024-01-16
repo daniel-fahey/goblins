@@ -12,10 +12,30 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (goblins-perf-test)
-  #:use-module (goblins core)
-  #:use-module (ice-9 match)
-  #:use-module (ice-9 curried-definitions))
+(use-modules (goblins core)
+             (ice-9 match)
+             (ice-9 curried-definitions))
+
+
+;; This timing report is more or less lifted form guile's `,time' meta command
+;; located in guile/module/system/repl/command.scm
+;; commit: d8df317bafcdd9fcfebb636433c4871f2fab28b2
+;; Licence: LGPL v3.
+(define (time-it thunk)
+  (let* ((gc-start (gc-run-time))
+	     (real-start (get-internal-real-time))
+	     (run-start (get-internal-run-time))
+	     (result (thunk))
+	     (run-end (get-internal-run-time))
+	     (real-end (get-internal-real-time))
+	     (gc-end (gc-run-time)))
+    (define (diff start end)
+      (/ (- end start) 1.0 internal-time-units-per-second))
+    (format #f "~,6Fs real time, ~,6Fs run time.  ~,6Fs spent in GC.\n"
+            (diff real-start real-end)
+            (diff run-start run-end)
+            (diff gc-start gc-end))))
+;; -- END ,time meta command ---
 
 (define (repeat n thunk)
   (let lp ([i n])
@@ -254,6 +274,8 @@
      (define self-looper (spawn ^self-looper))
      (<-np self-looper iterations))))
 
-
-
-
+(define (main . args)
+  (format #t "[call-a-lot] ~a" (time-it call-a-lot))
+  (format #t "[bcom-a-lot] ~a" (time-it bcom-a-lot))
+  (format #t "[set!-a-lot] ~a" (time-it set!-a-lot))
+  (format #t "[send-a-lot] ~a" (time-it send-a-lot)))
