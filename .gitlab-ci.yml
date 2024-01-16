@@ -1,4 +1,4 @@
-image: metacall/guix
+image: registry.gitlab.com/spritely/guile-goblins:latest
 
 stages:
   - test
@@ -6,10 +6,8 @@ stages:
 unit-tests:
   stage: test
   script:
-    - guix shell -m manifest.scm -- sh ./bootstrap.sh
-    - guix shell -m manifest.scm -- ./configure
-    - guix shell -m manifest.scm -- make distcheck
+    - sh ./bootstrap.sh
+    - ./configure
+    - make distcheck
     # Check we can build the HTML docs
-    - guix shell -m manifest.scm -- make html
-    # Test the guix package
-    - guix build --rounds=2 -f guix.scm
+    - make html
