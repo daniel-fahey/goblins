@@ -12,10 +12,41 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (goblins-perf-test)
-  #:use-module (goblins core)
-  #:use-module (ice-9 match)
-  #:use-module (ice-9 curried-definitions))
+(use-modules (goblins core)
+             (ice-9 match)
+             (ice-9 curried-definitions))
+
+
+;; This timing report is more or less lifted form guile's `,time' meta command
+;; located in guile/module/system/repl/command.scm
+;; commit: d8df317bafcdd9fcfebb636433c4871f2fab28b2
+;; Licence: LGPL v3.
+(define (time-it thunk)
+  (let* ((gc-start (gc-run-time))
+         (real-start (get-internal-real-time))
+         (run-start (get-internal-run-time))
+         (result (thunk))
+         (run-end (get-internal-run-time))
+         (real-end (get-internal-real-time))
+         (gc-end (gc-run-time)))
+    (define (diff start end)
+      (/ (- end start) 1.0 internal-time-units-per-second))
+    (values
+     (diff real-start real-end)
+     (diff run-start run-end)
+     (diff gc-start gc-end))))
+;; -- END ,time meta command ---
+
+(define* (output-metric id help thunk #:key (unit "seconds") (type "counter"))
+  "Writes metrics in the open metrics format"
+  (define-values (real run gc)
+    (time-it thunk))
+  (format #t "# TYPE ~a ~a\n" id type)
+  (format #t "# UNIT ~a ~a\n" id unit)
+  (format #t "# HELP ~a ~a\n" id help)
+  (format #t "~a-real ~a\n" id real)
+  (format #t "~a-run ~a\n" id run)
+  (format #t "~a-gc ~a\n" id gc))
 
 (define (repeat n thunk)
   (let lp ([i n])
@@ -254,6 +285,22 @@
      (define self-looper (spawn ^self-looper))
      (<-np self-looper iterations))))
 
+(define (main . args)
+  (output-metric
+   "perf-synchronous-call-a-lot"
+   "Calling an actor with $ many times"
+   call-a-lot)
+  (output-metric
+   "perf-bcom-a-lot"
+   "An actor using bcom many times"
+   bcom-a-lot)
+  (output-metric
+   "perf-set-a-lot"
+   "An actor using set! many times"
+   set!-a-lot)
+  (output-metric
+   "perf-send-a-lot"
+   "Invoking an actor with <-np (send message without result) many times"
+   send-a-lot)
 
-
-
+  (format #t "# EOF\n"))
