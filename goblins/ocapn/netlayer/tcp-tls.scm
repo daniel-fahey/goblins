@@ -34,44 +34,14 @@
 (define (use-nonblocking-i/o port)
   (fcntl port F_SETFL (logior O_NONBLOCK (fcntl port F_GETFL))))
 
-(define (address-already-in-use-exception? e)
-  (and (external-error? e)
-       (match (exception-irritants e)
-         (("Address already in use")
-          #t)
-         (_ #f))))
-
-;; Bind to first available unprivileged port and return that port
-;; number.
-(define (bind-any sock family address)
-  (let loop ((port 1024))
-    (if (< port 65536)
-        (with-exception-handler (lambda (e)
-                                  ;; If the port is taken, try the
-                                  ;; next port.
-                                  (if (address-already-in-use-exception? e)
-                                      (loop (+ port 1))
-                                      (raise-exception e)))
-          (lambda ()
-            (bind sock family address port)
-            port)
-          #:unwind? #t)
-        ;; Very unlikely but...
-        (throw 'no-available-ports))))
-
 (define (make-server-socket+port port max-connections)
-  (let* ((sock (socket AF_INET SOCK_STREAM IPPROTO_TCP))
-         ;; If port is #f, bind to the first available open port.
-         (port* (if port
-                    (begin
-                      (bind sock AF_INET INADDR_ANY port)
-                      port)
-                    (bind-any sock AF_INET INADDR_ANY))))
+  (let ((sock (socket AF_INET SOCK_STREAM IPPROTO_TCP)))
+    (bind sock AF_INET INADDR_ANY (or port 0))
     (setsockopt sock SOL_SOCKET SO_REUSEADDR 1)
     (fcntl sock F_SETFD FD_CLOEXEC)
     (use-nonblocking-i/o sock)
     (listen sock max-connections)
-    (values sock port*)))
+    (values sock (vector-ref (getsockname sock) 2))))
 
 (define (make-client-socket host port)
   ;; Resolve hostname to get IP address.
