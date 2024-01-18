@@ -1,4 +1,5 @@
-;;; Copyright 2023 Jessica Tallon
+;;; Copyright 2023-2024 Jessica Tallon
+;;; Copyright 2020-2022 Christine Lemmer Webber
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -23,8 +24,8 @@
              (goblins ocapn captp)
              (goblins ocapn netlayer onion)
              (goblins ocapn netlayer tcp-tls)
-             (goblins ocapn netlayer relay)
-             (goblins ocapn netlayer relay-utils)
+             (goblins ocapn netlayer prelay)
+             (goblins ocapn netlayer prelay-utils)
              (fibers conditions)
              (ice-9 match))
 
@@ -40,6 +41,8 @@
         (new-tcp-tls-netlayer host #:port (string->number port))]
        [(host)
         (new-tcp-tls-netlayer host)]
+       [()
+        (new-tcp-tls-netlayer "localhost")]
        [something-else
         (error "Expected arguments: tcp-tls <hostname> [<port>]")])]))
 
@@ -50,6 +53,11 @@
 (define can-quit?
   (make-condition))
 
+(define (^register-facet _bcom mycapn netlayer-name)
+  (match-lambda*
+    [('register obj)
+     (<- mycapn 'register obj netlayer-name)]))
+
 (match (command-line)
   [(_cmd "new-relay" netlayer-name netlayer-options ...)
    (with-vat relay-vat
@@ -57,12 +65,12 @@
        (spawn-netlayer-by-name netlayer-name netlayer-options))
      (define base-mycapn
        (spawn-mycapn base-netlayer))
-     (define relay-admin
-       (spawn ^relay-admin
-              (lambda (sref) (<- base-mycapn 'enliven sref))
-              (lambda (obj) (<- base-mycapn 'register obj ($ base-netlayer 'netlayer-name)))))
+     (define prelay-admin
+       (spawn ^prelay-admin
+              (spawn ^facet base-mycapn 'enliven)
+              (spawn ^register-facet base-mycapn ($ base-netlayer 'netlayer-name))))
 
-     (on (<- base-mycapn 'register relay-admin ($ base-netlayer 'netlayer-name))
+     (on (<- base-mycapn 'register prelay-admin ($ base-netlayer 'netlayer-name))
          (lambda (relay-admin-sref)
            (format #t "New relay created successfully, the admin object is at: ~a\n"
                    (ocapn-id->string relay-admin-sref))))

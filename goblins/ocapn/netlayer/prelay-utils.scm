@@ -46,7 +46,7 @@ created on this prelay-admin."
 
       (bcom already-setup-beh
             (all-of
-             (<- register prelay-endpoint)
+             (<- register 'register prelay-endpoint)
              prelay-controller))))
 
   (methods
@@ -56,7 +56,7 @@ created on this prelay-admin."
     (define new-account (spawn ^relay-account))
     (bcom (^prelay-admin bcom enliven register
                          (ghash-set accounts name new-account))
-          (<- register new-account))]
+          (<- register 'register new-account))]
    [(get-accounts)
     (ghash-fold
      (lambda (name revoke account-list)

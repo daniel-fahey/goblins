@@ -52,8 +52,9 @@
     (spawn ^prelay-admin
            (spawn ^facet relay-mycapn 'enliven)
            (spawn (lambda _
-                    (lambda (obj)
-                      (<- relay-mycapn 'register obj 'fake)))))))
+                    (match-lambda*
+                      (('register obj)
+                      (<- relay-mycapn 'register obj 'fake))))))))
 
 ;; Create a user on the prelay
 (define alice-account-activate-sref-vow
