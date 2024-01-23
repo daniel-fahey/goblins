@@ -1,5 +1,6 @@
 (define-module (tests contrib test-syrup)
   #:use-module (goblins contrib syrup)
+  #:use-module (goblins abstract-types)
   #:use-module (goblins ghash)
   #:use-module (ice-9 match)
   #:use-module (ice-9 hash-table)
@@ -28,29 +29,29 @@
   (hash-table->ghash (alist->hash-table alist)))
 
 (define zoo-structure
-  (make-syrec* (bytes "zoo")
-               "The Grand Menagerie"
-               (map alist->ghash
-                    `(((species . ,(bytes "cat"))
-                       (name . "Tabatha")
-                       (age . 12)
-                       (weight . 8.2)
-                       (alive? . #t)
-                       (eats . ,(make-set (bytes "mice") (bytes "fish")
-                                          (bytes "kibble"))))
-                      ((species . ,(bytes "monkey"))
-                       (name . "George")
-                       (age . 6)
-                       (weight . 17.24)
-                       (alive? . #f)
-                       (eats . ,(make-set (bytes "bananas")
-                                          (bytes "insects"))))
-                      ((species . ,(bytes "ghost"))
-                       (name . "Casper")
-                       (age . -12)
-                       (weight . -34.5)
-                       (alive? . #f)
-                       (eats . ,(make-set)))))))
+  (make-tagged* (bytes "zoo")
+                "The Grand Menagerie"
+                (map alist->ghash
+                     `(((species . ,(bytes "cat"))
+                        (name . "Tabatha")
+                        (age . 12)
+                        (weight . 8.2)
+                        (alive? . #t)
+                        (eats . ,(make-set (bytes "mice") (bytes "fish")
+                                           (bytes "kibble"))))
+                       ((species . ,(bytes "monkey"))
+                        (name . "George")
+                        (age . 6)
+                        (weight . 17.24)
+                        (alive? . #f)
+                        (eats . ,(make-set (bytes "bananas")
+                                           (bytes "insects"))))
+                       ((species . ,(bytes "ghost"))
+                        (name . "Casper")
+                        (age . -12)
+                        (weight . -34.5)
+                        (alive? . #f)
+                        (eats . ,(make-set)))))))
 
 (define zoo-expected-bytes
   #vu8(60 51 58 122 111 111 49 57 34 84 104 101 32 71 114 97 110 100
@@ -90,7 +91,7 @@
   (blap foop-blap))
 
 (define (foop->record fb)
-  (make-syrec* 'foop (foop-blorp fb) (foop-blap fb)))
+  (make-tagged* 'foop (foop-blorp fb) (foop-blap fb)))
   
 (test-equal "marshaller works"
  (syrup-encode (list 'meep 'moop (make-foop 'fizzy 'water) 'bop)

@@ -2,6 +2,7 @@
   #:use-module (srfi srfi-64)
   #:use-module (srfi srfi-9)
   #:use-module (ice-9 iconv)
+  #:use-module (goblins abstract-types)
   #:use-module (goblins ocapn marshalling)
   #:use-module (goblins contrib syrup))
 
@@ -52,7 +53,7 @@
 (define sticky-cat ((cdr marshall::animal) cat))
 (test-assert
     "Check that marshalled cat returns syrup record"
-  (syrec? sticky-cat))
+  (tagged? sticky-cat))
 
 (test-equal "Check that syrup-encode will marshall with marshallers correctly"
   marshalled-friends
@@ -66,16 +67,16 @@
 
 (test-assert
     "Check the can-unmarshall function works for the correct label"
-  ((car unmarshall::animal) (syrec-label sticky-cat)))
+  ((car unmarshall::animal) (tagged-label sticky-cat)))
 
 (define sticky-banana ((cdr marshall::fruit) banana))
 (test-assert
     "Check that can-unmarshall returns false for the wrong label"
-  (not ((car unmarshall::animal) (syrec-label sticky-banana))))
+  (not ((car unmarshall::animal) (tagged-label sticky-banana))))
 
 (test-equal
     "Check that unmarshalling returns correct data"
-  (apply (cdr unmarshall::animal) (syrec-args sticky-cat))
+  (apply (cdr unmarshall::animal) (tagged-data sticky-cat))
   cat)
 
 (test-end "marshalling")

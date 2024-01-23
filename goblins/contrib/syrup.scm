@@ -16,6 +16,7 @@
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 iconv)
   #:use-module (ice-9 vlist)
+  #:use-module (goblins abstract-types)
   #:use-module (goblins ghash)
   #:use-module (rnrs bytevectors)
 
@@ -25,16 +26,6 @@
             syrup-decode
             syrup-read
             syrup-write
-
-            ;;; Helper datastructure wrappers
-            ;;; -----------------------------
-            ;;; . o O (Move into their own module?)
-            ;; syrec (Syrup Records)
-            make-syrec
-            make-syrec*
-            <syrec>
-            syrec?
-            syrec-label syrec-args
 
             ;; pseudosingles (pretend to be a single precision float)
             make-pseudosingle pseudosingle?
@@ -81,23 +72,6 @@
 (define-char-bv t-bv #\t)
 (define-char-bv hash-bv #\#)
 (define-char-bv dollar-bv #\$)
-
-#;(define zero-plus-bv
-  )
-
-;;; Syrup records
-;;; =============
-
-;; Representation of syrup records... coersion to and from other
-;; datastructures is left as an exercise to the reader (for now at least)
-(define-record-type <syrec>
-  (make-syrec label args)
-  syrec?
-  (label  syrec-label)
-  (args syrec-args))
-
-(define (make-syrec* tag . args)
-  (make-syrec tag args))
 
 
 ;;; TODO: Move all these
@@ -343,11 +317,11 @@
          (bytevector-ieee-double-set! bv 0 obj (endianness big))
          (bytes-append D-bv bv))]
       ;; Records are like <<tag><arg1><arg2>> but with the outer <> for realsies
-      [(? syrec?)
+      [(? tagged?)
        (bytes-append anglebrac-left-bv
-                     (encode (syrec-label obj))
+                     (encode (tagged-label obj))
                      (apply bytes-append
-                            (map encode (syrec-args obj)))
+                            (map encode (tagged-data obj)))
                      anglebrac-right-bv)]
       ;; #t is t, #f is f
       [#t t-bv]
@@ -523,7 +497,7 @@
                      (return (apply derecordify args)))])
                 unmarshallers)
                ;; no handler, return as record
-               (make-syrec label args))))]
+               (make-tagged label args))))]
          ;; it's a single float
          [#\F
           (read-byte in-port)
