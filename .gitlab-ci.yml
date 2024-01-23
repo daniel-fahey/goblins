@@ -12,7 +12,7 @@ unit-tests:
     # Check we can build the HTML docs
     - make html
     # Finally run make check and generate the JUnit report for Gitlab.
-    - make check
+    - make check -j$(nproc)
     - make combine-junit-xml-results
   artifacts:
     reports:

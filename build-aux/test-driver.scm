@@ -34,7 +34,9 @@
              (ice-9 pretty-print)
              (ice-9 match)
              (ice-9 string-fun)
+             (ice-9 format)
              (sxml simple)
+             (srfi srfi-1)
              (srfi srfi-26)
              (srfi srfi-64))
 
@@ -90,8 +92,11 @@ The '--test-name', '--log-file' and '--trs-file' options are mandatory.
 file name of the current the test.  COLOR? specifies whether to use colors,
 and BRIEF?, well, you know.  OUT-PORT and TRS-PORT must be output ports.  The
 current output port is supposed to be redirected to a '.log' file."
-  ;; TODO: Explain why we need this.
+  ;; The test runner only keeps around the last test result throwing it away
+  ;; once it's been run. Since at the end we need to create a summary of all
+  ;; the tests build up this variable during the cause of its run.
   (define test-results '())
+  (define start-time #f)
 
   (define (generate-test-case-id src-file src-line name)
     "Creates a (hopefully) unique ID for the test.
@@ -122,12 +127,14 @@ the source file plus the line number for test."
 
   (define (test-result->junit result)
     (match result
-      ((name 'pass src-file src-line failure-reason src)
+      ((name 'pass src-file src-line failure-reason runtime src)
        `(testcase (@ (id ,(generate-test-case-id src-file src-line name))
-                     (name ,(if name name "")))))
-      ((name result-kind src-file src-line failure-reason src)
+                     (name ,(if name name ""))
+                     (time ,(format #f "~f" runtime)))))
+      ((name result-kind src-file src-line failure-reason runtime src)
        `(testcase (@ (id ,(generate-test-case-id src-file src-line name))
-                     (name ,(if name name "")))
+                     (name ,(if name name ""))
+                     (time ,(format #f "~f" runtime)))
          (failure (@ (message ,failure-reason)
                      (type "error"))
                   ,(format #f "ERROR: ~a\nLocation: ~a:~a\n~a"
@@ -135,6 +142,15 @@ the source file plus the line number for test."
                            src-file src-line
                            src))))))
 
+
+  (define (calculate-total-test-time results)
+    (fold
+     (lambda (result prev)
+       (match result
+         ((_name _result-kind _src-file _src-line _failure-reason runtime _src)
+          (+ prev runtime))))
+     0
+     results))
 
   (define (test-runner-result->failure-reason test-result)
     (cond ((eq? (test-result 'result-kind) 'pass) #f)
@@ -169,18 +185,24 @@ the source file plus the line number for test."
       (+ (test-runner-fail-count runner)
          (test-runner-xpass-count runner)))
 
+    (define total-runtime
+      (calculate-total-test-time test-results))
+
     `(testsuites (@ (id ,(strftime "%Y%m%d_%H%M%S" (gmtime (current-time))))
                     (name ,(strftime "Test Run %Y%m%d_%H%M%S)" (gmtime (current-time))))
                     (tests ,number-of-tests)
-                    (failures ,number-of-failures))
+                    (failures ,number-of-failures)
+                    (time ,(format #f "~f" total-runtime)))
       (testsuite (@ (id ,(generate-test-case-id "" "" test-name))
                     (name ,test-name)
-                    (failures ,number-of-failures))
+                    (failures ,number-of-failures)
+                    (time ,(format #f "~f" total-runtime)))
                  ,@(map test-result->junit test-results))))
 
   (define (test-on-test-begin-gnu runner)
     ;; Procedure called at the start of an individual test case, before the
     ;; test expression (and expected value) are evaluated.
+    (set! start-time (get-internal-run-time))
     (let ((result (cute assq-ref (test-result-alist runner) <>)))
       (format #t "test-name: ~A~%" (result 'test-name))
       (format #t "location: ~A~%"
@@ -200,6 +222,7 @@ the source file plus the line number for test."
              (list (result 'test-name) (result 'result-kind)
                    (result 'source-file) (result 'source-line)
                    (test-runner-result->failure-reason result)
+                   (/ (- (get-internal-run-time) start-time) internal-time-units-per-second)
                    (result 'source-form))
              test-results))
 
