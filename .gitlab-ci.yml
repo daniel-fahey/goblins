@@ -11,6 +11,12 @@ unit-tests:
     - make distcheck
     # Check we can build the HTML docs
     - make html
+    # Finally run make check and generate the JUnit report for Gitlab.
+    - make check -j$(nproc)
+    - make combine-junit-xml-results
+  artifacts:
+    reports:
+      junit: 'test-results.xml'
 
 perf-tests:
   stage: build

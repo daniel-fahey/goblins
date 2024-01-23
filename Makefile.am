@@ -190,4 +190,10 @@ clean-go:
 
 CLEANFILES =					\
   $(GOBJECTS)					\
-  $(TESTS:tests/%.scm=%.log)
+  $(TESTS:tests/%.scm=%.log) \
+  $(TESTS:%.scm=%.xml)
+
+combine-junit-xml-results:
+	$(GUILE) $(top_srcdir)/misc/combine-junit-xml.scm \
+	test-results.xml \
+        $(TESTS:%.scm=%.xml)
