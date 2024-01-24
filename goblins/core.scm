@@ -2857,7 +2857,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (values slot->depiction root-slots))
 
 ;; Change this behavior to accept an aurenv instead.
-(define (actormap-replace-behavior am old-aurenv new-aurenv)
+(define (actormap-replace-behavior! am old-aurenv new-aurenv)
   "Depicts all the actors with different behavior and rehydrates them with the new behavior"
   (define metatype (actormap-metatype am))
 
@@ -2898,11 +2898,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
               [new-auriable (hashv-ref name->new-auriable name)]
               [depictor (auriable-depictor new-auriable)])
          ;; The depictor will call =spawn= which will create a new refr, that's not actually
-         ;; what we want so allow that to happen, but pull out the mactor created and use
-         ;; the old refr instead.
-         ;; TODO: if the depictor spawns multiple things this won't work!!!!!
-         ;; this is not an edge case, eeeeek.
-         ;; TODO: but seriously, address the above
+         ;; what we want so allow that to happen since we want the actor to exist at the old
+         ;; refr. Once we've rehydrated the actor install the new object at its old refr.
          (define-values (tmp-refr tmp-am _msgs)
            (actormap-run*
             new-actormap
@@ -2963,7 +2960,6 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
                    (ghash-set prev (restore-one k) (restore-one v)))
                  (make-ghash)
                  data)]
-               ['set (error "TODO")]
                ['near-refr (hashq-ref slots->promises data)]
                [_ (error "Unknown depiction type" type)]))]
            [_ depicted]))
