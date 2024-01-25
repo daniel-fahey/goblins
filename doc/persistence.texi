@@ -1,26 +1,26 @@
-Goblins has a secure persistance mechanism that's called Aurie. The
-mechanism allows actors to describe themselves with only the
-capabilities they have, this protects against one actor claiming it has
-more abilities than it actually does.
+Goblins has a secure persistence mechanism that allows for serializing
+an entire object graph. The mechanism allows actors to describe
+themselves with only the capabilities they have, this protects against
+one actor claiming it has more abilities than it actually does.
 
 @menu
-* Aurie aware actors::
-* Aurie operations on actormaps::
+* Persistence capable actors::
+* Operations on actormaps::
 * Aurenvs (Aurie Environments)::
 @end menu
 
-@node Aurie aware actors
-@section Aurie aware actors
+@node Persistence capable actors
+@section Persistence capable actors
 
-When using the persistance mechanism you take a snapshot of a graph, the
+When using the persistence mechanism you take a snapshot of a graph, the
 graph has one or more roots. Once a snapshot has been created this can
 be serialized and stored and at anytime rehydrated and restored to an
-actormap. The current persistance system only currently works on
+actormap. Currently, the current persistence system only works on
 actormaps, however support for vats and automatic snapshotting will be
 coming in a future version.
 
-In order an actor to have persistance support it must be able to create
-a self portrait of itself (i.e. a snapshot of itsself). This can be done
+In order an actor to have persistence support it must be able to create
+a self portrait of itself (i.e. a snapshot of itself). This can be done
 by creating a function will be called upon taking a snapshot and should
 return a list of all arguments to restore the object. The arguments can
 include references to other local objects.
@@ -60,11 +60,11 @@ function:
   (portraitize main-beh self-portrait))
 @end lisp
 
-This defines the @code{self-portrait} function which includes our-name
-(a string) and a reference to the cell object containing the number of
-times it's been called. The cell object would also have to be aurie
-aware, however since this actor comes with goblins, it is already aurie
-aware.
+This defines the @code{self-portrait} function which includes
+@code{our-name} (a string) and a reference to the cell object containing
+the number of times it's been called. The cell object would also have to
+be aurie aware, however since this actor comes with goblins, it is
+already aurie aware.
 
 @end node
 
@@ -109,14 +109,14 @@ Due to the way rehydration of depictions works each object is
 represented as a vow which will be resolved when returned.
 
 This procedure returns to the continuation all the references to the
-restored objects for the given @var{roots}. This is that the number of
-values returned is equal to the number of roots provided.
+restored objects for the given @var{roots}. This is so that the number
+of values returned is equal to the number of roots provided.
 
 @end deffn
 
 @deffn {Procedure} actormap-replace-behavior am old-aurenv new-aurenv
 
-Replaces all the objects in @var{am} that have different between the two
+Replaces all the objects in @var{am} that are different between the two
 aurie environments, using the rehydration procedure given for the object
 in @var{new-aurenv}.
 
@@ -124,12 +124,13 @@ It's often desirable, especially when developing a system, to update or
 otherwise change the bahavior of actors which already exist in an
 actormap. This can easily be done by using aurie. Each object can
 describe itself to Goblins and then be rehydrated into its new behavior
-allowing seemless upgrades.
+allowing seamless upgrades.
 
 This procedure will first calculate a list of all the objects that have
 a different definition in @var{old-aurenv} than in @var{new-aurenv}. It
-will then snapshot all those objects, then using those rehydrate them
-with the new behavior keeping the object references the same.
+will then snapshot all those objects, then using those snapshots
+rehydrate them with the new behavior keeping the object references the
+same.
 
 The procedure returns one argument which is a new updated actormap
 following the upgrade.
@@ -146,8 +147,8 @@ following the upgrade.
 All objects need be defined in what's known as an aurenv, or Aurie
 Environment. These environments specify a set of information which must
 exist to be able to snapshot and/or rehydrate objects. This is a unique
-name for the object, the constructor, and if different the function to
-rehydrate (or depict) the object upon rehydration.
+name for the object, the constructor, and if different from the
+constructor, a function to rehydrate the object upon rehydration.
 
 When depicting or restoring objects every single object must be present
 in the given aurenv, this would obviously be quite tedious as object
@@ -190,7 +191,7 @@ could define a new aurenv which inherits @var{greeter-aurenv}.
 
 @deffn {Procedure} make-aurable name constructor depictor
 
-Creates a object definition to be used inside an aurenv.
+Return an object definition to be used inside an aurenv.
 
 This takes a @var{name} which should be a unique name for an object, the
 convention is to use a fully qualified module path with object
