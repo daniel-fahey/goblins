@@ -76,20 +76,21 @@
                spawn-promise-cons
                spawn-promise-values
 
-               make-aurenv
-               make-auriable
-               auriable?
-               auriable-name
-               auriable-constructor
-               auriable-depictor
+               make-persistence-env
+               make-object-spec
+               object-spec?
+               object-spec-name
+               object-spec--constructor
+               object-spec-rehydrator
                portraitize
                actormap-take-portrait
                actormap-replace-behavior!
                actormap-restore
-               <depiction>
-               depiction?
-               depiction-type
-               depiction-data
+
+               <portrait>
+               portrait?
+               portrait-type
+               portrait-data
 
                make-vat
                vat?

@@ -627,19 +627,19 @@
  (try-promise-to-promise 'break 'yikes)
  '((got-err yikes) #t))
 
-;; Aurie tests
-(define* (^aurie-incrementer bcom #:optional [value 0])
+;; object persistence tests
+(define* (^incrementer bcom #:optional [value 0])
   (define (main-beh)
-    (bcom (^aurie-incrementer bcom (+ 1 value)) (+ 1 value)))
+    (bcom (^incrementer bcom (+ 1 value)) (+ 1 value)))
   (define (self-portrait)
     (list value))
   (portraitize main-beh self-portrait))
 
-(define* (^aurie-greeter bcom our-name #:optional [init-number-of-times #f])
+(define* (^persistent-greeter bcom our-name #:optional [init-number-of-times #f])
   (define number-of-times
-    (or init-number-of-times (spawn ^aurie-incrementer)))
+    (or init-number-of-times (spawn ^incrementer)))
   (define (main-beh your-name)
-    (bcom (^aurie-greeter bcom our-name number-of-times)
+    (bcom (^persistent-greeter bcom our-name number-of-times)
           (format #f "Hello ~a, my name is ~a (called ~a)."
                   your-name our-name ($ number-of-times))))
   (define (self-portrait)
@@ -647,7 +647,7 @@
   (portraitize main-beh self-portrait))
 
 (define (restored-greeter-rehydrate our-name number-of-times)
-  (spawn ^aurie-greeter
+  (spawn ^persistent-greeter
          (format #f "*restored ~a*" our-name)
          number-of-times))
 
@@ -659,37 +659,37 @@
    first-actormap
    (lambda ()
      (define astrid
-       (spawn ^aurie-greeter "Astrid"))
+       (spawn ^persistent-greeter "Astrid"))
      ($ astrid "Lars")
      ($ astrid "Johan")
      astrid)))
 
-(define incrementer-aurenv
-  (make-aurenv
-   (list (make-auriable '((tests test-core) ^aurie-incrementer) ^aurie-incrementer))
+(define incrementer-env
+  (make-persistence-env
+   (list (make-object-spec '((tests test-core) ^incrementer) ^incrementer))
    (list)))
 
-(define greeter-aurenv
-  (make-aurenv
-   (list (make-auriable '((tests test-core) ^aurie-greeter) ^aurie-greeter restored-greeter-rehydrate))
-   (list incrementer-aurenv)))
+(define greeter-env
+  (make-persistence-env
+   (list (make-object-spec '((tests test-core) ^persistent-greeter) ^persistent-greeter restored-greeter-rehydrate))
+   (list incrementer-env)))
 
-(define-values (astrid-greeter-depiction astrid-greeter-roots)
-  (actormap-take-portrait first-actormap greeter-aurenv astrid-greeter))
+(define-values (astrid-greeter-portrait astrid-greeter-roots)
+  (actormap-take-portrait first-actormap greeter-env astrid-greeter))
 
 (define second-actormap
   (make-actormap))
 
 (define restored-astrid-greeter
-  (actormap-restore second-actormap greeter-aurenv astrid-greeter-depiction astrid-greeter-roots))
+  (actormap-restore second-actormap greeter-env astrid-greeter-portrait astrid-greeter-roots))
 
-(test-equal "Depicted greeter reports correct number of times called after resturation"
+(test-equal "Restored greeter reports correct number of times called"
   (actormap-peek second-actormap restored-astrid-greeter "Ludvig")
   "Hello Ludvig, my name is *restored Astrid* (called 3).")
 
 (define* (^fancy-greeter bcom our-name #:optional init-number-of-times)
   (define number-of-times
-    (or init-number-of-times (spawn ^aurie-incrementer)))
+    (or init-number-of-times (spawn ^incrementer)))
   (define (main-beh your-name)
     (format #f "Salutations ~a, I am called ~a, delighted to make your acquaintance! (called: ~a)"
             your-name our-name ($ number-of-times)))
@@ -697,12 +697,12 @@
     (list our-name number-of-times))
   (portraitize main-beh self-portrait))
 
-(define new-greeter-aurenv
-  (make-aurenv
-   (list (make-auriable '((tests test-core) ^aurie-greeter) ^fancy-greeter))
-   (list incrementer-aurenv)))
+(define new-greeter-env
+  (make-persistence-env
+   (list (make-object-spec '((tests test-core) ^persistent-greeter) ^fancy-greeter))
+   (list incrementer-env)))
 
-(actormap-replace-behavior! second-actormap greeter-aurenv new-greeter-aurenv)
+(actormap-replace-behavior! second-actormap greeter-env new-greeter-env)
 
 (test-equal "Actors are updated when the behavior is replaced by new behavior"
   (actormap-peek second-actormap restored-astrid-greeter "Ludvig")

@@ -83,20 +83,21 @@
             spawn-promise-cons
             spawn-promise-values
 
-            make-aurenv
-            make-auriable
-            auriable?
-            auriable-name
-            auriable-constructor
-            auriable-depictor
+            make-persistence-env
+            make-object-spec
+            object-spec?
+            object-spec-name
+            object-spec--constructor
+            object-spec-rehydrator
             portraitize
             actormap-take-portrait
             actormap-replace-behavior!
             actormap-restore
-            <depiction>
-            depiction?
-            depiction-type
-            depiction-data
+
+            <portrait>
+            portrait?
+            portrait-type
+            portrait-data
 
             ;; TODO: separate this out!
             <message>
@@ -192,84 +193,83 @@
   (beh portraitized-behavior-behavior)
   (self-portrait portraitized-behavior-self-portrait))
 
-;; Aurie environments
-(define-record-type <aurenv>
-  (make-aurenv bindings extends)
-  aurenv?
-  (bindings aurenv-bindings)
-  (extends aurenv-extends))
+(define-record-type <persistence-env>
+  (make-persistence-env bindings extends)
+  persistence-env?
+  (bindings persistence-env-bindings)
+  (extends persistence-env-extends))
 
-(define-record-type <auriable>
-  (_make-auriable name constructor depictor)
-  auriable?
-  (name auriable-name)
-  (constructor auriable-constructor)
-  (depictor auriable-depictor))
+(define-record-type <object-spec>
+  (_make-object-spec name constructor rehydrator)
+  object-spec?
+  (name object-spec-name)
+  (constructor object-spec-constructor)
+  (rehydrator object-spec-rehydrator))
 
-(define* (make-auriable name constructor #:optional maybe-depictor)
-  (define depictor
-    (if maybe-depictor
-        maybe-depictor
+(define* (make-object-spec name constructor #:optional maybe-rehydrator)
+  (define rehydrator
+    (if maybe-rehydrator
+        maybe-rehydrator
         (lambda args (apply spawn constructor args))))
-  (_make-auriable name constructor depictor))
+  (_make-object-spec name constructor rehydrator))
 
-(define (aurenv-find match? aurenv)
+(define (persistence-env-find match? env)
   (define (match-bindings bindings)
     (if (null? bindings)
       (values #f #f)
       (let ([matched? (match? (car bindings))])
         (if matched?
-          (values (car bindings) aurenv)
+          (values (car bindings) env)
           (match-bindings (cdr bindings))))))
 
   (define (match-extends extends)
     (if (null? extends)
       (values #f #f)
-      (let ([result (aurenv-find match? (car extends))])
+      (let ([result (persistence-env-find match? (car extends))])
         (if result
-            (values result aurenv)
+            (values result env)
             (match-extends (cdr extends))))))
 
-  (define-values (found-auriable found-aurenv)
-    (match-bindings (aurenv-bindings aurenv)))
+  (define-values (found-obj-spec found-env)
+    (match-bindings (persistence-env-bindings env)))
 
-  (if (and found-auriable found-aurenv)
-    (values found-auriable found-aurenv)
-    (match-extends (aurenv-extends aurenv))))
+  (if (and found-obj-spec found-env)
+    (values found-obj-spec found-env)
+    (match-extends (persistence-env-extends env))))
 
-(define (aurenv-ref aurenv name)
-  "Finds the auriable within a given aurenv tree by the provided name"
-  (aurenv-find
-    (lambda (auriable)
-      (equal? (auriable-name auriable) name))
-    aurenv))
+(define (persistence-env-ref env name)
+  "Finds the object specification within a given persistence environment tree by the provided name"
+  (persistence-env-find
+    (lambda (obj-spec)
+      (equal? (object-spec-name obj-spec) name))
+    env))
 
-(define (aurenv-ref-by-constructor aurenv constructor)
-  (aurenv-find
-   (lambda (auriable)
-     (eq? (auriable-constructor auriable) constructor))
-   aurenv))
+(define (persistence-env-ref-by-constructor env constructor)
+  (persistence-env-find
+   (lambda (obj-spec)
+     (eq? (object-spec-constructor obj-spec) constructor))
+   env))
 
-(define (aurenv-diff old new)
+(define (persistence-env-diff old new)
   ;; use lset-adjoin?
-  (define (flatten aurenv)
-    (define flattened-extends (map flatten (aurenv-extends aurenv)))
-    (append (aurenv-bindings aurenv) (apply append flattened-extends)))
+  (define (flatten env)
+    (define flattened-extends (map flatten (persistence-env-extends env)))
+    (append (persistence-env-bindings env) (apply append flattened-extends)))
 
-  (define (build-name->auriable auriable-lst)
+  (define (build-name->object-spec persistence-envs)
     (define tbl (make-hash-table))
-    (map (lambda (auriable)
-           (hashq-set! tbl (auriable-name auriable) auriable))
-         auriable-lst)
+    (map (lambda (obj-spec)
+           (hashq-set! tbl (object-spec-name obj-spec) obj-spec))
+         persistence-envs)
     tbl)
 
-  (define old-map (build-name->auriable (flatten old)))
-  (define new-map (build-name->auriable (flatten new)))
+  (define old-map (build-name->object-spec (flatten old)))
+  (define new-map (build-name->object-spec (flatten new)))
 
   (hash-fold
-   (lambda (name auriable diff)
-     (define auriable-in-new (hashq-ref new-map name))
-     (if (eq? auriable auriable-in-new)
+   (lambda (name object-spec diff)
+     (define obj-spec-in-new (hashq-ref new-map name))
+     (if (eq? object-spec obj-spec-in-new)
          diff
          (cons name diff)))
    (list)
@@ -2758,14 +2758,14 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (parameterize ([current-syscaller #f])
     (proc)))
 
-;; Aurie portraiting
-(define-record-type <depiction>
-  (make-depiction type data)
-  depiction?
-  (type depiction-type)
-  (data depiction-data))
+;; These are records which hold some part of an objects portrait data.
+(define-record-type <portrait-record>
+  (make-portrait-record type data)
+  portrait-record?
+  (type portrait-record-type)
+  (data portrait-record-data))
 
-(define (actormap-take-portrait am aurenv . roots)
+(define (actormap-take-portrait am persistence-env . roots)
   "Produces a self portrait of the actormap"
   (when (null? roots)
     (error "At least one root object must be specified to take a portrait"))
@@ -2783,7 +2783,6 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (define slot->depiction
     (make-hash-table))
 
-  ;; TODO: probably want to cache constructor->name
   (define (slot-maybe-queue-near-ref! obj)
     (or (hashq-ref val->slot obj #f)
         (let ([this-slot next-id])
@@ -2803,8 +2802,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       (mactor:object-self-portrait (actormap-ref am this-obj)))
     (define this-obj-constructor
       (mactor:object-constructor (actormap-ref am this-obj)))
-    (define-values (this-obj-auriable this-obj-aurenv)
-      (aurenv-ref-by-constructor aurenv this-obj-constructor))
+    (define-values (this-obj-spec this-obj-env)
+      (persistence-env-ref-by-constructor persistence-env this-obj-constructor))
 
     ;; well at this point if it isn't queued already we're in trouble
     (define slot
@@ -2813,9 +2812,9 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       (match value
         [(? depictable-atom? atom) atom]
           [(? list?)
-           (make-depiction 'list (map process-one value))]
+           (make-portrait-record 'list (map process-one value))]
           [(? vector? vector)
-           (make-depiction 'vector (map process-one (vector->list vector)))]
+           (make-portrait-record 'vector (map process-one (vector->list vector)))]
           [(? ghash?)
            (ghash-fold
             (lambda (k v prev)
@@ -2823,22 +2822,22 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
             (make-ghash)
             value)]
           [(? keyword? kw)
-           (make-depiction 'keyword (keyword->symbol kw))]
+           (make-portrait-record 'keyword (keyword->symbol kw))]
           [(? local-object-refr?)
-           (make-depiction 'near-refr (slot-maybe-queue-near-ref! value))]
+           (make-portrait-record 'near-refr (slot-maybe-queue-near-ref! value))]
           [(? local-promise-refr? vow)
            (unless (near-promise-settled? vow)
-             (error "Can't depict unsettled promise: " vow))
+             (error "Can't create portrait with an unsettled promise: " vow))
            (process-one (near-settled-promise-value vow))]
           [_ (error "Unserializable value" value)]))
 
-    (define (process-depiction auriable depiction)
+    (define (process-depiction obj-spec depiction)
       (match depiction
         [(? list? args)
          (define processed-unsealed-depiction
            (map process-one args))
 
-         (make-depiction 'object (list (auriable-name auriable) processed-unsealed-depiction))]))
+         (make-portrait-record 'object (list (object-spec-name obj-spec) processed-unsealed-depiction))]))
 
     (define returned-depiction
       (if this-obj-self-portrait-fn
@@ -2846,7 +2845,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
           (error "No self portrait function found for object" this-obj)))
 
     (define depiction-to-save
-      (process-depiction this-obj-auriable returned-depiction))
+      (process-depiction this-obj-spec returned-depiction))
 
     (hashq-set! slot->depiction slot depiction-to-save))
 
@@ -2856,32 +2855,31 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
   (values slot->depiction root-slots))
 
-;; Change this behavior to accept an aurenv instead.
-(define (actormap-replace-behavior! am old-aurenv new-aurenv)
-  "Depicts all the actors with different behavior and rehydrates them with the new behavior"
+(define (actormap-replace-behavior! am old-persistence-env new-persistence-env)
+  "Take self portrait of all the actors with different behavior and rehydrates them with the new behavior"
   (define metatype (actormap-metatype am))
 
   ;; For now just deal with whactormaps (maybe always only do this?)
   (unless (eq? (actormap-metatype-name metatype) 'whactormap)
-    (error "Not a whactormap, fixme. (maybe?)"))
+    (error "Provided actormap is not a whactormap."))
   (define whactormap (actormap-data am))
   (define whactormap-table (whactormap-data-wht whactormap))
 
-  ;; Go through the new aurenv looking for changed actors
-  (define changed-auriables (aurenv-diff old-aurenv new-aurenv))
+  ;; Go through the new environment looking for changed objects
+  (define changed-obj-specs (persistence-env-diff old-persistence-env new-persistence-env))
 
   ;; For speed build up these tables ahead of time.
   (define old-constructor->name (make-hash-table))
   (map (lambda (name)
          (hashq-set! old-constructor->name
-                     (auriable-constructor (aurenv-ref old-aurenv name))
+                     (object-spec-constructor (persistence-env-ref old-persistence-env name))
                      name))
-       changed-auriables)
-  (define name->new-auriable (make-hash-table))
+       changed-obj-specs)
+  (define name->new-obj-spec (make-hash-table))
 
   (map (lambda (name)
-         (hashq-set! name->new-auriable name (aurenv-ref new-aurenv name)))
-       changed-auriables)
+         (hashq-set! name->new-obj-spec name (persistence-env-ref new-persistence-env name)))
+       changed-obj-specs)
 
   (define new-actormap
     (make-transactormap am))
@@ -2895,16 +2893,17 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
      (when name
        (let* ([take-self-portrait (mactor:object-self-portrait mactor)]
               [self-portrait (take-self-portrait)]
-              [new-auriable (hashv-ref name->new-auriable name)]
-              [depictor (auriable-depictor new-auriable)])
-         ;; The depictor will call =spawn= which will create a new refr, that's not actually
-         ;; what we want so allow that to happen since we want the actor to exist at the old
-         ;; refr. Once we've rehydrated the actor install the new object at its old refr.
+              [new-obj-spec (hashv-ref name->new-obj-spec name)]
+              [rehydrator (object-spec-rehydrator new-obj-spec)])
+         ;; The rehydrator will call =spawn= which will create a new refr,
+         ;; that's not actually what we want so allow that to happen since we
+         ;; want the actor to exist at the old  refr. Once we've rehydrated the
+         ;; actor install the new object at its old refr.
          (define-values (tmp-refr tmp-am _msgs)
            (actormap-run*
             new-actormap
             (lambda ()
-              (apply depictor self-portrait))))
+              (apply rehydrator self-portrait))))
 
          (actormap-set! new-actormap refr
                         (actormap-ref tmp-am tmp-refr)))))
@@ -2915,7 +2914,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (or (number? obj) (boolean? obj) (string? obj)
       (symbol? obj) (bytevector? obj)))
 
-(define (actormap-restore am aurenv depictions roots)
+(define (actormap-restore am persistence-env depictions roots)
   "Restore a self portrait in an actormap"
   (define slots->promises
     (make-hash-table))
@@ -2940,16 +2939,16 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
         (cadr depiction))
       (define restored-args
         (map restore-one obj-depiction))
-      (define-values (auriable obj-aurenv)
-        (aurenv-ref aurenv obj-name))
-      (define depictor
-        (auriable-depictor auriable))
+      (define-values (obj-spec obj-env)
+        (persistence-env-ref persistence-env obj-name))
+      (define rehydrator
+        (object-spec-rehydrator obj-spec))
 
       (define (restore-one depicted)
         (match depicted
-          [(? depiction? depiction)
-           (let ([type (depiction-type depiction)]
-                 [data (depiction-data depiction)])
+          [(? portrait-record? depiction)
+           (let ([type (portrait-record-type depiction)]
+                 [data (portrait-record-data depiction)])
              (match type
                ['list (map restore-one data)]
                ['vector (list->vector (map restore-one data))]
@@ -2968,13 +2967,13 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
        am
        (lambda ()
          (define restored-obj
-           (apply depictor restored-args))
+           (apply rehydrator restored-args))
          ($ resolver 'fulfill restored-obj))))
 
     ;; Restore all the objects in the depictions
     (hash-for-each
-     (lambda (slot depiction)
-       (restore-slot! slot (depiction-data depiction)))
+     (lambda (slot portrait)
+       (restore-slot! slot (portrait-record-data portrait)))
      depictions)
 
     (match roots
