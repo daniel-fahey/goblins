@@ -1,32 +1,34 @@
 Goblins has a secure persistence mechanism that allows for serializing
-an entire object graph. The mechanism allows actors to describe
+an entire object graph. The mechanism allows objects to describe
 themselves with only the capabilities they have, this protects against
-one actor claiming it has more abilities than it actually does.
+one object claiming it has more abilities than it actually does.
 
 @menu
-* Persistence capable actors::
+* Persistence capable objects::
 * Operations on actormaps::
-* Aurenvs (Aurie Environments)::
+* Persistence Environments::
 @end menu
 
-@node Persistence capable actors
-@section Persistence capable actors
+@node Persistence capable objects
+@section Persistence capable objects
 
-When using the persistence mechanism you take a snapshot of a graph, the
-graph has one or more roots. Once a snapshot has been created this can
-be serialized and stored and at anytime rehydrated and restored to an
-actormap. Currently, the current persistence system only works on
-actormaps, however support for vats and automatic snapshotting will be
-coming in a future version.
+When using the persistence mechanism you take a portrait of a graph, the
+graph has one or more roots. Once a portrait has been created this can
+be serialized and stored and at anytime rehydrated to an actormap
+restoring the objects with their data. Currently, the current
+persistence system only works on actormaps, however support for vats and
+automatic snapshotting will be coming in a future version.
 
-In order an actor to have persistence support it must be able to create
-a self portrait of itself (i.e. a snapshot of itself). This can be done
-by creating a function will be called upon taking a snapshot and should
-return a list of all arguments to restore the object. The arguments can
-include references to other local objects.
+In order for an object to have persistence support it must be able to
+create a self portrait of itself. The self portrait is a collection of
+all the data and capabilities an object has thats needed to restore
+itself. This can be done by creating a function will be called upon
+taking a portrait return a list containing all the portrait data. The
+data can include references to other local objects.
 
 Lets take the following example of an object which has a name and greets
-the callee, keeping track of the number of times it's been called:
+the callee, keeping track of the number of times it's been called in a
+cell object:
 
 @lisp
 (use-modules (goblins)
@@ -41,11 +43,11 @@ the callee, keeping track of the number of times it's been called:
             their-name our-name ($ number-of-times))))
 @end lisp
 
-This actor is not aurie capable, that is it does not currently have a
-mechanism to describe itself to create the snapshot. Trying to snapshot
-a graph with an non-aurie aware actor will result in an error. To
-convert this actor to an aurie aware one we add a self portrait
-function:
+This object is not persistence capable, that is it does not currently
+have a mechanism to describe itself to create the self portrait. Trying
+to take a portrait of a graph with a non-persistence aware object will
+result in an error. To convert this object to a persistence aware one we
+add a self portrait function:
 
 @lisp
 (define* (^greeter _bcom our-name #:optional (init-number-of-times #f))
@@ -63,47 +65,48 @@ function:
 This defines the @code{self-portrait} function which includes
 @code{our-name} (a string) and a reference to the cell object containing
 the number of times it's been called. The cell object would also have to
-be aurie aware, however since this actor comes with goblins, it is
-already aurie aware.
+be persistence aware, however since this actor comes with goblins, it is
+already taken care of for you.
 
 @end node
 
 @node Aurie operations on actormaps
 @section Aurie operations on actormaps
 
-Using aurie on an actormap allows for snapshotting its current state,
-rehydrating a snapshot into an actormap and updating the behavior of an
-actor through an upgrade mechanism.
+Using the persistence support on an actormap allows for taking a
+portrait of its current state, rehydrating that state into an actormap
+and updating the behavior of an object through an upgrade mechanism.
 
-@deffn {Procedure} actormap-take-portrait am aurenv . roots
-(TODO: is this how you define =roots=)
+@deffn {Procedure} actormap-take-portrait am persistence-env . roots
 
-Takes a snapshot / depiction of the objects within the actormap starting
-with the supplied roots.
+Takes a portrait of the objects within the actormap starting with the
+supplied roots.
 
-This takes an actormap, @var{am} which contains the objects being
-snapshotted and an @var{aurenv} which describes the aurie environment
-(see TODO: link to aurenv section). Followed by all the root objects
-within the graph.
+This takes an actormap, @var{am} which contains the objects and an
+@var{persistence-env} which describes some additional information about
+all the objects within the graph that's needed to support persistence.
+The final arguments are all the roots within the graph.
 
-The snapshot is a map where each object within the snapshot is
-represented by an integer which maps to its respective self portrait
-data (in a serializable form), this integer is known as a slot. When an
-object contains a reference to another object, that object is referred
+The portrait is a map where each object within the portrait that is
+represented by an integer which maps to its respective portrait data (in
+a serializable form), this integer is known as a slot. When an object
+contains a reference to another object, that object is referred
 to by its slot.
 
 The procedure returns two values to its continuation, those are:
 
-1. the snapshot
+1. the self portrait data
 2. the root slots: these are in order the integers of the root objects.
 
 @end deffn
 
-@deffn {Procedure} actormap-restore am aurenv depictions roots
+@deffn {Procedure} actormap-restore am persistence-env portrait-data roots
 
-This restores the objects in the actormap @var{am} depicted within
-@var{depictions} using the rehydration data stored in @var{aurenv} with
-the given @var{roots}.
+--- CONTINUE HERE ---
+
+This restores the objects in the actormap @var{am} from the portrait data
+@var{portrait-data} using the object specifications data stored in
+@var{persistence-env} with the given @var{roots}.
 
 Due to the way rehydration of depictions works each object is
 represented as a vow which will be resolved when returned.
@@ -114,23 +117,23 @@ of values returned is equal to the number of roots provided.
 
 @end deffn
 
-@deffn {Procedure} actormap-replace-behavior am old-aurenv new-aurenv
+@deffn {Procedure} actormap-replace-behavior am old-persistence-env new-persistence-env
 
 Replaces all the objects in @var{am} that are different between the two
-aurie environments, using the rehydration procedure given for the object
-in @var{new-aurenv}.
+persistence environments, using the rehydration procedure given for the
+object in @var{new-persistence-env}.
 
 It's often desirable, especially when developing a system, to update or
-otherwise change the bahavior of actors which already exist in an
-actormap. This can easily be done by using aurie. Each object can
-describe itself to Goblins and then be rehydrated into its new behavior
-allowing seamless upgrades.
+otherwise change the bahavior of objects which already exist in an
+actormap. This can easily be done by using the persistence system in
+Goblins. Each object can describe itself through its self portrait and
+then be rehydrated into its new behavior allowing seamless upgrades.
 
 This procedure will first calculate a list of all the objects that have
-a different definition in @var{old-aurenv} than in @var{new-aurenv}. It
-will then snapshot all those objects, then using those snapshots
-rehydrate them with the new behavior keeping the object references the
-same.
+a different definition in @var{old-persistence-env} than in
+@var{new-persistence-env}. It will then take a portrait all those
+objects, then using that portrait data, rehydrate them with the new
+behavior keeping the object references the same.
 
 The procedure returns one argument which is a new updated actormap
 following the upgrade.
@@ -138,23 +141,24 @@ following the upgrade.
 @end deffn
 
 
-
 @end node
 
-@node Aurenvs (Aurie Environments)
-@section Aurenvs (Aurie Environments)
+@node Persistence Environments
+@section Persistence Environments
 
-All objects need be defined in what's known as an aurenv, or Aurie
-Environment. These environments specify a set of information which must
-exist to be able to snapshot and/or rehydrate objects. This is a unique
-name for the object, the constructor, and if different from the
-constructor, a function to rehydrate the object upon rehydration.
+All persistence aware objects need be defined in what's known as an
+persistence environment. These environments specify a set of information
+which must exist to be able to take portrait and/or rehydrate objects.
+This is a unique name for the object, the constructor, and if different
+from the constructor, a function to rehydrate the object upon
+rehydration.
 
-When depicting or restoring objects every single object must be present
-in the given aurenv, this would obviously be quite tedious as object
-graphs get larger and contain lots of different objects. This is made
-easier by aurenvs being able to inherit from other auenvs. Lets take the
-idea of our greeter:
+When taking portraits of objects or rehydrating them every single object
+must be present in the given persistence env, this would obviously be
+quite tedious as object graphs get larger and contain lots of different
+objects. This is made easier the persistence environments being able to
+extend from (or inherit from) other persistence environments. Lets take
+the idea of our greeter:
 
 @lisp
 
@@ -170,57 +174,55 @@ idea of our greeter:
             their-name our-name ($ number-of-times))))
 @end lisp
 
-The aurenv here would need to specify two objects, the @code{^greeter}
-object and the @code{^cell} object. This is made a little more
-complicated by the fact that we didn't define @code{^cell}, we're using
-that from a library, Goblins' actor-lib library.
+The persistence environment here would need to specify two objects, the
+@code{^greeter} object and the @code{^cell} object. This is made a
+little more complicated by the fact that we didn't define @code{^cell},
+we're using that from a library, Goblins' actor-lib library.
 
-This is where aurenv inheritance helps, we can specify the actors we've
-defined (i.e. @code{^greeter}) and specify the aurenv that actor-lib's
-cell module provides for us:
+This is where persistence environment inheritance helps, we can specify
+the objects we've defined (i.e. @code{^greeter}) and specify the
+persistence environment that actor-lib's cell module provides for us:
 
 @lisp
-(define greeter-aurenv
-  (make-aurenv
-   (list (make-aurable '((greeter) ^greeter) ^greeter))
-   (list cell-aurenv)))
+(define greeter-env
+  (make-persistence-env
+   (list (make-object-spec '((greeter) ^greeter) ^greeter))
+   (list cell-env)))
 @end lisp
 
 If we later wanted to define another aurenv which uses our greeter, we
-could define a new aurenv which inherits @var{greeter-aurenv}.
+could define a new aurenv which inherits @var{greeter-env}.
 
-@deffn {Procedure} make-aurable name constructor depictor
+@deffn {Procedure} make-object-spec name constructor rehydrator
 
-Return an object definition to be used inside an aurenv.
+Return an object specification to be used inside an aurenv.
 
 This takes a @var{name} which should be a unique name for an object, the
 convention is to use a fully qualified module path with object
 constructor, however this name can be any symbol which can be assured to
-be unique within a given depiction. It also takes the @var{constructor}
-which must be the constructor of the object itself. Finally it can
-optionally take a @var{depictor} procedure which is used when
-rehydrating the object, if no depiction function is specified it assumes
-the self-portrait can be provided to the object constructor to produce
-the correct object.
-
-TODO: mention the depictor wrt upgrading & version numbers.
-
+be unique within a given object graph. It also takes the
+@var{constructor} which must be the constructor of the object itself,
+even if rehydrated by a different function. Finally it can optionally
+take a @var{rehydrator} procedure which is used when rehydrating the
+object, if no @var{rehydrator} function is provided, it uses the object
+constructor when rehydrating.
 @end deffn
 
-@deffn {Procedure} make-aurenv bindings extends
+@deffn {Procedure} make-persistence-env bindings extends
 
-This creates an aurie environment, or aurenv based on a set of object
-aurable definitions and other aurenvs to inherit from.
+This creates a persistence environment based on a set of object
+specifications and a list of other persistence environments to extend
+from.
 
 This takes two arguments, each being a list. The first is @var{bindings}
-which is a list of all the auriables (i.e. aurie object definitions)
-that exist within this aurenv. The second is an optional argument,
-@var{extends} which is a list of other aurenvs that this extends from.
+which is a list of all the object specifications. The second is an
+optional argument, @var{extends} which is a list of other persistence
+environments that this environment extends from.
 
-Important: Care should be taken to prevent cycles within aurenv
-definitions.
+Important: Care should be taken to prevent cycles within persistence
+environments.
 
-This procedure returns a single value, an aurie environment.
+This procedure returns a single value, a persistence environment.
 
 @end deffn
 
