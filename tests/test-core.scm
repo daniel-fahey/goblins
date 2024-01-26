@@ -646,7 +646,7 @@
     (list our-name number-of-times))
   (portraitize main-beh self-portrait))
 
-(define (restored-greeter-rehydrate our-name number-of-times)
+(define (restored-greeter-rehydrate version our-name number-of-times)
   (spawn ^persistent-greeter
          (format #f "*restored ~a*" our-name)
          number-of-times))

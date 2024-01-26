@@ -91,6 +91,7 @@
                portrait?
                portrait-type
                portrait-data
+               versioned
 
                make-vat
                vat?
