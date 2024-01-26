@@ -98,6 +98,7 @@
             portrait?
             portrait-type
             portrait-data
+            versioned
 
             ;; TODO: separate this out!
             <message>
@@ -210,7 +211,8 @@
   (define rehydrator
     (if maybe-rehydrator
         maybe-rehydrator
-        (lambda args (apply spawn constructor args))))
+        (lambda (version . args)
+          (apply spawn constructor args))))
   (_make-object-spec name constructor rehydrator))
 
 (define (persistence-env-find match? env)
@@ -2765,6 +2767,12 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (type portrait-record-type)
   (data portrait-record-data))
 
+(define-record-type <versioned-data>
+  (versioned version data)
+  versioned-data?
+  (version versioned-data-version)
+  (data versioned-data-data))
+
 (define (actormap-take-portrait am persistence-env . roots)
   "Produces a self portrait of the actormap"
   (when (null? roots)
@@ -2780,7 +2788,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (make-hash-table))
   (define slot->val
     (make-hash-table))
-  (define slot->depiction
+  (define slot->portrait
     (make-hash-table))
 
   (define (slot-maybe-queue-near-ref! obj)
@@ -2811,49 +2819,57 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (define (process-one value)
       (match value
         [(? depictable-atom? atom) atom]
-          [(? list?)
-           (make-portrait-record 'list (map process-one value))]
-          [(? vector? vector)
-           (make-portrait-record 'vector (map process-one (vector->list vector)))]
-          [(? ghash?)
-           (ghash-fold
-            (lambda (k v prev)
-              (ghash-set prev (process-one k) (process-one v)))
-            (make-ghash)
-            value)]
-          [(? keyword? kw)
-           (make-portrait-record 'keyword (keyword->symbol kw))]
-          [(? local-object-refr?)
-           (make-portrait-record 'near-refr (slot-maybe-queue-near-ref! value))]
-          [(? local-promise-refr? vow)
-           (unless (near-promise-settled? vow)
-             (error "Can't create portrait with an unsettled promise: " vow))
-           (process-one (near-settled-promise-value vow))]
-          [_ (error "Unserializable value" value)]))
+        [(? versioned-data?)
+         (let ((version (versioned-data-version value))
+               (data (versioned-data-data value)))
+           (unless (list? data)
+             (error "Self portrait data must be a list"))
+           (make-portrait-record 'versioned (cons version (map process-one data))))]
+        [(? list?)
+         (make-portrait-record 'list (map process-one value))]
+        [(? vector? vector)
+         (make-portrait-record 'vector (map process-one (vector->list vector)))]
+        [(? ghash?)
+         (ghash-fold
+          (lambda (k v prev)
+            (ghash-set prev (process-one k) (process-one v)))
+          (make-ghash)
+          value)]
+        [(? keyword? kw)
+         (make-portrait-record 'keyword (keyword->symbol kw))]
+        [(? local-object-refr?)
+         (make-portrait-record 'near-refr (slot-maybe-queue-near-ref! value))]
+        [(? local-promise-refr? vow)
+         (unless (near-promise-settled? vow)
+           (error "Can't create portrait with an unsettled promise: " vow))
+         (process-one (near-settled-promise-value vow))]
+        [_ (error "Unserializable value" value)]))
 
-    (define (process-depiction obj-spec depiction)
-      (match depiction
+    (define (process-portrait obj-spec portrait-data)
+      (match portrait-data
+        [(? versioned-data? data)
+         (define processed-data
+           (process-one data))
+         (make-portrait-record 'object (list (object-spec-name obj-spec) processed-data))]
         [(? list? args)
-         (define processed-unsealed-depiction
-           (map process-one args))
+         ;; No versioning was given, lets tag this as version 0
+         (process-portrait obj-spec (versioned 0 args))]))
 
-         (make-portrait-record 'object (list (object-spec-name obj-spec) processed-unsealed-depiction))]))
-
-    (define returned-depiction
+    (define returned-self-portrait
       (if this-obj-self-portrait-fn
           (actormap-run am this-obj-self-portrait-fn)
           (error "No self portrait function found for object" this-obj)))
 
     (define depiction-to-save
-      (process-depiction this-obj-spec returned-depiction))
+      (process-portrait this-obj-spec returned-self-portrait))
 
-    (hashq-set! slot->depiction slot depiction-to-save))
+    (hashq-set! slot->portrait slot depiction-to-save))
 
   ;; Go through the queue of objects to read and process them.
   (while (not (q-empty? process-queue))
     (read-next-portrait!))
 
-  (values slot->depiction root-slots))
+  (values slot->portrait root-slots))
 
 (define (actormap-replace-behavior! am old-persistence-env new-persistence-env)
   "Take self portrait of all the actors with different behavior and rehydrates them with the new behavior"
@@ -2899,11 +2915,17 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
          ;; that's not actually what we want so allow that to happen since we
          ;; want the actor to exist at the old  refr. Once we've rehydrated the
          ;; actor install the new object at its old refr.
+         (define versioned-self-portrait
+           (if (versioned-data? self-portrait)
+               self-portrait
+               (versioned 0 self-portrait)))
          (define-values (tmp-refr tmp-am _msgs)
            (actormap-run*
             new-actormap
             (lambda ()
-              (apply rehydrator self-portrait))))
+              (apply rehydrator
+                     (versioned-data-version versioned-self-portrait)
+                     (versioned-data-data versioned-self-portrait)))))
 
          (actormap-set! new-actormap refr
                         (actormap-ref tmp-am tmp-refr)))))
@@ -2914,7 +2936,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (or (number? obj) (boolean? obj) (string? obj)
       (symbol? obj) (bytevector? obj)))
 
-(define (actormap-restore am persistence-env depictions roots)
+(define (actormap-restore am persistence-env portraits roots)
   "Restore a self portrait in an actormap"
   (define slots->promises
     (make-hash-table))
@@ -2928,17 +2950,17 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
             [resolver (cdr promise-pair)])
        (hashq-set! slots->promises slot vow)
        (hashq-set! slots->resolvers slot resolver)))
-   depictions)
+   portraits)
 
-    (define (restore-slot! slot depiction)
+    (define (restore-slot! slot portrait)
       (define resolver
         (hashq-ref slots->resolvers slot))
       (define obj-name
-        (car depiction))
-      (define obj-depiction
-        (cadr depiction))
-      (define restored-args
-        (map restore-one obj-depiction))
+        (car portrait))
+      (define obj-portrait
+        (cadr portrait))
+      (define-values (version restored-args)
+        (restore-one obj-portrait))
       (define-values (obj-spec obj-env)
         (persistence-env-ref persistence-env obj-name))
       (define rehydrator
@@ -2950,6 +2972,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
            (let ([type (portrait-record-type depiction)]
                  [data (portrait-record-data depiction)])
              (match type
+               ['versioned (values (car data) (map restore-one (cdr data)))]
                ['list (map restore-one data)]
                ['vector (list->vector (map restore-one data))]
                ['keyword (symbol->keyword data)]
@@ -2967,14 +2990,14 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
        am
        (lambda ()
          (define restored-obj
-           (apply rehydrator restored-args))
+           (apply rehydrator version restored-args))
          ($ resolver 'fulfill restored-obj))))
 
-    ;; Restore all the objects in the depictions
+    ;; Restore all the objects in the
     (hash-for-each
      (lambda (slot portrait)
        (restore-slot! slot (portrait-record-data portrait)))
-     depictions)
+     portraits)
 
     (match roots
       [(? list? root-slots)
