@@ -630,7 +630,7 @@ registered with this prelay admin.
 @deffn {Procedure} fetch-and-spawn-prelay-netlayer account-setup-sref [#:netlayer] [#:mycapn]
 
 This takes a account setup sturdyref retrieved from the
-@code{add-account} method on the Prelay admin and and returns a
+@code{add-account} method on the Prelay admin and returns a
 promise resolving to a freshly spawned Prelay netlayer.
 This is to be used on the ``client'' side.
 
