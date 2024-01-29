@@ -7,6 +7,7 @@ one object claiming it has more abilities than it actually does.
 * Persistence capable objects::
 * Operations on actormaps::
 * Persistence Environments::
+* Upgrading through persistence::
 @end menu
 
 @node Persistence capable objects
@@ -68,10 +69,8 @@ the number of times it's been called. The cell object would also have to
 be persistence aware, however since this actor comes with goblins, it is
 already taken care of for you.
 
-@end node
-
-@node Aurie operations on actormaps
-@section Aurie operations on actormaps
+@node Operations on actormaps
+@section Operations on actormaps
 
 Using the persistence support on an actormap allows for taking a
 portrait of its current state, rehydrating that state into an actormap
@@ -101,8 +100,6 @@ The procedure returns two values to its continuation, those are:
 @end deffn
 
 @deffn {Procedure} actormap-restore am persistence-env portrait-data roots
-
---- CONTINUE HERE ---
 
 This restores the objects in the actormap @var{am} from the portrait data
 @var{portrait-data} using the object specifications data stored in
@@ -139,9 +136,6 @@ The procedure returns one argument which is a new updated actormap
 following the upgrade.
 
 @end deffn
-
-
-@end node
 
 @node Persistence Environments
 @section Persistence Environments
@@ -190,12 +184,13 @@ persistence environment that actor-lib's cell module provides for us:
    (list cell-env)))
 @end lisp
 
-If we later wanted to define another aurenv which uses our greeter, we
-could define a new aurenv which inherits @var{greeter-env}.
+If we later wanted to define another persistence environment which uses
+our greeter, we could define a new persistence environment which
+extends from @var{greeter-env}.
 
 @deffn {Procedure} make-object-spec name constructor rehydrator
 
-Return an object specification to be used inside an aurenv.
+Return an object specification to be used inside an persistence environment.
 
 This takes a @var{name} which should be a unique name for an object, the
 convention is to use a fully qualified module path with object
@@ -226,4 +221,76 @@ This procedure returns a single value, a persistence environment.
 
 @end deffn
 
-@end node
+@node Upgrading through persistence
+@section Upgrading through persistence
+
+The design of the persistence system allows for this to be a powerful
+mechanism to make upgrades for object data. The very basic situation of
+adding a new piece of data is automatic as you can provide a default
+value. More complicated data upgrade is also fully supported. Lets take
+an example of a thermostat that represents the set temperature in
+fahrenheit:
+
+@lisp
+(define (^thermostat bcom temperature)
+  (define main-beh
+    (methods
+     [(get-current-temp) temperature]
+     [(set-temp new-temp) ...]))
+  (define (self-portrait)
+    (list temperature))
+  (portraitize main-beh self-portrait))
+
+(define thermostat-env
+  (make-persistence-env
+   (make-object-spec '((house temp) ^thermostat) ^thermostat)))
+@end lisp
+
+Later, we want to change the thermostat object to work with the set
+temperature in Celsius. Normally this is a bit tricky as we have just
+stored an integer for the portrait data, however Goblins tags this data
+with a version and it can be upgraded and tagged by us too, lets take a
+look at how we can upgrade the above actor using this upgrade mechanism:
+
+@lisp
+(define (^thermostat bcom temperature)
+  (define main-beh
+    (methods
+     [(get-current-temp) temperature]
+     [(set-temp new-temp) ...]))
+  (define (self-portrait)
+    (versioned 1 (list temperature)))
+  (portraitize main-beh self-portrait))
+
+(define (rehydrate-thermostat version restored-temperature)
+  (define temperature
+    (match version
+      ;; F -> C conversion
+      [0 (+ (* 9/5 restored-temperature) 32)]
+      ;; C, no conversion needed.
+      [1 restored-temperature]))
+  (spawn ^thermostat temperature))
+
+(define thermostat-env
+  (make-persistence-env
+   (make-object-spec '((house temp) ^thermostat) ^thermostat rehydrate-thermostat)))
+@end lisp
+
+There are two changes here:
+
+1. The thermostat object's @code{self-portrait} function now versions
+the data with version 1.
+2. We now have this @code{rehydrate-thermostat} function which takes in
+a version and might convert it before spawing the thermostat.
+
+Goblins has a @code{versioned} function provided which allows the first
+argument to be a version tag which usually is an integer but could be
+any atomic serializable data such as a simple or even string and as a
+second argument the self-portrait data. If the self-portrait doesn't
+return a versioned portrait, Goblins will assign the version 0 to that
+portrait data. Later you're able to match on it and upgrade it like the
+example above.
+
+With the above example newly created objects which are created using
+Celcius will not be need to be upgraded, but the old fahrenheit objects
+will be converted.

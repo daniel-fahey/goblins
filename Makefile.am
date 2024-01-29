@@ -145,6 +145,7 @@ AM_TESTS_ENVIRONMENT = abs_top_srcdir="$(abs_top_srcdir)"
 
 info_TEXINFOS = doc/goblins.texi
 doc_goblins_TEXINFOS = doc/actor-lib-reference.texi	\
+                       doc/persistence.texi	\
                        doc/api-reference.texi		\
                        doc/debugger.texi		\
                        doc/ocapn.texi			\
