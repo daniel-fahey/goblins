@@ -509,15 +509,15 @@ illusion of being direct peers.  (The users need not use relays on the
 same node; ``federation'' is achieved automatically through the
 underlying OCapN netlayer's connectivity properties.)
 
-The primary limiation of the prelay netlayer at present is that
+The primary limitation of the prelay netlayer at present is that
 messages are delivered in cleartext through the chosen relay,
-unauthenticated, which has the power to both snoop on and modify
-messages.  A fully end-to-end-encrypted Relay netlayer is on schedule
-to replace the present unencrypted, unauthenticatted design.  At
-present the prelay netlayer has characteristics similar to IRC, vanilla
-ActivityPub, and many multiplayer game systems which also tend to rely
-on trusting a provider, but we would like to (and will!) do better in
-the future.
+unauthenticated, which means the relay has the power to both snoop on
+and modify messages.  A fully end-to-end-encrypted Relay netlayer is on
+schedule to replace the present unencrypted, unauthenticatted design.
+At present the prelay netlayer has characteristics similar to IRC,
+vanilla ActivityPub, and many multiplayer game systems which also tend
+to rely on trusting a provider, but we would like to (and will!) do
+better in the future.
 
 Some simpler APIs for the prelay netlayer are coming, particularly a
 convenient daemon for managing prelay nodes for users.
