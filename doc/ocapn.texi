@@ -629,14 +629,15 @@ registered with this prelay admin.
 
 @deffn {Procedure} fetch-and-spawn-prelay-netlayer account-setup-sref [#:netlayer] [#:mycapn]
 
-This takes a account setup sturdyref, that retrieved from the
-@code{add-account} method on the Prelay admin and spawns and returns a
-setup Prelay netlayer. This is to be used on the ``client'' side.
+This takes a account setup sturdyref retrieved from the
+@code{add-account} method on the Prelay admin and returns a
+promise resolving to a freshly spawned Prelay netlayer.
+This is to be used on the ``client'' side.
 
 By default when using the relay over @ref{Tor Onion Services} netlayer
 or @ref{TCP + TLS} netlayer it will setup a new netlayer to use to speak
 with the relay over. If a different netlayer is to be used, or any of
-the default options need changing, the netlayer should be setup before
+the default options need changing, the netlayer should be setup beforehand
 and passed in through the @var{#:netlayer} argument.
 
 By default it will create a new mycapn, however if one already exists
