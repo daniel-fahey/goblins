@@ -217,20 +217,21 @@
 
 (define (persistence-env-find match? env)
   (define (match-bindings bindings)
-    (if (null? bindings)
-      (values #f #f)
-      (let ([matched? (match? (car bindings))])
-        (if matched?
-          (values (car bindings) env)
-          (match-bindings (cdr bindings))))))
+    (match bindings
+      [() (values #f #f)]
+      [((? match? found) rest ...)
+       (values found env)]
+      [(_not-matched rest ...)
+       (match-bindings rest)]))
 
   (define (match-extends extends)
-    (if (null? extends)
-      (values #f #f)
-      (let ([result (persistence-env-find match? (car extends))])
-        (if result
-            (values result env)
-            (match-extends (cdr extends))))))
+    (match extends
+      [() (values #f #f)]
+      [(next rest ...)
+       (let ([result (persistence-env-find match? next)])
+         (if result
+             (values result env)
+             (match-extends rest)))]))
 
   (define-values (found-obj-spec found-env)
     (match-bindings (persistence-env-bindings env)))
