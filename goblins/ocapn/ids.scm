@@ -195,7 +195,7 @@
     (error "Not a valid OCapN URI:" string-uri))
 
   (let ((uri (string->uri string-uri)))
-    (unless (eq? (uri-scheme uri) 'ocapn)
+    (unless (and uri (eq? (uri-scheme uri) 'ocapn))
       (error "Not a valid OCapN URI:" string-uri))
     (uri->ocapn-id uri)))
 
