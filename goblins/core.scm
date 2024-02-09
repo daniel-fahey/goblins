@@ -90,7 +90,9 @@
             object-spec--constructor
             object-spec-rehydrator
             portraitize
+            make-actormap-take-portrait
             actormap-take-portrait
+            actormap-take-portrait-with-fn
             actormap-replace-behavior!
             actormap-restore
 
@@ -152,7 +154,8 @@
   #:use-module (ice-9 q)
   #:use-module (ice-9 suspendable-ports)
   #:use-module (rnrs bytevectors)
-  #:use-module (goblins ghash))
+  #:use-module (goblins ghash)
+  #:use-module (goblins abstract-types))
 
 
 ;;; Utilities (which should be moved to their own modules)
@@ -2774,23 +2777,22 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (version versioned-data-version)
   (data versioned-data-data))
 
-(define (actormap-take-portrait am persistence-env . roots)
-  "Produces a self portrait of the actormap"
+(define (make-actormap-take-portrait persistence-env . roots)
+  "Produces a precedure to take new portraits of a graph of objects within a actormap"
   (when (null? roots)
     (error "At least one root object must be specified to take a portrait"))
-
-  (define process-queue
-    (make-q))
-  (define-values (session-seal session-unseal _session-brand)
-    (make-sealer-triplet))
 
   (define next-id 0)
   (define val->slot
     (make-hash-table))
   (define slot->val
     (make-hash-table))
-  (define slot->portrait
-    (make-hash-table))
+
+  ;; Facet for looking up within val->slot
+  (define val->slot-ref
+    (case-lambda
+      ((obj default-value) (hashq-ref val->slot obj default-value))
+      ((obj) (hashq-ref val->slot obj))))
 
   (define (slot-maybe-queue-near-ref! obj)
     (or (hashq-ref val->slot obj #f)
@@ -2798,15 +2800,19 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
           (set! next-id (+ 1 next-id))
           (hashq-set! val->slot obj this-slot)
           (hashq-set! slot->val this-slot obj)
-          (enq! process-queue obj)
           this-slot)))
 
   (define root-slots
     (map slot-maybe-queue-near-ref! roots))
 
-  (define (read-next-portrait!)
-    (define this-obj
-      (deq! process-queue))
+  (define (read-next-portrait! am this-obj)
+    (define slot
+      (hashq-ref val->slot this-obj #f))
+    (unless slot
+      (error "Object does not appear in the persistence graph" this-obj))
+
+    (define child-objs
+      (make-set))
     (define this-obj-self-portrait-fn
       (mactor:object-self-portrait (actormap-ref am this-obj)))
     (define this-obj-constructor
@@ -2814,9 +2820,6 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (define-values (this-obj-spec this-obj-env)
       (persistence-env-ref-by-constructor persistence-env this-obj-constructor))
 
-    ;; well at this point if it isn't queued already we're in trouble
-    (define slot
-      (hashq-ref val->slot this-obj))
     (define (process-one value)
       (match value
         [(? depictable-atom? atom) atom]
@@ -2839,6 +2842,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
         [(? keyword? kw)
          (make-portrait-record 'keyword (keyword->symbol kw))]
         [(? local-object-refr?)
+         (set! child-objs (set-add child-objs value))
          (make-portrait-record 'near-refr (slot-maybe-queue-near-ref! value))]
         [(? local-promise-refr? vow)
          (unless (near-promise-settled? vow)
@@ -2864,13 +2868,50 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (define depiction-to-save
       (process-portrait this-obj-spec returned-self-portrait))
 
-    (hashq-set! slot->portrait slot depiction-to-save))
+    (values slot depiction-to-save child-objs))
+
+  (values read-next-portrait! val->slot-ref))
+
+(define (actormap-take-portrait-with-fn am read-portrait! obj->slot-ref . roots)
+  (define slot->portrait
+    (make-hash-table))
+  (define process-queue
+    (make-q))
+
+  ;; Queue up all the roots
+  (map (lambda (obj)
+         (enq! process-queue obj))
+       roots)
 
   ;; Go through the queue of objects to read and process them.
   (while (not (q-empty? process-queue))
-    (read-next-portrait!))
+    (let*-values ([(obj) (deq! process-queue)]
+                  [(slot obj-self-portrait child-objs) (read-portrait! am obj)])
+      (hashq-set! slot->portrait slot obj-self-portrait)
+
+      ;; We need to queue up new child objects which are not currently queued for
+      ;; processing, or are not in the list of already processed depictions.
+      ;; NOTE: Not using set-fold to produce a value, more as a for-each
+      (set-fold
+       (lambda (obj _prev)
+         (define slot (obj->slot-ref obj))
+         (unless (or (memq obj (car process-queue))
+                     (hashq-ref slot->portrait slot #f))
+           (enq! process-queue obj)))
+       #f
+       child-objs)))
+
+  (define root-slots
+    (map obj->slot-ref roots))
 
   (values slot->portrait root-slots))
+
+(define (actormap-take-portrait am persistence-env . roots)
+  "Produces a self portrait of the actormap"
+  (define-values (read-portrait! obj->slot-ref)
+    (apply make-actormap-take-portrait persistence-env roots))
+
+  (apply actormap-take-portrait-with-fn am read-portrait! obj->slot-ref roots))
 
 (define (actormap-replace-behavior! am old-persistence-env new-persistence-env)
   "Take self portrait of all the actors with different behavior and rehydrates them with the new behavior"

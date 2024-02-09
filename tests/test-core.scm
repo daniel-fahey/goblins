@@ -639,9 +639,8 @@
   (define number-of-times
     (or init-number-of-times (spawn ^incrementer)))
   (define (main-beh your-name)
-    (bcom (^persistent-greeter bcom our-name number-of-times)
-          (format #f "Hello ~a, my name is ~a (called ~a)."
-                  your-name our-name ($ number-of-times))))
+    (format #f "Hello ~a, my name is ~a (called ~a)."
+            your-name our-name ($ number-of-times)))
   (define (self-portrait)
     (list our-name number-of-times))
   (portraitize main-beh self-portrait))
@@ -684,8 +683,8 @@
   (actormap-restore second-actormap greeter-env astrid-greeter-portrait astrid-greeter-roots))
 
 (test-equal "Restored greeter reports correct number of times called"
-  (actormap-peek second-actormap restored-astrid-greeter "Ludvig")
-  "Hello Ludvig, my name is *restored Astrid* (called 3).")
+  "Hello Ludvig, my name is *restored Astrid* (called 3)."
+  (actormap-peek second-actormap restored-astrid-greeter "Ludvig"))
 
 (define* (^fancy-greeter bcom our-name #:optional init-number-of-times)
   (define number-of-times
@@ -705,7 +704,7 @@
 (actormap-replace-behavior! second-actormap greeter-env new-greeter-env)
 
 (test-equal "Actors are updated when the behavior is replaced by new behavior"
-  (actormap-peek second-actormap restored-astrid-greeter "Ludvig")
-  "Salutations Ludvig, I am called *restored Astrid*, delighted to make your acquaintance! (called: 3)")
+  "Salutations Ludvig, I am called *restored Astrid*, delighted to make your acquaintance! (called: 3)"
+  (actormap-peek second-actormap restored-astrid-greeter "Ludvig"))
 
 (test-end "test-goblins-core")
