@@ -77,11 +77,6 @@
                spawn-promise-values
 
                make-persistence-env
-               make-object-spec
-               object-spec?
-               object-spec-name
-               object-spec--constructor
-               object-spec-rehydrator
                portraitize
                actormap-take-portrait
                actormap-replace-behavior!

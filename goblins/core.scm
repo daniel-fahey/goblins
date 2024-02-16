@@ -84,11 +84,6 @@
             spawn-promise-values
 
             make-persistence-env
-            make-object-spec
-            object-spec?
-            object-spec-name
-            object-spec--constructor
-            object-spec-rehydrator
             portraitize
             actormap-take-portrait
             actormap-replace-behavior!
@@ -196,25 +191,41 @@
   (self-portrait portraitized-behavior-self-portrait))
 
 (define-record-type <persistence-env>
-  (make-persistence-env bindings extends)
+  (_make-persistence-env bindings extends)
   persistence-env?
   (bindings persistence-env-bindings)
   (extends persistence-env-extends))
 
+;; Used internally to represent each object in the persistent environment
 (define-record-type <object-spec>
-  (_make-object-spec name constructor rehydrator)
+  (make-object-spec name constructor rehydrator)
   object-spec?
   (name object-spec-name)
   (constructor object-spec-constructor)
   (rehydrator object-spec-rehydrator))
 
-(define* (make-object-spec name constructor #:optional maybe-rehydrator)
-  (define rehydrator
-    (if maybe-rehydrator
-        maybe-rehydrator
-        (lambda (version . args)
-          (apply spawn constructor args))))
-  (_make-object-spec name constructor rehydrator))
+(define* (make-persistence-env objects #:key extends)
+  (define object-spec-list>object-spec
+     (case-lambda
+       [(name constructor)
+        (make-object-spec name constructor
+                          (lambda (version . args)
+                            (apply spawn constructor args)))]
+       [(name constructor rehydrator)
+        (make-object-spec name constructor rehydrator)]))
+
+  (define object-specs
+    (map (lambda (object-spec-list)
+           (apply object-spec-list>object-spec object-spec-list))
+         objects))
+
+  (_make-persistence-env
+   object-specs
+   (match extends
+     [#f '()]
+     [(envs ...) envs]
+     [(? persistence-env? env) (list env)]
+     [_ (error "Unknown value to extend persistence environment from" extends)])))
 
 (define (persistence-env-find match? env)
   (define (match-bindings bindings)

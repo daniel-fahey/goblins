@@ -298,7 +298,7 @@ fahrenheit:
 
 (define thermostat-env
   (make-persistence-env
-   (make-object-spec '((house temp) ^thermostat) ^thermostat)))
+   (list (list ''((house temp) ^thermostat) ^thermostat))))
 @end lisp
 
 Later, we want to change the thermostat object to work with the set
@@ -328,7 +328,7 @@ look at how we can upgrade the above actor using this upgrade mechanism:
 
 (define thermostat-env
   (make-persistence-env
-   (make-object-spec '((house temp) ^thermostat) ^thermostat rehydrate-thermostat)))
+   (list (list '((house temp) ^thermostat) ^thermostat rehydrate-thermostat))))
 @end lisp
 
 There are two changes here:

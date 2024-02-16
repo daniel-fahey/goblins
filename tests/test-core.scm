@@ -666,13 +666,12 @@
 
 (define incrementer-env
   (make-persistence-env
-   (list (make-object-spec '((tests test-core) ^incrementer) ^incrementer))
-   (list)))
+   (list (list '((tests test-core) ^incrementer) ^incrementer))))
 
 (define greeter-env
   (make-persistence-env
-   (list (make-object-spec '((tests test-core) ^persistent-greeter) ^persistent-greeter restored-greeter-rehydrate))
-   (list incrementer-env)))
+   (list (list '((tests test-core) ^persistent-greeter) ^persistent-greeter restored-greeter-rehydrate))
+   #:extends incrementer-env))
 
 (define-values (astrid-greeter-portrait astrid-greeter-roots)
   (actormap-take-portrait first-actormap greeter-env astrid-greeter))
@@ -699,8 +698,8 @@
 
 (define new-greeter-env
   (make-persistence-env
-   (list (make-object-spec '((tests test-core) ^persistent-greeter) ^fancy-greeter))
-   (list incrementer-env)))
+   (list (list '((tests test-core) ^persistent-greeter) ^fancy-greeter))
+   #:extends (list incrementer-env)))
 
 (actormap-replace-behavior! second-actormap greeter-env new-greeter-env)
 
