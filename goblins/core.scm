@@ -1,6 +1,6 @@
 ;;; Copyright 2019-2023 Christine Lemmer-Webber
 ;;; Copyright 2023 David Thompson
-;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2022-2024 Jessica Tallon
 ;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
@@ -152,6 +152,7 @@
   #:use-module (ice-9 q)
   #:use-module (ice-9 suspendable-ports)
   #:use-module (rnrs bytevectors)
+  #:use-module (goblins abstract-types)
   #:use-module (goblins ghash))
 
 
@@ -261,9 +262,10 @@
 
   (define (build-name->object-spec persistence-envs)
     (define tbl (make-hash-table))
-    (map (lambda (obj-spec)
-           (hashq-set! tbl (object-spec-name obj-spec) obj-spec))
-         persistence-envs)
+    (for-each
+     (lambda (obj-spec)
+       (hashq-set! tbl (object-spec-name obj-spec) obj-spec))
+     persistence-envs)
     tbl)
 
   (define old-map (build-name->object-spec (flatten old)))
@@ -2289,7 +2291,7 @@ Type: -> (Promise . Resolver)"
        pre-existing-refr]
       [_
        (error 'invalid-actor-handler "Not a procedure, aurie or live refr:" handler)]))
-  (handler->refr actor-handler #f))
+  (handler->refr actor-handler))
 
 ;; These two are user-facing procedures.  Thus, they set up
 ;; their own syscaller.
@@ -2761,13 +2763,21 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (parameterize ([current-syscaller #f])
     (proc)))
 
-;; These are records which hold some part of an objects portrait data.
+;; These records are responsible for tagging and holding portrait data. This includes
+;; tagging objects and also types such as ghashes, lists, vectors, etc so that we can
+;; unserialize them correctly to their corresponding objects/types. The persistence
+;; storage providers need to work with these when saving.
 (define-record-type <portrait-record>
   (make-portrait-record type data)
   portrait-record?
   (type portrait-record-type)
   (data portrait-record-data))
 
+;; This while looking similar to the above this is used to specify versioned data
+;; by objects in their self-portrait function. The `versioned' constructor is exported
+;; which is used to created <version> + <portrait data> so the persistence system
+;; can reliably detect when being given versioned data. This tagging is not exposed
+;; anywhere else, including the resulting portraits.
 (define-record-type <versioned-data>
   (versioned version data)
   versioned-data?
@@ -2838,6 +2848,11 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
           value)]
         [(? keyword? kw)
          (make-portrait-record 'keyword (keyword->symbol kw))]
+        [(? tagged? tagged)
+         (make-portrait-record 'tagged (list (tagged-label tagged)
+                                             (tagged-data tagged)))]
+        [(? zilch?)
+         (make-portrait-record 'zilch #f)]
         [(? local-object-refr?)
          (make-portrait-record 'near-refr (slot-maybe-queue-near-ref! value))]
         [(? local-promise-refr? vow)
@@ -2983,6 +2998,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
                    (ghash-set prev (restore-one k) (restore-one v)))
                  (make-ghash)
                  data)]
+               ['zilch zilch]
+               ['tagged (make-tagged (car data) (cadr data))]
                ['near-refr (hashq-ref slots->promises data)]
                [_ (error "Unknown depiction type" type)]))]
            [_ depicted]))
@@ -2994,7 +3011,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
            (apply rehydrator version restored-args))
          ($ resolver 'fulfill restored-obj))))
 
-    ;; Restore all the objects in the
+    ;; Restore all the objects in the vows we have setup.
     (hash-for-each
      (lambda (slot portrait)
        (restore-slot! slot (portrait-record-data portrait)))
