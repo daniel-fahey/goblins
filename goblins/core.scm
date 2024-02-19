@@ -255,9 +255,9 @@
 (define (persistence-env-ref env name)
   "Finds the object specification within a given persistence environment tree by the provided name"
   (persistence-env-find
-    (lambda (obj-spec)
-      (equal? (object-spec-name obj-spec) name))
-    env))
+   (lambda (obj-spec)
+     (equal? (object-spec-name obj-spec) name))
+   env))
 
 (define (persistence-env-ref-by-constructor env constructor)
   (persistence-env-find
