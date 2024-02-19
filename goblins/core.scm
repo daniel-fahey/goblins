@@ -2873,6 +2873,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
         [_ (error "Unserializable value" value)]))
 
     (define (process-portrait obj-spec portrait-data)
+      (unless obj-spec
+        (error "Don't know how to persist:" this-obj this-obj-constructor))
       (match portrait-data
         [(? versioned-data? data)
          (define processed-data
