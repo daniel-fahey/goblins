@@ -74,9 +74,8 @@
     "Check that can-unmarshall returns false for the wrong label"
   (not ((car unmarshall::animal) (tagged-label sticky-banana))))
 
-(test-equal
-    "Check that unmarshalling returns correct data"
-  (apply (cdr unmarshall::animal) (tagged-data sticky-cat))
-  cat)
+(test-equal "Check that unmarshalling returns correct data"
+  cat
+  (apply (cdr unmarshall::animal) (tagged-data sticky-cat)))
 
 (test-end "marshalling")

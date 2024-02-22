@@ -41,10 +41,12 @@
 (define a-vat (spawn-vat #:name 'A))
 
 (test-eq "Lookup vat by id"
-  (lookup-vat (vat-id a-vat)) a-vat)
+  a-vat
+  (lookup-vat (vat-id a-vat)))
 
 (test-equal "List vats"
-  (all-vats) (list a-vat))
+  (list a-vat)
+  (all-vats))
 
 (define (^friendo _bcom)
   (lambda ()
@@ -66,25 +68,25 @@
   (with-vat vat
     (apply op rest)))
 
-(test-eq (run a-vat $ a-counter) 0)
-(test-eq (run a-vat $ a-counter) 1)
-(test-eq (run a-vat $ a-counter) 2)
-(test-eq (run a-vat $ a-counter) 3)
+(test-eq 0 (run a-vat $ a-counter))
+(test-eq 1 (run a-vat $ a-counter))
+(test-eq 2 (run a-vat $ a-counter))
+(test-eq 3 (run a-vat $ a-counter))
 (resolve-vow-and-return-result
  a-vat
  (lambda () (<- a-counter)))
-(test-eq (run a-vat $ a-counter) 5)
+(test-eq 5 (run a-vat $ a-counter))
 
 (define (^counter-poker _bcom counter)
   (lambda ()
     (<-np counter)))
 (define counter-poker
   (run a-vat spawn ^counter-poker a-counter))
-(test-eq (run a-vat $ a-counter) 6)
+(test-eq 6 (run a-vat $ a-counter))
 (run a-vat $ counter-poker)
-(test-eq (run a-vat $ a-counter) 8)
+(test-eq 8 (run a-vat $ a-counter))
 (run a-vat $ counter-poker)
-(test-eq (run a-vat $ a-counter) 10)
+(test-eq 10 (run a-vat $ a-counter))
 
 ;; Inter-vat communication
 (define b-vat (spawn-vat #:name 'B))
@@ -92,7 +94,7 @@
        (resolve-vow-and-return-result
         b-vat
         (lambda () (<- a-counter)))))
-  (test-eq (run a-vat $ a-counter) 12))
+  (test-eq 12 (run a-vat $ a-counter)))
 
 ;; Check inter-vat promise resolution
 (let ((result
@@ -227,11 +229,11 @@
   car-pipeline-result)
 
 (test-equal "Multiple return values from vat invocation"
+  '(1 2 3)
   (call-with-values (lambda ()
                       (with-vat a-vat
                        (values 1 2 3)))
-    list)
-  '(1 2 3))
+    list))
 
 (define (try-far-on-promise . resolve-args)
   (define fulfilled-val #f)
@@ -263,13 +265,11 @@
                       (sleep-operation 1)))
   (list fulfilled-val broken-val finally-ran?))
 
-(test-equal
- "On subscription w/ fulfillment to promise on another vat"
+(test-equal "On subscription w/ fulfillment to promise on another vat"
  '(yay #f #t)
  (try-far-on-promise 'fulfill 'yay))
 
-(test-equal
- "On subscription w/ breakage to promise on another vat"
+(test-equal "On subscription w/ breakage to promise on another vat"
  '(#f oh-no #t)
  (try-far-on-promise 'break 'oh-no))
 

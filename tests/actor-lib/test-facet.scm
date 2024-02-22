@@ -40,14 +40,14 @@
   (actormap-spawn! am ^facet all-powerful-wizard
                    'magic-missile
                    'flame-tongue))
+
 (test-equal
- (actormap-peek am faceted-wizard 'magic-missile 2)
- "Casts magic missile level 2!")
+ "Casts magic missile level 2!"
+ (actormap-peek am faceted-wizard 'magic-missile 2))
 (test-equal
- (actormap-peek am faceted-wizard 'flame-tongue 3)
- "Casts flame tongue level 3!")
+ "Casts flame tongue level 3!"
+ (actormap-peek am faceted-wizard 'flame-tongue 3))
 (test-error
- #t
  (actormap-peek am faceted-wizard 'world-ender 99))
 
 (test-end "test-facet")

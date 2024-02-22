@@ -49,21 +49,21 @@ SOURCES = goblins.scm \
           goblins/actor-lib/common.scm \
           goblins/actor-lib/facet.scm \
           goblins/actor-lib/joiners.scm \
-	  goblins/actor-lib/let-on.scm \
+          goblins/actor-lib/let-on.scm \
           goblins/actor-lib/methods.scm \
           goblins/actor-lib/nonce-registry.scm \
           goblins/actor-lib/opportunistic.scm \
-	  goblins/actor-lib/pubsub.scm \
-	  goblins/actor-lib/pushdown.scm \
-	  goblins/actor-lib/queue.scm \
-	  goblins/actor-lib/sealers.scm \
+          goblins/actor-lib/pubsub.scm \
+          goblins/actor-lib/pushdown.scm \
+          goblins/actor-lib/queue.scm \
+          goblins/actor-lib/sealers.scm \
           goblins/actor-lib/selfish-spawn.scm \
-	  goblins/actor-lib/simple-mint.scm \
+          goblins/actor-lib/simple-mint.scm \
           goblins/actor-lib/swappable.scm \
           goblins/actor-lib/ticker.scm \
           goblins/actor-lib/ward.scm \
           goblins/base-io-ports.scm \
-	  goblins/config.scm \
+          goblins/config.scm \
           goblins/contrib/syrup.scm \
           goblins/core.scm \
           goblins/default-vat-scheduler.scm \
@@ -85,7 +85,7 @@ SOURCES = goblins.scm \
           goblins/utils/base32.scm \
           goblins/utils/bytes-stuff.scm \
           goblins/utils/crypto.scm \
-	  goblins/utils/graphviz.scm \
+          goblins/utils/graphviz.scm \
           goblins/utils/random-name.scm \
           goblins/utils/simple-dispatcher.scm \
           goblins/utils/simple-sealers.scm \
@@ -102,19 +102,19 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-facet.scm \
         tests/actor-lib/test-joiners.scm \
         tests/actor-lib/test-let-on.scm \
-	tests/actor-lib/test-nonce-registry.scm \
+        tests/actor-lib/test-nonce-registry.scm \
         tests/actor-lib/test-opportunistic.scm \
-	tests/actor-lib/test-pubsub.scm \
-	tests/actor-lib/test-pushdown.scm \
+        tests/actor-lib/test-pubsub.scm \
+        tests/actor-lib/test-pushdown.scm \
         tests/actor-lib/test-queue.scm \
-	tests/actor-lib/test-sealers.scm \
+        tests/actor-lib/test-sealers.scm \
         tests/actor-lib/test-selfish-spawn.scm \
-	tests/actor-lib/test-simple-mint.scm \
+        tests/actor-lib/test-simple-mint.scm \
         tests/actor-lib/test-swappable.scm \
         tests/actor-lib/test-ticker.scm \
         tests/actor-lib/test-ward.scm \
-        tests/ocapn/marshalling.scm \
-	tests/ocapn/test-captp.scm \
+        tests/ocapn/test-marshalling.scm \
+        tests/ocapn/test-captp.scm \
         tests/ocapn/netlayer/test-fake.scm \
         tests/ocapn/netlayer/test-prelay.scm \
         tests/ocapn/netlayer/test-prelay-utils.scm \
@@ -124,8 +124,8 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/test-ghash.scm \
         tests/test-inbox.scm \
         tests/test-vat.scm \
-	tests/test-repl.scm \
-	tests/utils/test-base32.scm \
+        tests/test-repl.scm \
+        tests/utils/test-base32.scm \
         tests/utils/test-bytes-stuff.scm \
         tests/utils/test-ring-buffer.scm
 
