@@ -67,11 +67,11 @@
     (#('ok sref) sref)))
 
 (test-equal "Prelay admin get-accounts lists one account"
+  #(ok ("alice"))
   (resolve-vow-and-return-result
    prelay-server-vat
    (lambda ()
-     (<- prelay-admin 'get-accounts)))
-  #(ok ("alice")))
+     (<- prelay-admin 'get-accounts))))
 
 (define (^greeter _bcom my-name)
   (lambda (your-name)
@@ -115,9 +115,9 @@
           prelay-server-vat
           (lambda ()
             (<- prelay-admin 'get-accounts)))
-  [#(ok accounts)
-   (equal? '("alice" "bob") (sort accounts string<=?))]
-  [_ #f]))
+    [#(ok accounts)
+     (equal? '("alice" "bob") (sort accounts string<=?))]
+    [_ #f]))
 
 (define bob-vat
   (spawn-vat #:name "bob"))
@@ -138,10 +138,10 @@
           (<- bob-prelay-mycapn-vow 'enliven alice-greeter-sref))
         #:promise? #t)))
 (test-equal "Able to send message across after setup"
+  #(ok "Hello Bob, my name is Alice!")
   (resolve-vow-and-return-result
    bob-vat
    (lambda ()
-     (<- alice-greeter-on-bob-vow "Bob")))
-  #(ok "Hello Bob, my name is Alice!"))
+     (<- alice-greeter-on-bob-vow "Bob"))))
 
 (test-end "test-prelay-utils")

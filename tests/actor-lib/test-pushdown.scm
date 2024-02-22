@@ -31,8 +31,9 @@
                       (list 'first prev foo bar)))
                   'foo))
 (test-equal "Pushdown forwarder sends to first actor if only one on stack"
- (actormap-poke! am pd-forwarder 'bar)
- `(first #f foo bar))
+ `(first #f foo bar)
+ (actormap-poke! am pd-forwarder 'bar))
+
 (define second-actor
   (actormap-poke! am pd-stack 'spawn-push
                   (lambda (bcom prev foo)
@@ -40,14 +41,14 @@
                       (list 'second prev foo bar)))
                   'foo2))
 (test-equal "Pushdown forwarder sends to second actor once pushed onto stack"
- (actormap-poke! am pd-forwarder 'bar2)
- `(second ,first-actor foo2 bar2))
+ `(second ,first-actor foo2 bar2)
+ (actormap-poke! am pd-forwarder 'bar2))
 
 (actormap-poke! am pd-stack 'pop)
 
 (test-equal "Pushdown forwarder sends to first actor again after first actor popped off"
- (actormap-poke! am pd-forwarder 'bar3)
- `(first #f foo bar3))
+ `(first #f foo bar3)
+ (actormap-poke! am pd-forwarder 'bar3))
 
 (define third-actor
   (actormap-spawn! am (lambda (bcom foo)
@@ -58,7 +59,7 @@
 (actormap-poke! am pd-stack 'push third-actor)
 
 (test-equal "Pushdown stack 'push method works too"
-  (actormap-poke! am pd-forwarder 'bar4)
-  '(third foo3 bar4))
+  '(third foo3 bar4)
+  (actormap-poke! am pd-forwarder 'bar4))
 
 (test-end "test-pushdown")

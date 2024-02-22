@@ -57,7 +57,6 @@
                dispatch-messages
 
                whactormap?
-               transactormap?
                transactormap-merge!
                transactormap-buffer-merge!
 

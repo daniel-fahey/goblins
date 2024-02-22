@@ -32,16 +32,14 @@
    (lambda ()
      (swappable alice))))
 
-(test-equal
- "swappable proxy defaults to first entity"
- (actormap-peek am proxy-friend)
- 'i-am-alice)
+(test-equal "swappable proxy defaults to first entity"
+ 'i-am-alice
+ (actormap-peek am proxy-friend))
 
 (actormap-run! am (lambda () (swap bob)))
 
-(test-equal
- "swappable proxy swaps"
- (actormap-peek am proxy-friend)
- 'i-am-bob)
+(test-equal "swappable proxy swaps"
+ 'i-am-bob
+ (actormap-peek am proxy-friend))
 
 (test-end "test-swappable")

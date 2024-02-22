@@ -48,8 +48,8 @@
 
 (test-equal
     "all-of fulfills promise with list of promise resolutions in case of all succeeding"
-  (run-joiner-get-result all-of 2 4 6 8)
-  '(fulfilled (4 8 12 16)))
+  '(fulfilled (4 8 12 16))
+  (run-joiner-get-result all-of 2 4 6 8))
 
 (test-assert
     "all-of breaks promise with first error that is raised"

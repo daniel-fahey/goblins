@@ -30,19 +30,17 @@
 (define bob-sealed-lunch
   (actormap-poke! am bob-sealer 'bbq-lentils))
 
-(test-equal
-    "Alice can unseal her own lunch"
-  (actormap-peek am alice-unsealer alice-sealed-lunch)
-  'chickpea-salad)
+(test-equal "Alice can unseal her own lunch"
+  'chickpea-salad
+  (actormap-peek am alice-unsealer alice-sealed-lunch))
 
 (test-assert
-    "Alice's lunch confirms it's sealed with her sealed? trademark"
+"Alice's lunch confirms it's sealed with her sealed? trademark"
   (actormap-peek am alice-sealed? alice-sealed-lunch))
 
-(test-equal
-    "Bob can unseal his own lunch"
-  (actormap-peek am bob-unsealer bob-sealed-lunch)
-  'bbq-lentils)
+(test-equal "Bob can unseal his own lunch"
+  'bbq-lentils
+  (actormap-peek am bob-unsealer bob-sealed-lunch))
 
 (test-assert
     "Bob's lunch confirms it's sealed with his sealed? trademark"
@@ -90,23 +88,20 @@
 (define carol-sealed-lunch
   (actormap-poke! am carol-sealer 'tofu-scramble))
 
-(test-equal
-    "Check setting the name of a sealer triplet"
-  custom-sealer-name
-  'carol-sealer-triplet)
+(test-equal "Check setting the name of a sealer triplet"
+  'carol-sealer-triplet
+  custom-sealer-name)
 
-(test-equal
-    "Check carol can unseal her lunch"
-  (actormap-peek am carol-unsealer carol-sealed-lunch)
-  'tofu-scramble)
+(test-equal "Check carol can unseal her lunch"
+  'tofu-scramble
+  (actormap-peek am carol-unsealer carol-sealed-lunch))
 
 (test-assert
     "Carol's lunch confirms it's sealed with her sealed? trademark"
   (actormap-peek am carol-sealed? carol-sealed-lunch))
 
-(test-equal
-    "Carol's sealed lunch uses custom sealers"
-  custom-sealer-sealed-value
-  'tofu-scramble)
+(test-equal "Carol's sealed lunch uses custom sealers"
+  'tofu-scramble
+  custom-sealer-sealed-value)
 
 (test-end "test-sealers")

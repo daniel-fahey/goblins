@@ -17,6 +17,7 @@
   #:use-module ((fibers) #:select (spawn-fiber))
   #:use-module ((fibers timers) #:select (sleep))
   #:use-module ((goblins core) #:renamer (lambda (x) (if (eq? x '$) '$C x)))
+  #:use-module (goblins core-types)
   #:use-module (goblins vat)
   #:use-module (goblins ghash)
   #:use-module (goblins inbox)
