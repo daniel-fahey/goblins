@@ -1,6 +1,7 @@
 (define-module (tests ocapn test-captp)
   #:use-module (goblins)
   #:use-module (goblins core)
+  #:use-module (goblins core-types)
   #:use-module (goblins vat)
   #:use-module (goblins actor-lib joiners)
   #:use-module (goblins actor-lib methods)

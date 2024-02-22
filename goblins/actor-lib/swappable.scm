@@ -15,6 +15,8 @@
 
 (define-module (goblins actor-lib swappable)
   #:use-module (goblins core)
+  #:use-module ((goblins core-types)
+                #:select (local-object-refr-debug-name))
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils assert-type)

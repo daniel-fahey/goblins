@@ -66,6 +66,7 @@ SOURCES = goblins.scm \
           goblins/config.scm \
           goblins/contrib/syrup.scm \
           goblins/core.scm \
+          goblins/core-types.scm \
           goblins/default-vat-scheduler.scm \
           goblins/ghash.scm \
           goblins/inbox.scm \

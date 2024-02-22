@@ -16,23 +16,9 @@
 ;;; limitations under the License.
 
 (define-module (goblins core)
-  #:export (live-refr?
-            local-refr?
-            remote-refr?
-            promise-refr?
-            local-object-refr?
-            local-promise-refr?
-            remote-object-refr?
-            remote-promise-refr?
-
-            near-refr?
-            far-refr?
-
-            make-actormap
+  #:export (make-actormap
             make-transactormap
             make-whactormap
-
-            actormap-vat-connector
 
             actormap-spawn
             actormap-spawn!
@@ -61,13 +47,14 @@
             dispatch-message
             dispatch-messages
 
-            whactormap?
-            transactormap?
             transactormap-reparent
             transactormap-merge!
             transactormap-buffer-merge!
 
             copy-whactormap
+
+            near-refr?
+            far-refr?
 
             spawn spawn-named
             $ <-np <-
@@ -111,20 +98,24 @@
 
             syscaller-free
 
-            ;; TODO: These really should be moved into a more private
-            ;; location...!  Few things will need, or should have, this
-            make-remote-object-refr
-            make-remote-promise-refr
-            local-object-refr-debug-name
-            local-refr-vat-connector
-            remote-refr-captp-connector
-            remote-refr-sealed-pos
-
             near-promise-broken?
             near-promise-settled?
             near-settled-promise-value
             near-promise-resolved?
             near-resolved-promise-value)
+
+  #:re-export (live-refr?
+               local-refr?
+               remote-refr?
+               promise-refr?
+               local-object-refr?
+               local-promise-refr?
+               remote-object-refr?
+               remote-promise-refr?
+
+               actormap-vat-connector
+
+               whactormap?)
   #:replace (spawn)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
@@ -133,7 +124,9 @@
   #:use-module (ice-9 control)
   #:use-module (ice-9 vlist)
   #:use-module (ice-9 q)
-  #:use-module (ice-9 suspendable-ports))
+  #:use-module (ice-9 suspendable-ports)
+  #:use-module (goblins core-types))
+
 
 
 ;;; Utilities (which should be moved to their own modules)
@@ -167,7 +160,6 @@
            (display ">" port))
          (display "<sealed>" port))))
   (values seal unseal sealed?))
-
 
 
 ;;;                  .============================.
@@ -423,53 +415,14 @@
 ;; Actormaps, etc
 ;; ==============
 
-(define-record-type <actormap>
-  ;; TODO: This is confusing, naming-wise? (see make-actormap alias)
-  (_make-actormap metatype data vat-connector)
-  actormap?
-  (metatype actormap-metatype)
-  (data actormap-data)
-  (vat-connector actormap-vat-connector))
 
-;; (set-record-type-printer!
-;;  <actormap>
-;;  (lambda (am port)
-;;    (format port "#<actormap ~a>" (actormap-metatype-name (actormap-metatype am)))))
 
-(define-record-type <actormap-metatype>
-  (make-actormap-metatype name ref-proc set!-proc)
-  actormap-metatype?
-  (name actormap-metatype-name)
-  (ref-proc actormap-metatype-ref-proc)
-  (set!-proc actormap-metatype-set!-proc))
 
-(define (actormap-set! am key val)
-  ((actormap-metatype-set!-proc (actormap-metatype am))
-   am key val)
-  *unspecified*)
 
-;; (-> actormap? local-refr? (or/c mactor? #f))
-(define (actormap-ref am key)
-  ((actormap-metatype-ref-proc (actormap-metatype am)) am key))
 
 ;; Weak-hash actormaps
 ;; ===================
 
-(define-record-type <whactormap-data>
-  (make-whactormap-data wht)
-  whactormap-data?
-  (wht whactormap-data-wht))
-
-(define (whactormap-ref am key)
-  (define wht (whactormap-data-wht (actormap-data am)))
-  (hashq-ref wht key #f))
-
-(define (whactormap-set! am key val)
-  (define wht (whactormap-data-wht (actormap-data am)))
-  (hashq-set! wht key val))
-
-(define whactormap-metatype
-  (make-actormap-metatype 'whactormap whactormap-ref whactormap-set!))
 
 (define* (make-whactormap #:key [vat-connector #f])
   "Create and return a reference to a weak-hash actormap. If provided,
@@ -480,12 +433,6 @@ Type: (Optional Syscaller) -> WHActormap"
                   (make-whactormap-data (make-weak-key-hash-table))
                   vat-connector))
 
-(define (whactormap? obj)
-  "Return #t if OBJ is a weak-hash actormap, else #f.
-
-Type: Any -> Boolean"
-  (and (actormap? obj)
-       (eq? (actormap-metatype obj) whactormap-metatype)))
 
 ;; TODO: again, confusing (see <actormap>)
 (define make-actormap make-whactormap)
@@ -504,18 +451,7 @@ Type: Any -> Boolean"
                   (actormap-vat-connector am)))
 
 
-;; Transactional actormaps
-;; =======================
 
-(define-record-type <transactormap-data>
-  (make-transactormap-data parent delta merged?)
-  transactormap-data?
-  (parent transactormap-data-parent)
-  (delta transactormap-data-delta)
-  (merged? transactormap-data-merged? set-transactormap-data-merged?!))
-
-(define (transactormap-merged? transactormap)
-  (transactormap-data-merged? (actormap-data transactormap)))
 
 (define (transactormap-ref transactormap key)
   (define tm-data (actormap-data transactormap))
@@ -615,112 +551,6 @@ Type: Actormap -> TransActormap"
 
 
 
-;; Ref(r)s
-;; =======
-
-(define-record-type <local-object-refr>
-  (make-local-object-refr debug-name vat-connector)
-  local-object-refr?
-  (debug-name local-object-refr-debug-name)
-  (vat-connector local-object-refr-vat-connector))
-
-(set-record-type-printer!
- <local-object-refr>
- (lambda (lor port)
-   (match (local-object-refr-debug-name lor)
-     [#f (display "#<local-object>" port)]
-     [debug-name
-      (format port "#<local-object ~a>" debug-name)])))
-
-(define-record-type <local-promise-refr>
-  (make-local-promise-refr vat-connector)
-  local-promise-refr?
-  (vat-connector local-promise-refr-vat-connector))
-
-(set-record-type-printer!
- <local-promise-refr>
- (lambda (lpr port)
-   (display "#<local-promise>" port)))
-
-(define (local-refr? obj)
-  "Return #t if OBJ is an object or promise reference in the current
-process, else #f.
-
-Type: Any -> Boolean"
-  (or (local-object-refr? obj) (local-promise-refr? obj)))
-
-(define (local-refr-vat-connector local-refr)
-  (match local-refr
-    [(? local-object-refr?)
-     (local-object-refr-vat-connector local-refr)]
-    [(? local-promise-refr?)
-     (local-promise-refr-vat-connector local-refr)]))
-
-;; Captp-connector should be a procedure which both sends a message
-;; to the local node representative actor, but also has something
-;; serialized that knows which specific remote node + session this
-;; corresponds to (to look up the right captp session and forward)
-
-(define-record-type <remote-object-refr>
-  (make-remote-object-refr captp-connector sealed-pos)
-  remote-object-refr?
-  (captp-connector remote-object-refr-captp-connector)
-  (sealed-pos remote-object-refr-sealed-pos))
-
-(define-record-type <remote-promise-refr>
-  (make-remote-promise-refr captp-connector sealed-pos)
-  remote-promise-refr?
-  (captp-connector remote-promise-refr-captp-connector)
-  (sealed-pos remote-promise-refr-sealed-pos))
-
-(define (promise-refr? maybe-promise)
-  "Return #t if MAYBE-PROMISE is a promise reference, else #f.
-
-Type: Any -> Boolean"
-  (or (local-promise-refr? maybe-promise) (remote-promise-refr? maybe-promise)))
-
-(define (remote-refr-captp-connector remote-refr)
-  (match remote-refr
-    [(? remote-object-refr?)
-     (remote-object-refr-captp-connector remote-refr)]
-    [(? remote-promise-refr?)
-     (remote-promise-refr-captp-connector remote-refr)]))
-
-(define (remote-refr-sealed-pos remote-refr)
-  (match remote-refr
-    [(? remote-object-refr?)
-     (remote-object-refr-sealed-pos remote-refr)]
-    [(? remote-promise-refr?)
-     (remote-promise-refr-sealed-pos remote-refr)]))
-
-(set-record-type-printer!
- <remote-object-refr>
- (lambda (lpr port)
-   (display "#<remote-object>" port)))
-
-(set-record-type-printer!
- <remote-promise-refr>
- (lambda (lpr port)
-   (display "#<remote-promise>" port)))
-
-(define (remote-refr? obj)
-  "Return #t if OBJ is an object or promise reference in a different
-process, else #f.
-
-Type: Any -> Boolean"
-  (or (remote-object-refr? obj)
-      (remote-promise-refr? obj)))
-
-(define (live-refr? obj)
-  "Return #t if OBJ is a local or remote object or promise reference,
-else #f.
-
-Type: Any -> Boolean"
-  (or (local-refr? obj)
-      (remote-refr? obj)))
-
-
-
 ;; "Become" sealer/unsealers
 ;; =========================
 
@@ -802,6 +632,7 @@ Type: Any -> Boolean"
 ;;;  - "Reference mechanics":
 ;;;      http://erights.org/elib/concurrency/refmech.html
 
+;; TODO: Maybe move this to core-types?
 ;; local-objects are the most common type, have a message handler
 ;; which specifies how to respond to the next message, as well as
 ;; a predicate and unsealer to identify and unpack when a message
