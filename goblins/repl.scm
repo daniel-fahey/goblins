@@ -23,6 +23,8 @@
   #:use-module (fibers conditions)
   #:use-module (fibers operations)
   #:use-module (goblins core)
+  #:use-module ((goblins core-types)
+                #:select (local-object-refr-debug-name))
   #:use-module (goblins vat)
   #:use-module (goblins utils graphviz)
   #:use-module (goblins utils random-name)

@@ -21,7 +21,8 @@
 
 
 (define-module (goblins ghash)
-  #:use-module (goblins core)
+  ;; NOTE: Do not depend on core because it depends on us.
+  #:use-module (goblins core-types)
   #:use-module (srfi srfi-9)        ; records
   #:use-module (srfi srfi-9 gnu)    ; record extensions
   #:use-module (ice-9 vlist)

@@ -18,6 +18,7 @@
 (define-module (goblins vat)
   #:use-module (goblins base-io-ports)
   #:use-module (goblins core)
+  #:use-module (goblins core-types)
   #:use-module (goblins inbox)
   #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins utils random-name)
