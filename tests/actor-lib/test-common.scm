@@ -29,33 +29,26 @@
 (test-equal #t (actormap-peek am s 'member? 'd))
 (actormap-poke! am s 'remove 'c)
 (test-equal #f (actormap-peek am s 'member? 'c))
-(test-equal
-    "Getting the list of a ^seteq instance"
+(test-equal "Getting the list of a ^seteq instance"
   (list 'd 'b 'a)
   (actormap-peek am s 'as-list))
 (define ghash (actormap-spawn! am ^ghash))
-(test-equal
-    "Check key that doesn't exist provides #f when lacking a default"
+(test-equal "Check key that doesn't exist provides #f when lacking a default"
   #f
   (actormap-peek am ghash 'ref 'foobar))
-(test-equal
-    "Check key that doesn't exist provides default when given one"
+(test-equal "Check key that doesn't exist provides default when given one"
   'my-default
   (actormap-peek am ghash 'ref 'foobar 'my-default))
 (actormap-poke! am ghash 'set 'my-key 'my-value)
-(test-equal
-    "Check can get a value from the ghash when one exists"
+(test-equal "Check can get a value from the ghash when one exists"
   'my-value
   (actormap-peek am ghash 'ref 'my-key))
-(test-assert
-    "has-key? method returns true when a key exists"
+(test-assert "has-key? method returns true when a key exists"
   (actormap-peek am ghash 'has-key? 'my-key))
-(test-assert
-    "hash-key? method returns false when a key doesn't exist"
+(test-assert "hash-key? method returns false when a key doesn't exist"
   (not (actormap-peek am ghash 'has-key? 'not-my-key)))
 (actormap-poke! am ghash 'set 'foobar 'baz)
-(test-assert
-    "Check data method returns a hash with all the values in"
+(test-assert "Check data method returns a hash with all the values in"
   (let ((data (actormap-peek am ghash 'data)))
     (and (ghash? data)
 	 (eq? (ghash-ref data 'my-key) 'my-value)

@@ -29,8 +29,7 @@
 (define narcissus
   (with-vat a-vat (selfish-spawn ^narcissus 'water)))
 
-(test-equal
-    "selfish-spawned actors know themselves"
+(test-equal "selfish-spawned actors know themselves"
   `(i-am ,narcissus i-stare-into water and-i-feel transfixed)
   (with-vat a-vat ($ narcissus 'transfixed)))
 

@@ -61,8 +61,8 @@
              admin-incanter))))
 
 (test-equal
- (actormap-peek am inbox 'mailbox-name)
- "My First Inbox")
+ "My First Inbox"
+ (actormap-peek am inbox 'mailbox-name))
 
 (test-error
  "Can't just set the name without incanter"
@@ -77,10 +77,9 @@
                    #:upcase? #t)
    #t))
 
-(test-equal
- "New name successfully set via incanter"
- (actormap-peek am inbox 'mailbox-name)
- "NEW NAME")
+(test-equal "New name successfully set via incanter"
+ "NEW NAME"
+ (actormap-peek am inbox 'mailbox-name))
 
 (define some-other-incanter
   (actormap-run! am
@@ -107,10 +106,9 @@
                    #:upcase? #t)
    #t))
 
-(test-equal
- "New name successfully set via incantified proxy"
- (actormap-peek am inbox 'mailbox-name)
- "ANOTHER NEW NAME")
+(test-equal "New name successfully set via incantified proxy"
+ "ANOTHER NEW NAME"
+ (actormap-peek am inbox 'mailbox-name))
 
 ;; ;; allow for warding multiple things at once
 ;; (define (^multitool bcom tool1-warden tool2-warden)

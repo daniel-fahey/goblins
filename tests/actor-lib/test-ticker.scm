@@ -56,34 +56,34 @@
                            2))))
 (actormap-poke! am ticker 'tick)
 (test-equal
- (actormap-peek am joe-speaks-here)
- "<joe> sigh number 1")
+ "<joe> sigh number 1"
+ (actormap-peek am joe-speaks-here))
 (test-equal
- (actormap-peek am jane-speaks-here)
- "<jane> sigh number 1")
+ "<jane> sigh number 1"
+ (actormap-peek am jane-speaks-here))
 
 (actormap-poke! am ticker 'tick)
 (test-equal
- (actormap-peek am joe-speaks-here)
- "<joe> sigh number 2")
+ "<joe> sigh number 2"
+ (actormap-peek am joe-speaks-here))
 (test-equal
- (actormap-peek am jane-speaks-here)
- "<jane> sigh number 2")
+ "<jane> sigh number 2"
+ (actormap-peek am jane-speaks-here))
 
 (actormap-poke! am ticker 'tick)
 (test-equal
- (actormap-peek am joe-speaks-here)
- "<joe> sigh number 3")
+ "<joe> sigh number 3"
+ (actormap-peek am joe-speaks-here))
 (test-equal
- (actormap-peek am jane-speaks-here)
- "<jane> you know what? I'm done.")
+ "<jane> you know what? I'm done."
+ (actormap-peek am jane-speaks-here))
 
 (actormap-poke! am ticker 'tick)
 (test-equal
- (actormap-peek am joe-speaks-here)
- "<joe> you know what? I'm done.")
+ "<joe> you know what? I'm done."
+ (actormap-peek am joe-speaks-here))
 (test-equal
- (actormap-peek am jane-speaks-here)
- "<jane> you know what? I'm done.")
+ "<jane> you know what? I'm done."
+ (actormap-peek am jane-speaks-here))
 
 (test-end "test-ticker")

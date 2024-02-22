@@ -29,37 +29,38 @@
 
 (define gh1 (make-ghash 'key1 'val1 'key2 'val2))
 
-(test-equal (ghash-ref gh1 'key1) 'val1)
-(test-equal (ghash-ref gh1 'key2) 'val2)
-(test-equal (ghash-ref gh1 'nonsense) #f)
-(test-equal (ghash-ref gh1 'nonsense 'some-dflt) 'some-dflt)
+(test-equal 'val1 (ghash-ref gh1 'key1))
+(test-equal 'val2 (ghash-ref gh1 'key2))
+(test-equal #f (ghash-ref gh1 'nonsense))
+(test-equal 'some-dflt (ghash-ref gh1 'nonsense 'some-dflt))
 
-(test-equal '(("key1" "val1") ("key2" "val2"))
+(test-equal
   (ghash-fold
    (lambda (k v p)
      (cons (list (symbol->string k)
                  (symbol->string v))
            p))
    '()
-   gh1))
+   gh1)
+  '(("key1" "val1") ("key2" "val2")))
 
 (define gh2
   (ghash-set (ghash-set (ghash-set ghash-null 'meep 'moop)
                         'beep 'boop)
              'zelle 'pronk))
-(test-equal (ghash-ref gh2 'meep) 'moop)
-(test-equal (ghash-ref gh2 'beep) 'boop)
-(test-equal (ghash-ref gh2 'zelle) 'pronk)
-(test-equal (ghash-length gh2) 3)
-(test-equal (ghash-ref (ghash-remove gh2 'zelle) 'zelle) #f)
-(test-equal (ghash-length (ghash-remove gh2 'zelle)) 2)
+(test-equal 'moop (ghash-ref gh2 'meep))
+(test-equal 'boop (ghash-ref gh2 'beep))
+(test-equal 'pronk (ghash-ref gh2 'zelle))
+(test-equal 3 (ghash-length gh2))
+(test-equal #f (ghash-ref (ghash-remove gh2 'zelle) 'zelle))
+(test-equal 2 (ghash-length (ghash-remove gh2 'zelle)))
 
 (define gh3
   (hash-table->ghash (alist->hash-table '((foo . 1) (bar . 2)))))
-(test-equal (ghash-ref gh3 'foo) 1)
-(test-equal (ghash-ref gh3 'bar) 2)
-(test-equal (ghash-ref gh3 'baz) #f)
-(test-equal (ghash-length gh3) 2)
+(test-equal 1 (ghash-ref gh3 'foo))
+(test-equal 2 (ghash-ref gh3 'bar))
+(test-equal #f (ghash-ref gh3 'baz))
+(test-equal 2 (ghash-length gh3))
 
 (define am (make-actormap))
 (define (^friendo bcom) (lambda () "I'm a friend"))
@@ -67,12 +68,12 @@
 (define bob (actormap-spawn! am ^friendo))
 (define gh4 (make-ghash alice "alice" bob "bob"))
 ;; make sure refrs hash with eq?
-(test-equal (ghash-ref gh4 alice) "alice")
-(test-equal (ghash-ref gh4 bob) "bob")
+(test-equal "alice" (ghash-ref gh4 alice))
+(test-equal "bob" (ghash-ref gh4 bob))
 (define carol (actormap-spawn! am ^friendo))
 (define gh5 (ghash-set gh4 carol "carol"))
-(test-equal (ghash-ref gh5 carol) "carol")
+(test-equal "carol" (ghash-ref gh5 carol))
 (define gh6 (ghash-set gh5 'meep "meep"))
-(test-equal (ghash-ref gh6 'meep) "meep")
+(test-equal "meep" (ghash-ref gh6 'meep))
 
 (test-end "test-ghash")

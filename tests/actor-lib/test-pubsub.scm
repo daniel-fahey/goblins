@@ -39,20 +39,17 @@
  (lambda ()
    ($ pubsub 'publish 'first 1 2 3)))
 
-(test-equal
-    "First subscribed listener got published message"
-  (car (actormap-peek am listener1))
-  '(first 1 2 3))
+(test-equal "First subscribed listener got published message"
+  '(first 1 2 3)
+  (car (actormap-peek am listener1)))
 
-(test-equal
-    "Second subscribed listener got published message"
-  (car (actormap-peek am listener2))
-  '(first 1 2 3))
+(test-equal "Second subscribed listener got published message"
+  '(first 1 2 3)
+  (car (actormap-peek am listener2)))
 
-(test-equal
-    "Third not-yet-subscribed listener didn't get the message"
-  (actormap-peek am listener3)
-  '())
+(test-equal "Third not-yet-subscribed listener didn't get the message"
+  '()
+  (actormap-peek am listener3))
 
 (test-assert
     "Check the two subscribers are present in the subscriber list"
@@ -76,20 +73,17 @@
  (lambda ()
    ($ pubsub 'publish 'second)))
 
-(test-equal
-    "Check first subscribed listener got the published message"
-  (car (actormap-peek am listener1))
-  '(second))
+(test-equal "Check first subscribed listener got the published message"
+  '(second)
+  (car (actormap-peek am listener1)))
 
-(test-equal
-    "Check second subscribed listener got the published message"
-  (car (actormap-peek am listener2))
-  '(second))
+(test-equal "Check second subscribed listener got the published message"
+  '(second)
+  (car (actormap-peek am listener2)))
 
-(test-equal
-    "Check third subscribed listener got the published message"
-  (car (actormap-peek am listener3))
-  '(second))
+(test-equal "Check third subscribed listener got the published message"
+  '(second)
+  (car (actormap-peek am listener3)))
 
 ;; Test removing a subscriber and sending a message
 (actormap-poke! am pubsub 'unsubscribe listener1)
@@ -107,17 +101,15 @@
 
 (test-equal
     "Check first no longer subscribed listener didn't get the message"
-  (car (actormap-peek am listener1))
-  '(second))
+  '(second)
+  (car (actormap-peek am listener1)))
 
-(test-equal
-    "Check second subscribed listener got the message"
-  (car (actormap-peek am listener2))
-  '(third))
+(test-equal "Check second subscribed listener got the message"
+  '(third)
+  (car (actormap-peek am listener2)))
 
-(test-equal
-    "Check third subscribed listener got the message"
-  (car (actormap-peek am listener3))
-  '(third))
+(test-equal "Check third subscribed listener got the message"
+  '(third)
+  (car (actormap-peek am listener3)))
 
 (test-end "test-pubsub")
