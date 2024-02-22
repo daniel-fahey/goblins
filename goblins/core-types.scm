@@ -88,7 +88,19 @@
             remote-refr-captp-connector
             remote-refr-sealed-pos
             live-refr?
-            promise-refr?))
+            promise-refr?
+
+            <portrait-record>
+            make-portrait-record
+            portrait-record?
+            portrait-record-type
+            portrait-record-data
+
+            <versioned-data>
+            versioned
+            versioned-data?
+            versioned-data-version
+            versioned-data-data))
 
 ;; Actormaps, etc
 ;; ==============
@@ -260,3 +272,27 @@ else #f.
 Type: Any -> Boolean"
   (or (local-refr? obj)
       (remote-refr? obj)))
+
+;; Persistence
+;; ===========
+
+;; These records are responsible for tagging and holding portrait data. This includes
+;; tagging objects and also types such as ghashes, lists, vectors, etc so that we can
+;; unserialize them correctly to their corresponding objects/types. The persistence
+;; storage providers need to work with these when saving.
+(define-record-type <portrait-record>
+  (make-portrait-record type data)
+  portrait-record?
+  (type portrait-record-type)
+  (data portrait-record-data))
+
+;; This while looking similar to the above this is used to specify versioned data
+;; by objects in their self-portrait function. The `versioned' constructor is exported
+;; which is used to created <version> + <portrait data> so the persistence system
+;; can reliably detect when being given versioned data. This tagging is not exposed
+;; anywhere else, including the resulting portraits.
+(define-record-type <versioned-data>
+  (versioned version data)
+  versioned-data?
+  (version versioned-data-version)
+  (data versioned-data-data))

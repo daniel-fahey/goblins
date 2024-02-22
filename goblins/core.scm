@@ -76,12 +76,6 @@
             actormap-replace-behavior!
             actormap-restore
 
-            <portrait>
-            portrait?
-            portrait-type
-            portrait-data
-            versioned
-
             ;; TODO: separate this out!
             <message>
             make-message message?
@@ -127,7 +121,13 @@
 
                actormap-vat-connector
 
-               whactormap?)
+               whactormap?
+
+               versioned
+               <portrait-record>
+               portrait-record?
+               portrait-record-type
+               portrait-record-data)
   #:replace (spawn)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
@@ -2605,27 +2605,6 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 (define (syscaller-free proc)
   (parameterize ([current-syscaller #f])
     (proc)))
-
-;; These records are responsible for tagging and holding portrait data. This includes
-;; tagging objects and also types such as ghashes, lists, vectors, etc so that we can
-;; unserialize them correctly to their corresponding objects/types. The persistence
-;; storage providers need to work with these when saving.
-(define-record-type <portrait-record>
-  (make-portrait-record type data)
-  portrait-record?
-  (type portrait-record-type)
-  (data portrait-record-data))
-
-;; This while looking similar to the above this is used to specify versioned data
-;; by objects in their self-portrait function. The `versioned' constructor is exported
-;; which is used to created <version> + <portrait data> so the persistence system
-;; can reliably detect when being given versioned data. This tagging is not exposed
-;; anywhere else, including the resulting portraits.
-(define-record-type <versioned-data>
-  (versioned version data)
-  versioned-data?
-  (version versioned-data-version)
-  (data versioned-data-data))
 
 (define (actormap-take-portrait am persistence-env . roots)
   "Produces a self portrait of the actormap"
