@@ -90,6 +90,25 @@
             live-refr?
             promise-refr?
 
+            <persistence-env>
+            make-persistence-env
+            persistence-env?
+            persistence-env-bindings
+            persistence-env-extends
+
+            <portraitized-behavior>
+            portraitize
+            portraitized-behavior?
+            portraitized-behavior-behavior
+            portraitized-behavior-self-portrait
+
+            <object-spec>
+            make-object-spec
+            object-spec?
+            object-spec-name
+            object-spec-constructor
+            object-spec-rehydrator
+
             <portrait-record>
             make-portrait-record
             portrait-record?
@@ -275,6 +294,49 @@ Type: Any -> Boolean"
 
 ;; Persistence
 ;; ===========
+(define-record-type <persistence-env>
+  (_make-persistence-env bindings extends)
+  persistence-env?
+  (bindings persistence-env-bindings)
+  (extends persistence-env-extends))
+
+(define* (make-persistence-env objects #:key extends)
+  (define object-spec-list>object-spec
+     (case-lambda
+       [(name constructor)
+        (make-object-spec name constructor
+                          (lambda (version . args)
+                            (apply spawn constructor args)))]
+       [(name constructor rehydrator)
+        (make-object-spec name constructor rehydrator)]))
+
+  (define object-specs
+    (map (lambda (object-spec-list)
+           (apply object-spec-list>object-spec object-spec-list))
+         objects))
+
+  (_make-persistence-env
+   object-specs
+   (match extends
+     [#f '()]
+     [(envs ...) envs]
+     [(? persistence-env? env) (list env)]
+     [_ (error "Unknown value to extend persistence environment from" extends)])))
+
+;; Portraitized behavior
+(define-record-type <portraitized-behavior>
+  (portraitize beh self-portrait)
+  portraitized-behavior?
+  (beh portraitized-behavior-behavior)
+  (self-portrait portraitized-behavior-self-portrait))
+
+;; Used internally to represent each object in the persistent environment
+(define-record-type <object-spec>
+  (make-object-spec name constructor rehydrator)
+  object-spec?
+  (name object-spec-name)
+  (constructor object-spec-constructor)
+  (rehydrator object-spec-rehydrator))
 
 ;; These records are responsible for tagging and holding portrait data. This includes
 ;; tagging objects and also types such as ghashes, lists, vectors, etc so that we can
