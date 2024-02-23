@@ -2638,7 +2638,6 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       (mactor:object-constructor-refr (actormap-ref am this-obj)))
     (define-values (this-obj-spec this-obj-env)
       (persistence-env-ref-by-constructor persistence-env this-obj-constructor-refr))
-    (pk 'this-obj-spec this-obj-spec)
 
     ;; well at this point if it isn't queued already we're in trouble
     (define slot
