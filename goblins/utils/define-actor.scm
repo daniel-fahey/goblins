@@ -13,13 +13,31 @@
 ;;; limitations under the License.
 ;;;
 (define-module (goblins utils define-actor)
-  #:use-module (goblins core)
+  #:use-module ((goblins core-types)
+                #:select (portraitize
+                          make-redefinable-object
+                          set!-redefinable-object-constructor))
   #:export (define-actor))
 
 (define-syntax-rule (define-actor (constructor-id bcom args ...) body ...)
-  (define (constructor-id bcom args ...)
-    (define main-beh
-      body ...)
-    (define (self-portrait)
-      (list args ...))
-    (portraitize main-beh self-portrait)))
+  (if (module-defined? (current-module) 'constructor-id)
+      ;; We've already defined this, just update the constructor refr
+      (set!-redefinable-object-constructor
+       constructor-id
+       (lambda* (bcom args ...)
+         (define main-beh
+           body ...)
+         (define (self-portrait)
+           (list args ...))
+         (portraitize main-beh self-portrait)))
+      ;; First time, lets define it.
+      (module-define!
+       (current-module)
+       'constructor-id
+       (make-redefinable-object
+        (lambda* (bcom args ...)
+          (define main-beh
+            body ...)
+          (define (self-portrait)
+            (list args ...))
+          (portraitize main-beh self-portrait))))))

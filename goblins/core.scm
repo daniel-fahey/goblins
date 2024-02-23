@@ -70,8 +70,6 @@
             spawn-promise-cons
             spawn-promise-values
 
-            make-persistence-env
-            portraitize
             actormap-take-portrait
             actormap-replace-behavior!
             actormap-restore
@@ -108,7 +106,9 @@
             near-promise-settled?
             near-settled-promise-value
             near-promise-resolved?
-            near-resolved-promise-value)
+            near-resolved-promise-value
+
+            make-persistence-env)
 
   #:re-export (live-refr?
                local-refr?
@@ -123,7 +123,6 @@
 
                whactormap?
 
-               make-persistence-env
                portraitize
                versioned
                <portrait-record>
@@ -719,10 +718,11 @@ Type: Actormap -> TransActormap"
 ;; handler specifies that this actor would like to "become" a new
 ;; version of itself (get a new handler)
 (define-record-type <mactor:object>
-  (make-mactor:object behavior constructor self-portrait become-unsealer become?)
+  (make-mactor:object behavior constructor-refr spawned-constructor self-portrait become-unsealer become?)
   mactor:object?
   (behavior mactor:object-behavior)
-  (constructor mactor:object-constructor)
+  (constructor-refr mactor:object-constructor-refr)
+  (spawned-constructor mactor:object-spawned-constructor)
   (self-portrait mactor:object-self-portrait)
   (become-unsealer mactor:object-become-unsealer)
   (become? mactor:object-become?))
@@ -1235,7 +1235,8 @@ Type: Any -> Boolean"
            (actormap-set! actormap to-refr
                           (make-mactor:object
                            new-behavior
-                           (mactor:object-constructor mactor)
+                           (mactor:object-constructor-refr mactor)
+                           (mactor:object-spawned-constructor mactor)
                            self-portrait
                            (mactor:object-become-unsealer mactor)
                            (mactor:object-become? mactor))))
@@ -1256,9 +1257,14 @@ Type: Any -> Boolean"
               "Not an encased or object mactor:" mactor)]))
 
   ;; spawn a new actor
-  (define (_spawn constructor args debug-name)
+  (define (_spawn maybe-constructor args debug-name)
     (define-values (become become-unsealer become-sealed?)
       (make-become-sealer-triplet))
+    (define-values (constructor constructor-refr)
+      (values (if (redefinable-object? maybe-constructor)
+                  (redefinable-object-constructor maybe-constructor)
+                  maybe-constructor)
+              maybe-constructor))
     (define initial-behavior
       (apply constructor become args))
     (define* (create-refr beh #:optional maybe-self-portrait)
@@ -1272,6 +1278,7 @@ Type: Any -> Boolean"
                 (make-local-object-refr debug-name vat-connector)))
            (actormap-set! actormap actor-refr
                           (make-mactor:object beh
+                                              constructor-refr
                                               constructor
                                               maybe-self-portrait
                                               become-unsealer become-sealed?))
@@ -1823,7 +1830,7 @@ CONSTRUCTOR, passing it ARGS.
 
 Type: Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
-  (sys 'spawn constructor args (procedure-name constructor)))
+  (sys 'spawn constructor args (actor-name constructor)))
 
 (define (spawn-named name constructor . args)
   "Construct and return a reference to an actor with the debug name
@@ -2063,16 +2070,21 @@ Type: -> (Promise . Resolver)"
 ;; This is the internally used version of actormap-spawn,
 ;; also used by the syscaller.  It doesn't set up a syscaller
 ;; if there isn't currently one.
-(define* (actormap-spawn!* actormap actor-constructor
+(define* (actormap-spawn!* actormap maybe-constructor
                            args
                            #:optional
-                           [debug-name (procedure-name actor-constructor)])
+                           [debug-name (actor-name maybe-constructor)])
   (define vat-connector
     (actormap-vat-connector actormap))
   (define-values (become become-unseal become?)
     (make-become-sealer-triplet))
+  (define-values (constructor constructor-refr)
+    (values (if (redefinable-object? maybe-constructor)
+                (redefinable-object-constructor maybe-constructor)
+                maybe-constructor)
+            maybe-constructor))
   (define actor-handler
-    (apply actor-constructor become args))
+    (apply constructor become args))
   (define* (handler->refr handler #:optional maybe-self-portrait)
     (match handler
       ;; We can't use match record unpacking because of goblin's $ function.
@@ -2083,7 +2095,8 @@ Type: -> (Promise . Resolver)"
        (let ((actor-refr
               (make-local-object-refr debug-name vat-connector)))
          (actormap-set! actormap actor-refr
-                        (make-mactor:object handler actor-constructor
+                        (make-mactor:object handler constructor-refr
+                                            constructor
                                             maybe-self-portrait
                                             become-unseal become?))
          actor-refr)]
@@ -2563,6 +2576,29 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (parameterize ([current-syscaller #f])
     (proc)))
 
+(define* (make-persistence-env objects #:key extends)
+  (define object-spec-list>object-spec
+     (case-lambda
+       [(name constructor)
+        (make-object-spec name constructor
+                          (lambda (version . args)
+                            (apply spawn constructor args)))]
+       [(name constructor rehydrator)
+        (make-object-spec name constructor rehydrator)]))
+
+  (define object-specs
+    (map (lambda (object-spec-list)
+           (apply object-spec-list>object-spec object-spec-list))
+         objects))
+
+  (_make-persistence-env
+   object-specs
+   (match extends
+     [#f '()]
+     [(envs ...) envs]
+     [(? persistence-env? env) (list env)]
+     [_ (error "Unknown value to extend persistence environment from" extends)])))
+
 (define (actormap-take-portrait am persistence-env . roots)
   "Produces a self portrait of the actormap"
   (when (null? roots)
@@ -2598,10 +2634,11 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       (deq! process-queue))
     (define this-obj-self-portrait-fn
       (mactor:object-self-portrait (actormap-ref am this-obj)))
-    (define this-obj-constructor
-      (mactor:object-constructor (actormap-ref am this-obj)))
+    (define this-obj-constructor-refr
+      (mactor:object-constructor-refr (actormap-ref am this-obj)))
     (define-values (this-obj-spec this-obj-env)
-      (persistence-env-ref-by-constructor persistence-env this-obj-constructor))
+      (persistence-env-ref-by-constructor persistence-env this-obj-constructor-refr))
+    (pk 'this-obj-spec this-obj-spec)
 
     ;; well at this point if it isn't queued already we're in trouble
     (define slot
@@ -2642,7 +2679,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
     (define (process-portrait obj-spec portrait-data)
       (unless obj-spec
-        (error "Don't know how to persist:" this-obj this-obj-constructor))
+        (error "Don't know how to persist:" this-obj this-obj-constructor-refr))
       (match portrait-data
         [(? versioned-data? data)
          (define processed-data
@@ -2668,7 +2705,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
   (values slot->portrait root-slots))
 
-(define (actormap-replace-behavior! am old-persistence-env new-persistence-env)
+(define (actormap-replace-behavior! am persistence-env)
   "Take self portrait of all the actors with different behavior and rehydrates them with the new behavior"
   (define metatype (actormap-metatype am))
 
@@ -2677,37 +2714,47 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (error "Provided actormap is not a whactormap."))
   (define whactormap (actormap-data am))
   (define whactormap-table (whactormap-data-wht whactormap))
+  (define new-actormap (make-transactormap am))
 
-  ;; Go through the new environment looking for changed objects
-  (define changed-obj-specs (persistence-env-diff old-persistence-env new-persistence-env))
+  ;; Used to cache the lookup of object types
+  (define constructor-ref->object-spec (make-hash-table))
+  (define (lookup-and-cache-object-spec mactor)
+    (define constructor-refr
+      (mactor:object-constructor-refr mactor))
+    (define cached-object-spec
+      (hashq-ref constructor-ref->object-spec constructor-refr #f))
+    (if cached-object-spec
+        cached-object-spec
+        (let-values (((found-object-spec _env)
+              (persistence-env-ref-by-constructor persistence-env constructor-refr)))
+          (hashq-set! constructor-ref->object-spec constructor-refr found-object-spec)
+          found-object-spec)))
 
-  ;; For speed build up these tables ahead of time.
-  (define old-constructor->name (make-hash-table))
-  (map (lambda (name)
-         (hashq-set! old-constructor->name
-                     (object-spec-constructor (persistence-env-ref old-persistence-env name))
-                     name))
-       changed-obj-specs)
-  (define name->new-obj-spec (make-hash-table))
+  (define (has-new-beh? object-spec mactor)
+    (define spanwed-constructor
+      (mactor:object-spawned-constructor mactor))
+    (define current-constructor
+      (object-spec-constructor object-spec))
+    (and (redefinable-object? current-constructor)
+         (not (eq? (redefinable-object-constructor current-constructor)
+                   spanwed-constructor))))
 
-  (map (lambda (name)
-         (hashq-set! name->new-obj-spec name (persistence-env-ref new-persistence-env name)))
-       changed-obj-specs)
 
-  (define new-actormap
-    (make-transactormap am))
+
 
   (hash-for-each
    (lambda (refr mactor)
-     (define name
-       (if (mactor:object? mactor)
-           (hashq-ref old-constructor->name (mactor:object-constructor mactor) #f)
+     ;; Find the object spec for the given mactor (might not have one).
+     (define object-spec
+       (if (and (mactor:object? mactor)
+                (redefinable-object? (mactor:object-constructor-refr mactor)))
+           (lookup-and-cache-object-spec mactor)
            #f))
-     (when name
+
+     (when (and object-spec (has-new-beh? object-spec mactor))
        (let* ([take-self-portrait (mactor:object-self-portrait mactor)]
               [self-portrait (take-self-portrait)]
-              [new-obj-spec (hashv-ref name->new-obj-spec name)]
-              [rehydrator (object-spec-rehydrator new-obj-spec)])
+              [rehydrator (object-spec-rehydrator object-spec)])
          ;; The rehydrator will call =spawn= which will create a new refr,
          ;; that's not actually what we want so allow that to happen since we
          ;; want the actor to exist at the old  refr. Once we've rehydrated the
@@ -2807,3 +2854,10 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
        (apply values restored-roots)]
       [(? integer? slot)
        (hashq-ref slots->promises slot)]))
+
+(define (actor-name constructor)
+  (match constructor
+    [(? procedure? proc)
+     (procedure-name proc)]
+    [(? redefinable-object? re-object)
+     (actor-name (redefinable-object-constructor re-object))]))

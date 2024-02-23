@@ -16,6 +16,7 @@
 
 (define-module (tests test-core)
   #:use-module (goblins core)
+  #:use-module (goblins core-types)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-64)
   #:use-module (srfi srfi-11))
@@ -622,16 +623,18 @@
     (list value))
   (portraitize main-beh self-portrait))
 
-(define* (^persistent-greeter bcom our-name #:optional [init-number-of-times #f])
-  (define number-of-times
-    (or init-number-of-times (spawn ^incrementer)))
-  (define (main-beh your-name)
-    (bcom (^persistent-greeter bcom our-name number-of-times)
-          (format #f "Hello ~a, my name is ~a (called ~a)."
-                  your-name our-name ($ number-of-times))))
-  (define (self-portrait)
-    (list our-name number-of-times))
-  (portraitize main-beh self-portrait))
+(define ^persistent-greeter
+  (make-redefinable-object
+   (lambda* (bcom our-name #:optional [init-number-of-times #f])
+     (define number-of-times
+       (or init-number-of-times (spawn ^incrementer)))
+     (define (main-beh your-name)
+       (bcom (^persistent-greeter bcom our-name number-of-times)
+             (format #f "Hello ~a, my name is ~a (called ~a)."
+                     your-name our-name ($ number-of-times))))
+     (define (self-portrait)
+       (list our-name number-of-times))
+     (portraitize main-beh self-portrait))))
 
 (define (restored-greeter-rehydrate version our-name number-of-times)
   (spawn ^persistent-greeter
@@ -673,25 +676,23 @@
   (actormap-peek second-actormap restored-astrid-greeter "Ludvig")
   "Hello Ludvig, my name is *restored Astrid* (called 3).")
 
-(define* (^fancy-greeter bcom our-name #:optional init-number-of-times)
-  (define number-of-times
-    (or init-number-of-times (spawn ^incrementer)))
-  (define (main-beh your-name)
-    (format #f "Salutations ~a, I am called ~a, delighted to make your acquaintance! (called: ~a)"
-            your-name our-name ($ number-of-times)))
-  (define (self-portrait)
-    (list our-name number-of-times))
-  (portraitize main-beh self-portrait))
 
-(define new-greeter-env
-  (make-persistence-env
-   (list (list '((tests test-core) ^persistent-greeter) ^fancy-greeter))
-   #:extends (list incrementer-env)))
+(set!-redefinable-object-constructor
+ ^persistent-greeter
+ (lambda* (bcom our-name #:optional init-number-of-times)
+   (define number-of-times
+     (or init-number-of-times (spawn ^incrementer)))
+   (define (main-beh your-name)
+     (format #f "Salutations ~a, I am called ~a, delighted to make your acquaintance! (called: ~a)"
+             your-name our-name ($ number-of-times)))
+   (define (self-portrait)
+     (list our-name number-of-times))
+   (portraitize main-beh self-portrait)))
 
-(actormap-replace-behavior! second-actormap greeter-env new-greeter-env)
+(actormap-replace-behavior! first-actormap greeter-env)
 
 (test-equal "Actors are updated when the behavior is replaced by new behavior"
-  (actormap-peek second-actormap restored-astrid-greeter "Ludvig")
+  (actormap-peek first-actormap astrid-greeter "Ludvig")
   "Salutations Ludvig, I am called *restored Astrid*, delighted to make your acquaintance! (called: 3)")
 
 (test-end "test-goblins-core")

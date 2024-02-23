@@ -91,7 +91,7 @@
             promise-refr?
 
             <persistence-env>
-            make-persistence-env
+            _make-persistence-env
             persistence-env?
             persistence-env-bindings
             persistence-env-extends
@@ -119,7 +119,13 @@
             versioned
             versioned-data?
             versioned-data-version
-            versioned-data-data))
+            versioned-data-data
+
+            <redefinable-object>
+            make-redefinable-object
+            redefinable-object?
+            redefinable-object-constructor
+            set!-redefinable-object-constructor))
 
 ;; Actormaps, etc
 ;; ==============
@@ -300,29 +306,6 @@ Type: Any -> Boolean"
   (bindings persistence-env-bindings)
   (extends persistence-env-extends))
 
-(define* (make-persistence-env objects #:key extends)
-  (define object-spec-list>object-spec
-     (case-lambda
-       [(name constructor)
-        (make-object-spec name constructor
-                          (lambda (version . args)
-                            (apply spawn constructor args)))]
-       [(name constructor rehydrator)
-        (make-object-spec name constructor rehydrator)]))
-
-  (define object-specs
-    (map (lambda (object-spec-list)
-           (apply object-spec-list>object-spec object-spec-list))
-         objects))
-
-  (_make-persistence-env
-   object-specs
-   (match extends
-     [#f '()]
-     [(envs ...) envs]
-     [(? persistence-env? env) (list env)]
-     [_ (error "Unknown value to extend persistence environment from" extends)])))
-
 ;; Portraitized behavior
 (define-record-type <portraitized-behavior>
   (portraitize beh self-portrait)
@@ -358,3 +341,26 @@ Type: Any -> Boolean"
   versioned-data?
   (version versioned-data-version)
   (data versioned-data-data))
+
+;; Used as a sort of "box" to restore objects to while keeping the actor
+;; definition eq to itself when in persistence-envs
+;; NOTE: this is an invocable/applicable struct so that we can call it.
+(define <redefinable-object>
+  (make-struct/no-tail <applicable-struct-vtable> 'pwpwpw))
+
+(define (redefinable-object? obj)
+  (and (struct? obj) (eq? (struct-vtable obj) <redefinable-object>)))
+
+(define (make-redefinable-object constructor)
+  (make-struct/no-tail <redefinable-object> constructor))
+
+(define (redefinable-object-constructor obj)
+  (if (redefinable-object? obj)
+      (struct-ref obj 0)
+      (error "Not a redefinable object")))
+
+(define (set!-redefinable-object-constructor obj new-constructor)
+  (pk 'obj)
+  (if (redefinable-object? obj)
+      (struct-set! obj 0 new-constructor)
+      (error "Not a redefinable object")))
