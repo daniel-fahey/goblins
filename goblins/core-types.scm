@@ -360,7 +360,6 @@ Type: Any -> Boolean"
       (error "Not a redefinable object")))
 
 (define (set!-redefinable-object-constructor obj new-constructor)
-  (pk 'obj)
   (if (redefinable-object? obj)
       (struct-set! obj 0 new-constructor)
       (error "Not a redefinable object")))
