@@ -718,7 +718,8 @@ Type: Actormap -> TransActormap"
 ;; handler specifies that this actor would like to "become" a new
 ;; version of itself (get a new handler)
 (define-record-type <mactor:object>
-  (make-mactor:object behavior constructor-refr spawned-constructor self-portrait become-unsealer become?)
+  (make-mactor:object behavior constructor-refr spawned-constructor
+                      self-portrait become-unsealer become?)
   mactor:object?
   (behavior mactor:object-behavior)
   (constructor-refr mactor:object-constructor-refr)
