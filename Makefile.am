@@ -47,6 +47,7 @@ SOURCES = goblins.scm \
           goblins/abstract-types.scm \
           goblins/actor-lib/cell.scm \
           goblins/actor-lib/common.scm \
+          goblins/actor-lib/define-actor.scm \
           goblins/actor-lib/facet.scm \
           goblins/actor-lib/joiners.scm \
           goblins/actor-lib/let-on.scm \
@@ -128,7 +129,8 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/test-repl.scm \
         tests/utils/test-base32.scm \
         tests/utils/test-bytes-stuff.scm \
-        tests/utils/test-ring-buffer.scm
+        tests/utils/test-ring-buffer.scm \
+        tests/utils/test-define-actor.scm
 
 TEST_EXTENSIONS = .scm
 SCM_LOG_DRIVER =                                \
@@ -146,6 +148,7 @@ AM_TESTS_ENVIRONMENT = abs_top_srcdir="$(abs_top_srcdir)"
 
 info_TEXINFOS = doc/goblins.texi
 doc_goblins_TEXINFOS = doc/actor-lib-reference.texi	\
+                       doc/persistence.texi	\
                        doc/api-reference.texi		\
                        doc/debugger.texi		\
                        doc/ocapn.texi			\

@@ -13,7 +13,7 @@
 ;;; limitations under the License.
 (define-module (goblins abstract-types)
   #:use-module (srfi srfi-9)
-  #:export (<zilch>
+  #:export (zilch
             zilch?
 
             <tagged>

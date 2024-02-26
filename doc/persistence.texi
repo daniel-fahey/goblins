@@ -1,0 +1,362 @@
+Goblins has a secure persistence mechanism that allows for serializing
+an entire object graph. The mechanism allows objects to describe
+themselves with only the capabilities they have, this protects against
+one object claiming it has more abilities than it actually does.
+
+@menu
+* Persistence Tutorial::
+* Persistence capable objects::
+* Operations on actormaps::
+* Persistence Environments::
+* Upgrading through persistence::
+@end menu
+
+@node Persistence Tutorial
+@section Persistence Tutorial
+
+TODO when we land persistent vat PR
+
+@node Persistence capable objects
+@section Persistence capable objects
+
+When using the persistence mechanism you take a portrait of a graph, the
+graph has one or more roots. Once a portrait has been created this can
+be serialized and stored and at anytime rehydrated to an actormap
+restoring the objects with their data. Currently, the persistence system
+only works on actormaps, however support for vats and automatic
+snapshotting will be coming in a future version.
+
+In order for an object to have persistence support it must be able to
+create a self portrait of itself. The self portrait is a collection of
+all the data and capabilities an object has thats needed to restore
+itself. This can be done by creating a function will be called upon
+taking a portrait return a list containing all the portrait data. The
+data can include references to other local objects.
+
+Lets take a really simple example which is just an object which has a
+name it's known by and greets you:
+
+@lisp
+(use-modules (goblins))
+
+(define (^greeter _bcom our-name)
+  (lambda (their-name)
+    (format #f "Hello ~a, my name is ~a" their-name
+            our-name)))
+@end lisp
+
+This object is not persistence capable, that is it does not currently
+have a mechanism to describe itself to create the self portrait. Trying
+to take a portrait of a graph with a non-persistence aware object will
+result in an error. The easiest way to convert this to a persistence
+aware object is to use the @code{define-actor} macro:
+
+@lisp
+(use-modules (goblins)
+             (goblins utils define-actor))
+
+(define-actor (^greeter _bcom our-name)
+  (lambda (their-name)
+    (format #f "Hello ~a, my name is ~a" their-name
+            our-name)))
+@end lisp
+
+That's it! The @code{define-actor} macro is probably good enough to
+handle most use cases. There will however be cases where you need to be
+a bit more explicit regarding serialization. The @code{define-actor}
+macro takes all of the values it's spawned with, and keeps them around
+so that you can be re-spawned with those values, however there may be
+times for example where you need to convert certain values to a
+serializable form.
+
+In cases where you do need to be more explicit and can't rely on the
+macro, you can do this manually. To do this we can define a
+self-portrait function which is called when the persistence system is
+taking a portrait, this function is expected to return either a list of
+values or a versioned tagged list of values (more on versioning
+@xref{Upgrading through persistence}). Here's the same greeter but
+manually specifying the self-portrait behavior:
+
+@lisp
+(use-modules (goblins))
+
+(define (^greeter _bcom our-name)
+  (define (main-beh their-name)
+    (format #f "Hello ~a, my name is ~a" their-name
+            our-name))
+  (define (self-portrait)
+    (list our-name))
+  (portraitize main-beh self-portrait))
+@end lisp
+
+The persistence system supports the following types:
+
+- number
+- boolean
+- string
+- symbol
+- bytevector
+- list
+- vector
+- keyword
+- ghash
+- tagged value (from the abstract-types module)
+- zilch (from the abstract-types module)
+- local object refr
+- resolved local promises
+
+Any other value of another type needs to be converted into one of the
+supported types above.
+
+As mentioned above, the goblins persistence system can handle references
+to objects within the same actormap or vat, you simply include the refer
+when persisting. Let's take a look at a greeter which does that, keeping
+track of the number of types its been called:
+
+@lisp
+(use-modules (goblins)
+             (goblins actor-lib cell))
+
+(define-actor (^greeter* _bcom our-name number-of-times)
+  (lambda (their-name)
+    (let ((times ($ number-of-times)))
+      ($ number-of-times (+ 1 times))
+      (format #f "Hello ~a, my name is ~a (called ~a)"
+              their-name our-name times))))
+
+(define* (^greeter bcom our-name #:optional [number-of-times 0])
+  (^greeter bcom our-name (spawn ^cell number-of-times)))
+@end lisp
+
+This example uses @code{define-actor} with a seperate constructor which
+``cellifies` the number-of-times and has a default argument. The
+@code{define-actor} will include both the name (a string, like before)
+and a local reference to the cell object containing the number of times
+called. This could have also been written a different way using the
+manual, more explicit way, this exercise is left to the reader.
+
+@node Operations on actormaps
+@section Operations on actormaps
+
+Using the persistence support on an actormap allows for taking a
+portrait of its current state, rehydrating that state into an actormap
+and updating the behavior of an object through an upgrade mechanism.
+
+@deffn {Procedure} actormap-take-portrait am persistence-env . roots
+
+Takes a portrait of the objects within the actormap starting with the
+supplied roots.
+
+This takes an actormap, @var{am} which contains the objects and an
+@var{persistence-env} which describes some additional information about
+all the objects within the graph that's needed to support persistence.
+The final arguments are all the roots within the graph.
+
+The portrait is a map where each object within the portrait that is
+represented by an integer which maps to its respective portrait data (in
+a serializable form), this integer is known as a slot. When an object
+contains a reference to another object, that object is referred
+to by its slot.
+
+The procedure returns two values to its continuation, those are:
+
+1. the self portrait data
+2. the root slots: these are in order the integers of the root objects.
+
+@end deffn
+
+@deffn {Procedure} actormap-restore am persistence-env portrait-data roots
+
+This restores the objects in the actormap @var{am} from the portrait data
+@var{portrait-data} using the object specifications data stored in
+@var{persistence-env} with the given @var{roots}.
+
+Due to the way rehydration of depictions works each object is
+represented as a vow which will be resolved when returned.
+
+This procedure returns to the continuation all the references to the
+restored objects for the given @var{roots}. This is so that the number
+of values returned is equal to the number of roots provided.
+
+@end deffn
+
+@deffn {Procedure} actormap-replace-behavior! am persistence-env
+
+Replace actors in actormap @var{am} with new behavior from
+@var{persistence-env}
+
+It's often desirable, especially when developing a system, to update or
+otherwise change the bahavior of objects which already exist in an
+actormap. This can easily be done by using the persistence system in
+Goblins. Each object can describe itself through its self portrait and
+then be rehydrated into its new behavior allowing seamless upgrades.
+
+This procedure will first calculate all of the objects that have an
+updated constructor within @var{persistence-env}. It will then take a
+portrait all those objects, then using that portrait data, rehydrate
+them with the new behavior keeping the object references the same.
+
+It's important to note that in order to be able to replace the
+bahavior the objects must be been defined as redefinable, this is
+commonly done by using the @code{define-hackable} macro provided with
+Goblins. Non-redefinable actors will not have their bahavior replaced
+as they will appear as different objects within the
+@var{persistence-env}.
+
+@end deffn
+
+@deffn {Procedure} actormap-replace-behavior am persistence-env
+
+Functional version of @code{actormap-replace-behavior!}
+
+This works the same as `actormap-replace-behavior!' but it returns a
+transactormap which the user can choose whether or not to commit.
+
+@end deffn
+
+@node Persistence Environments
+@section Persistence Environments
+
+All persistence aware objects need be defined in what's known as an
+persistence environment. These environments specify a set of information
+which must exist to be able to take portrait and/or rehydrate objects.
+This is a unique name for the object, the constructor, and if different
+from the constructor, a function to rehydrate the object upon
+rehydration.
+
+When taking portraits of objects or rehydrating them every single object
+must be present in the given persistence env, this would obviously be
+quite tedious as object graphs get larger and contain lots of different
+objects. This is made easier by the persistence environments being able
+to extend from (or inherit from) other persistence environments. Lets
+take the idea of our greeter:
+
+@lisp
+
+(use-modules (goblins)
+             (goblins actor-lib cell))
+
+(define* (^greeter _bcom our-name #:optional (init-number-of-times #f))
+  (define number-of-times
+    (or init-number-of-times (spawn ^cell 0)))
+  (lambda (their-name)
+    ($ number-of-times (+ ($ number-of-times) 1))
+    (format #f "Hello ~a, my name is ~a (called: ~a)"
+            their-name our-name ($ number-of-times))))
+@end lisp
+
+The persistence environment here would need to specify two objects, the
+@code{^greeter} object and the @code{^cell} object. This is made a
+little more complicated by the fact that we didn't define @code{^cell},
+we're using that from a library, Goblins' actor-lib library.
+
+This is where persistence environment inheritance helps, we can specify
+the objects we've defined (i.e. @code{^greeter}) and specify the
+persistence environment that actor-lib's cell module provides for us:
+
+@lisp
+(define greeter-env
+  (make-persistence-env
+   (list (list '((greeter) ^greeter) ^greeter))
+   #:extends cell-env))
+@end lisp
+
+If we later wanted to define another persistence environment which uses
+our greeter, we could define a new persistence environment which
+extends from @var{greeter-env}.
+
+@deffn {Procedure} make-persistence-env bindings #:extends
+
+This creates a persistence environment based on a set of object
+specifications and a list of other persistence environments to extend
+from.
+
+This takes two arguments, each being a list. The first is @var{bindings}
+which is a list of all the object specifications specified as a list:
+
+(OBJECT-NAME OBJECT-CONSTRUCTOR [OBJECT_REHYDRATOR])
+
+The second keyword argument, @var{extends} is either a single persistent
+environment to extend from, or a list of several persistent environments
+to extent from.
+
+Important: Care should be taken to prevent cycles within persistence
+environments.
+
+This procedure returns a single value, a persistence environment.
+
+@end deffn
+
+@node Upgrading through persistence
+@section Upgrading through persistence
+
+The design of the persistence system allows for this to be a powerful
+mechanism to make upgrades for object data. The very basic situation of
+adding a new piece of data is automatic as you can provide a default
+value. More complicated data upgrade is also fully supported. Lets take
+an example of a thermostat that represents the set temperature in
+fahrenheit:
+
+@lisp
+(define (^thermostat bcom temperature)
+  (define main-beh
+    (methods
+     [(get-current-temp) temperature]
+     [(set-temp new-temp) ...]))
+  (define (self-portrait)
+    (list temperature))
+  (portraitize main-beh self-portrait))
+
+(define thermostat-env
+  (make-persistence-env
+   (list (list ''((house temp) ^thermostat) ^thermostat))))
+@end lisp
+
+Later, we want to change the thermostat object to work with the set
+temperature in Celsius. Normally this is a bit tricky as we have just
+stored an integer for the portrait data, however Goblins tags this data
+with a version and it can be upgraded and tagged by us too, lets take a
+look at how we can upgrade the above actor using this upgrade mechanism:
+
+@lisp
+(define (^thermostat bcom temperature)
+  (define main-beh
+    (methods
+     [(get-current-temp) temperature]
+     [(set-temp new-temp) ...]))
+  (define (self-portrait)
+    (versioned 1 (list temperature)))
+  (portraitize main-beh self-portrait))
+
+(define (rehydrate-thermostat version restored-temperature)
+  (define temperature
+    (match version
+      ;; F -> C conversion
+      [0 (+ (* 9/5 restored-temperature) 32)]
+      ;; C, no conversion needed.
+      [1 restored-temperature]))
+  (spawn ^thermostat temperature))
+
+(define thermostat-env
+  (make-persistence-env
+   (list (list '((house temp) ^thermostat) ^thermostat rehydrate-thermostat))))
+@end lisp
+
+There are two changes here:
+
+1. The thermostat object's @code{self-portrait} function now versions
+the data with version 1.
+2. We now have this @code{rehydrate-thermostat} function which takes in
+a version and might convert it before spawing the thermostat.
+
+Goblins has a @code{versioned} function provided which allows the first
+argument to be a version tag which usually is an integer but could be
+any atomic serializable data such as a simple or even string and as a
+second argument the self-portrait data. If the self-portrait doesn't
+return a versioned portrait, Goblins will assign the version 0 to that
+portrait data. Later you're able to match on it and upgrade it like the
+example above.
+
+With the above example newly created objects which are created using
+Celcius will not be need to be upgraded, but the old fahrenheit objects
+will be converted.

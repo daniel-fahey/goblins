@@ -75,6 +75,15 @@
                spawn-promise-cons
                spawn-promise-values
 
+               make-persistence-env
+               portraitize
+               actormap-take-portrait
+               actormap-replace-behavior
+               actormap-replace-behavior!
+               actormap-restore
+
+               versioned
+
                make-vat
                vat?
                vat-name

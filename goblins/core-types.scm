@@ -88,7 +88,44 @@
             remote-refr-captp-connector
             remote-refr-sealed-pos
             live-refr?
-            promise-refr?))
+            promise-refr?
+
+            <persistence-env>
+            _make-persistence-env
+            persistence-env?
+            persistence-env-bindings
+            persistence-env-extends
+
+            <portraitized-behavior>
+            portraitize
+            portraitized-behavior?
+            portraitized-behavior-behavior
+            portraitized-behavior-self-portrait
+
+            <object-spec>
+            make-object-spec
+            object-spec?
+            object-spec-name
+            object-spec-constructor
+            object-spec-rehydrator
+
+            <portrait-record>
+            make-portrait-record
+            portrait-record?
+            portrait-record-type
+            portrait-record-data
+
+            <versioned-data>
+            versioned
+            versioned-data?
+            versioned-data-version
+            versioned-data-data
+
+            <redefinable-object>
+            make-redefinable-object
+            redefinable-object?
+            redefinable-object-constructor
+            set!-redefinable-object-constructor))
 
 ;; Actormaps, etc
 ;; ==============
@@ -260,3 +297,69 @@ else #f.
 Type: Any -> Boolean"
   (or (local-refr? obj)
       (remote-refr? obj)))
+
+;; Persistence
+;; ===========
+(define-record-type <persistence-env>
+  (_make-persistence-env bindings extends)
+  persistence-env?
+  (bindings persistence-env-bindings)
+  (extends persistence-env-extends))
+
+;; Portraitized behavior
+(define-record-type <portraitized-behavior>
+  (portraitize beh self-portrait)
+  portraitized-behavior?
+  (beh portraitized-behavior-behavior)
+  (self-portrait portraitized-behavior-self-portrait))
+
+;; Used internally to represent each object in the persistent environment
+(define-record-type <object-spec>
+  (make-object-spec name constructor rehydrator)
+  object-spec?
+  (name object-spec-name)
+  (constructor object-spec-constructor)
+  (rehydrator object-spec-rehydrator))
+
+;; These records are responsible for tagging and holding portrait data. This includes
+;; tagging objects and also types such as ghashes, lists, vectors, etc so that we can
+;; unserialize them correctly to their corresponding objects/types. The persistence
+;; storage providers need to work with these when saving.
+(define-record-type <portrait-record>
+  (make-portrait-record type data)
+  portrait-record?
+  (type portrait-record-type)
+  (data portrait-record-data))
+
+;; This while looking similar to the above this is used to specify versioned data
+;; by objects in their self-portrait function. The `versioned' constructor is exported
+;; which is used to created <version> + <portrait data> so the persistence system
+;; can reliably detect when being given versioned data. This tagging is not exposed
+;; anywhere else, including the resulting portraits.
+(define-record-type <versioned-data>
+  (versioned version data)
+  versioned-data?
+  (version versioned-data-version)
+  (data versioned-data-data))
+
+;; Used as a sort of "box" to restore objects to while keeping the actor
+;; definition eq to itself when in persistence-envs
+;; NOTE: this is an invocable/applicable struct so that we can call it.
+(define <redefinable-object>
+  (make-struct/no-tail <applicable-struct-vtable> 'pwpwpw))
+
+(define (redefinable-object? obj)
+  (and (struct? obj) (eq? (struct-vtable obj) <redefinable-object>)))
+
+(define (make-redefinable-object constructor)
+  (make-struct/no-tail <redefinable-object> constructor))
+
+(define (redefinable-object-constructor obj)
+  (if (redefinable-object? obj)
+      (struct-ref obj 0)
+      (error "Not a redefinable object")))
+
+(define (set!-redefinable-object-constructor obj new-constructor)
+  (if (redefinable-object? obj)
+      (struct-set! obj 0 new-constructor)
+      (error "Not a redefinable object")))

@@ -1,5 +1,6 @@
 ;;; Copyright 2019-2023 Christine Lemmer-Webber
 ;;; Copyright 2023 David Thompson
+;;; Copyright 2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -15,6 +16,7 @@
 
 (define-module (tests test-core)
   #:use-module (goblins core)
+  #:use-module (goblins core-types)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-64)
   #:use-module (srfi srfi-11))
@@ -612,5 +614,85 @@
 (test-equal "Promise fulfilled to promise has broken promise contagion"
  '((got-err yikes) #t)
  (try-promise-to-promise 'break 'yikes))
+
+;; object persistence tests
+(define* (^incrementer bcom #:optional [value 0])
+  (define (main-beh)
+    (bcom (^incrementer bcom (+ 1 value)) (+ 1 value)))
+  (define (self-portrait)
+    (list value))
+  (portraitize main-beh self-portrait))
+
+(define ^persistent-greeter
+  (make-redefinable-object
+   (lambda* (bcom our-name #:optional [init-number-of-times #f])
+     (define number-of-times
+       (or init-number-of-times (spawn ^incrementer)))
+     (define (main-beh your-name)
+       (bcom (^persistent-greeter bcom our-name number-of-times)
+             (format #f "Hello ~a, my name is ~a (called ~a)."
+                     your-name our-name ($ number-of-times))))
+     (define (self-portrait)
+       (list our-name number-of-times))
+     (portraitize main-beh self-portrait))))
+
+(define (restored-greeter-rehydrate version our-name number-of-times)
+  (spawn ^persistent-greeter
+         (format #f "*restored ~a*" our-name)
+         number-of-times))
+
+(define first-actormap
+  (make-actormap))
+
+(define astrid-greeter
+  (actormap-run!
+   first-actormap
+   (lambda ()
+     (define astrid
+       (spawn ^persistent-greeter "Astrid"))
+     ($ astrid "Lars")
+     ($ astrid "Johan")
+     astrid)))
+
+(define incrementer-env
+  (make-persistence-env
+   (list (list '((tests test-core) ^incrementer) ^incrementer))))
+
+(define greeter-env
+  (make-persistence-env
+   (list (list '((tests test-core) ^persistent-greeter) ^persistent-greeter restored-greeter-rehydrate))
+   #:extends incrementer-env))
+
+(define-values (astrid-greeter-portrait astrid-greeter-roots)
+  (actormap-take-portrait first-actormap greeter-env astrid-greeter))
+
+(define second-actormap
+  (make-actormap))
+
+(define restored-astrid-greeter
+  (actormap-restore second-actormap greeter-env astrid-greeter-portrait astrid-greeter-roots))
+
+(test-equal "Restored greeter reports correct number of times called"
+  (actormap-peek second-actormap restored-astrid-greeter "Ludvig")
+  "Hello Ludvig, my name is *restored Astrid* (called 3).")
+
+
+(set!-redefinable-object-constructor
+ ^persistent-greeter
+ (lambda* (bcom our-name #:optional init-number-of-times)
+   (define number-of-times
+     (or init-number-of-times (spawn ^incrementer)))
+   (define (main-beh your-name)
+     (format #f "Salutations ~a, I am called ~a, delighted to make your acquaintance! (called: ~a)"
+             your-name our-name ($ number-of-times)))
+   (define (self-portrait)
+     (list our-name number-of-times))
+   (portraitize main-beh self-portrait)))
+
+(actormap-replace-behavior! first-actormap greeter-env)
+
+(test-equal "Actors are updated when the behavior is replaced by new behavior"
+  (actormap-peek first-actormap astrid-greeter "Ludvig")
+  "Salutations Ludvig, I am called *restored Astrid*, delighted to make your acquaintance! (called: 3)")
 
 (test-end "test-goblins-core")

@@ -43,6 +43,7 @@ v2.  See @ref{License} for more information.
 * API::                           Goblins' fundamental API 
 * actor-lib::                     A standard library of sorts
 * OCapN::                         The Object Capabilities Network
+* Persistence::                   Storing and restoring object graphs
 * Debugging tools::               Figure out what's going wrong
 * Thanks::                        Contributors to this manual
 * License::                       Copying, distributing, using this text
@@ -907,6 +908,11 @@ carrying out those steps as bulk operations over the network.
 @chapter OCapN: The Object Capabilities Network
 
 @include ocapn.texi
+
+@node Persistence
+@chapter Persistence
+
+@include persistence.texi
 
 @node Debugging tools
 @chapter Debugging tools
