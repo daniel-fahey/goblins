@@ -672,7 +672,7 @@
           [else
            ($C coordinator 'make-handoff-base-cert obj)]))]
       [(? unspecified?)
-       (make-label* 'void)]
+       (make-tagged* 'void)]
       [(? keyword?)
        (make-tagged* 'kw (keyword->symbol obj))]
       [(? error?)
