@@ -86,6 +86,7 @@ SOURCES = goblins.scm \
           goblins/utils/base32.scm \
           goblins/utils/bytes-stuff.scm \
           goblins/utils/crypto.scm \
+          goblins/utils/define-actor.scm \
           goblins/utils/graphviz.scm \
           goblins/utils/random-name.scm \
           goblins/utils/simple-dispatcher.scm \
