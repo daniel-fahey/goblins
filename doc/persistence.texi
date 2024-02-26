@@ -73,8 +73,8 @@ In cases where you do need to be more explicit and can't rely on the
 macro, you can do this manually. To do this we can define a
 self-portrait function which is called when the persistence system is
 taking a portrait, this function is expected to return either a list of
-values or a versioned tagged list of values (more on versioning in
-Upgrading through persistence TODO: link?). Here's the same greeter but
+values or a versioned tagged list of values (more on versioning
+@xref{Upgrading through persistence}). Here's the same greeter but
 manually specifying the self-portrait behavior:
 
 @lisp
@@ -180,11 +180,10 @@ of values returned is equal to the number of roots provided.
 
 @end deffn
 
-@deffn {Procedure} actormap-replace-behavior am old-persistence-env new-persistence-env
+@deffn {Procedure} actormap-replace-behavior! am persistence-env
 
-Replaces all the objects in @var{am} that are different between the two
-persistence environments, using the rehydration procedure given for the
-object in @var{new-persistence-env}.
+Replace actors in actormap @var{am} with new behavior from
+@var{persistence-env}
 
 It's often desirable, especially when developing a system, to update or
 otherwise change the bahavior of objects which already exist in an
@@ -192,14 +191,26 @@ actormap. This can easily be done by using the persistence system in
 Goblins. Each object can describe itself through its self portrait and
 then be rehydrated into its new behavior allowing seamless upgrades.
 
-This procedure will first calculate a list of all the objects that have
-a different definition in @var{old-persistence-env} than in
-@var{new-persistence-env}. It will then take a portrait all those
-objects, then using that portrait data, rehydrate them with the new
-behavior keeping the object references the same.
+This procedure will first calculate all of the objects that have an
+updated constructor within @var{persistence-env}. It will then take a
+portrait all those objects, then using that portrait data, rehydrate
+them with the new behavior keeping the object references the same.
 
-The procedure returns one argument which is a new updated actormap
-following the upgrade.
+It's important to note that in order to be able to replace the
+bahavior the objects must be been defined as redefinable, this is
+commonly done by using the @code{define-hackable} macro provided with
+Goblins. Non-redefinable actors will not have their bahavior replaced
+as they will appear as different objects within the
+@var{persistence-env}.
+
+@end deffn
+
+@deffn {Procedure} actormap-replace-behavior am persistence-env
+
+Functional version of @code{actormap-replace-behavior!}
+
+This works the same as `actormap-replace-behavior!' but it returns a
+transactormap which the user can choose whether or not to commit.
 
 @end deffn
 
