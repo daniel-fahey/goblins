@@ -31,27 +31,27 @@
 (define am
   (make-actormap))
 
-(define sward-cell
+(define sword-cell
   (actormap-run!
    am
    (lambda ()
-     (spawn ^cell 'sward))))
+     (spawn ^cell 'sword))))
 
 (define cell-env
   (make-persistence-env
    (list (list '((tests utils test-define-actor) ^cell) ^cell))))
 
 (define-values (portraits roots)
-  (actormap-take-portrait am cell-env sward-cell))
+  (actormap-take-portrait am cell-env sword-cell))
 
 (define restored-am
   (make-actormap))
 
-(define restored-sward-cell
+(define restored-sword-cell
   (actormap-restore restored-am cell-env portraits roots))
 
-(test-equal "Got back the sward we put in from the sward cell"
-  (actormap-peek restored-am restored-sward-cell)
-  'sward)
+(test-equal "Got back the sword we put in from the sword cell"
+  (actormap-peek restored-am restored-sword-cell)
+  'sword)
 
 (test-end "test-define-actor")
