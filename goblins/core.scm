@@ -2715,6 +2715,7 @@ Type: Actormap PersistenceEnv -> Void"
   (define metatype (actormap-metatype am))
 
   ;; For now just deal with whactormaps (maybe always only do this?)
+  ;; TODO: Support all actormap types by adding actormap-fold / actormap-for-each
   (unless (eq? (actormap-metatype-name metatype) 'whactormap)
     (error "Provided actormap is not a whactormap."))
   (define whactormap (actormap-data am))
