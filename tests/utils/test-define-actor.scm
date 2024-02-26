@@ -14,7 +14,7 @@
 ;;;
 (define-module (tests utils test-define-actor)
   #:use-module (goblins)
-  #:use-module (goblins utils define-actor)
+  #:use-module (goblins actor-lib define-actor)
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers operations)

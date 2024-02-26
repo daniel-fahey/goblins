@@ -47,6 +47,7 @@ SOURCES = goblins.scm \
           goblins/abstract-types.scm \
           goblins/actor-lib/cell.scm \
           goblins/actor-lib/common.scm \
+          goblins/actor-lib/define-actor.scm \
           goblins/actor-lib/facet.scm \
           goblins/actor-lib/joiners.scm \
           goblins/actor-lib/let-on.scm \
@@ -86,7 +87,6 @@ SOURCES = goblins.scm \
           goblins/utils/base32.scm \
           goblins/utils/bytes-stuff.scm \
           goblins/utils/crypto.scm \
-          goblins/utils/define-actor.scm \
           goblins/utils/graphviz.scm \
           goblins/utils/random-name.scm \
           goblins/utils/simple-dispatcher.scm \
