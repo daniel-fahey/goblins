@@ -721,10 +721,20 @@ Type: Actormap -> TransActormap"
   (make-mactor:object behavior constructor-refr spawned-constructor
                       self-portrait become-unsealer become?)
   mactor:object?
+  ;; Behavior procedure
   (behavior mactor:object-behavior)
+  ;; Reference to the constructor procedure or redefinable-object-constructor
+  ;; this actor was spawned from
+  ;; TODO: rename this, it's not a live-refr, and it kind of sounds like it is
   (constructor-refr mactor:object-constructor-refr)
+  ;; This is the inner constructor *procedure*, which is unboxed from a
+  ;; redefinable-object-constructor, so we can compare if the constructor
+  ;; changed when doing an `actormap-replace-behavior'
   (spawned-constructor mactor:object-spawned-constructor)
+  ;; The object's self-portrait procedure, if it exists
   (self-portrait mactor:object-self-portrait)
+  ;; The following two are the predicate and unsealer from a
+  ;; `make-become-sealer-triplet', specific to this actor
   (become-unsealer mactor:object-become-unsealer)
   (become? mactor:object-become?))
 
