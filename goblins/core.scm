@@ -2738,9 +2738,6 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
          (not (eq? (redefinable-object-constructor current-constructor)
                    spanwed-constructor))))
 
-
-
-
   (hash-for-each
    (lambda (refr mactor)
      ;; Find the object spec for the given mactor (might not have one).
