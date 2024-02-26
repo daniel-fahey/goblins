@@ -2705,7 +2705,12 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (values slot->portrait root-slots))
 
 (define (actormap-replace-behavior! am persistence-env)
-  "Take self portrait of all the actors with different behavior and rehydrates them with the new behavior"
+  "Replace actors in actormap AM with new behavior from PERSISTENCE-ENV
+
+Takes self portrait of all the actors with different behavior and
+rehydrates them with the new behavior.
+
+Type: Actormap PersistenceEnv -> Void"
   (define metatype (actormap-metatype am))
 
   ;; For now just deal with whactormaps (maybe always only do this?)
