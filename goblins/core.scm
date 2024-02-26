@@ -2732,18 +2732,21 @@ Type: Actormap PersistenceEnv -> Void"
     (if cached-object-spec
         cached-object-spec
         (let-values (((found-object-spec _env)
-              (persistence-env-ref-by-constructor persistence-env constructor-refr)))
-          (hashq-set! constructor-ref->object-spec constructor-refr found-object-spec)
+                      (persistence-env-ref-by-constructor persistence-env
+                                                          constructor-refr)))
+          (hashq-set! constructor-ref->object-spec constructor-refr
+                      found-object-spec)
           found-object-spec)))
 
   (define (has-new-beh? object-spec mactor)
-    (define spanwed-constructor
+    (define spawned-constructor
       (mactor:object-spawned-constructor mactor))
     (define current-constructor
       (object-spec-constructor object-spec))
-    (and (redefinable-object? current-constructor)
-         (not (eq? (redefinable-object-constructor current-constructor)
-                   spanwed-constructor))))
+    ;; We've already checked before this procedure is invoked whether or not
+    ;; this is a `redefinable-object?' so we don't need to do that again.
+    (not (eq? (redefinable-object-constructor current-constructor)
+              spawned-constructor)))
 
   (hash-for-each
    (lambda (refr mactor)
@@ -2758,14 +2761,20 @@ Type: Actormap PersistenceEnv -> Void"
        (let* ([take-self-portrait (mactor:object-self-portrait mactor)]
               [self-portrait (take-self-portrait)]
               [rehydrator (object-spec-rehydrator object-spec)])
-         ;; The rehydrator will call =spawn= which will create a new refr,
-         ;; that's not actually what we want so allow that to happen since we
-         ;; want the actor to exist at the old  refr. Once we've rehydrated the
-         ;; actor install the new object at its old refr.
+         ;; The rehydrator will call `spawn' which will create a new refr,
+         ;; but we actually want to keep the old refr.  Once we've rehydrated
+         ;; the actor, install the new object at its old refr.
          (define versioned-self-portrait
            (if (versioned-data? self-portrait)
                self-portrait
                (versioned 0 self-portrait)))
+         ;; TODO: This doesn't support new references being spawned during
+         ;; upgrade code.  One way to do this is to commit to the actormap
+         ;; rather than a new transactormap, then still do the set! but
+         ;; then the old reference just "dangles" and is eventually gc'ed
+         ;; (we hope)
+         ;; But in the case that the old reference was passed around, we
+         ;; should transform that too... set it to a `mactor:local-link' !
          (define-values (tmp-refr tmp-am _msgs)
            (actormap-run*
             new-actormap
@@ -2773,6 +2782,12 @@ Type: Actormap PersistenceEnv -> Void"
               (apply rehydrator
                      (versioned-data-version versioned-self-portrait)
                      (versioned-data-data versioned-self-portrait)))))
+
+         ;; For once we handle the above TODO:
+         ;; ;; In the off case that a selfish reference is passed to another
+         ;; ;; actor, we set up a symlink
+         ;; (actormap-set! new-actormap tmp-refr
+         ;;                (mactor:local-link refr))
 
          (actormap-set! new-actormap refr
                         (actormap-ref tmp-am tmp-refr)))))
