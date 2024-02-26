@@ -57,8 +57,8 @@
      (set! flipped-forbidden? #t))
    #:catch-errors? #t))
 
-(test-equal alice1-sees "First: Hello Alice1, my name is Bob!\n")
-(test-equal alice2-sees "Second: Hello Alice2, my name is Bob!\n")
+(test-equal "First: Hello Alice1, my name is Bob!\n" alice1-sees)
+(test-equal "Second: Hello Alice2, my name is Bob!\n" alice2-sees)
 (test-assert caught-error?)
 (test-assert (not flipped-forbidden?))
 
@@ -83,8 +83,8 @@
            (set! post-synchronous-call-flipped? #t)
            'what-we-return)
          #:catch-errors? #t)))
-  (test-equal alice-hears "I heard back: Hello Alice, my name is Bob!\n")
+  (test-equal "I heard back: Hello Alice, my name is Bob!\n" alice-hears)
   (test-assert post-synchronous-call-flipped?)
-  (test-equal returned-val 'what-we-return))
+  (test-equal 'what-we-return returned-val))
 
 (test-end "test-await")

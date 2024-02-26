@@ -38,16 +38,14 @@
   (with-vat vat-a
     (spawn ^swear-selector)))
 
-(test-eq
- "select-$/<- to object on same vat gets $"
+(test-eq "select-$/<- to object on same vat gets $"
+ $
  (with-vat vat-a
-   ($ swear-selector-a robot-a))
- $)
+   ($ swear-selector-a robot-a)))
 
-(test-eq
- "select-$/<- to object on remote vat gets <-"
+(test-eq "select-$/<- to object on remote vat gets <-"
+ <-
  (with-vat vat-a
-   ($ swear-selector-a robot-b))
- <-)
+   ($ swear-selector-a robot-b)))
 
 (test-end "test-opportunistic")

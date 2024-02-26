@@ -68,10 +68,10 @@
             (ring-buffer-get! (make-ring-buffer 1)))
 
 (test-eq "Refing returns item at index"
+  'foo
   (let ((ring (make-ring-buffer 1)))
     (ring-buffer-put! ring 'foo)
-    (ring-buffer-ref ring 0))
-  'foo)
+    (ring-buffer-ref ring 0)))
 
 (test-error "Refing throws an error when index is out of bounds"
             (ring-buffer-ref (make-ring-buffer 1) 0))

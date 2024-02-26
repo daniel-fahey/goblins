@@ -18,6 +18,7 @@
 (define-module (goblins vat)
   #:use-module (goblins base-io-ports)
   #:use-module (goblins core)
+  #:use-module (goblins core-types)
   #:use-module (goblins inbox)
   #:use-module (goblins store)
   #:use-module (goblins abstract-types)

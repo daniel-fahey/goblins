@@ -1,6 +1,7 @@
 (define-module (tests ocapn test-captp)
   #:use-module (goblins)
   #:use-module (goblins core)
+  #:use-module (goblins core-types)
   #:use-module (goblins vat)
   #:use-module (goblins actor-lib joiners)
   #:use-module (goblins actor-lib methods)
@@ -61,8 +62,8 @@
                 (<- bob "Alyssa"))
               #:promise? #t)))))
   (test-equal "Non-pipelined send to bob over CapTP"
-    result
-    #(ok "Hello Alyssa, my name is Bob")))
+    #(ok "Hello Alyssa, my name is Bob")
+    result))
 
 
 ;; Testing promise error propagation over CapTP.
@@ -122,8 +123,8 @@
                 (<- introducer-alice meeter-bob chatty-carol))
               #:promise? #t)))))
   (test-equal "A and C on one node, B on another with introductions"
-    result
-    #(ok (hello-back-from carol))))
+    #(ok (hello-back-from carol))
+    result))
 
 ;; ------------- ;;
 ;; Handoff test  ;;
@@ -173,10 +174,9 @@
         a-vat
         (lambda ()
           (<- alice)))))
-  (test-equal
-      "Alice on A, Bob on B introduces Carol on C, via handoffs"
-    result
-    #(ok "Hi Carol, I'm Bob")))
+  (test-equal "Alice on A, Bob on B introduces Carol on C, via handoffs"
+    #(ok "Hi Carol, I'm Bob")
+    result))
 
 (define (^kw-car-factory _bcom brand)
   (lambda* (model #:key (color #f) (noise #f))
@@ -200,8 +200,8 @@
          (lambda ()
            (<- red-explorist-vow)))))
   (test-equal "Sending keyword arguments over CapTP"
-    result
-    #(ok "a red fork explorist goes vrooom!")))
+    #(ok "a red fork explorist goes vrooom!")
+    result))
 
 ;; Test promise shortening
 (define sword
@@ -246,8 +246,8 @@
               (<- a-mycapn 'enliven intermediate-land-sref)
               (<- a-mycapn 'enliven farthest-land-sref))))))
   (test-equal "Shortening promises across CapTP"
-    result
-    #(ok (is-the-same? #t))))
+    #(ok (is-the-same? #t))
+    result))
 
 ;; Test on-sever
 (define op:abort (@ (goblins ocapn captp) op:abort))
@@ -270,8 +270,8 @@
                             ($ sever-resolver 'fulfill `(severed ,shutdown-type ,reason))))))
           sever-vow))))
   (test-equal "on-sever notifies handler on connection sever"
-    result
-    #(ok (severed abort "testing on-sever"))))
+    #(ok (severed abort "testing on-sever"))
+    result))
 
 (let ((result
        (resolve-vow-and-return-result
@@ -294,7 +294,7 @@
 
           sever-vow))))
   (test-equal "on-sever notifies actor handler on connection sever"
-    result
-    #(ok (severed abort "testing on-sever with actor handler"))))
+    #(ok (severed abort "testing on-sever with actor handler"))
+    result))
 
 (test-end "test-captp")

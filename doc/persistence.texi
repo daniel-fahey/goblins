@@ -4,11 +4,17 @@ themselves with only the capabilities they have, this protects against
 one object claiming it has more abilities than it actually does.
 
 @menu
+* Persistence Tutorial::
 * Persistence capable objects::
 * Operations on actormaps::
 * Persistence Environments::
 * Upgrading through persistence::
 @end menu
+
+@node Persistence Tutorial
+@section Persistence Tutorial
+
+TODO when we land persistent vat PR
 
 @node Persistence capable objects
 @section Persistence capable objects
@@ -27,47 +33,107 @@ itself. This can be done by creating a function will be called upon
 taking a portrait return a list containing all the portrait data. The
 data can include references to other local objects.
 
-Lets take the following example of an object which has a name and greets
-the callee, keeping track of the number of times it's been called in a
-cell object:
+Lets take a really simple example which is just an object which has a
+name it's known by and greets you:
 
 @lisp
-(use-modules (goblins)
-             (goblins actor-lib cell))
+(use-modules (goblins))
 
-(define* (^greeter _bcom our-name #:optional (init-number-of-times #f))
-  (define number-of-times
-    (or init-number-of-times (spawn ^cell 0)))
+(define (^greeter _bcom our-name)
   (lambda (their-name)
-    ($ number-of-times (+ ($ number-of-times) 1))
-    (format #f "Hello ~a, my name is ~a (called: ~a)"
-            their-name our-name ($ number-of-times))))
+    (format #f "Hello ~a, my name is ~a" their-name
+            our-name)))
 @end lisp
 
 This object is not persistence capable, that is it does not currently
 have a mechanism to describe itself to create the self portrait. Trying
 to take a portrait of a graph with a non-persistence aware object will
-result in an error. To convert this object to a persistence aware one we
-add a self portrait function:
+result in an error. The easiest way to convert this to a persistence
+aware object is to use the @code{define-actor} macro:
 
 @lisp
-(define* (^greeter _bcom our-name #:optional (init-number-of-times #f))
-  (define number-of-times
-    (or init-number-of-times (spawn ^cell 0)))
+(use-modules (goblins)
+             (goblins utils define-actor))
+
+(define-actor (^greeter _bcom our-name)
+  (lambda (their-name)
+    (format #f "Hello ~a, my name is ~a" their-name
+            our-name)))
+@end lisp
+
+That's it! The @code{define-actor} macro is probably good enough to
+handle most use cases. There will however be cases where you need to be
+a bit more explicit regarding serialization. The @code{define-actor}
+macro takes all of the values it's spawned with, and keeps them around
+so that you can be re-spawned with those values, however there may be
+times for example where you need to convert certain values to a
+serializable form.
+
+In cases where you do need to be more explicit and can't rely on the
+macro, you can do this manually. To do this we can define a
+self-portrait function which is called when the persistence system is
+taking a portrait, this function is expected to return either a list of
+values or a versioned tagged list of values (more on versioning
+@xref{Upgrading through persistence}). Here's the same greeter but
+manually specifying the self-portrait behavior:
+
+@lisp
+(use-modules (goblins))
+
+(define (^greeter _bcom our-name)
   (define (main-beh their-name)
-    ($ number-of-times (+ ($ number-of-times) 1))
-    (format #f "Hello ~a, my name is ~a (called: ~a)"
-            their-name our-name ($ number-of-times)))
+    (format #f "Hello ~a, my name is ~a" their-name
+            our-name))
   (define (self-portrait)
-    (list our-name number-of-times))
+    (list our-name))
   (portraitize main-beh self-portrait))
 @end lisp
 
-This defines the @code{self-portrait} function which includes
-@code{our-name} (a string) and a reference to the cell object containing
-the number of times it's been called. The cell object would also have to
-be persistence aware, however since this actor comes with goblins, it is
-already taken care of for you.
+The persistence system supports the following types:
+
+- number
+- boolean
+- string
+- symbol
+- bytevector
+- list
+- vector
+- keyword
+- ghash
+- tagged value (from the abstract-types module)
+- zilch (from the abstract-types module)
+- local object refr
+- resolved local promises
+
+Any other value of another type needs to be converted into one of the
+supported types above.
+
+As mentioned above, the goblins persistence system can handle references
+to objects within the same actormap or vat, you simply include the refer
+when persisting. Let's take a look at a greeter which does that, keeping
+track of the number of types its been called:
+
+@lisp
+(use-modules (goblins)
+             (goblins actor-lib cell))
+
+(define-actor (^greeter* _bcom our-name number-of-times)
+  (lambda (their-name)
+    (let ((times ($ number-of-times)))
+      ($ number-of-times (+ 1 times))
+      (format #f "Hello ~a, my name is ~a (called ~a)"
+              their-name our-name times))))
+
+(define* (^greeter bcom our-name #:optional [number-of-times 0])
+  (^greeter bcom our-name (spawn ^cell number-of-times)))
+@end lisp
+
+This example uses @code{define-actor} with a seperate constructor which
+``cellifies` the number-of-times and has a default argument. The
+@code{define-actor} will include both the name (a string, like before)
+and a local reference to the cell object containing the number of times
+called. This could have also been written a different way using the
+manual, more explicit way, this exercise is left to the reader.
 
 @node Operations on actormaps
 @section Operations on actormaps
@@ -114,11 +180,10 @@ of values returned is equal to the number of roots provided.
 
 @end deffn
 
-@deffn {Procedure} actormap-replace-behavior am old-persistence-env new-persistence-env
+@deffn {Procedure} actormap-replace-behavior! am persistence-env
 
-Replaces all the objects in @var{am} that are different between the two
-persistence environments, using the rehydration procedure given for the
-object in @var{new-persistence-env}.
+Replace actors in actormap @var{am} with new behavior from
+@var{persistence-env}
 
 It's often desirable, especially when developing a system, to update or
 otherwise change the bahavior of objects which already exist in an
@@ -126,14 +191,26 @@ actormap. This can easily be done by using the persistence system in
 Goblins. Each object can describe itself through its self portrait and
 then be rehydrated into its new behavior allowing seamless upgrades.
 
-This procedure will first calculate a list of all the objects that have
-a different definition in @var{old-persistence-env} than in
-@var{new-persistence-env}. It will then take a portrait all those
-objects, then using that portrait data, rehydrate them with the new
-behavior keeping the object references the same.
+This procedure will first calculate all of the objects that have an
+updated constructor within @var{persistence-env}. It will then take a
+portrait all those objects, then using that portrait data, rehydrate
+them with the new behavior keeping the object references the same.
 
-The procedure returns one argument which is a new updated actormap
-following the upgrade.
+It's important to note that in order to be able to replace the
+bahavior the objects must be been defined as redefinable, this is
+commonly done by using the @code{define-hackable} macro provided with
+Goblins. Non-redefinable actors will not have their bahavior replaced
+as they will appear as different objects within the
+@var{persistence-env}.
+
+@end deffn
+
+@deffn {Procedure} actormap-replace-behavior am persistence-env
+
+Functional version of @code{actormap-replace-behavior!}
+
+This works the same as `actormap-replace-behavior!' but it returns a
+transactormap which the user can choose whether or not to commit.
 
 @end deffn
 
@@ -150,9 +227,9 @@ rehydration.
 When taking portraits of objects or rehydrating them every single object
 must be present in the given persistence env, this would obviously be
 quite tedious as object graphs get larger and contain lots of different
-objects. This is made easier the persistence environments being able to
-extend from (or inherit from) other persistence environments. Lets take
-the idea of our greeter:
+objects. This is made easier by the persistence environments being able
+to extend from (or inherit from) other persistence environments. Lets
+take the idea of our greeter:
 
 @lisp
 
@@ -180,39 +257,28 @@ persistence environment that actor-lib's cell module provides for us:
 @lisp
 (define greeter-env
   (make-persistence-env
-   (list (make-object-spec '((greeter) ^greeter) ^greeter))
-   (list cell-env)))
+   (list (list '((greeter) ^greeter) ^greeter))
+   #:extends cell-env))
 @end lisp
 
 If we later wanted to define another persistence environment which uses
 our greeter, we could define a new persistence environment which
 extends from @var{greeter-env}.
 
-@deffn {Procedure} make-object-spec name constructor rehydrator
-
-Return an object specification to be used inside an persistence environment.
-
-This takes a @var{name} which should be a unique name for an object, the
-convention is to use a fully qualified module path with object
-constructor, however this name can be any symbol which can be assured to
-be unique within a given object graph. It also takes the
-@var{constructor} which must be the constructor of the object itself,
-even if rehydrated by a different function. Finally it can optionally
-take a @var{rehydrator} procedure which is used when rehydrating the
-object, if no @var{rehydrator} function is provided, it uses the object
-constructor when rehydrating.
-@end deffn
-
-@deffn {Procedure} make-persistence-env bindings extends
+@deffn {Procedure} make-persistence-env bindings #:extends
 
 This creates a persistence environment based on a set of object
 specifications and a list of other persistence environments to extend
 from.
 
 This takes two arguments, each being a list. The first is @var{bindings}
-which is a list of all the object specifications. The second is an
-optional argument, @var{extends} which is a list of other persistence
-environments that this environment extends from.
+which is a list of all the object specifications specified as a list:
+
+(OBJECT-NAME OBJECT-CONSTRUCTOR [OBJECT_REHYDRATOR])
+
+The second keyword argument, @var{extends} is either a single persistent
+environment to extend from, or a list of several persistent environments
+to extent from.
 
 Important: Care should be taken to prevent cycles within persistence
 environments.
@@ -243,7 +309,7 @@ fahrenheit:
 
 (define thermostat-env
   (make-persistence-env
-   (make-object-spec '((house temp) ^thermostat) ^thermostat)))
+   (list (list ''((house temp) ^thermostat) ^thermostat))))
 @end lisp
 
 Later, we want to change the thermostat object to work with the set
@@ -273,7 +339,7 @@ look at how we can upgrade the above actor using this upgrade mechanism:
 
 (define thermostat-env
   (make-persistence-env
-   (make-object-spec '((house temp) ^thermostat) ^thermostat rehydrate-thermostat)))
+   (list (list '((house temp) ^thermostat) ^thermostat rehydrate-thermostat))))
 @end lisp
 
 There are two changes here:

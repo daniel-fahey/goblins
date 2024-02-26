@@ -1,5 +1,6 @@
 ;;; Copyright 2019-2023 Christine Lemmer-Webber
 ;;; Copyright 2023 David Thompson
+;;; Copyright 2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -15,6 +16,7 @@
 
 (define-module (tests test-core)
   #:use-module (goblins core)
+  #:use-module (goblins core-types)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-64)
   #:use-module (srfi srfi-11))
@@ -105,8 +107,8 @@
 (define greg
   (actormap-spawn! am ^gregarious "Greg"))
 
-;; Actors which call other actors
-(test-equal "I heard back: Hello Greg, my name is Alice!"
+(test-equal "Test an actor which calls another actor"
+  "I heard back: Hello Greg, my name is Alice!"
   (actormap-peek am greg alice))
 
 ;; Actor updates: update and return value separately
@@ -142,28 +144,30 @@
 ;; Let's noncommittally spawn our friend here...
 (define-values (greety greety-tm)
   (actormap-spawn am ^greeter "Greety"))
-;; We should be able to use actormap-peek on the transactormap...
-(test-equal (actormap-peek greety-tm greety "Marge")
-  "Hello Marge, my name is Greety!")
+
+(test-equal "Test actormap-peek works on transactormaps"
+  "Hello Marge, my name is Greety!"
+  (actormap-peek greety-tm greety "Marge"))
 ;; But we shouldn't be able to act on greety against the uncommitted
 ;; actormap, because nothing happened there...
-(test-error #t (actormap-peek am greety "Marge"))
+(test-error (actormap-peek am greety "Marge"))
 ;; But now let's commmit it...
 (transactormap-merge! greety-tm)
 ;; And now we should be able to.
-(test-equal (actormap-peek am greety "Marge")
-  "Hello Marge, my name is Greety!")
+(test-equal "Check actor can be used (peek'ed) after committed to transactormap"
+  "Hello Marge, my name is Greety!"
+  (actormap-peek am greety "Marge"))
 
 ;; Test that peek and poke work right
 (define a-ctr (actormap-spawn! am ^counter))
-(test-equal (actormap-peek am a-ctr) 0)
-(test-equal (actormap-peek am a-ctr) 0)
-(test-equal (actormap-poke! am a-ctr) 0)
-(test-equal (actormap-poke! am a-ctr) 1)
-(test-equal (actormap-peek am a-ctr) 2)
-(test-equal (actormap-peek am a-ctr) 2)
-(test-equal (actormap-poke! am a-ctr) 2)
-(test-equal (actormap-peek am a-ctr) 3)
+(test-equal 0 (actormap-peek am a-ctr))
+(test-equal 0 (actormap-peek am a-ctr))
+(test-equal 0 (actormap-poke! am a-ctr))
+(test-equal 1 (actormap-poke! am a-ctr))
+(test-equal 2 (actormap-peek am a-ctr))
+(test-equal 2 (actormap-peek am a-ctr))
+(test-equal 2 (actormap-poke! am a-ctr))
+(test-equal 3 (actormap-peek am a-ctr))
 
 ;; Copy of the cell code from cell.scm.  Simplifies some
 ;; tests.
@@ -188,21 +192,22 @@
   (actormap-spawn! am ^spawns-during-constructor))
 
 (test-equal "Spawn when we actormap-spawn(!) (yo dawg)"
-  (actormap-peek am sdc)
-  '(got foo))
+  '(got foo)
+  (actormap-peek am sdc))
 
 ;; Make sure using <-np queues a message
 (test-eqv "a single message gets queued"
+  1
   (let-values (((_returned tam msgs)
                 (actormap-run*
                  am
                  (lambda ()
                    (<-np alice "Nobody")))))
-    (length msgs))
-  1)
+    (length msgs)))
 
 ;; ... or three
 (test-eqv "multiple messages get queued"
+  3
   (let-values (((_returned tam msgs)
                 (actormap-run*
                  am
@@ -210,8 +215,7 @@
                    (<-np alice "Nobody")
                    (<-np alice "Was")
                    (<-np alice "Here")))))
-    (length msgs))
-  3)
+    (length msgs)))
 
 
 ;; "on" handler for success case
@@ -223,7 +227,8 @@
          (lambda (heard)
            (set! on-result `(heard-back ,heard))))))
   (test-equal "`on' handler success case"
-    on-result '(heard-back "Hello Bob, my name is Alice!")))
+    '(heard-back "Hello Bob, my name is Alice!")
+    on-result))
 
 (define (^explodable _bcom)
   (lambda _
@@ -241,11 +246,10 @@
           #:catch
           (lambda (exn)
             (set! on-result `(error ,exn)))))))
-  (test-equal "`on' handler failure case"
+  (test-assert "`on' handler failure case"
     (match on-result
       [('error _err) #t]
-      [_ #f])
-    #t))
+      [_ #f])))
 
 (define (^car-factory bcom company-name)
   (define (^car bcom model color)
@@ -270,7 +274,8 @@
          (lambda (heard)
            (set! on-result `(heard-back ,heard))))))
   (test-equal "Pipelining works in simplest near case"
-    on-result '(heard-back "*Vroom vroom!*  You drive your blue Fork Explorist!")))
+    '(heard-back "*Vroom vroom!*  You drive your blue Fork Explorist!")
+    on-result))
 
 (define (^lessgood-car-factory bcom company-name)
   (define (^car bcom model color)
@@ -327,10 +332,9 @@
              #:catch
              (lambda (e)
                (set! what-i-got `(oh-no ,e)))))))
-  (test-equal
-   "Errors propagate through a promise pipeline, other version"
-   (car what-i-got)
-   'oh-no))
+  (test-equal "Errors propagate through a promise pipeline, other version"
+   'oh-no
+   (car what-i-got)))
 
 (test-assert "raised exceptions are actormap turn errors"
   ;; The only way this returns #t is if an actormap turn error is
@@ -357,15 +361,13 @@
 (test-assert
  "Promise resolves to local-link"
  (mactor:local-link? (whactormap-ref am bob-vow)))
-(test-equal
- "Resolved local-link acts as what it resolves to"
- (actormap-peek am bob-vow)
- "Hi, I'm bob!")
+(test-equal "Resolved local-link acts as what it resolves to"
+ "Hi, I'm bob!"
+ (actormap-peek am bob-vow))
 (actormap-poke! am bob-vow "Hi, I'm bobby!")
-(test-equal
- "Resolved local-link can change original"
- (actormap-peek am bob)
- "Hi, I'm bobby!")
+(test-equal "Resolved local-link can change original"
+ "Hi, I'm bobby!"
+ (actormap-peek am bob))
 
 (define on-resolved-bob-arg #f)
 (actormap-churn-run!
@@ -373,18 +375,17 @@
       (on bob-vow
           (lambda (v)
             (set! on-resolved-bob-arg v)))))
-(test-equal
- "Using `on' against a resolved refr returns that refr"
- on-resolved-bob-arg bob)
+(test-equal "Using `on' against a resolved refr returns that refr"
+  bob
+  on-resolved-bob-arg)
 
 (snarf near-settled-promise-value)
 
-(test-eq
- "near-settled-promise-value can extract local-refr value"
+(test-eq "near-settled-promise-value can extract local-refr value"
+ bob
  (actormap-run
   am (lambda ()
-       (near-settled-promise-value bob-vow)))
- bob)
+       (near-settled-promise-value bob-vow))))
 
 (define encase-vow-and-resolver
   (actormap-run! am spawn-promise-cons))
@@ -394,14 +395,12 @@
 (define encase-me-resolver
   (cdr encase-vow-and-resolver))
 (actormap-poke! am encase-me-resolver 'fulfill 'encase-me)
-(test-eq
- "extracting encased value via actormap-peek"
- (actormap-peek am encase-me-vow)
- 'encase-me)
-(test-eq
- "extracting encased value via $"
- (actormap-run am (lambda () ($ encase-me-vow)))
- 'encase-me)
+(test-eq "extracting encased value via actormap-peek"
+ 'encase-me
+ (actormap-peek am encase-me-vow))
+(test-eq "extracting encased value via $"
+ 'encase-me
+ (actormap-run am (lambda () ($ encase-me-vow))))
 
 (define on-resolved-encased-arg #f)
 (actormap-churn-run!
@@ -409,9 +408,9 @@
       (on encase-me-vow
           (lambda (v)
             (set! on-resolved-encased-arg v)))))
-(test-equal
- "Using `on' against a resolved refr returns that refr"
- on-resolved-encased-arg 'encase-me)
+(test-equal "Using `on' against a resolved refr returns that refr"
+  'encase-me
+  on-resolved-encased-arg)
 
 
 ;; Tests for propagation of resolutions
@@ -442,15 +441,13 @@
          (actormap-peek actormap cell))
        resolved-cells))
 
-(test-equal
- "Fulfilling a promise with on"
- (try-out-on am 'fulfill 'how-fulfilling)
- '((how-fulfilling) #f #t))
+(test-equal "Fulfilling a promise with on"
+ '((how-fulfilling) #f #t)
+ (try-out-on am 'fulfill 'how-fulfilling))
 
-(test-equal
- "Breaking a promise with on"
- (try-out-on am 'break 'i-am-broken)
- '(#f (i-am-broken) #t))
+(test-equal "Breaking a promise with on"
+ '(#f (i-am-broken) #t)
+ (try-out-on am 'break 'i-am-broken))
 
 (define (spawn-const val)
   (spawn (lambda _ (lambda _ val))))
@@ -466,10 +463,9 @@
             #:catch
             (lambda (e)
               (set! what-i-got `(oh-no ,e))))))
-  (test-equal
-   "<- returns a listen'able promise"
-   what-i-got
-   '(yeah i-am-foo)))
+  (test-equal "<- returns a listen'able promise"
+   '(yeah i-am-foo)
+   what-i-got))
 
 (let ([what-i-got #f])
   (quietly
@@ -483,10 +479,9 @@
              #:catch
              (lambda (e)
                (set! what-i-got `(oh-no ,e)))))))
-  (test-equal
-   "<- promise breaks as expected"
-   (car what-i-got)
-   'oh-no))
+  (test-equal "<- promise breaks as expected"
+   'oh-no
+   (car what-i-got)))
 
 (let ([what-i-got #f])
   (actormap-churn-run!
@@ -498,10 +493,9 @@
             #:catch
             (lambda (e)
               (set! what-i-got `(oh-no ,e))))))
-  (test-equal
-   "basic promise pipelining"
-   what-i-got
-   '(yeah i-am-foo)))
+  (test-equal "basic promise pipelining"
+   '(yeah i-am-foo)
+   what-i-got))
 
 (let ([what-i-got #f])
   (quietly
@@ -517,13 +511,12 @@
              #:catch
              (lambda (e)
                (set! what-i-got `(oh-no ,e)))))))
-  (test-equal
-   "basic promise contagion"
-   (car what-i-got)
-   'oh-no))
+  (test-equal "basic promise contagion"
+   'oh-no
+   (car what-i-got)))
 
-(test-equal
- "Passing #:promise? to `on` returns a promise that is resolved"
+(test-equal "Passing #:promise? to `on` returns a promise that is resolved"
+ "got: 6"
  (actormap-peek
   am
   (actormap-churn-run!
@@ -539,8 +532,7 @@
               (lambda (e)
                 "uhoh")
               #:promise? #t))
-        the-on-promise)))
- "got: 6")
+        the-on-promise))))
 
 (let ([what-i-got #f]
       [finally-also-ran? #f])
@@ -555,8 +547,8 @@
            (set! finally-also-ran? #t)))))
   (test-equal
    "A non-promise value passed to `on` merely resolves to that value"
-   what-i-got
-   "got: 42")
+   "got: 42"
+   what-i-got)
   (test-assert
    "#:finally also runs in case of non-promise value passed to `on`"
    finally-also-ran?))
@@ -581,14 +573,12 @@
                         (set! resolved-err `(broken ,err))]))))
        (apply $ some-resolver resolve-args)))
     (list resolved-val resolved-err)))
-(test-equal
- "listen-to works with a fulfilled promise"
- (try-out-listen-to 'fulfill 'yay)
- '((fulfilled yay) #f))
-(test-equal
- "listen-to works with a broken promise"
- (try-out-listen-to 'break 'oh-no)
- '(#f (broken oh-no)))
+(test-equal "listen-to works with a fulfilled promise"
+ '((fulfilled yay) #f)
+ (try-out-listen-to 'fulfill 'yay))
+(test-equal "listen-to works with a broken promise"
+ '(#f (broken oh-no))
+ (try-out-listen-to 'break 'oh-no))
 
 
 (define (try-promise-to-promise . resolve-args)
@@ -617,15 +607,13 @@
        (apply <-np gets-the-answer-resolver resolve-args)))
     (list result finally-ran?)))
 
-(test-equal
- "Promise fulfilled to promise itself gets fulfillment"
- (try-promise-to-promise 'fulfill 'yay)
- '((got-val yay) #t))
+(test-equal "Promise fulfilled to promise itself gets fulfillment"
+ '((got-val yay) #t)
+ (try-promise-to-promise 'fulfill 'yay))
 
-(test-equal
- "Promise fulfilled to promise has broken promise contagion"
- (try-promise-to-promise 'break 'yikes)
- '((got-err yikes) #t))
+(test-equal "Promise fulfilled to promise has broken promise contagion"
+ '((got-err yikes) #t)
+ (try-promise-to-promise 'break 'yikes))
 
 ;; object persistence tests
 (define* (^incrementer bcom #:optional [value 0])
@@ -635,15 +623,18 @@
     (list value))
   (portraitize main-beh self-portrait))
 
-(define* (^persistent-greeter bcom our-name #:optional [init-number-of-times #f])
-  (define number-of-times
-    (or init-number-of-times (spawn ^incrementer)))
-  (define (main-beh your-name)
-    (format #f "Hello ~a, my name is ~a (called ~a)."
-            your-name our-name ($ number-of-times)))
-  (define (self-portrait)
-    (list our-name number-of-times))
-  (portraitize main-beh self-portrait))
+(define ^persistent-greeter
+  (make-redefinable-object
+   (lambda* (bcom our-name #:optional [init-number-of-times #f])
+     (define number-of-times
+       (or init-number-of-times (spawn ^incrementer)))
+     (define (main-beh your-name)
+       (bcom (^persistent-greeter bcom our-name number-of-times)
+             (format #f "Hello ~a, my name is ~a (called ~a)."
+                     your-name our-name ($ number-of-times))))
+     (define (self-portrait)
+       (list our-name number-of-times))
+     (portraitize main-beh self-portrait))))
 
 (define (restored-greeter-rehydrate version our-name number-of-times)
   (spawn ^persistent-greeter
@@ -665,13 +656,12 @@
 
 (define incrementer-env
   (make-persistence-env
-   (list (make-object-spec '((tests test-core) ^incrementer) ^incrementer))
-   (list)))
+   (list (list '((tests test-core) ^incrementer) ^incrementer))))
 
 (define greeter-env
   (make-persistence-env
-   (list (make-object-spec '((tests test-core) ^persistent-greeter) ^persistent-greeter restored-greeter-rehydrate))
-   (list incrementer-env)))
+   (list (list '((tests test-core) ^persistent-greeter) ^persistent-greeter restored-greeter-rehydrate))
+   #:extends incrementer-env))
 
 (define-values (astrid-greeter-portrait astrid-greeter-roots)
   (actormap-take-portrait first-actormap greeter-env astrid-greeter))
@@ -683,28 +673,26 @@
   (actormap-restore second-actormap greeter-env astrid-greeter-portrait astrid-greeter-roots))
 
 (test-equal "Restored greeter reports correct number of times called"
-  "Hello Ludvig, my name is *restored Astrid* (called 3)."
-  (actormap-peek second-actormap restored-astrid-greeter "Ludvig"))
+  (actormap-peek second-actormap restored-astrid-greeter "Ludvig")
+  "Hello Ludvig, my name is *restored Astrid* (called 3).")
 
-(define* (^fancy-greeter bcom our-name #:optional init-number-of-times)
-  (define number-of-times
-    (or init-number-of-times (spawn ^incrementer)))
-  (define (main-beh your-name)
-    (format #f "Salutations ~a, I am called ~a, delighted to make your acquaintance! (called: ~a)"
-            your-name our-name ($ number-of-times)))
-  (define (self-portrait)
-    (list our-name number-of-times))
-  (portraitize main-beh self-portrait))
 
-(define new-greeter-env
-  (make-persistence-env
-   (list (make-object-spec '((tests test-core) ^persistent-greeter) ^fancy-greeter))
-   (list incrementer-env)))
+(set!-redefinable-object-constructor
+ ^persistent-greeter
+ (lambda* (bcom our-name #:optional init-number-of-times)
+   (define number-of-times
+     (or init-number-of-times (spawn ^incrementer)))
+   (define (main-beh your-name)
+     (format #f "Salutations ~a, I am called ~a, delighted to make your acquaintance! (called: ~a)"
+             your-name our-name ($ number-of-times)))
+   (define (self-portrait)
+     (list our-name number-of-times))
+   (portraitize main-beh self-portrait)))
 
-(actormap-replace-behavior! second-actormap greeter-env new-greeter-env)
+(actormap-replace-behavior! first-actormap greeter-env)
 
 (test-equal "Actors are updated when the behavior is replaced by new behavior"
-  "Salutations Ludvig, I am called *restored Astrid*, delighted to make your acquaintance! (called: 3)"
-  (actormap-peek second-actormap restored-astrid-greeter "Ludvig"))
+  (actormap-peek first-actormap astrid-greeter "Ludvig")
+  "Salutations Ludvig, I am called *restored Astrid*, delighted to make your acquaintance! (called: 3)")
 
 (test-end "test-goblins-core")

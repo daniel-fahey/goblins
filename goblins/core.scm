@@ -1,6 +1,6 @@
 ;;; Copyright 2019-2023 Christine Lemmer-Webber
 ;;; Copyright 2023 David Thompson
-;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2022-2024 Jessica Tallon
 ;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,23 +16,9 @@
 ;;; limitations under the License.
 
 (define-module (goblins core)
-  #:export (live-refr?
-            local-refr?
-            remote-refr?
-            promise-refr?
-            local-object-refr?
-            local-promise-refr?
-            remote-object-refr?
-            remote-promise-refr?
-
-            near-refr?
-            far-refr?
-
-            make-actormap
+  #:export (make-actormap
             make-transactormap
             make-whactormap
-
-            actormap-vat-connector
 
             actormap-spawn
             actormap-spawn!
@@ -61,13 +47,14 @@
             dispatch-message
             dispatch-messages
 
-            whactormap?
-            transactormap?
             transactormap-reparent
             transactormap-merge!
             transactormap-buffer-merge!
 
             copy-whactormap
+
+            near-refr?
+            far-refr?
 
             spawn spawn-named
             $ <-np <-
@@ -83,29 +70,12 @@
             spawn-promise-cons
             spawn-promise-values
 
-            make-persistence-env
-            make-object-spec
-            object-spec?
-            object-spec-name
-            object-spec--constructor
-            object-spec-rehydrator
-            portraitize
-            make-actormap-take-portrait
+	    make-actormap-take-portrait
+	    actormap-take-portrait-with-fn
             actormap-take-portrait
-            actormap-take-portrait-with-fn
+            actormap-replace-behavior
             actormap-replace-behavior!
             actormap-restore
-
-            <portrait-record>
-            portrait-record?
-            portrait-record-type
-            portrait-record-data
-	    <versioned-data>
-            versioned
-	    versioned-data?
-	    versioned-data-version
-	    versioned-data-data
-	    
 
             ;; TODO: separate this out!
             <message>
@@ -135,20 +105,33 @@
 
             syscaller-free
 
-            ;; TODO: These really should be moved into a more private
-            ;; location...!  Few things will need, or should have, this
-            make-remote-object-refr
-            make-remote-promise-refr
-            local-object-refr-debug-name
-            local-refr-vat-connector
-            remote-refr-captp-connector
-            remote-refr-sealed-pos
-
             near-promise-broken?
             near-promise-settled?
             near-settled-promise-value
             near-promise-resolved?
-            near-resolved-promise-value)
+            near-resolved-promise-value
+
+            make-persistence-env)
+
+  #:re-export (live-refr?
+               local-refr?
+               remote-refr?
+               promise-refr?
+               local-object-refr?
+               local-promise-refr?
+               remote-object-refr?
+               remote-promise-refr?
+
+               actormap-vat-connector
+
+               whactormap?
+
+               portraitize
+               versioned
+               <portrait-record>
+               portrait-record?
+               portrait-record-type
+               portrait-record-data)
   #:replace (spawn)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
@@ -159,8 +142,9 @@
   #:use-module (ice-9 q)
   #:use-module (ice-9 suspendable-ports)
   #:use-module (rnrs bytevectors)
-  #:use-module (goblins ghash)
+  #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
+  #:use-module (goblins ghash)
   #:use-module (goblins utils sets))
 
 
@@ -196,34 +180,6 @@
          (display "<sealed>" port))))
   (values seal unseal sealed?))
 
-;; Portraitized behavior
-(define-record-type <portraitized-behavior>
-  (portraitize beh self-portrait)
-  portraitized-behavior?
-  (beh portraitized-behavior-behavior)
-  (self-portrait portraitized-behavior-self-portrait))
-
-(define-record-type <persistence-env>
-  (make-persistence-env bindings extends)
-  persistence-env?
-  (bindings persistence-env-bindings)
-  (extends persistence-env-extends))
-
-(define-record-type <object-spec>
-  (_make-object-spec name constructor rehydrator)
-  object-spec?
-  (name object-spec-name)
-  (constructor object-spec-constructor)
-  (rehydrator object-spec-rehydrator))
-
-(define* (make-object-spec name constructor #:optional maybe-rehydrator)
-  (define rehydrator
-    (if maybe-rehydrator
-        maybe-rehydrator
-        (lambda (version . args)
-          (apply spawn constructor args))))
-  (_make-object-spec name constructor rehydrator))
-
 (define (persistence-env-find match? env)
   (define (match-bindings bindings)
     (match bindings
@@ -252,9 +208,9 @@
 (define (persistence-env-ref env name)
   "Finds the object specification within a given persistence environment tree by the provided name"
   (persistence-env-find
-    (lambda (obj-spec)
-      (equal? (object-spec-name obj-spec) name))
-    env))
+   (lambda (obj-spec)
+     (equal? (object-spec-name obj-spec) name))
+   env))
 
 (define (persistence-env-ref-by-constructor env constructor)
   (persistence-env-find
@@ -270,9 +226,10 @@
 
   (define (build-name->object-spec persistence-envs)
     (define tbl (make-hash-table))
-    (map (lambda (obj-spec)
-           (hashq-set! tbl (object-spec-name obj-spec) obj-spec))
-         persistence-envs)
+    (for-each
+     (lambda (obj-spec)
+       (hashq-set! tbl (object-spec-name obj-spec) obj-spec))
+     persistence-envs)
     tbl)
 
   (define old-map (build-name->object-spec (flatten old)))
@@ -541,53 +498,14 @@
 ;; Actormaps, etc
 ;; ==============
 
-(define-record-type <actormap>
-  ;; TODO: This is confusing, naming-wise? (see make-actormap alias)
-  (_make-actormap metatype data vat-connector)
-  actormap?
-  (metatype actormap-metatype)
-  (data actormap-data)
-  (vat-connector actormap-vat-connector))
 
-;; (set-record-type-printer!
-;;  <actormap>
-;;  (lambda (am port)
-;;    (format port "#<actormap ~a>" (actormap-metatype-name (actormap-metatype am)))))
 
-(define-record-type <actormap-metatype>
-  (make-actormap-metatype name ref-proc set!-proc)
-  actormap-metatype?
-  (name actormap-metatype-name)
-  (ref-proc actormap-metatype-ref-proc)
-  (set!-proc actormap-metatype-set!-proc))
 
-(define (actormap-set! am key val)
-  ((actormap-metatype-set!-proc (actormap-metatype am))
-   am key val)
-  *unspecified*)
 
-;; (-> actormap? local-refr? (or/c mactor? #f))
-(define (actormap-ref am key)
-  ((actormap-metatype-ref-proc (actormap-metatype am)) am key))
 
 ;; Weak-hash actormaps
 ;; ===================
 
-(define-record-type <whactormap-data>
-  (make-whactormap-data wht)
-  whactormap-data?
-  (wht whactormap-data-wht))
-
-(define (whactormap-ref am key)
-  (define wht (whactormap-data-wht (actormap-data am)))
-  (hashq-ref wht key #f))
-
-(define (whactormap-set! am key val)
-  (define wht (whactormap-data-wht (actormap-data am)))
-  (hashq-set! wht key val))
-
-(define whactormap-metatype
-  (make-actormap-metatype 'whactormap whactormap-ref whactormap-set!))
 
 (define* (make-whactormap #:key [vat-connector #f])
   "Create and return a reference to a weak-hash actormap. If provided,
@@ -598,12 +516,6 @@ Type: (Optional Syscaller) -> WHActormap"
                   (make-whactormap-data (make-weak-key-hash-table))
                   vat-connector))
 
-(define (whactormap? obj)
-  "Return #t if OBJ is a weak-hash actormap, else #f.
-
-Type: Any -> Boolean"
-  (and (actormap? obj)
-       (eq? (actormap-metatype obj) whactormap-metatype)))
 
 ;; TODO: again, confusing (see <actormap>)
 (define make-actormap make-whactormap)
@@ -622,18 +534,7 @@ Type: Any -> Boolean"
                   (actormap-vat-connector am)))
 
 
-;; Transactional actormaps
-;; =======================
 
-(define-record-type <transactormap-data>
-  (make-transactormap-data parent delta merged?)
-  transactormap-data?
-  (parent transactormap-data-parent)
-  (delta transactormap-data-delta)
-  (merged? transactormap-data-merged? set-transactormap-data-merged?!))
-
-(define (transactormap-merged? transactormap)
-  (transactormap-data-merged? (actormap-data transactormap)))
 
 (define (transactormap-ref transactormap key)
   (define tm-data (actormap-data transactormap))
@@ -733,112 +634,6 @@ Type: Actormap -> TransActormap"
                   vat-connector))
 
 
-;; Ref(r)s
-;; =======
-
-(define-record-type <local-object-refr>
-  (make-local-object-refr debug-name vat-connector)
-  local-object-refr?
-  (debug-name local-object-refr-debug-name)
-  (vat-connector local-object-refr-vat-connector))
-
-(set-record-type-printer!
- <local-object-refr>
- (lambda (lor port)
-   (match (local-object-refr-debug-name lor)
-     [#f (display "#<local-object>" port)]
-     [debug-name
-      (format port "#<local-object ~a>" debug-name)])))
-
-(define-record-type <local-promise-refr>
-  (make-local-promise-refr vat-connector)
-  local-promise-refr?
-  (vat-connector local-promise-refr-vat-connector))
-
-(set-record-type-printer!
- <local-promise-refr>
- (lambda (lpr port)
-   (display "#<local-promise>" port)))
-
-(define (local-refr? obj)
-  "Return #t if OBJ is an object or promise reference in the current
-process, else #f.
-
-Type: Any -> Boolean"
-  (or (local-object-refr? obj) (local-promise-refr? obj)))
-
-(define (local-refr-vat-connector local-refr)
-  (match local-refr
-    [(? local-object-refr?)
-     (local-object-refr-vat-connector local-refr)]
-    [(? local-promise-refr?)
-     (local-promise-refr-vat-connector local-refr)]))
-
-;; Captp-connector should be a procedure which both sends a message
-;; to the local node representative actor, but also has something
-;; serialized that knows which specific remote node + session this
-;; corresponds to (to look up the right captp session and forward)
-
-(define-record-type <remote-object-refr>
-  (make-remote-object-refr captp-connector sealed-pos)
-  remote-object-refr?
-  (captp-connector remote-object-refr-captp-connector)
-  (sealed-pos remote-object-refr-sealed-pos))
-
-(define-record-type <remote-promise-refr>
-  (make-remote-promise-refr captp-connector sealed-pos)
-  remote-promise-refr?
-  (captp-connector remote-promise-refr-captp-connector)
-  (sealed-pos remote-promise-refr-sealed-pos))
-
-(define (promise-refr? maybe-promise)
-  "Return #t if MAYBE-PROMISE is a promise reference, else #f.
-
-Type: Any -> Boolean"
-  (or (local-promise-refr? maybe-promise) (remote-promise-refr? maybe-promise)))
-
-(define (remote-refr-captp-connector remote-refr)
-  (match remote-refr
-    [(? remote-object-refr?)
-     (remote-object-refr-captp-connector remote-refr)]
-    [(? remote-promise-refr?)
-     (remote-promise-refr-captp-connector remote-refr)]))
-
-(define (remote-refr-sealed-pos remote-refr)
-  (match remote-refr
-    [(? remote-object-refr?)
-     (remote-object-refr-sealed-pos remote-refr)]
-    [(? remote-promise-refr?)
-     (remote-promise-refr-sealed-pos remote-refr)]))
-
-(set-record-type-printer!
- <remote-object-refr>
- (lambda (lpr port)
-   (display "#<remote-object>" port)))
-
-(set-record-type-printer!
- <remote-promise-refr>
- (lambda (lpr port)
-   (display "#<remote-promise>" port)))
-
-(define (remote-refr? obj)
-  "Return #t if OBJ is an object or promise reference in a different
-process, else #f.
-
-Type: Any -> Boolean"
-  (or (remote-object-refr? obj)
-      (remote-promise-refr? obj)))
-
-(define (live-refr? obj)
-  "Return #t if OBJ is a local or remote object or promise reference,
-else #f.
-
-Type: Any -> Boolean"
-  (or (local-refr? obj)
-      (remote-refr? obj)))
-
-
-
 ;; "Become" sealer/unsealers
 ;; =========================
 
@@ -920,17 +715,30 @@ Type: Any -> Boolean"
 ;;;  - "Reference mechanics":
 ;;;      http://erights.org/elib/concurrency/refmech.html
 
+;; TODO: Maybe move this to core-types?
 ;; local-objects are the most common type, have a message handler
 ;; which specifies how to respond to the next message, as well as
 ;; a predicate and unsealer to identify and unpack when a message
 ;; handler specifies that this actor would like to "become" a new
 ;; version of itself (get a new handler)
 (define-record-type <mactor:object>
-  (make-mactor:object behavior constructor self-portrait become-unsealer become?)
+  (make-mactor:object behavior constructor-refr spawned-constructor
+                      self-portrait become-unsealer become?)
   mactor:object?
+  ;; Behavior procedure
   (behavior mactor:object-behavior)
-  (constructor mactor:object-constructor)
+  ;; Reference to the constructor procedure or redefinable-object-constructor
+  ;; this actor was spawned from
+  ;; TODO: rename this, it's not a live-refr, and it kind of sounds like it is
+  (constructor-refr mactor:object-constructor-refr)
+  ;; This is the inner constructor *procedure*, which is unboxed from a
+  ;; redefinable-object-constructor, so we can compare if the constructor
+  ;; changed when doing an `actormap-replace-behavior'
+  (spawned-constructor mactor:object-spawned-constructor)
+  ;; The object's self-portrait procedure, if it exists
   (self-portrait mactor:object-self-portrait)
+  ;; The following two are the predicate and unsealer from a
+  ;; `make-become-sealer-triplet', specific to this actor
   (become-unsealer mactor:object-become-unsealer)
   (become? mactor:object-become?))
 
@@ -1442,7 +1250,8 @@ Type: Any -> Boolean"
            (actormap-set! actormap to-refr
                           (make-mactor:object
                            new-behavior
-                           (mactor:object-constructor mactor)
+                           (mactor:object-constructor-refr mactor)
+                           (mactor:object-spawned-constructor mactor)
                            self-portrait
                            (mactor:object-become-unsealer mactor)
                            (mactor:object-become? mactor))))
@@ -1463,9 +1272,14 @@ Type: Any -> Boolean"
               "Not an encased or object mactor:" mactor)]))
 
   ;; spawn a new actor
-  (define (_spawn constructor args debug-name)
+  (define (_spawn maybe-constructor args debug-name)
     (define-values (become become-unsealer become-sealed?)
       (make-become-sealer-triplet))
+    (define-values (constructor constructor-refr)
+      (values (if (redefinable-object? maybe-constructor)
+                  (redefinable-object-constructor maybe-constructor)
+                  maybe-constructor)
+              maybe-constructor))
     (define initial-behavior
       (apply constructor become args))
     (define* (create-refr beh #:optional maybe-self-portrait)
@@ -1479,6 +1293,7 @@ Type: Any -> Boolean"
                 (make-local-object-refr debug-name vat-connector)))
            (actormap-set! actormap actor-refr
                           (make-mactor:object beh
+                                              constructor-refr
                                               constructor
                                               maybe-self-portrait
                                               become-unsealer become-sealed?))
@@ -2030,7 +1845,7 @@ CONSTRUCTOR, passing it ARGS.
 
 Type: Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
-  (sys 'spawn constructor args (procedure-name constructor)))
+  (sys 'spawn constructor args (actor-name constructor)))
 
 (define (spawn-named name constructor . args)
   "Construct and return a reference to an actor with the debug name
@@ -2270,16 +2085,21 @@ Type: -> (Promise . Resolver)"
 ;; This is the internally used version of actormap-spawn,
 ;; also used by the syscaller.  It doesn't set up a syscaller
 ;; if there isn't currently one.
-(define* (actormap-spawn!* actormap actor-constructor
+(define* (actormap-spawn!* actormap maybe-constructor
                            args
                            #:optional
-                           [debug-name (procedure-name actor-constructor)])
+                           [debug-name (actor-name maybe-constructor)])
   (define vat-connector
     (actormap-vat-connector actormap))
   (define-values (become become-unseal become?)
     (make-become-sealer-triplet))
+  (define-values (constructor constructor-refr)
+    (values (if (redefinable-object? maybe-constructor)
+                (redefinable-object-constructor maybe-constructor)
+                maybe-constructor)
+            maybe-constructor))
   (define actor-handler
-    (apply actor-constructor become args))
+    (apply constructor become args))
   (define* (handler->refr handler #:optional maybe-self-portrait)
     (match handler
       ;; We can't use match record unpacking because of goblin's $ function.
@@ -2290,7 +2110,8 @@ Type: -> (Promise . Resolver)"
        (let ((actor-refr
               (make-local-object-refr debug-name vat-connector)))
          (actormap-set! actormap actor-refr
-                        (make-mactor:object handler actor-constructor
+                        (make-mactor:object handler constructor-refr
+                                            constructor
                                             maybe-self-portrait
                                             become-unseal become?))
          actor-refr)]
@@ -2298,7 +2119,7 @@ Type: -> (Promise . Resolver)"
        pre-existing-refr]
       [_
        (error 'invalid-actor-handler "Not a procedure, aurie or live refr:" handler)]))
-  (handler->refr actor-handler #f))
+  (handler->refr actor-handler))
 
 ;; These two are user-facing procedures.  Thus, they set up
 ;; their own syscaller.
@@ -2770,18 +2591,28 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (parameterize ([current-syscaller #f])
     (proc)))
 
-;; These are records which hold some part of an objects portrait data.
-(define-record-type <portrait-record>
-  (make-portrait-record type data)
-  portrait-record?
-  (type portrait-record-type)
-  (data portrait-record-data))
+(define* (make-persistence-env objects #:key extends)
+  (define object-spec-list>object-spec
+     (case-lambda
+       [(name constructor)
+        (make-object-spec name constructor
+                          (lambda (version . args)
+                            (apply spawn constructor args)))]
+       [(name constructor rehydrator)
+        (make-object-spec name constructor rehydrator)]))
 
-(define-record-type <versioned-data>
-  (versioned version data)
-  versioned-data?
-  (version versioned-data-version)
-  (data versioned-data-data))
+  (define object-specs
+    (map (lambda (object-spec-list)
+           (apply object-spec-list>object-spec object-spec-list))
+         objects))
+
+  (_make-persistence-env
+   object-specs
+   (match extends
+     [#f '()]
+     [(envs ...) envs]
+     [(? persistence-env? env) (list env)]
+     [_ (error "Unknown value to extend persistence environment from" extends)])))
 
 (define (make-actormap-take-portrait persistence-env . roots)
   "Produces a precedure to take new portraits of a graph of objects within a actormap"
@@ -2801,12 +2632,14 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       ((obj) (hashq-ref val->slot obj))))
 
   (define (slot-maybe-queue-near-ref! obj)
-    (or (values (hashq-ref val->slot obj #f) #f)
-        (let ([this-slot next-id])
-          (set! next-id (+ 1 next-id))
-          (hashq-set! val->slot obj this-slot)
-          (hashq-set! slot->val this-slot obj)
-          (values this-slot #t))))
+    (let ((slot (hashq-ref val->slot obj #f)))
+      (if slot
+	  (values slot #f)
+          (let ([new-slot next-id])
+            (set! next-id (+ 1 next-id))
+            (hashq-set! val->slot obj new-slot)
+            (hashq-set! slot->val new-slot obj)
+            (values new-slot #t)))))
 
   (define root-slots
     (map (lambda (obj)
@@ -2821,14 +2654,15 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (unless slot
       (error "Object does not appear in the persistence graph" this-obj))
 
+    ;; TODO: Move to an quicker mutable data structure
     (define new-child-objs
       (make-set))
     (define this-obj-self-portrait-fn
       (mactor:object-self-portrait (actormap-ref am this-obj)))
-    (define this-obj-constructor
-      (mactor:object-constructor (actormap-ref am this-obj)))
+    (define this-obj-constructor-refr
+      (mactor:object-constructor-refr (actormap-ref am this-obj)))
     (define-values (this-obj-spec this-obj-env)
-      (persistence-env-ref-by-constructor persistence-env this-obj-constructor))
+      (persistence-env-ref-by-constructor persistence-env this-obj-constructor-refr))
 
     (define (process-one value)
       (match value
@@ -2851,7 +2685,12 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
           value)]
         [(? keyword? kw)
          (make-portrait-record 'keyword (keyword->symbol kw))]
-        [(? local-object-refr?)
+        [(? tagged? tagged)
+         (make-portrait-record 'tagged (list (tagged-label tagged)
+                                             (tagged-data tagged)))]
+        [(? zilch?)
+         (make-portrait-record 'zilch #f)]
+	[(? local-object-refr?)
 	 (let-values (((slot created?) (slot-maybe-queue-near-ref! value)))
 	   (when created?
 	     (set! new-child-objs (set-add new-child-objs value)))
@@ -2863,6 +2702,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
         [_ (error "Unserializable value" value)]))
 
     (define (process-portrait obj-spec portrait-data)
+      (unless obj-spec
+        (error "Don't know how to persist:" this-obj this-obj-constructor-refr))
       (match portrait-data
         [(? versioned-data? data)
          (define processed-data
@@ -2924,54 +2765,76 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
   (apply actormap-take-portrait-with-fn am read-portrait! obj->slot-ref roots))
 
-(define (actormap-replace-behavior! am old-persistence-env new-persistence-env)
-  "Take self portrait of all the actors with different behavior and rehydrates them with the new behavior"
+(define (actormap-replace-behavior am persistence-env)
+  "Functional version of `actormap-replace-behavior!'
+
+This works the same as `actormap-replace-behavior!' but it returns
+a transactormap which the user can choose whether or not to commit.
+
+Type: Actormap PersistenceEnv -> TransactorMap"
   (define metatype (actormap-metatype am))
 
   ;; For now just deal with whactormaps (maybe always only do this?)
+  ;; TODO: Support all actormap types by adding actormap-fold / actormap-for-each
   (unless (eq? (actormap-metatype-name metatype) 'whactormap)
     (error "Provided actormap is not a whactormap."))
   (define whactormap (actormap-data am))
   (define whactormap-table (whactormap-data-wht whactormap))
+  (define new-actormap (make-transactormap am))
 
-  ;; Go through the new environment looking for changed objects
-  (define changed-obj-specs (persistence-env-diff old-persistence-env new-persistence-env))
+  ;; Used to cache the lookup of object types
+  (define constructor-ref->object-spec (make-hash-table))
+  (define (lookup-and-cache-object-spec mactor)
+    (define constructor-refr
+      (mactor:object-constructor-refr mactor))
+    (define cached-object-spec
+      (hashq-ref constructor-ref->object-spec constructor-refr #f))
+    (if cached-object-spec
+        cached-object-spec
+        (let-values (((found-object-spec _env)
+                      (persistence-env-ref-by-constructor persistence-env
+                                                          constructor-refr)))
+          (hashq-set! constructor-ref->object-spec constructor-refr
+                      found-object-spec)
+          found-object-spec)))
 
-  ;; For speed build up these tables ahead of time.
-  (define old-constructor->name (make-hash-table))
-  (map (lambda (name)
-         (hashq-set! old-constructor->name
-                     (object-spec-constructor (persistence-env-ref old-persistence-env name))
-                     name))
-       changed-obj-specs)
-  (define name->new-obj-spec (make-hash-table))
-
-  (map (lambda (name)
-         (hashq-set! name->new-obj-spec name (persistence-env-ref new-persistence-env name)))
-       changed-obj-specs)
-
-  (define new-actormap
-    (make-transactormap am))
+  (define (has-new-beh? object-spec mactor)
+    (define spawned-constructor
+      (mactor:object-spawned-constructor mactor))
+    (define current-constructor
+      (object-spec-constructor object-spec))
+    ;; We've already checked before this procedure is invoked whether or not
+    ;; this is a `redefinable-object?' so we don't need to do that again.
+    (not (eq? (redefinable-object-constructor current-constructor)
+              spawned-constructor)))
 
   (hash-for-each
    (lambda (refr mactor)
-     (define name
-       (if (mactor:object? mactor)
-           (hashq-ref old-constructor->name (mactor:object-constructor mactor) #f)
+     ;; Find the object spec for the given mactor (might not have one).
+     (define object-spec
+       (if (and (mactor:object? mactor)
+                (redefinable-object? (mactor:object-constructor-refr mactor)))
+           (lookup-and-cache-object-spec mactor)
            #f))
-     (when name
+
+     (when (and object-spec (has-new-beh? object-spec mactor))
        (let* ([take-self-portrait (mactor:object-self-portrait mactor)]
               [self-portrait (take-self-portrait)]
-              [new-obj-spec (hashv-ref name->new-obj-spec name)]
-              [rehydrator (object-spec-rehydrator new-obj-spec)])
-         ;; The rehydrator will call =spawn= which will create a new refr,
-         ;; that's not actually what we want so allow that to happen since we
-         ;; want the actor to exist at the old  refr. Once we've rehydrated the
-         ;; actor install the new object at its old refr.
+              [rehydrator (object-spec-rehydrator object-spec)])
+         ;; The rehydrator will call `spawn' which will create a new refr,
+         ;; but we actually want to keep the old refr.  Once we've rehydrated
+         ;; the actor, install the new object at its old refr.
          (define versioned-self-portrait
            (if (versioned-data? self-portrait)
                self-portrait
                (versioned 0 self-portrait)))
+         ;; TODO: This doesn't support new references being spawned during
+         ;; upgrade code.  One way to do this is to commit to the actormap
+         ;; rather than a new transactormap, then still do the set! but
+         ;; then the old reference just "dangles" and is eventually gc'ed
+         ;; (we hope)
+         ;; But in the case that the old reference was passed around, we
+         ;; should transform that too... set it to a `mactor:local-link' !
          (define-values (tmp-refr tmp-am _msgs)
            (actormap-run*
             new-actormap
@@ -2980,10 +2843,26 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
                      (versioned-data-version versioned-self-portrait)
                      (versioned-data-data versioned-self-portrait)))))
 
+         ;; For once we handle the above TODO:
+         ;; ;; In the off case that a selfish reference is passed to another
+         ;; ;; actor, we set up a symlink
+         ;; (actormap-set! new-actormap tmp-refr
+         ;;                (mactor:local-link refr))
+
          (actormap-set! new-actormap refr
                         (actormap-ref tmp-am tmp-refr)))))
-       whactormap-table)
-  (transactormap-merge! new-actormap))
+   whactormap-table)
+  new-actormap)
+
+(define (actormap-replace-behavior! am persistence-env)
+  "Replace actors in actormap AM with new behavior from PERSISTENCE-ENV
+
+Takes self portrait of all the actors with different behavior and
+rehydrates them with the new behavior.
+
+Type: Actormap PersistenceEnv -> Void"
+  (define tm (actormap-replace-behavior am persistence-env))
+  (transactormap-merge! tm))
 
 (define (depictable-atom? obj)
   (or (number? obj) (boolean? obj) (string? obj)
@@ -3035,6 +2914,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
                    (ghash-set prev (restore-one k) (restore-one v)))
                  (make-ghash)
                  data)]
+               ['zilch zilch]
+               ['tagged (make-tagged (car data) (cadr data))]
                ['near-refr (hashq-ref slots->promises data)]
                [_ (error "Unknown depiction type" type)]))]
            [_ depicted]))
@@ -3046,7 +2927,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
            (apply rehydrator version restored-args))
          ($ resolver 'fulfill restored-obj))))
 
-    ;; Restore all the objects in the
+    ;; Restore all the objects in the vows we have setup.
     (hash-for-each
      (lambda (slot portrait)
        (restore-slot! slot (portrait-record-data portrait)))
@@ -3074,3 +2955,10 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 	    (if (near-promise-settled? vow)
 		(near-settled-promise-value vow)
 		(error "Restored object promise not settled")))))]))
+
+(define (actor-name constructor)
+  (match constructor
+    [(? procedure? proc)
+     (procedure-name proc)]
+    [(? redefinable-object? re-object)
+     (actor-name (redefinable-object-constructor re-object))]))

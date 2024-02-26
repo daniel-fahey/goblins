@@ -15,6 +15,7 @@ actor model patterns.
 * Pushdown::
 * Queue::
 * Sealers::
+* Selfish-Spawn::
 * Simple Mint::
 * Swappable::
 * Ticker::
@@ -682,6 +683,66 @@ rival service:
 => #f
 > ($ our-lunch:unseal chickpea-lunch)
 => chickpea-salad
+@end lisp
+
+@end deffn
+
+@node Selfish-Spawn
+@section Selfish-Spawn
+
+The @code{(goblins actor-lib selfish-spawn)} module provides a
+@code{spawn}-like procedure which spawns objects able to reference
+themselves.
+
+@deffn {Procedure} selfish-spawn constructor args @dots{}
+
+Construct and return a reference to a new object which has a reference
+to itself.
+
+@itemize
+@item
+@var{constructor}: Procedure which returns a procedure representing
+the object's initial behavior; implicitly passed a first argument,
+@code{bcom}, which can be used to change the object's behavior, and a
+second argument, @code{self}, which is a reference to the object being
+constructed.
+
+@item
+@var{args}: Remaining arguments passed to @var{constructor}.
+
+@end itemize
+
+This procedure is useful for patterns requiring object introspection.
+However, it is usually possible to achieve the same results without
+@code{selfish-spawn} so it should be used sparingly.
+
+Here is a simplified example of a deck of playing cards using its own
+method within another method:
+
+@lisp
+(define* (^deck bcom self #:optional crds)
+  ;; define helpers etc. here...
+
+  (define-cell cards (or crds (init-deck)))
+  (methods
+   ...
+   ((top) (car ($ cards)))
+   ((draw)
+    (let ((top ($ self 'top)))
+      ($ cards (cdr ($ cards)))
+      top))
+   ...))
+@end lisp
+
+This object can then be used more or less like any other:
+
+@lisp
+> (use-modules (goblins)
+               (goblins actor-lib selfish-spawn))
+;; vat setup and entry
+> (define deck (selfish-spawn ^deck))
+> ($ deck 'draw)
+=> #<some-card>
 @end lisp
 
 @end deffn

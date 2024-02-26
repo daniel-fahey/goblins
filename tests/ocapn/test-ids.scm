@@ -44,15 +44,13 @@
   (ocapn-node? ocapn-m1))
 
 ;; ocapn-id->ocapn-node
-(test-assert
-    "ocapn-id->ocapn-node with an ocapn-node"
-  (equal? (ocapn-id->ocapn-node ocapn-m1)
-          ocapn-m1))
+(test-equal "ocapn-id->ocapn-node with an ocapn-node"
+  ocapn-m1
+  (ocapn-id->ocapn-node ocapn-m1))
 
-(test-assert
-    "ocapn-id->ocapn-node with an ocapn-studyref"
-  (equal? (ocapn-id->ocapn-node ocapn-sref1)
-          ocapn-m1))
+(test-equal "ocapn-id->ocapn-node with an ocapn-studyref"
+  ocapn-m1
+  (ocapn-id->ocapn-node ocapn-sref1))
 
 ;; same-node-location?
 (test-assert
@@ -68,27 +66,21 @@
   (not (same-node-location? ocapn-m1 ocapn-m2)))
 
 ;; Check string->ocapn-id
-(test-assert
-    "Verify string->ocapn-id produces the correct ocapn-node"
-  (equal? (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake?name=test%201")
-          ocapn-m1))
+(test-equal "Verify string->ocapn-id produces the correct ocapn-node"
+  ocapn-m1
+  (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake?name=test%201"))
 
-(test-assert
-    "Verify string->ocapn-id produces the correct ocapn-studyref"
-  (equal? (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake/s/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I?name=test%201")
-          ocapn-sref1))
+(test-equal "Verify string->ocapn-id produces the correct ocapn-studyref"
+  ocapn-sref1
+  (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake/s/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I?name=test%201"))
 
 ;; Check ocapn-id->string
-(test-assert
-    "ocapn-id->string works for ocapn-node"
-  (string=?
-   (ocapn-id->string ocapn-m1)
-   "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake?name=test%201"))
+(test-equal "ocapn-id->string works for ocapn-node"
+  "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake?name=test%201"
+  (ocapn-id->string ocapn-m1))
 
-(test-assert
-    "ocapn-id->string works for ocapn-studyref"
-  (string=?
-   (ocapn-id->string ocapn-sref1)
-   "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake/s/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I?name=test%201"))
+(test-equal "ocapn-id->string works for ocapn-studyref"
+  "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake/s/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I?name=test%201"
+  (ocapn-id->string ocapn-sref1))
 
 (test-end "test-ids")

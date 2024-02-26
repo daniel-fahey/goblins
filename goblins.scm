@@ -57,7 +57,6 @@
                dispatch-messages
 
                whactormap?
-               transactormap?
                transactormap-merge!
                transactormap-buffer-merge!
 
@@ -77,20 +76,12 @@
                spawn-promise-values
 
                make-persistence-env
-               make-object-spec
-               object-spec?
-               object-spec-name
-               object-spec--constructor
-               object-spec-rehydrator
                portraitize
                actormap-take-portrait
+               actormap-replace-behavior
                actormap-replace-behavior!
                actormap-restore
 
-               <portrait-record>
-               portrait-record?
-               portrait-record-type
-               portrait-record-data
                versioned
 
                make-vat

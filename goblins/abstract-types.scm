@@ -12,12 +12,8 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 (define-module (goblins abstract-types)
-  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
-  #:use-module (srfi srfi-9 gnu)
-  #:use-module (ice-9 match)
-  #:use-module (ice-9 vlist)
-  #:export (<zilch>
+  #:export (zilch
             zilch?
 
             <tagged>

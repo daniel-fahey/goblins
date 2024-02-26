@@ -91,8 +91,7 @@
         (lambda ()
           (define bob-vow (<- a-mycapn 'enliven bob-locator-sref))
           (<- bob-vow "Arthur")))))
-  (test-equal
-      "Able to enliven a far sturdyref and using it from a->b"
+  (test-equal "Able to enliven a far sturdyref and using it from a->b"
     #(ok "Hello Arthur, my name is Bob!")
     result))
 
@@ -102,8 +101,7 @@
         (lambda ()
           (define alice-vow (<- b-mycapn 'enliven alice-locator-sref))
           (<- alice-vow "Ben")))))
-  (test-equal
-      "Able to enliven a far sturdyref and using it form b->a"
+  (test-equal "Able to enliven a far sturdyref and using it form b->a"
     #(ok "Hello Ben, my name is Alice!")
     result))
 

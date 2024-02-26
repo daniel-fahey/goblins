@@ -17,6 +17,7 @@
   #:use-module ((fibers) #:select (spawn-fiber))
   #:use-module ((fibers timers) #:select (sleep))
   #:use-module ((goblins core) #:renamer (lambda (x) (if (eq? x '$) '$C x)))
+  #:use-module (goblins core-types)
   #:use-module (goblins vat)
   #:use-module (goblins ghash)
   #:use-module (goblins inbox)
@@ -672,7 +673,7 @@
           [else
            ($C coordinator 'make-handoff-base-cert obj)]))]
       [(? unspecified?)
-       (make-label* 'void)]
+       (make-tagged* 'void)]
       [(? keyword?)
        (make-tagged* 'kw (keyword->symbol obj))]
       [(? error?)
