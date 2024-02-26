@@ -71,6 +71,7 @@
             spawn-promise-values
 
             actormap-take-portrait
+            actormap-replace-behavior
             actormap-replace-behavior!
             actormap-restore
 
@@ -2715,13 +2716,13 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
   (values slot->portrait root-slots))
 
-(define (actormap-replace-behavior! am persistence-env)
-  "Replace actors in actormap AM with new behavior from PERSISTENCE-ENV
+(define (actormap-replace-behavior am persistence-env)
+  "Functional version of `actormap-replace-behavior!'
 
-Takes self portrait of all the actors with different behavior and
-rehydrates them with the new behavior.
+This works the same as `actormap-replace-behavior!' but it returns
+a transactormap which the user can choose whether or not to commit.
 
-Type: Actormap PersistenceEnv -> Void"
+Type: Actormap PersistenceEnv -> TransactorMap"
   (define metatype (actormap-metatype am))
 
   ;; For now just deal with whactormaps (maybe always only do this?)
@@ -2801,8 +2802,18 @@ Type: Actormap PersistenceEnv -> Void"
 
          (actormap-set! new-actormap refr
                         (actormap-ref tmp-am tmp-refr)))))
-       whactormap-table)
-  (transactormap-merge! new-actormap))
+   whactormap-table)
+  new-actormap)
+
+(define (actormap-replace-behavior! am persistence-env)
+  "Replace actors in actormap AM with new behavior from PERSISTENCE-ENV
+
+Takes self portrait of all the actors with different behavior and
+rehydrates them with the new behavior.
+
+Type: Actormap PersistenceEnv -> Void"
+  (define tm (actormap-replace-behavior am persistence-env))
+  (transactormap-merge! tm))
 
 (define (depictable-atom? obj)
   (or (number? obj) (boolean? obj) (string? obj)
