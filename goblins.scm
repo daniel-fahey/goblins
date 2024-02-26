@@ -87,10 +87,10 @@
                actormap-replace-behavior!
                actormap-restore
 
-               <portrait>
-               portrait?
-               portrait-type
-               portrait-data
+               <portrait-record>
+               portrait-record?
+               portrait-record-type
+               portrait-record-data
                versioned
 
                make-vat

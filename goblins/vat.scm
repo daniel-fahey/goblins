@@ -24,6 +24,7 @@
   #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins utils random-name)
   #:use-module (goblins utils ring-buffer)
+  #:use-module (goblins utils sets)
   #:use-module (fibers)
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
@@ -1106,9 +1107,9 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
   (save-portrait-in-store! slot->portrait root-slots)
   (values slot->portrait root-slots))
 
-
 (define* (spawn-persistent-vat persistence-env spawn-roots-lambda store
                                #:key (persist-on 'churn)
+                               (vat-constructor spawn-fibrous-vat)
                                name log? (log-capacity default-log-capacity))
   "Create and return a reference to a new vat with persistence. All
 objects spawned on the vat that will persist must be persistence
@@ -1133,18 +1134,31 @@ of events to retain in the log."
     (make-vat-persistence-env persistence-env persist-on store #f #f #f))
 
   (define vat
-    (spawn-fibrous-vat
+    (vat-constructor
      #:persistence-env vat-persistence-env
      #:name name
      #:log? log?
      #:log-capacity log-capacity))
 
-  (define roots
-    (with-vat vat
-      (call-with-values spawn-roots-lambda list)))
-
   (define vat-am
     (vat-actormap vat))
+
+  ;; We should either restore from the data in the store if that exists,
+  ;; or we should spawn the roots by using `spawn-roots-lambda'.
+  (define read-memory-fn
+    (persistence-store-read-proc store))
+  (define-values (portraits root-slots)
+    (read-memory-fn))
+
+  (define roots
+    (if (and portraits root-slots)
+        (call-with-values
+	    (lambda ()
+	      (actormap-restore vat-am persistence-env portraits root-slots))
+	  list)
+        (with-vat vat
+          (call-with-values spawn-roots-lambda list))))
+
   (define-values (take-portrait-fn val->slot-ref)
     (apply make-actormap-take-portrait persistence-env roots))
 
@@ -1186,20 +1200,19 @@ of events to retain in the log."
 
       (while (not (q-empty? process-queue))
         (let ((obj (deq! process-queue)))
-          (define-values (slot portrait child-objs)
+          (define-values (slot portrait new-child-objs)
             (take-portrait-fn new-am obj))
 
           (hashq-set! slot->portraits slot portrait)
 
           ;; The object may have changed by adding a new object not previously in the
-          ;; object graph. In such cases we need to ensure that's queued also.
+          ;; object graph. In such cases we need to ensure they're queued also.
           (set-fold
-           (lambda (obj)
-             (unless (or (memq obj (car process-queue))
-                         (hashq-ref slot->portraits slot #f))
+           (lambda (obj _prev)
+             (unless (memq obj (car process-queue))
                (enq! process-queue obj)))
            #f
-           child-objs)))
+           new-child-objs)))
       (save-portraits! slot->portraits))))
 
 

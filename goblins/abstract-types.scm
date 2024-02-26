@@ -25,15 +25,7 @@
             make-tagged*
             tagged?
             tagged-label
-            tagged-data
-
-            make-set
-            set?
-            set-add
-            set-remove
-            set-fold
-            set->list
-            set-member?))
+            tagged-data))
 
 ;; This is both a 2nd and secondary "bottom" or null/void type that's used
 ;; within CapTP. This works alongside guile's *unspecified* bottom type.
@@ -54,57 +46,3 @@
 
 (define (make-tagged* label . args)
   (make-tagged label args))
-
-;;; An extremely meh implementation of sets
-
-;;; TODO: make and replace with "gsets"
-
-(define-record-type <set>
-  (_make-set ht)
-  set?
-  (ht _set-ht))
-
-(define (print-set set port)
-  (define items
-    (vhash-fold
-     (lambda (k _v prev)
-       (cons k prev))
-     '()
-     (_set-ht set)))
-  (format port "#<set ~a>" items))
-
-(set-record-type-printer! <set> print-set)
-
-(define (make-set . items)
-  (define vh
-    (fold
-     (lambda (item vh)
-       (vhash-consq item #t vh))
-     vlist-null items))
-  (_make-set vh))
-
-(define (set-add set item)
-  (_make-set (vhash-cons item #t (_set-ht set))))
-
-(define (set-remove set item)
-  (_make-set (vhash-delete (_set-ht set) item)))
-
-(define (set-fold proc init set)
-  (vhash-fold
-   (lambda (key _val prev)
-     (proc key prev))
-   init
-   (_set-ht set)))
-
-(define (set->list set)
-  (vhash-fold
-   (lambda (key _val prev)
-     (cons key prev))
-   '()
-   (_set-ht set)))
-
-(define (set-member? set key)
-  (match (vhash-assoc key (_set-ht set))
-    [(_val . #t)
-     #t]
-    [#f #f]))

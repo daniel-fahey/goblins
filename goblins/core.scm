@@ -96,11 +96,16 @@
             actormap-replace-behavior!
             actormap-restore
 
-            <portrait>
-            portrait?
-            portrait-type
-            portrait-data
+            <portrait-record>
+            portrait-record?
+            portrait-record-type
+            portrait-record-data
+	    <versioned-data>
             versioned
+	    versioned-data?
+	    versioned-data-version
+	    versioned-data-data
+	    
 
             ;; TODO: separate this out!
             <message>
@@ -155,7 +160,8 @@
   #:use-module (ice-9 suspendable-ports)
   #:use-module (rnrs bytevectors)
   #:use-module (goblins ghash)
-  #:use-module (goblins abstract-types))
+  #:use-module (goblins abstract-types)
+  #:use-module (goblins utils sets))
 
 
 ;;; Utilities (which should be moved to their own modules)
@@ -2795,15 +2801,19 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       ((obj) (hashq-ref val->slot obj))))
 
   (define (slot-maybe-queue-near-ref! obj)
-    (or (hashq-ref val->slot obj #f)
+    (or (values (hashq-ref val->slot obj #f) #f)
         (let ([this-slot next-id])
           (set! next-id (+ 1 next-id))
           (hashq-set! val->slot obj this-slot)
           (hashq-set! slot->val this-slot obj)
-          this-slot)))
+          (values this-slot #t))))
 
   (define root-slots
-    (map slot-maybe-queue-near-ref! roots))
+    (map (lambda (obj)
+	   (define-values (slot _created?)
+	     (slot-maybe-queue-near-ref! obj))
+	   slot)
+	 roots))
 
   (define (read-next-portrait! am this-obj)
     (define slot
@@ -2811,7 +2821,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (unless slot
       (error "Object does not appear in the persistence graph" this-obj))
 
-    (define child-objs
+    (define new-child-objs
       (make-set))
     (define this-obj-self-portrait-fn
       (mactor:object-self-portrait (actormap-ref am this-obj)))
@@ -2842,8 +2852,10 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
         [(? keyword? kw)
          (make-portrait-record 'keyword (keyword->symbol kw))]
         [(? local-object-refr?)
-         (set! child-objs (set-add child-objs value))
-         (make-portrait-record 'near-refr (slot-maybe-queue-near-ref! value))]
+	 (let-values (((slot created?) (slot-maybe-queue-near-ref! value)))
+	   (when created?
+	     (set! new-child-objs (set-add new-child-objs value)))
+           (make-portrait-record 'near-refr slot))]
         [(? local-promise-refr? vow)
          (unless (near-promise-settled? vow)
            (error "Can't create portrait with an unsettled promise: " vow))
@@ -2868,7 +2880,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (define depiction-to-save
       (process-portrait this-obj-spec returned-self-portrait))
 
-    (values slot depiction-to-save child-objs))
+    (values slot depiction-to-save new-child-objs))
 
   (values read-next-portrait! val->slot-ref))
 
@@ -2886,20 +2898,19 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   ;; Go through the queue of objects to read and process them.
   (while (not (q-empty? process-queue))
     (let*-values ([(obj) (deq! process-queue)]
-                  [(slot obj-self-portrait child-objs) (read-portrait! am obj)])
+                  [(slot obj-self-portrait new-child-objs) (read-portrait! am obj)])
       (hashq-set! slot->portrait slot obj-self-portrait)
 
       ;; We need to queue up new child objects which are not currently queued for
-      ;; processing, or are not in the list of already processed depictions.
+      ;; processing.
       ;; NOTE: Not using set-fold to produce a value, more as a for-each
       (set-fold
        (lambda (obj _prev)
          (define slot (obj->slot-ref obj))
-         (unless (or (memq obj (car process-queue))
-                     (hashq-ref slot->portrait slot #f))
+         (unless (memq obj (car process-queue))
            (enq! process-queue obj)))
        #f
-       child-objs)))
+       new-child-objs)))
 
   (define root-slots
     (map obj->slot-ref roots))
@@ -3045,8 +3056,21 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       [(? list? root-slots)
        (define restored-roots
          (map (lambda (slot)
-              (hashq-ref slots->promises slot))
-            root-slots))
+		(let ((vow (hashq-ref slots->promises slot)))
+		  ;; All the promises created should now be resolved.
+		  (actormap-run
+		   am
+		   (lambda ()
+		     (if (near-promise-settled? vow)
+			 (near-settled-promise-value vow)
+			 (error "Restored object promise not settled"))))))
+              root-slots))
        (apply values restored-roots)]
       [(? integer? slot)
-       (hashq-ref slots->promises slot)]))
+       (let ((vow (hashq-ref slots->promises slot)))
+	 (actormap-run
+	  am
+	  (lambda ()
+	    (if (near-promise-settled? vow)
+		(near-settled-promise-value vow)
+		(error "Restored object promise not settled")))))]))

@@ -33,6 +33,7 @@
   #:use-module (goblins utils simple-sealers)
   #:use-module (goblins utils bytes-stuff)
   #:use-module (goblins utils crypto)
+  #:use-module (goblins utils sets)
   #:use-module (goblins contrib syrup)
   #:use-module (ice-9 match)
   #:use-module (ice-9 vlist)

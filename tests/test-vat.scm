@@ -17,6 +17,7 @@
 (define-module (tests test-vat)
   #:use-module (goblins core)
   #:use-module (goblins vat)
+  #:use-module (goblins store)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
   #:use-module (tests utils)
@@ -871,5 +872,182 @@
          (not (vat-log-ref-by-time a-vat (+ t 1)))
          ;; The last event is still there, though.
          (vat-event? (vat-log-ref-by-time a-vat (+ t 2))))))
+
+;; Persistence.
+;; (define* (^incrementer bcom #:optional [value 0])
+;;   (define (main-beh)
+;;     (bcom (^incrementer bcom (+ 1 value)) (+ 1 value)))
+;;   (define (self-portrait)
+;;     (list value))
+;;   (portraitize main-beh self-portrait))
+
+;; (define* (^persistent-greeter bcom our-name #:optional [init-number-of-times #f])
+;;   (define number-of-times
+;;     (or init-number-of-times (spawn ^incrementer)))
+;;   (define (main-beh your-name)
+;;     (format #f "Hello ~a, my name is ~a (called ~a)."
+;;             your-name our-name ($ number-of-times)))
+;;   (define (self-portrait)
+;;     (list our-name number-of-times))
+;;   (portraitize main-beh self-portrait))
+
+;; (define incrementer-env
+;;   (make-persistence-env
+;;    (list (make-object-spec '((tests test-core) ^incrementer) ^incrementer))
+;;    (list)))
+;; (define greeter-env
+;;   (make-persistence-env
+;;    (list (make-object-spec '((tests test-core) ^persistent-greeter) ^persistent-greeter))
+;;    (list incrementer-env)))
+
+;; (define memory-store
+;;   (make-memory-store))
+
+;; (define-values (persistent-vat alice bob)
+;;   (spawn-persistent-vat
+;;    greeter-env
+;;    (lambda ()
+;;      (values (spawn ^persistent-greeter "Alice")
+;;              (spawn ^persistent-greeter "Bob")))
+;;    memory-store))
+
+;; (define read-memory-store
+;;   (persistence-store-read-proc memory-store))
+
+;; (define-values (portraits roots)
+;;   (read-memory-store))
+
+;; (test-equal "Correct number of portraits exist after spawning persistent vat"
+;;   4 ;; 2 persistent-greeters + 2 incremeneters
+;;   (hash-count (const #t) portraits))
+
+;; (test-equal "Correct number of roots returned after spawning persistent vat"
+;;   2
+;;   (length roots))
+
+;; ;; Next lets change greet several times to increment the counter.
+;; (with-vat persistent-vat
+;;   ($ alice "Carol")
+;;   ($ alice "Bob"))
+
+;; (define-values (portraits roots)
+;;   (read-memory-store))
+
+;; ;; Now try to spawn a new vat using the same persistence store
+;; ;; to check it reads the portraits correctly.
+;; ;; NOTE: This isn't actually a good idea (to have multiple vats
+;; ;; on the same store, this is just for testing)
+;; (define-values (persistent-vat1 alice1 bob1)
+;;   (spawn-persistent-vat
+;;    greeter-env
+;;    (lambda ()
+;;      (values (spawn ^persistent-greeter "Alice")
+;;              (spawn ^persistent-greeter "Bob")))
+;;    memory-store))
+
+;; (test-equal "Restored alice into a new persistent vat greets correctly"
+;;   (with-vat persistent-vat1
+;;     ($ alice1 "Carol"))
+;;   "Hello Carol, my name is Alice (called 3).")
+
+;; (test-equal "Restored bob into a new persistent vat greets correctly"
+;;   (with-vat persistent-vat1
+;;     ($ bob1 "Carol"))
+;;   "Hello Carol, my name is Bob (called 1).")
+  
+;; Test persisting an actor which introduces new actors
+;; not previously in the graph.
+(define* (^list bcom #:optional [items '()])
+  (define (main-beh obj)
+    (bcom (^list bcom (cons obj items))))
+  (define (self-portrait)
+    (list items))
+  (portraitize main-beh self-portrait))
+
+(define list-env
+  (make-persistence-env
+   (list (make-object-spec '((tests test-vat) ^list) ^list))
+   (list)))
+
+(define memory-store1
+  (make-memory-store))
+(define read-memory1
+  (persistence-store-read-proc memory-store1))
+
+(define-values (persistent-vat2 list1 list2)
+  (spawn-persistent-vat
+   list-env
+   (lambda ()
+     (values (spawn ^list)
+	     (spawn ^list)))
+   memory-store1))
+
+(define-values (one two)
+  (with-vat persistent-vat2
+    (define one (spawn ^list))
+    (define two (spawn ^list))
+    ($ list1 one)
+    ($ list1 two)
+    ($ list2 one)
+    (values one two)))
+
+(define-values (portraits _roots)
+  (read-memory1))
+
+(format #t "portraits:\n")
+(hash-for-each pk portraits)
+(format #t "==\n")
+
+;; There should be 4 objs: one, two, list1, list2
+(test-equal "Number of objects portraits is correct amount"
+  4
+  (hash-count (const #t) portraits))
+
+;; Now add two to list2 (not adding any new objects to the graph)
+(with-vat persistent-vat2
+  ($ list2 two))
+(define-values (portraits _roots)
+  (read-memory1))
+(test-equal "Number of objects in graph remains same when no new object introduced"
+  4
+  (hash-count (const #t) portraits))
+
+;; Add a new object to the graph by adding it to one of the
+;; existing children.
+(with-vat persistent-vat2
+  ($ one (spawn ^list)))
+(define-values (portraits _roots)
+  (read-memory1))
+
+(test-equal "Number of objects in graph increases when new object added to child"
+  5
+  (hash-count (const #t) portraits))
+
+(with-vat persistent-vat2
+  ($ list2 (spawn ^list)))
+(define-values (portraits _roots)
+  (read-memory1))
+
+(test-equal "Number of objects in graph increases when new object added to parent"
+  6
+  (hash-count (const #t) portraits))
+
+
+;; (define-values (portraits roots)
+;;   (read-memory-store))
+
+;; (hash-for-each pk portraits)
+
+;; (define-values (persistent-vat1 alice1 bob1)
+;;   (spawn-persistent-vat
+;;    greeter-env
+;;    (lambda ()
+;;      (values (spawn ^persistent-greeter "Alice")
+;;              (spawn ^persistent-greeter "Bob")))
+;;    memory-store))
+
+;; (with-vat persistent-vat1
+;;   (pk 'alice1 ($ alice1 "John")))
+
 
 (test-end "test-vat")

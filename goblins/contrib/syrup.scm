@@ -17,6 +17,7 @@
   #:use-module (ice-9 iconv)
   #:use-module (ice-9 vlist)
   #:use-module (goblins abstract-types)
+  #:use-module (goblins utils sets)
   #:use-module (goblins ghash)
   #:use-module (rnrs bytevectors)
 
