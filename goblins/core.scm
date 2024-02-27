@@ -2615,7 +2615,9 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
      [_ (error "Unknown value to extend persistence environment from" extends)])))
 
 (define (make-actormap-take-portrait persistence-env . roots)
-  "Produces a precedure to take new portraits of a graph of objects within a actormap"
+  "Creates a portraiter for a given graph to take partial snapshots of single objects within the graph.
+
+Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
   (when (null? roots)
     (error "At least one root object must be specified to take a portrait"))
 
@@ -2726,6 +2728,9 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (values read-next-portrait! val->slot-ref))
 
 (define (actormap-take-portrait-with-fn am read-portrait! obj->slot-ref . roots)
+  "Take a portrait of the graph with a given portraiter function
+
+Type: Actormap Procedure Procedure LiveRef ... -> Hashmap List"
   (define slot->portrait
     (make-hash-table))
   (define process-queue

@@ -14,7 +14,7 @@ one object claiming it has more abilities than it actually does.
 @node Persistence Tutorial
 @section Persistence Tutorial
 
-TODO when we land persistent vat PR
+
 
 @node Persistence capable objects
 @section Persistence capable objects
@@ -53,7 +53,7 @@ aware object is to use the @code{define-actor} macro:
 
 @lisp
 (use-modules (goblins)
-             (goblins utils define-actor))
+             (goblins actor-lib define-actor))
 
 (define-actor (^greeter _bcom our-name)
   (lambda (their-name)
