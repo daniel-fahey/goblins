@@ -49,6 +49,7 @@ SOURCES = goblins.scm \
           goblins/actor-lib/common.scm \
           goblins/actor-lib/define-actor.scm \
           goblins/actor-lib/facet.scm \
+          goblins/actor-lib/io.scm \
           goblins/actor-lib/joiners.scm \
           goblins/actor-lib/let-on.scm \
           goblins/actor-lib/methods.scm \
@@ -102,6 +103,7 @@ SOURCES = goblins.scm \
 TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-common.scm \
         tests/actor-lib/test-facet.scm \
+        tests/actor-lib/test-io.scm \
         tests/actor-lib/test-joiners.scm \
         tests/actor-lib/test-let-on.scm \
         tests/actor-lib/test-nonce-registry.scm \

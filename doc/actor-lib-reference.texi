@@ -6,6 +6,7 @@ actor model patterns.
 * Cell::
 * Common::
 * Facet::
+* IO::
 * Joiners::
 * Let-On::
 * Methods::
@@ -215,6 +216,66 @@ where synchronicity is possible but not desired, invoking the
 
 Spawn and return a reference to a @code{^facet}, passing along
 arguments to their equivalents in the constructor.
+
+@end deffn
+
+@node IO
+@section IO
+
+The @code{(goblins actor-lib io)} module provides a mechanism for
+operating on external IO resources in a way which abstracts away
+Fibers details such that the user can operate mostly in a
+Goblins-oriented interface.
+
+More specific IO interfaces for files, general ports, etc will be
+provided in the future, but the mechanism provided by this library
+is general enough to fit most use cases.
+
+@deffn {Constructor} ^io _bcom wrapped
+       [#:init #f] [#:cleanup #f]
+
+Spawns an object which itself spawns a Fibers fiber which wraps
+@var{wrapped}.  If @var{init} is provided with a procedure, fiber
+will invoke said procedure with @var{wrapped} as the sole argument
+before looping over any provided commands.
+
+Invoking the spawned object returns a promise, and said procedure is
+executed within the managed fiber's loop.  Any return value will
+fulfill as a value for the returned promise, and any exception raised
+will break the promise with said exception.
+
+If the object spawned by @var{^io} is invoked with the symbol
+@code{'halt}, the fiber will be shut down and will stop responding to
+further incoming messages, and @var{cleanup} will be run within the
+fiber with the sole argument being @var{wrapped}.  (In the future,
+if the reference to the spawned object is garbage collected, the fiber
+will be automatically halted.)
+
+As an example:
+
+@lisp
+> (use-modules (goblins)
+               (goblins actor-lib io)
+               (ice-9 textual-ports))
+> (define a-vat (spawn-vat #:name 'a))
+> ,enter-vat a-vat
+goblins/a [1]> (define wraps-input
+                 (spawn ^io (open-input-string "Hello!")
+                        ;; burns one character off the top
+                        #:init get-char))
+goblins/a [1]> (on (<- wraps-input get-char)
+                   (lambda (c) (format #t "Got: ~a\n" c)))
+Got: e
+goblins/a [1]> (on (<- wraps-input get-char)
+                   (lambda (c) (format #t "Got: ~a\n" c)))
+Got: l
+goblins/a [1]> (on (<- wraps-input get-char)
+                   (lambda (c) (format #t "Got: ~a\n" c)))
+Got: l
+goblins/a [1]> (on (<- wraps-input get-char)
+                   (lambda (c) (format #t "Got: ~a\n" c)))
+Got: o
+@end lisp
 
 @end deffn
 
