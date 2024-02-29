@@ -1108,7 +1108,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
   (save-portrait-in-store! slot->portrait root-slots)
   (values slot->portrait root-slots))
 
-(define* (spawn-persistent-vat persistence-env spawn-roots-lambda store
+(define* (spawn-persistent-vat persistence-env spawn-roots-thunk store
                                #:key (persist-on 'churn)
                                (vat-constructor spawn-fibrous-vat)
                                name log? (log-capacity default-log-capacity))
@@ -1117,7 +1117,7 @@ objects spawned on the vat that will persist must be persistence
 aware. The objects must be in PERSISTENCE-ENV which is used when the
 vat takes the portrait and rehydrates objects.
 
-The SPAWN-ROOT-LAMBDA perameter will be run within the vat
+The SPAWN-ROOT-THUNK perameter will be run within the vat
 environment and should spawn one or more values which are the root
 objects to be persisted.
 
@@ -1158,7 +1158,7 @@ of events to retain in the log."
 	      (actormap-restore vat-am persistence-env portraits root-slots))
 	  list)
         (with-vat vat
-          (call-with-values spawn-roots-lambda list))))
+          (call-with-values spawn-roots-thunk list))))
 
   (define-values (take-portrait-fn val->slot-ref)
     (apply make-actormap-take-portrait persistence-env roots))
