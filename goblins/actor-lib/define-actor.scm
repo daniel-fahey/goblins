@@ -16,35 +16,39 @@
   #:use-module ((goblins core-types)
                 #:select (portraitize
                           make-redefinable-object
+			  redefinable-object?
                           set!-redefinable-object-constructor))
   #:export (define-actor define-hackable))
 
 (define-syntax-rule (define-actor (constructor-id bcom args ...) body ...)
-  (if (module-defined? (current-module) 'constructor-id)
-      ;; We've already defined this, just update the constructor refr
-      (set!-redefinable-object-constructor
-       constructor-id
-       (let ((constructor-id
-              (lambda* (bcom args ...)
-                (define main-beh
-                  body ...)
-                (define (self-portrait)
-                  (list args ...))
-                (portraitize main-beh self-portrait))))
-         constructor-id))
-      ;; First time, lets define it.
-      (module-define!
-       (current-module)
-       'constructor-id
-       (make-redefinable-object
-        (let ((constructor-id
-               (lambda* (bcom args ...)
-                 (define main-beh
-                   body ...)
-                 (define (self-portrait)
-                   (list args ...))
-                 (portraitize main-beh self-portrait))))
-          constructor-id)))))
+  (define constructor-id
+    (if (and (defined? 'constructor-id)
+	     (redefinable-object? constructor-id))
+	;; We've already defined this, just update the constructor refr
+	(begin
+	  (set!-redefinable-object-constructor
+	   constructor-id
+	   ;; This let binding trick tells guile to name the procedure.
+	   (let ((constructor-id
+		  (lambda* (bcom args ...)
+                    (define (main-beh)
+                      body ...)
+                    (define (self-portrait)
+                      (list args ...))
+                    (portraitize (main-beh) self-portrait))))
+             constructor-id))
+	  constructor-id)
+
+	(make-redefinable-object
+	 ;; This let binding trick tells guile to name the procedure.
+         (let ((constructor-id
+		(lambda* (bcom args ...)
+                  (define (main-beh)
+                    body ...)
+                  (define (self-portrait)
+                    (list args ...))
+                  (portraitize (main-beh) self-portrait))))
+	   constructor-id)))))
 
 (define-syntax-rule (define-hackable (constructor-id bcom args ...) body ...)
   (if (module-defined? (current-module) 'constructor-id)
