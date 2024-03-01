@@ -22,23 +22,23 @@
   #:export (resolve-vow-and-return-result))
 
 (define* (resolve-vow-and-return-result vat goblins-thunk #:key (timeout 2))
+  (define vow (call-with-vat vat goblins-thunk))
+  (define results-ch (make-channel))
+  (with-vat vat
+    (on vow
+        (lambda args
+          (syscaller-free-fiber
+           (lambda ()
+             (put-message results-ch (apply vector 'ok args))))
+          'ok)
+        #:catch
+        (lambda err
+          (syscaller-free-fiber
+           (lambda ()
+             (put-message results-ch (vector 'err err))))
+          'err)))
   (run-fibers
    (lambda ()
-     (define vow (call-with-vat vat goblins-thunk))
-     (define results-ch (make-channel))
-     (with-vat vat
-      (on vow
-          (lambda args
-            (syscaller-free-fiber
-             (lambda ()
-               (put-message results-ch (apply vector 'ok args))))
-            'ok)
-          #:catch
-          (lambda err
-            (syscaller-free-fiber
-             (lambda ()
-               (put-message results-ch (vector 'err err))))
-            'err)))
      (perform-operation
       (choice-operation (wrap-operation (sleep-operation timeout)
                                         (lambda _
