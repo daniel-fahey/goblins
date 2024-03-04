@@ -791,8 +791,29 @@ Type: Vat -> Void"
   (define (churn envelope)
     (call-with-error-handling
      (lambda ()
-       (let* ((msg (vat-envelope-message envelope))
-              (sent-at (vat-envelope-timestamp envelope)))
+       (let* ((msg-or-proc (vat-envelope-message envelope))
+              (sent-at (vat-envelope-timestamp envelope))
+              (msg
+               (match msg-or-proc
+                 ;; special case, we're asking to "run" a specific
+                 ;; procedure for call-with-vat
+                 ((? procedure? thunk)
+                  ;; The user provided thunk is going to be called
+                  ;; asynchronously within a vat turn, likely in another thread,
+                  ;; which makes handling multiple return values tricky.  To
+                  ;; make things easy for vat implementations, we wrap up all of
+                  ;; the original thunk's return values into a list so there's
+                  ;; only a single value to pass back.  Here in the caller's
+                  ;; thread, the list gets converted back into multiple return
+                  ;; values.
+                  (define (multi-value-thunk)
+                    (call-with-values thunk list))
+                  ;; Spawn a throwaway actor whose behavior is just to apply the
+                  ;; thunk.
+                  (define refr (actormap-spawn! actormap ^call-with-vat
+                                                multi-value-thunk))
+                  (make-message (vat-connector vat) refr #f '()))
+                 (_ msg-or-proc))))
          (define-values (returned new-actormap)
            (vat-churn vat msg sent-at))
          (maybe-merge returned new-actormap)
@@ -817,25 +838,10 @@ Type: Vat -> Void"
 
 Type: Vat (-> Any) -> Any"
   (if (vat-running? vat)
-      (let ((am (vat-actormap vat)))
-        ;; The user provided thunk is going to be called
-        ;; asynchronously within a vat turn, likely in another thread,
-        ;; which makes handling multiple return values tricky.  To
-        ;; make things easy for vat implementations, we wrap up all of
-        ;; the original thunk's return values into a list so there's
-        ;; only a single value to pass back.  Here in the caller's
-        ;; thread, the list gets converted back into multiple return
-        ;; values.
-        (define (multi-value-thunk)
-          (call-with-values thunk list))
-        ;; Spawn a throwaway actor whose behavior is just to apply the
-        ;; thunk.
-        (define refr (actormap-spawn! am ^call-with-vat multi-value-thunk))
-        (define msg (make-message (vat-connector vat) refr #f '()))
-        (match (vat-send vat (make-vat-envelope msg 0 #t))
-          (#('ok '*awaited*) '*awaited*)
-          (#('ok vals) (apply values vals))
-          (#('fail err) (raise-exception err))))
+      (match (vat-send vat (make-vat-envelope thunk 0 #t))
+        (#('ok '*awaited*) '*awaited*)
+        (#('ok vals) (apply values vals))
+        (#('fail err) (raise-exception err)))
       (error "vat is not running" vat)))
 
 (define-syntax-rule (with-vat vat body ...)
