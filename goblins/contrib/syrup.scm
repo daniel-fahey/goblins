@@ -327,9 +327,9 @@
       [#t t-bv]
       [#f f-bv]
       ;; Sets are like #<item1><item2><item3>$
-      [(? set?)
+      [(? gset?)
        (let* ([encoded-items
-               (set-fold
+               (gset-fold
                 (lambda (item prev)
                   (cons (encode item)
                         prev))
@@ -518,13 +518,13 @@
          ;; it's a set
          [#\#
           (read-byte in-port)
-          (let lp ([s (make-set)])
+          (let lp ([s (make-gset)])
             (match (_peek-char)
               [#\$
                (read-byte in-port)
                s]
               [_
-               (lp (set-add s (read-next)))]))]
+               (lp (gset-add s (read-next)))]))]
          [_
           (error 'syrup-invalid-char "Unexpected character at position ~a: ~a"
                  (file-position in-port)
