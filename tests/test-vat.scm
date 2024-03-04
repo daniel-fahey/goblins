@@ -968,37 +968,33 @@
   (make-persistence-env
    (list (list '((tests test-vat) ^list) ^list))))
 
-(define memory-store1
+(define memory-store
   (make-memory-store))
-(define read-memory1
-  (persistence-store-read-proc memory-store1))
+(define read-memory
+  (persistence-store-read-proc memory-store))
 
-(define-values (persistent-vat2 list1 list2)
+(define-values (persistent-vat list1 list2)
   (spawn-persistent-vat
-   list-env
+   (pk 'list-env list-env)
    (lambda ()
      (values (spawn ^list)
 	     (spawn ^list)))
-   memory-store1))
+   (pk 'memory-store memory-store)))
 
 (define one
-  (with-vat persistent-vat2
+  (with-vat persistent-vat
     (spawn ^list)))
 (define two
-  (with-vat persistent-vat2
+  (with-vat persistent-vat
     (spawn ^list)))
 
-(with-vat persistent-vat2
+(with-vat persistent-vat
   ($ list1 one)
   ($ list1 two)
   ($ list2 one))
 
 (define-values (portraits _roots)
-  (read-memory1))
-
-(format #t "portraits:\n")
-(hash-for-each pk portraits)
-(format #t "==\n")
+  (read-memory))
 
 ;; There should be 4 objs: one, two, list1, list2
 (test-equal "Number of objects portraits is correct amount"
@@ -1006,29 +1002,29 @@
   (hash-count (const #t) portraits))
 
 ;; Now add two to list2 (not adding any new objects to the graph)
-(with-vat persistent-vat2
+(with-vat persistent-vat
   ($ list2 two))
 (define-values (portraits _roots)
-  (read-memory1))
+  (read-memory))
 (test-equal "Number of objects in graph remains same when no new object introduced"
   4
   (hash-count (const #t) portraits))
 
 ;; Add a new object to the graph by adding it to one of the
 ;; existing children.
-(with-vat persistent-vat2
+(with-vat persistent-vat
   ($ one (spawn ^list)))
 (define-values (portraits _roots)
-  (read-memory1))
+  (read-memory))
 
 (test-equal "Number of objects in graph increases when new object added to child"
   5
   (hash-count (const #t) portraits))
 
-(with-vat persistent-vat2
+(with-vat persistent-vat
   ($ list2 (spawn ^list)))
 (define-values (portraits _roots)
-  (read-memory1))
+  (read-memory))
 
 (test-equal "Number of objects in graph increases when new object added to parent"
   6

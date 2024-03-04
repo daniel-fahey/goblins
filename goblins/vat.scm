@@ -25,7 +25,6 @@
   #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins utils random-name)
   #:use-module (goblins utils ring-buffer)
-  #:use-module (goblins utils sets)
   #:use-module (fibers)
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
@@ -184,16 +183,27 @@
                  (current-error-port %base-error-port))
     (proc)))
 
-;; TODO: Maybe rename to something less confusing?
-(define-record-type <vat-persistence-env>
-  (make-vat-persistence-env persistence-env persist-on store take-portrait-fn val->slot-ref roots)
+;; This is a container for holding onto everything a vat needs to
+;; persist. This could live just on the vat itself but since it's a
+;; lot of stuff, it's broken into its own record.
+(define-record-type <vat-persistence>
+  (make-vat-persistence persistence-env persist-on store read-portrait! val->slot-ref roots)
   vat-persistence-env?
+  ;; This is a <persistence-env> with all objects in the graph.
   (persistence-env vat-persistence-env set-vat-persistence-env!)
-  (persist-on vat-persist-on)
+  ;; When 'churn it tells the vat to persist on churns, otherwise
+  ;; manual persist manually with `vat-take-portrait!'
+  (persist-on vat-persistence-persist-on)
+  ;; The store we should persist two and restore from.
   (store vat-persistence-store)
-  (take-portrait-fn vat-take-portrait-fn set-vat-take-portrait-fn!)
-  (val->slot-ref vat-val->slot-ref set-vat-val->ref!)
-  (roots vat-roots set-vat-roots!))
+  ;; This is a function we get from core.scm to persist a single object.
+  (read-portrait! vat-persistence-read-portrait!
+		    set-vat-persistence-read-portrait!)
+  ;; This is a function we get from core.scm to lookup the slot for a refr.
+  (val->slot-ref vat-persistence-val->slot-ref
+		 set-vat-persistence-val->ref!)
+  ;; The root objects in the graph.
+  (roots vat-persistence-roots set-vat-persistence-roots!))
 
 ;; Vat event logging
 ;; =================
@@ -1063,6 +1073,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
 
 
 (define (transactormap-calculate-obj-delta am)
+  "Gets the refrs of all objects that changed in last transaction"
   (define actormap-data
     (@@ (goblins core) actormap-data))
   (define transactormap-data-delta
@@ -1083,22 +1094,22 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
   (define persistence-env
     (vat-persistence-env vat))
   (unless (and persistence-env
-               (vat-take-portrait-fn persistence-env)
-               (vat-val->slot-ref persistence-env)
-               (vat-roots persistence-env))
+               (vat-persistence-read-portrait! persistence-env)
+               (vat-persistence-val->slot-ref persistence-env)
+               (vat-persistence-roots persistence-env))
     (error "Not a persistence aware vat"))
 
   ;; Setup everything we need to take a full portrait
   (define am
     (vat-actormap vat))
-  (define take-portrait!
-    (vat-take-portrait-fn persistence-env))
+  (define read-portrait!
+    (vat-persistence-read-portrait! persistence-env))
   (define val->slot-refr
-    (vat-val->slot-ref persistence-env))
+    (vat-persistence-val->slot-ref persistence-env))
   (define roots
-    (vat-roots persistence-env))
+    (vat-persistence-roots persistence-env))
   (define-values (slot->portrait root-slots)
-    (apply actormap-take-portrait-with-fn am take-portrait! val->slot-refr roots))
+    (actormap-take-portrait-with-read-portrait am read-portrait! val->slot-refr roots))
 
   ;; Now save the portrait and roots in the store
   (define store
@@ -1131,12 +1142,12 @@ will occur and this should be handled manually.
 If provided, NAME is the debug name of the vat. If LOG? is #t, log
 vat events, otherwise do not. If provided, LOG-CAPACITY is the number
 of events to retain in the log."
-  (define vat-persistence-env
-    (make-vat-persistence-env persistence-env persist-on store #f #f #f))
+  (define vat-persistence
+    (make-vat-persistence persistence-env persist-on store #f #f #f))
 
   (define vat
     (vat-constructor
-     #:persistence-env vat-persistence-env
+     #:persistence-env vat-persistence
      #:name name
      #:log? log?
      #:log-capacity log-capacity))
@@ -1160,13 +1171,13 @@ of events to retain in the log."
         (with-vat vat
           (call-with-values spawn-roots-thunk list))))
 
-  (define-values (take-portrait-fn val->slot-ref)
-    (apply make-actormap-take-portrait persistence-env roots))
+  (define-values (read-portrait! val->slot-ref)
+    (make-actormap-read-portrait! persistence-env roots))
 
   ;; Setup the persistent environment
-  (set-vat-take-portrait-fn! vat-persistence-env take-portrait-fn)
-  (set-vat-val->ref! vat-persistence-env val->slot-ref)
-  (set-vat-roots! vat-persistence-env roots)
+  (set-vat-persistence-read-portrait! vat-persistence read-portrait!)
+  (set-vat-persistence-val->ref! vat-persistence val->slot-ref)
+  (set-vat-persistence-roots! vat-persistence roots)
 
   ;; Finally, lets take the first vat portrait
   (with-vat vat
@@ -1175,16 +1186,16 @@ of events to retain in the log."
   (apply values vat roots))
 
 (define (vat-maybe-persist-changed-objs! vat new-am)
-  (define persistence-env
+  (define vat-persistence
     (vat-persistence-env vat))
 
-  (when persistence-env
+  (when vat-persistence
     (let* ([process-queue (make-q)]
            [slot->portraits (make-hash-table)]
-           [persist-on (vat-persist-on persistence-env)]
-           [val->slot-refr (vat-val->slot-ref persistence-env)]
-           [take-portrait-fn (vat-take-portrait-fn persistence-env)]
-           [store (vat-persistence-store persistence-env)]
+           [persist-on (vat-persistence-persist-on vat-persistence)]
+           [val->slot-refr (vat-persistence-val->slot-ref vat-persistence)]
+           [read-portrait! (vat-persistence-read-portrait! vat-persistence)]
+           [store (vat-persistence-store vat-persistence)]
            [save-portraits! (persistence-store-save-proc store)])
 
       ;; On the first churn when a persistent vat is setting up these are not available
@@ -1193,7 +1204,7 @@ of events to retain in the log."
         ;; From the set of changed objects in the last transaction, find the ones which
         ;; appear in the portrait of the object graph by checking if they have an
         ;; assigned slot. For the ones found queue them up for depiction
-        (map
+        (for-each
          (lambda (changed-obj)
            (when (val->slot-refr changed-obj)
              (enq! process-queue changed-obj)))
@@ -1202,17 +1213,16 @@ of events to retain in the log."
       (while (not (q-empty? process-queue))
         (let ((obj (deq! process-queue)))
           (define-values (slot portrait new-child-objs)
-            (take-portrait-fn new-am obj))
+            (read-portrait! new-am obj))
 
           (hashq-set! slot->portraits slot portrait)
 
           ;; The object may have changed by adding a new object not previously in the
           ;; object graph. In such cases we need to ensure they're queued also.
-          (set-fold
-           (lambda (obj _prev)
+          (hash-for-each
+           (lambda (obj _val)
              (unless (memq obj (car process-queue))
                (enq! process-queue obj)))
-           #f
            new-child-objs)))
       (save-portraits! slot->portraits))))
 

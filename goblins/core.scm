@@ -70,8 +70,8 @@
             spawn-promise-cons
             spawn-promise-values
 
-	    make-actormap-take-portrait
-	    actormap-take-portrait-with-fn
+	    make-actormap-read-portrait!
+	    actormap-take-portrait-with-read-portrait
             actormap-take-portrait
             actormap-replace-behavior
             actormap-replace-behavior!
@@ -87,7 +87,8 @@
 
             <questioned>
             questioned?
-            questioned-message questioned-answer-this-question
+            questioned-message
+	    questioned-answer-this-question
 
             <listen-request>
             make-listen-request listen-request?
@@ -144,8 +145,7 @@
   #:use-module (rnrs bytevectors)
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
-  #:use-module (goblins ghash)
-  #:use-module (goblins utils sets))
+  #:use-module (goblins ghash))
 
 
 ;;; Utilities (which should be moved to their own modules)
@@ -2614,8 +2614,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
      [(? persistence-env? env) (list env)]
      [_ (error "Unknown value to extend persistence environment from" extends)])))
 
-(define (make-actormap-take-portrait persistence-env . roots)
-  "Creates a portraiter for a given graph to take partial snapshots of single objects within the graph.
+(define (make-actormap-read-portrait! persistence-env roots)
+  "Creates a read-portrait function for a given graph to take single object portraits the graph.
 
 Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
   (when (null? roots)
@@ -2627,13 +2627,9 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
   (define slot->val
     (make-hash-table))
 
-  ;; Facet for looking up within val->slot
-  (define val->slot-ref
-    (case-lambda
-      ((obj default-value) (hashq-ref val->slot obj default-value))
-      ((obj) (hashq-ref val->slot obj))))
-
-  (define (slot-maybe-queue-near-ref! obj)
+  (define (maybe-create-obj-slot! obj)
+    "Looks up or creates slot for object"
+    ;; Returns 2 values: (object-slot created?)
     (let ((slot (hashq-ref val->slot obj #f)))
       (if slot
 	  (values slot #f)
@@ -2646,19 +2642,22 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
   (define root-slots
     (map (lambda (obj)
 	   (define-values (slot _created?)
-	     (slot-maybe-queue-near-ref! obj))
+	     (maybe-create-obj-slot! obj))
 	   slot)
 	 roots))
 
-  (define (read-next-portrait! am this-obj)
+  (define (read-portrait! am this-obj)
     (define slot
       (hashq-ref val->slot this-obj #f))
     (unless slot
       (error "Object does not appear in the persistence graph" this-obj))
 
-    ;; TODO: Move to an quicker mutable data structure
+    ;; Keep track of new (previously not in the object graph) objects,
+    ;; while this is represented as a hashmap, really it's working
+    ;; like a set of new child objects.
     (define new-child-objs
-      (make-set))
+      (make-hash-table))
+    
     (define this-obj-self-portrait-fn
       (mactor:object-self-portrait (actormap-ref am this-obj)))
     (define this-obj-constructor-refr
@@ -2693,9 +2692,9 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
         [(? zilch?)
          (make-portrait-record 'zilch #f)]
 	[(? local-object-refr?)
-	 (let-values (((slot created?) (slot-maybe-queue-near-ref! value)))
+	 (let-values (((slot created?) (maybe-create-obj-slot! value)))
 	   (when created?
-	     (set! new-child-objs (set-add new-child-objs value)))
+	     (hashq-set! new-child-objs value #t))
            (make-portrait-record 'near-refr slot))]
         [(? local-promise-refr? vow)
          (unless (near-promise-settled? vow)
@@ -2725,21 +2724,34 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
 
     (values slot depiction-to-save new-child-objs))
 
-  (values read-next-portrait! val->slot-ref))
+  ;; Facet for looking up within val->slot
+  (define val->slot-ref
+    (case-lambda
+      ((obj default-value) (hashq-ref val->slot obj default-value))
+      ((obj) (hashq-ref val->slot obj))))
+  
+  (values read-portrait! val->slot-ref))
 
-(define (actormap-take-portrait-with-fn am read-portrait! obj->slot-ref . roots)
-  "Take a portrait of the graph with a given portraiter function
+(define (actormap-take-portrait-with-read-portrait am read-portrait!
+						   obj->slot-ref roots)
+  "Take a portrait of the graph with a given read-portrait! function
 
 Type: Actormap Procedure Procedure LiveRef ... -> Hashmap List"
   (define slot->portrait
     (make-hash-table))
   (define process-queue
     (make-q))
+  ;; Looking up if an item is in the process queue is an O(n^2)
+  ;; operation. Since performance matters here, make a cache.
+  (define process-queue-cache
+    (make-hash-table))
+
+  (define (maybe-enqueue obj)
+    (unless (hashq-ref process-queue-cache obj #f)
+      (enq! process-queue obj)))
 
   ;; Queue up all the roots
-  (map (lambda (obj)
-         (enq! process-queue obj))
-       roots)
+  (for-each maybe-enqueue roots)
 
   ;; Go through the queue of objects to read and process them.
   (while (not (q-empty? process-queue))
@@ -2749,13 +2761,9 @@ Type: Actormap Procedure Procedure LiveRef ... -> Hashmap List"
 
       ;; We need to queue up new child objects which are not currently queued for
       ;; processing.
-      ;; NOTE: Not using set-fold to produce a value, more as a for-each
-      (set-fold
-       (lambda (obj _prev)
-         (define slot (obj->slot-ref obj))
-         (unless (memq obj (car process-queue))
-           (enq! process-queue obj)))
-       #f
+      (hash-for-each
+       (lambda (obj _value)
+         (maybe-enqueue obj))
        new-child-objs)))
 
   (define root-slots
@@ -2766,9 +2774,10 @@ Type: Actormap Procedure Procedure LiveRef ... -> Hashmap List"
 (define (actormap-take-portrait am persistence-env . roots)
   "Produces a self portrait of the actormap"
   (define-values (read-portrait! obj->slot-ref)
-    (apply make-actormap-take-portrait persistence-env roots))
+    (make-actormap-read-portrait! persistence-env roots))
 
-  (apply actormap-take-portrait-with-fn am read-portrait! obj->slot-ref roots))
+  (actormap-take-portrait-with-read-portrait
+   am read-portrait! obj->slot-ref roots))
 
 (define (actormap-replace-behavior am persistence-env)
   "Functional version of `actormap-replace-behavior!'
@@ -2941,16 +2950,16 @@ Type: Actormap PersistenceEnv -> Void"
     (match roots
       [(? list? root-slots)
        (define restored-roots
-         (map (lambda (slot)
-		(let ((vow (hashq-ref slots->promises slot)))
-		  ;; All the promises created should now be resolved.
-		  (actormap-run
-		   am
-		   (lambda ()
+	 (actormap-run
+	  am
+	  (lambda ()
+            (map (lambda (slot)
+		   (let ((vow (hashq-ref slots->promises slot)))
+		     ;; All the promises created should now be resolved.
 		     (if (near-promise-settled? vow)
 			 (near-settled-promise-value vow)
-			 (error "Restored object promise not settled"))))))
-              root-slots))
+			 (error "Restored object promise not settled"))))
+		 root-slots))))
        (apply values restored-roots)]
       [(? integer? slot)
        (let ((vow (hashq-ref slots->promises slot)))
