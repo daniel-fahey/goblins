@@ -652,11 +652,11 @@
                       prev))
         vlist-null
         obj)]
-      [(? set?)
-       (set-fold
+      [(? gset?)
+       (gset-fold
         (lambda (item this-set)
-          (set-add this-set (outgoing-pre-marshall! item)))
-        (make-set)
+          (gset-add this-set (outgoing-pre-marshall! item)))
+        (make-gset)
         obj)]
       [(? local-promise?)
        (desc:import-promise (maybe-install-export! obj))]
@@ -695,11 +695,11 @@
                       prev))
         vlist-null
         obj)]
-      [(? set?)
-       (set-fold
-        (lambda (item this-set)
-          (set-add this-set (incoming-post-unmarshall! item)))
-        (make-set)
+      [(? gset?)
+       (gset-fold
+        (lambda (item this-gset)
+          (gset-add this-gset (incoming-post-unmarshall! item)))
+        (make-gset)
         obj)]
       [(or (? desc:import-promise?) (? desc:import-object?))
        (maybe-install-import! obj)]

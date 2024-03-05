@@ -1,4 +1,5 @@
-;;; Copyright 2021 Christine Lemmer-Webber
+;;; Copyright 2021-2024 Christine Lemmer-Webber
+;;; Copyright 2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -23,6 +24,7 @@
 (define-module (goblins ghash)
   ;; NOTE: Do not depend on core because it depends on us.
   #:use-module (goblins core-types)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)        ; records
   #:use-module (srfi srfi-9 gnu)    ; record extensions
   #:use-module (ice-9 vlist)
@@ -42,7 +44,18 @@
             ghash-fold-right
             ghash-for-each
 
-            hash-table->ghash))
+            hash-table->ghash
+
+	    make-gset
+            gset?
+            gset-add
+            gset-remove
+	    gset-length
+            gset->list
+            gset-member?
+	    
+	    gset-fold
+	    gset-for-each))
 
 
 (define-record-type <ghash>
@@ -134,3 +147,88 @@
     vlist-null
     table)))
 
+;;; Sets
+(define-record-type <gset>
+  (_make-gset ht)
+  gset?
+  (ht _set-ht))
+
+(define (print-set set port)
+  (define items
+    (vhash-fold
+     (lambda (k _v prev)
+       (cons k prev))
+     '()
+     (_set-ht set)))
+  (format port "#<gset ~a>" items))
+
+(set-record-type-printer! <gset> print-set)
+
+(define (make-gset . items)
+  (define vh
+    (fold
+     (lambda (item vh)
+       (define-values (add assoc)
+	 (if (or (live-refr? item) (symbol? item))
+	     (values vhash-consq vhash-assoc)
+	     (values vhash-cons vhash-assq)))
+       ;; Ensure it's unique to the set
+       (if (assoc item vh)
+	   vh
+	   (add item #t vh)))
+     vlist-null items))
+  (_make-gset vh))
+
+(define (gset-add set item)
+  (define add
+    (if (or (live-refr? item) (symbol? item))
+	vhash-consq
+	vhash-cons))
+  (if (gset-member? set item)
+      set
+      (_make-gset (add item #t (_set-ht set)))))
+
+(define (gset-remove set item)
+  (define del
+    (if (or (live-refr? item) (symbol? item))
+	vhash-delq
+	vhash-delete))
+  (_make-gset (del item (_set-ht set))))
+
+(define (gset-fold proc init set)
+  (vhash-fold
+   (lambda (key _val prev)
+     (proc key prev))
+   init
+   (_set-ht set)))
+
+(define (gset-length set)
+  (vhash-fold
+   (lambda (_k _v count)
+     (1+ count))
+   0
+   (_set-ht set)))
+
+(define (gset->list set)
+  (vhash-fold
+   (lambda (key _val prev)
+     (cons key prev))
+   '()
+   (_set-ht set)))
+
+(define (gset-member? set key)
+  (define assoc
+    (if (or (live-refr? key) symbol? key)
+	vhash-assq
+	vhash-assoc))
+  
+  (match (assoc key (_set-ht set))
+    [(_val . #t) #t]
+    [#f #f]))
+
+(define (gset-for-each proc set)
+  (vhash-fold
+   (lambda (k v _p)
+     (proc k v))
+   #f
+   (_set-ht set)))
