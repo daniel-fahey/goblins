@@ -2615,7 +2615,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
      [_ (error "Unknown value to extend persistence environment from" extends)])))
 
 (define (make-actormap-read-portrait! persistence-env roots)
-  "Creates a read-portrait function for a given graph to take single object portraits the graph.
+  "Creates a read-portrait function for a given graph to take single object portraits of the graph.
 
 Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
   (when (null? roots)
