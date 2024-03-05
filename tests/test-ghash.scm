@@ -76,4 +76,39 @@
 (define gh6 (ghash-set gh5 'meep "meep"))
 (test-equal "meep" (ghash-ref gh6 'meep))
 
+;; Sets
+(define gs1
+  (make-gset 1 2 3))
+(test-equal 3 (gset-length gs1))
+(test-equal '(1 2 3) (gset->list gs1))
+(test-assert (gset-member? gs1 1))
+(test-assert (gset-member? gs1 2))
+(test-assert (gset-member? gs1 3))
+
+;; Add new number
+(define gs2
+  (gset-add gs1 4))
+(test-equal 4 (gset-length gs2))
+(test-equal '(1 2 3 4) (gset->list gs2))
+(test-assert (gset-member? gs2 4))
+
+;; Try adding same number
+(define gs3
+  (gset-add gs2 4))
+(test-equal 4 (gset-length gs3))
+(test-equal '(1 2 3 4) (gset->list gs3))
+
+;; Try removing a number
+(define gs4
+  (gset-remove gs3 2))
+(test-equal 3 (gset-length gs4))
+(test-equal '(4 3 1) (gset->list gs4))
+(test-assert (not (gset-member? gs4 2)))
+
+;; Try constructing a set with multiple of the same value
+(define gs5
+  (make-gset 1 2 3 4 4 5))
+(test-equal 5 (gset-length gs5))
+(test-equal '(1 2 3 4 5) (gset->list gs5))
+
 (test-end "test-ghash")
