@@ -7,8 +7,10 @@ one object claiming it has more abilities than it actually does.
 * Persistence Tutorial::
 * Persistence capable objects::
 * Operations on actormaps::
+* Persistent Vats::
 * Persistence Environments::
 * Upgrading through persistence::
+* Persistence stores::
 @end menu
 
 @node Persistence Tutorial
@@ -20,11 +22,21 @@ TODO when we land persistent vat PR
 @section Persistence capable objects
 
 When using the persistence mechanism you take a portrait of a graph, the
-graph has one or more roots. Once a portrait has been created this can
-be serialized and stored and at anytime rehydrated to an actormap
-restoring the objects with their data. Currently, the persistence system
-only works on actormaps, however support for vats and automatic
-snapshotting will be coming in a future version.
+graph has one or more roots. All object references starting from those
+root objects will be serialized, this even for graphs which contain
+cycle. Take the following graph:
+
+@verbatim
+
+       A           H                 <-- roots
+      /|\          |
+     / E \         J
+    B     F
+   / \
+  C   D
+@end verbatim
+
+The root objects would be objects @code{A} and @code{H}.
 
 In order for an object to have persistence support it must be able to
 create a self portrait of itself. The self portrait is a collection of
@@ -53,7 +65,7 @@ aware object is to use the @code{define-actor} macro:
 
 @lisp
 (use-modules (goblins)
-             (goblins utils define-actor))
+             (goblins actor-lib define-actor))
 
 (define-actor (^greeter _bcom our-name)
   (lambda (their-name)
@@ -214,6 +226,75 @@ transactormap which the user can choose whether or not to commit.
 
 @end deffn
 
+@node Persistent Vats
+@section Persistent Vats
+
+When a vat is spawned, it can be spawned as a persistent vat with a
+given persistence environment and set of roots. The vat also has a
+storage provider associated with it. Vats can be persisted either on
+each churn (when the vat reaches quiescence), or manually. If a vat is
+configured to persist on churns, just the objects which have changed
+(using become) will be persisted.
+
+@deffn {Procedure} spawn-persistent-vat persistent-env spawn-roots-thunk @
+       store [#:persist-on] [#:vat-constructor] [#:name] [#:log?]
+       [#:log-capacity]
+
+Create and return a reference to a new @emph{vat} configured with
+persistence.
+
+@itemize
+@item
+@var{persistence-env}: The persistence environment containing all
+objects within the persistence graph (@xref{Persistence Environments})
+
+@item
+@var{spawn-roots-thunk}: A thunk which is invoked if no persisted
+state of the vat exists. The lambda should spawn and return the roots
+of the object graph to be persisted.
+
+@item
+@var{store}: The store that persistence data will be read and written
+to (TODO: Link to store section).
+
+@item
+@var{persist-on}: If @code{'churn} will persist on churns, otherwise
+in a manual persistence mode (default: @code{'churn}).
+
+@item
+@var{vat-constructor}: The constructor used to create the vat,
+defaults to @code{spawn-fibrous-vat}.
+
+@var{name}: Name of the vat.  Note that this is @emph{not} the name it is
+bound to in the current namespace.
+
+@item
+@var{log?}: If @code{#t}, log @emph{vat} events; otherwise, do not.
+
+@item
+@var{log-capacity}: Number of events to be retained in the log.
+Defaults to 256.
+
+@end itemize
+
+@lisp
+(define-actor (^counter bcom value)
+  (lambda ()
+    (bcom (^counter bcom (+ 1 value)) value)))
+
+(define persistence-env
+  (make-persistence-env
+   `((((counter) ^counter) ,^counter))))
+
+(define-values (vat my-counter)
+  (spawn-persistent-vat
+   persistence-env
+   (lambda ()
+     (spawn ^counter 0))
+   (make-memory-store)))
+@end lisp
+@end deffn
+
 @node Persistence Environments
 @section Persistence Environments
 
@@ -360,3 +441,8 @@ example above.
 With the above example newly created objects which are created using
 Celcius will not be need to be upgraded, but the old fahrenheit objects
 will be converted.
+
+@node Persistence stores
+@section Persistence stores
+
+TODO

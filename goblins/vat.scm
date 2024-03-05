@@ -20,6 +20,8 @@
   #:use-module (goblins core)
   #:use-module (goblins core-types)
   #:use-module (goblins inbox)
+  #:use-module (goblins store)
+  #:use-module (goblins abstract-types)
   #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins utils random-name)
   #:use-module (goblins utils ring-buffer)
@@ -97,7 +99,11 @@
 
             syscaller-free-fiber
             spawn-fibrous-vow
+            spawn-persistent-vat
             fibrous
+
+            ;; TODO: DEBUG: remove me
+            vat-calculate-changed-objs
 
             define-vat-run
 
@@ -176,6 +182,28 @@
   (parameterize ((current-output-port %base-output-port)
                  (current-error-port %base-error-port))
     (proc)))
+
+;; This is a container for holding onto everything a vat needs to
+;; persist. This could live just on the vat itself but since it's a
+;; lot of stuff, it's broken into its own record.
+(define-record-type <vat-persistence>
+  (make-vat-persistence persistence-env persist-on store read-portrait! val->slot-ref roots)
+  vat-persistence-env?
+  ;; This is a <persistence-env> with all objects in the graph.
+  (persistence-env vat-persistence-env set-vat-persistence-env!)
+  ;; When 'churn it tells the vat to persist on churns, otherwise
+  ;; manual persist manually with `vat-take-portrait!'
+  (persist-on vat-persistence-persist-on)
+  ;; The store we should persist two and restore from.
+  (store vat-persistence-store)
+  ;; This is a function we get from core.scm to persist a single object.
+  (read-portrait! vat-persistence-read-portrait!
+		    set-vat-persistence-read-portrait!)
+  ;; This is a function we get from core.scm to lookup the slot for a refr.
+  (val->slot-ref vat-persistence-val->slot-ref
+		 set-vat-persistence-val->ref!)
+  ;; The root objects in the graph.
+  (roots vat-persistence-roots set-vat-persistence-roots!))
 
 ;; Vat event logging
 ;; =================
@@ -545,7 +573,8 @@ like this:
 
 (define-record-type <vat>
   (%make-vat id name actormap running connector current-churn
-             clock logging? log start-proc halt-proc send-proc)
+             clock logging? log start-proc halt-proc send-proc
+             persistence-env)
   vat?
   (id vat-id)
   (name vat-name)
@@ -558,7 +587,8 @@ like this:
   (log vat-log)
   (start-proc vat-start-proc)
   (halt-proc vat-halt-proc)
-  (send-proc vat-send-proc))
+  (send-proc vat-send-proc)
+  (persistence-env vat-persistence-env))
 
 (define (print-vat vat port)
   (format port "#<vat id: ~a name: ~a>"
@@ -595,7 +625,8 @@ like this:
 
 (define default-log-capacity 256)
 
-(define* (make-vat #:key name start halt send log? (log-capacity default-log-capacity))
+(define* (make-vat #:key persistence-env name start halt send log?
+                   (log-capacity default-log-capacity))
   "Return a new vat named NAME.  Vat behavior is determined by three
 event hooks:
 
@@ -645,7 +676,7 @@ Type: (Optional (#:name (U String Symbol)))
   (define index (make-hash-table))
   (define vat
     (%make-vat id name am running? connector 0 clock logging? log
-               start halt send))
+               start halt send persistence-env))
   (register-vat! vat)
   vat)
 
@@ -765,6 +796,10 @@ Type: Vat -> Void"
         (dispatch-message (vat-event-message event)
                           (vat-event-timestamp event))
         (loop))))
+
+  ;; Persist the changes if needed.
+  (vat-maybe-persist-changed-objs! vat new-am)
+
   ;; And now let's return everything...
   (values result new-am))
 
@@ -912,6 +947,7 @@ logging."
   (%vat-log-errors (vat-log vat)))
 
 (define* (make-fibrous-vat #:key name log?
+                           (persistence-env #f)
                            (log-capacity default-log-capacity)
                            (scheduler (default-vat-scheduler))
                            (dynamic-wrap port-redirect-dynamic-wrap))
@@ -962,9 +998,11 @@ logging."
             #:log-capacity log-capacity
             #:start start
             #:halt halt
-            #:send send))
+            #:send send
+            #:persistence-env persistence-env))
 
 (define* (spawn-fibrous-vat #:key name log?
+                            (persistence-env #f)
                             (log-capacity default-log-capacity)
                             (scheduler (default-vat-scheduler))
                             (dynamic-wrap port-redirect-dynamic-wrap))
@@ -972,9 +1010,11 @@ logging."
                                #:log? log?
                                #:log-capacity log-capacity
                                #:scheduler scheduler
-                               #:dynamic-wrap dynamic-wrap)))
+                               #:dynamic-wrap dynamic-wrap
+                               #:persistence-env persistence-env)))
     (vat-start! vat)
     vat))
+
 
 (define* (spawn-vat #:key name log? (log-capacity default-log-capacity))
   "Create and return a reference to a new vat. If provided, NAME is
@@ -1032,6 +1072,166 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
                         (with-vat this-vat body :::))))))
     ((define-vat-run vat-run-id)
      (define-vat-run vat-run-id (spawn-vat)))))
+
+
+;; Vat persistence
+;; ===============
+
+
+(define (transactormap-calculate-obj-delta am)
+  "Gets the refrs of all objects that changed in last transaction"
+  (define actormap-data
+    (@@ (goblins core) actormap-data))
+  (define transactormap-data-delta
+    (@@ (goblins core) transactormap-data-delta))
+
+  (define am-data
+    (actormap-data am))
+  (define delta-obj-map
+    (transactormap-data-delta am-data))
+  ;; Extract just the refr.
+  (hash-fold
+   (lambda (refr mactor prev)
+     (cons refr prev))
+   '()
+   delta-obj-map))
+
+(define (vat-take-portrait! vat)
+  (define persistence-env
+    (vat-persistence-env vat))
+  (unless (and persistence-env
+               (vat-persistence-read-portrait! persistence-env)
+               (vat-persistence-val->slot-ref persistence-env)
+               (vat-persistence-roots persistence-env))
+    (error "Not a persistence aware vat"))
+
+  ;; Setup everything we need to take a full portrait
+  (define am
+    (vat-actormap vat))
+  (define read-portrait!
+    (vat-persistence-read-portrait! persistence-env))
+  (define val->slot-refr
+    (vat-persistence-val->slot-ref persistence-env))
+  (define roots
+    (vat-persistence-roots persistence-env))
+  (define-values (slot->portrait root-slots)
+    (actormap-take-portrait-with-read-portrait am read-portrait! val->slot-refr roots))
+
+  ;; Now save the portrait and roots in the store
+  (define store
+    (vat-persistence-store persistence-env))
+  (define save-portrait-in-store!
+    (persistence-store-save-proc store))
+  (save-portrait-in-store! slot->portrait root-slots)
+  (values slot->portrait root-slots))
+
+(define* (spawn-persistent-vat persistence-env spawn-roots-thunk store
+                               #:key (persist-on 'churn)
+                               (vat-constructor spawn-fibrous-vat)
+                               name log? (log-capacity default-log-capacity))
+  "Create and return a reference to a new vat with persistence. All
+objects spawned on the vat that will persist must be persistence
+aware. The objects must be in PERSISTENCE-ENV which is used when the
+vat takes the portrait and rehydrates objects.
+
+The SPAWN-ROOT-THUNK perameter will be run within the vat
+environment and should spawn one or more values which are the root
+objects to be persisted.
+
+STORE is a storage backend mechanism which matches the persistence
+store interface.
+
+If PERSIST-ON is not provided persistence will happen on every churn
+of the vat. If this is #f, no automatic persistence mechanism
+will occur and this should be handled manually.
+
+If provided, NAME is the debug name of the vat. If LOG? is #t, log
+vat events, otherwise do not. If provided, LOG-CAPACITY is the number
+of events to retain in the log."
+  (define vat-persistence
+    (make-vat-persistence persistence-env persist-on store #f #f #f))
+
+  (define vat
+    (vat-constructor
+     #:persistence-env vat-persistence
+     #:name name
+     #:log? log?
+     #:log-capacity log-capacity))
+
+  (define vat-am
+    (vat-actormap vat))
+
+  ;; We should either restore from the data in the store if that exists,
+  ;; or we should spawn the roots by using `spawn-roots-lambda'.
+  (define read-memory-fn
+    (persistence-store-read-proc store))
+  (define-values (portraits root-slots)
+    (read-memory-fn))
+
+  (define roots
+    (if (and portraits root-slots)
+        (call-with-values
+	    (lambda ()
+	      (actormap-restore vat-am persistence-env portraits root-slots))
+	  list)
+        (with-vat vat
+          (call-with-values spawn-roots-thunk list))))
+
+  (define-values (read-portrait! val->slot-ref)
+    (make-actormap-read-portrait! persistence-env roots))
+
+  ;; Setup the persistent environment
+  (set-vat-persistence-read-portrait! vat-persistence read-portrait!)
+  (set-vat-persistence-val->ref! vat-persistence val->slot-ref)
+  (set-vat-persistence-roots! vat-persistence roots)
+
+  ;; Finally, lets take the first vat portrait
+  (with-vat vat
+    (vat-take-portrait! vat))
+
+  (apply values vat roots))
+
+(define (vat-maybe-persist-changed-objs! vat new-am)
+  (define vat-persistence
+    (vat-persistence-env vat))
+
+  (when vat-persistence
+    (let* ([process-queue (make-q)]
+           [slot->portraits (make-hash-table)]
+           [persist-on (vat-persistence-persist-on vat-persistence)]
+           [val->slot-refr (vat-persistence-val->slot-ref vat-persistence)]
+           [read-portrait! (vat-persistence-read-portrait! vat-persistence)]
+           [store (vat-persistence-store vat-persistence)]
+           [save-portraits! (persistence-store-save-proc store)])
+
+      ;; On the first churn when a persistent vat is setting up these are not available
+      ;; despite the vat being setup for persistence. In such a case skip this.
+      (when (and (eq? persist-on 'churn) val->slot-refr)
+        ;; From the set of changed objects in the last transaction, find the ones which
+        ;; appear in the portrait of the object graph by checking if they have an
+        ;; assigned slot. For the ones found queue them up for depiction
+        (for-each
+         (lambda (changed-obj)
+           (when (val->slot-refr changed-obj)
+             (enq! process-queue changed-obj)))
+         (transactormap-calculate-obj-delta new-am)))
+
+      (while (not (q-empty? process-queue))
+        (let ((obj (deq! process-queue)))
+          (define-values (slot portrait new-child-objs)
+            (read-portrait! new-am obj))
+
+          (hashq-set! slot->portraits slot portrait)
+
+          ;; The object may have changed by adding a new object not previously in the
+          ;; object graph. In such cases we need to ensure they're queued also.
+          (hash-for-each
+           (lambda (obj _val)
+             (unless (memq obj (car process-queue))
+               (enq! process-queue obj)))
+           new-child-objs)))
+      (save-portraits! slot->portraits))))
+
 
 ;; An example to test against, wip
 #;(run-fibers
