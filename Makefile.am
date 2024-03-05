@@ -96,6 +96,7 @@ SOURCES = goblins.scm \
           goblins/vat.scm \
           goblins/vrun.scm \
           goblins/repl.scm \
+          goblins/store.scm \
           tests/repl-driver.scm \
           tests/utils.scm
 
