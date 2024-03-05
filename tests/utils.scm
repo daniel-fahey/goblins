@@ -37,10 +37,9 @@
            (lambda ()
              (put-message results-ch (vector 'err err))))
           'err)))
-  (run-fibers
-   (lambda ()
-     (perform-operation
-      (choice-operation (wrap-operation (sleep-operation timeout)
-                                        (lambda _
-                                          (vector 'err '*timeout*)))
-                        (get-operation results-ch))))))
+
+  (perform-operation
+   (choice-operation (wrap-operation (sleep-operation timeout)
+                                     (lambda _
+                                       (vector 'err '*timeout*)))
+                     (get-operation results-ch))))
