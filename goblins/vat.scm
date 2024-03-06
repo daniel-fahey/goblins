@@ -958,12 +958,13 @@ logging."
     (define (handle-message args)
       (match args
         ((envelope return-ch)
+         (define result (churn envelope))
          ;; We have the put-message be run in its own fiber so that if
          ;; the other side isn't listening for it anymore, the vat
          ;; itself doesn't end up blocked.
          (syscaller-free-fiber
           (lambda ()
-            (put-message return-ch (churn envelope)))))
+            (put-message return-ch result))))
         (envelope
          (churn envelope))))
     (define (loop)
