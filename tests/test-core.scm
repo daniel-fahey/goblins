@@ -677,7 +677,7 @@
   "Hello Ludvig, my name is *restored Astrid* (called 3).")
 
 
-(set!-redefinable-object-constructor
+(set-redefinable-object-constructor!
  ^persistent-greeter
  (lambda* (bcom our-name #:optional init-number-of-times)
    (define number-of-times

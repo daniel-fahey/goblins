@@ -17,7 +17,7 @@
                 #:select (portraitize
                           make-redefinable-object
 			  redefinable-object?
-                          set!-redefinable-object-constructor))
+                          set-redefinable-object-constructor!))
   #:export (define-actor define-hackable))
 
 
@@ -26,34 +26,42 @@
     (if (defined? 'name)
 	;; We've already defined this, just update the constructor refr
 	(begin
-	  (set!-redefinable-object-constructor name proc)
+	  (set-redefinable-object-constructor! name proc)
 	  name)
 	;; First time, lets define it.
 	(make-redefinable-object proc))))
 
 (define-syntax define-actor
   (lambda (stx)
-    (define* (args->arg-names args #:key [is-keyword? #f])
-      (if (null? args)
-	  '()
-	  (syntax-case (car args) ()
-	    [#:key (args->arg-names (cdr args) #:is-keyword? #t)]
-	    [#:optional (args->arg-names (cdr args) #:is-keyword? #f)]
-	    [(identifier default-value)
-	     (let ((rest (args->arg-names (cdr args) #:is-keyword? is-keyword?)))
-	       (if is-keyword?
-		   (cons
-		    (datum->syntax #'identifier (symbol->keyword (syntax->datum #'identifier)))
-		    (cons #'identifier rest))
-		   (cons #'identifier rest)))]
-	    [identifier
-	     (let ((rest (args->arg-names (cdr args) #:is-keyword? is-keyword?)))
-	       (if is-keyword?
-		   (cons
-		    (datum->syntax #'identifier (symbol->keyword (syntax->datum #'identifier)))
-		    (cons #'identifier rest))
-		   (cons #'identifier rest)))])))
+    (define* (args->arg-names args #:key is-keyword?)
+      (define (identifier->keyword id)
+	"Convert identifier to keyword for identifier. (e.g. 'name' -> #:name"
+	(datum->syntax #f (symbol->keyword (syntax->datum id))))
+      (define (cons-id id lst)
+	"Add the provided ID to the list of arguments"
+	(pk 'id id)
+	;; If we're handling keyword arguments, add the keyword for
+	;; the identifier as well as the identifier itself so that
+	;; when applied it works at as e.g. (#:name name)
+	;; Otherwise just add the id.
+	(if is-keyword?
+	    (cons* (identifier->keyword id) id lst)
+	    (cons id lst)))
 
+      ;; Go through each argument to the actor pulling out the
+      ;; identifier only (e.g. skip #:key, #:optional, default values,
+      ;; etc.). If it's a keyword argument we want to include the
+      ;; identifier's keyword and the identifier itself.
+      (syntax-case args ()
+	(() '())
+	((#:key . rest)
+	 (args->arg-names #'rest #:is-keyword? #t))
+	((#:optional . rest)
+	 (args->arg-names #'rest #:is-keyword? #f))
+	(((id default) . rest)
+	 (cons-id #'id (args->arg-names #'rest #:is-keyword? is-keyword?)))
+	((id . rest)
+	 (cons-id #'id (args->arg-names #'rest #:is-keyword? is-keyword?)))))
     (syntax-case stx ()
       [(_ (constructor-id bcom arg ...) body ...)
        (with-syntax (((arg-name ...) (args->arg-names #'(arg ...))))
