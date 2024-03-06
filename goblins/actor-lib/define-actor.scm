@@ -39,7 +39,6 @@
 	(datum->syntax #f (symbol->keyword (syntax->datum id))))
       (define (cons-id id lst)
 	"Add the provided ID to the list of arguments"
-	(pk 'id id)
 	;; If we're handling keyword arguments, add the keyword for
 	;; the identifier as well as the identifier itself so that
 	;; when applied it works at as e.g. (#:name name)
