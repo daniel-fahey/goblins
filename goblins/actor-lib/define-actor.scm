@@ -20,50 +20,55 @@
                           set!-redefinable-object-constructor))
   #:export (define-actor define-hackable))
 
-(define-syntax-rule (define-actor (constructor-id bcom args ...) body ...)
-  (define constructor-id
-    (if (and (defined? 'constructor-id)
-	     (redefinable-object? constructor-id))
+
+(define-syntax-rule (define-redefinable-object name proc)
+  (define name
+    (if (defined? 'name)
 	;; We've already defined this, just update the constructor refr
 	(begin
-	  (set!-redefinable-object-constructor
-	   constructor-id
-	   ;; This let binding trick tells guile to name the procedure.
-	   (let ((constructor-id
-		  (lambda* (bcom args ...)
-                    (define (main-beh)
-                      body ...)
-                    (define (self-portrait)
-                      (list args ...))
-                    (portraitize (main-beh) self-portrait))))
-             constructor-id))
-	  constructor-id)
+	  (set!-redefinable-object-constructor name proc)
+	  name)
+	;; First time, lets define it.
+	(make-redefinable-object proc))))
 
-	(make-redefinable-object
-	 ;; This let binding trick tells guile to name the procedure.
-         (let ((constructor-id
-		(lambda* (bcom args ...)
-                  (define (main-beh)
-                    body ...)
-                  (define (self-portrait)
-                    (list args ...))
-                  (portraitize (main-beh) self-portrait))))
-	   constructor-id)))))
+(define-syntax define-actor
+  (lambda (stx)
+    (define* (args->arg-names args #:key [is-keyword? #f])
+      (if (null? args)
+	  '()
+	  (syntax-case (car args) ()
+	    [#:key (args->arg-names (cdr args) #:is-keyword? #t)]
+	    [#:optional (args->arg-names (cdr args) #:is-keyword? #f)]
+	    [(identifier default-value)
+	     (let ((rest (args->arg-names (cdr args) #:is-keyword? is-keyword?)))
+	       (if is-keyword?
+		   (cons
+		    (datum->syntax #'identifier (symbol->keyword (syntax->datum #'identifier)))
+		    (cons #'identifier rest))
+		   (cons #'identifier rest)))]
+	    [identifier
+	     (let ((rest (args->arg-names (cdr args) #:is-keyword? is-keyword?)))
+	       (if is-keyword?
+		   (cons
+		    (datum->syntax #'identifier (symbol->keyword (syntax->datum #'identifier)))
+		    (cons #'identifier rest))
+		   (cons #'identifier rest)))])))
+
+    (syntax-case stx ()
+      [(_ (constructor-id bcom arg ...) body ...)
+       (with-syntax (((arg-name ...) (args->arg-names #'(arg ...))))
+	 #'(define-redefinable-object
+	     constructor-id
+	     (lambda* (bcom arg ...)
+	       (define (main-beh)
+		 body ...)
+	       (define (self-portrait)
+		 (list arg-name ...))
+	       (portraitize (main-beh) self-portrait))))])))
 
 (define-syntax-rule (define-hackable (constructor-id bcom args ...) body ...)
-  (if (module-defined? (current-module) 'constructor-id)
-      ;; We've already defined this, just update the constructor refr
-      (set!-redefinable-object-constructor
-       constructor-id
-       (let ((constructor-id (lambda* (bcom args ...)
-                               body ...)))
-         constructor-id))
-      ;; First time, lets define it.
-      (module-define!
-       (current-module)
-       'constructor-id
-       (make-redefinable-object
-        (let ((constructor-id
-               (lambda* (bcom args ...)
-                 body ...)))
-          constructor-id)))))
+  (define-redefinable-object constructor-id
+    (let ((constructor-id
+	   (lambda (bcom args ...)
+	     body ...)))
+      constructor-id)))

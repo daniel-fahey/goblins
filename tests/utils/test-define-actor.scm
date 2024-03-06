@@ -54,4 +54,54 @@
   (actormap-peek restored-am restored-sword-cell)
   'sword)
 
+;; Test an object which uses keys and optional values
+(define-actor (^robot _bcom name #:optional color #:key [hp 100] ready?)
+  (lambda ()
+    (string-append
+     "I am a "
+     (if color
+	 (format #f "~a robot" color)
+	 "robot")
+     (format #f " with ~a hit points left. " hp)
+     (if ready?
+	 "Lets rumble!"
+	 "... not ready yet!"))))
+
+(define am1 (make-actormap))
+(define robot-env
+  (make-persistence-env
+   `((((tests utils test-define-actor) ^robot) ,^robot))))
+
+(define smashtron500
+  (actormap-spawn! am1 ^robot "Smashtron 5000" #:hp 200))
+(define roadblock
+  (actormap-spawn! am1 ^robot "Roadblock" 'red #:ready? #t))
+
+(define-values (robot-portraits robot-roots)
+  (actormap-take-portrait am1 robot-env smashtron500 roadblock))
+
+(define restored-am1
+  (make-actormap))
+(define-values (restored-smashtron500 restored-roadblock)
+  (actormap-restore restored-am1 robot-env robot-portraits robot-roots))
+
+(test-equal
+    "Check first restored robot has correct output"
+  "I am a robot with 200 hit points left. ... not ready yet!"
+  (actormap-peek restored-am1 restored-smashtron500))
+(test-equal
+    "Check second restored robot has correct output"
+  "I am a red robot with 100 hit points left. Lets rumble!"
+  (actormap-peek restored-am1 restored-roadblock))
+
+;; This is a good sanity check and verifies define-actor without resturation.
+(test-equal
+    "Check first restored robot has same output as non-restored robot"
+  (actormap-peek am1 smashtron500)
+  (actormap-peek restored-am1 restored-smashtron500))
+(test-equal
+    "Check first restored robot has same output as non-restored robot"
+  (actormap-peek am1 roadblock)
+  (actormap-peek restored-am1 restored-roadblock))
+
 (test-end "test-define-actor")
