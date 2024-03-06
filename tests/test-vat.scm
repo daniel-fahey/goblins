@@ -19,6 +19,7 @@
   #:use-module (goblins vat)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib joiners)
   #:use-module (tests utils)
   #:use-module (fibers)
   #:use-module (fibers channels)
@@ -286,6 +287,35 @@
   (with-vat a-vat
     (let ((friend (spawn ^friendo)))
       (<<- friend))))
+
+(define (^greeter _bcom my-name)
+  (lambda (your-name)
+    (format #f "Hello ~a, I'm ~a"
+            your-name my-name)))
+
+(test-equal "Multiple messages dispatched at once between vats resolve"
+  '("Hello Bob0, I'm Alice"
+    "Hello Bob1, I'm Alice"
+    "Hello Bob2, I'm Alice"
+    "Hello Bob3, I'm Alice"
+    "Hello Bob4, I'm Alice"
+    "Hello Bob5, I'm Alice"
+    "Hello Bob6, I'm Alice"
+    "Hello Bob7, I'm Alice"
+    "Hello Bob8, I'm Alice"
+    "Hello Bob9, I'm Alice")
+  (let* ((alice (with-vat a-vat (spawn ^greeter "Alice")))
+         (result
+          (resolve-vow-and-return-result
+           b-vat
+           (lambda ()
+             (all-of*
+              (map (lambda (i) (<- alice (format #f "Bob~a" i)))
+                   (iota 10)))))))
+    (match result
+      (#('ok val) val)
+      (#('err err) (list '*error* err)))))
+
 
 ;; Vat event log tests
 
