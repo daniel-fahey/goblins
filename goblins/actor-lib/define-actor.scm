@@ -17,53 +17,67 @@
                 #:select (portraitize
                           make-redefinable-object
 			  redefinable-object?
-                          set!-redefinable-object-constructor))
+                          set-redefinable-object-constructor!))
   #:export (define-actor define-hackable))
 
-(define-syntax-rule (define-actor (constructor-id bcom args ...) body ...)
-  (define constructor-id
-    (if (and (defined? 'constructor-id)
-	     (redefinable-object? constructor-id))
+
+(define-syntax-rule (define-redefinable-object name proc)
+  (define name
+    (if (defined? 'name)
 	;; We've already defined this, just update the constructor refr
 	(begin
-	  (set!-redefinable-object-constructor
-	   constructor-id
-	   ;; This let binding trick tells guile to name the procedure.
-	   (let ((constructor-id
-		  (lambda* (bcom args ...)
-                    (define (main-beh)
-                      body ...)
-                    (define (self-portrait)
-                      (list args ...))
-                    (portraitize (main-beh) self-portrait))))
-             constructor-id))
-	  constructor-id)
+	  (set-redefinable-object-constructor! name proc)
+	  name)
+	;; First time, lets define it.
+	(make-redefinable-object proc))))
 
-	(make-redefinable-object
-	 ;; This let binding trick tells guile to name the procedure.
-         (let ((constructor-id
-		(lambda* (bcom args ...)
-                  (define (main-beh)
-                    body ...)
-                  (define (self-portrait)
-                    (list args ...))
-                  (portraitize (main-beh) self-portrait))))
-	   constructor-id)))))
+(define-syntax define-actor
+  (lambda (stx)
+    (define* (args->arg-names args #:key is-keyword?)
+      (define (identifier->keyword id)
+	"Convert identifier to keyword for identifier. (e.g. 'name' -> #:name"
+	(datum->syntax #f (symbol->keyword (syntax->datum id))))
+      (define (cons-id id lst)
+	"Add the provided ID to the list of arguments"
+	;; If we're handling keyword arguments, add the keyword for
+	;; the identifier as well as the identifier itself so that
+	;; when applied it works at as e.g. (#:name name)
+	;; Otherwise just add the id.
+	(if is-keyword?
+	    (cons* (identifier->keyword id) id lst)
+	    (cons id lst)))
+
+      ;; Go through each argument to the actor pulling out the
+      ;; identifier only (e.g. skip #:key, #:optional, default values,
+      ;; etc.). If it's a keyword argument we want to include the
+      ;; identifier's keyword and the identifier itself.
+      (syntax-case args ()
+	(() '())
+	((#:key . rest)
+	 (args->arg-names #'rest #:is-keyword? #t))
+	((#:optional . rest)
+	 (args->arg-names #'rest #:is-keyword? #f))
+	(((id default) . rest)
+	 (identifier? #'id)
+	 (cons-id #'id (args->arg-names #'rest #:is-keyword? is-keyword?)))
+	((id . rest)
+	 (identifier? #'id)
+	 (cons-id #'id (args->arg-names #'rest #:is-keyword? is-keyword?)))))
+    (syntax-case stx ()
+      [(_ (constructor-id bcom arg ...) body ...)
+       (with-syntax (((arg-name ...) (args->arg-names #'(arg ...))))
+	 #'(define-redefinable-object
+	     constructor-id
+	     (lambda* (bcom arg ...)
+	       (define (main-beh)
+		 body ...)
+	       (define (self-portrait)
+		 (list arg-name ...))
+	       (portraitize (main-beh) self-portrait))))])))
 
 (define-syntax-rule (define-hackable (constructor-id bcom args ...) body ...)
-  (if (module-defined? (current-module) 'constructor-id)
-      ;; We've already defined this, just update the constructor refr
-      (set!-redefinable-object-constructor
-       constructor-id
-       (let ((constructor-id (lambda* (bcom args ...)
-                               body ...)))
-         constructor-id))
-      ;; First time, lets define it.
-      (module-define!
-       (current-module)
-       'constructor-id
-       (make-redefinable-object
-        (let ((constructor-id
-               (lambda* (bcom args ...)
-                 body ...)))
-          constructor-id)))))
+  (define-redefinable-object constructor-id
+    (let ((constructor-id
+	   (lambda (bcom args ...)
+	     body ...)))
+      constructor-id)))

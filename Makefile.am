@@ -103,6 +103,7 @@ SOURCES = goblins.scm \
 
 TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-common.scm \
+        tests/actor-lib/test-define-actor.scm \
         tests/actor-lib/test-facet.scm \
         tests/actor-lib/test-io.scm \
         tests/actor-lib/test-joiners.scm \
@@ -132,8 +133,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/test-repl.scm \
         tests/utils/test-base32.scm \
         tests/utils/test-bytes-stuff.scm \
-        tests/utils/test-ring-buffer.scm \
-        tests/utils/test-define-actor.scm
+        tests/utils/test-ring-buffer.scm
 
 TEST_EXTENSIONS = .scm
 SCM_LOG_DRIVER =                                \

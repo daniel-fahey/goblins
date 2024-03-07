@@ -125,7 +125,7 @@
             make-redefinable-object
             redefinable-object?
             redefinable-object-constructor
-            set!-redefinable-object-constructor))
+            set-redefinable-object-constructor!))
 
 ;; Actormaps, etc
 ;; ==============
@@ -359,7 +359,7 @@ Type: Any -> Boolean"
       (struct-ref obj 0)
       (error "Not a redefinable object")))
 
-(define (set!-redefinable-object-constructor obj new-constructor)
+(define (set-redefinable-object-constructor! obj new-constructor)
   (if (redefinable-object? obj)
       (struct-set! obj 0 new-constructor)
       (error "Not a redefinable object")))
