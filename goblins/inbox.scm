@@ -52,7 +52,7 @@
              (set! next-one (deq! back-queue))))))
     (define (stop-op)
       (wrap-operation (wait-operation stop?)
-                      (lambda (_) (set! keep-going? #f))))
+                      (lambda () (set! keep-going? #f))))
     (while keep-going?
       (perform-operation
        (if next-one
