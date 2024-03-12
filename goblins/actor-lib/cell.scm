@@ -15,19 +15,18 @@
 
 (define-module (goblins actor-lib cell)
   #:use-module (goblins core)
+  #:use-module (goblins actor-lib define-actor)
   #:export (^cell
             cell->read-only
             cell->write-only
-            define-cell))
+            define-cell
+	    cell-env))
 
 ;;; Cells
 ;;; =====
 
 ;; A simple turn-mutable cell
-
-;; Constructor for a cell.  Takes an optional initial value, defaults
-;; to false.
-(define* (^cell bcom #:optional [val #f])
+(define-actor (^cell bcom #:optional val)
   "Construct a Cell taking an optional VAL which defaults to #f.
 
 The constructed cell can be invoked without an argument, which will return VAL;
@@ -41,21 +40,31 @@ as VAL."
     [(new-val)
      (bcom (^cell bcom new-val))]))
 
+(define-actor (^ro-cell _bcom cell)
+  "A cell facet that only allows reading"
+  (lambda ()
+    ($ cell)))
 (define (cell->read-only cell)
   "Create a read-only reference to CELL.
 
 Type: Cell -> ROCell"
-  (define (^ro-cell bcom)
-    (lambda () ($ cell)))
-  (spawn ^ro-cell))
+  (spawn ^ro-cell cell))
 
+(define-actor (^wo-cell _bcom cell)
+  "A cell facet that only allows writing"
+  (lambda (new-val)
+    ($ cell new-val)))
 (define (cell->write-only cell)
   "Create a write-only reference to CELL.
 
 Type: Cell -> WOCell"
-  (define (^wo-cell bcom)
-    (lambda (new-val) ($ cell new-val)))
-  (spawn ^wo-cell))
+  (spawn ^wo-cell cell))
+
+(define cell-env
+  (make-persistence-env
+   `((((goblins actor-lib cell) ^cell) ,^cell)
+     (((goblins actor-lib cell) ^ro-cell) ,^ro-cell)
+     (((goblins actor-lib cell) ^wo-cell) ,^wo-cell))))
 
 (define-syntax define-cell
   ;;; Define a Cell using standard Scheme define syntax.

@@ -16,10 +16,13 @@
 (define-module (goblins actor-lib common)
   #:use-module (srfi srfi-1)
   #:use-module (ice-9 vlist)
+  #:use-module (goblins)
   #:use-module (goblins ghash)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib define-actor)
   #:export (^seteq
-            ^ghash))
+            ^ghash
+	    common-env))
 
 ;; And the rest, eventually...
 (define (^seteq bcom . initial)
@@ -31,24 +34,31 @@ Methods:
 `remove val': Remove VAL from the set.
 `member? val': Return #t if VAL is in the set, else #f.
 `as-list': Return the set as a cons list."
-  (let next ((vh (fold (lambda (i vh)
-                         (vhash-consq i #t vh))
-                       vlist-null
-                       initial)))
-    (methods
-     [(add val)
-      (bcom (next (vhash-consq val #t vh)))]
-     [(remove val)
-      (bcom (next (vhash-delq val vh)))]
-     [(member? val)
-      (and (vhash-assq val vh) #t)]
-     [(as-list)
-      (vhash-fold (lambda (k v lst)
-                    (cons k lst))
-                  (list)
-                  vh)])))
+  (define (seteq vh)
+    (define main-beh
+      (methods
+       [(add val)
+	(bcom (seteq (vhash-consq val #t vh)))]
+       [(remove val)
+	(bcom (seteq (vhash-delq val vh)))]
+       [(member? val)
+	(and (vhash-assq val vh) #t)]
+       [(as-list)
+	(vhash-fold (lambda (k v lst)
+                      (cons k lst))
+                    (list)
+                    vh)]))
+    (define (self-portrait)
+      (main-beh 'as-list))
+    (portraitize main-beh self-portrait))
+  (define vh
+    (fold (lambda (i vh)
+            (vhash-consq i #t vh))
+	  vlist-null
+	  initial))
+  (seteq vh))
 
-(define* (^ghash bcom #:optional [ht ghash-null])
+(define-actor (^ghash bcom #:optional [ht ghash-null])
   "Construct an actor providing a transactional interface to (goblins ghash),
 a hashmap using `eq?' for refrs and `equal?' for everything else.
 
@@ -72,3 +82,8 @@ Methods:
    [(remove key)
     (bcom (^ghash bcom (ghash-remove ht key)))]
    [(data) ht]))
+
+(define common-env
+  (make-persistence-env
+   `((((goblins actor-lib common) ^ghash) ,^ghash)
+     (((goblins actor-lib common) ^seteq) ,^seteq))))

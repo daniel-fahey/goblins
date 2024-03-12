@@ -15,12 +15,15 @@
 
 (define-module (goblins actor-lib ward)
   #:use-module (goblins core)
+  #:use-module (goblins actor-lib sealers)
+  #:use-module (goblins actor-lib define-actor)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-9)
   #:export (spawn-warding-pair
             ward
             enchant
-            warden->ward-proc))
+            warden->ward-proc
+	    ward-env))
 
 ;; This module provides a "warding" mechanism... behind the ward is
 ;; some interesting behavior an actor might not quite want everyone to
@@ -48,7 +51,7 @@
 
 ;; A special kind of sealer/unsealer... can only ever be
 ;; sealed/unsealed once.
-(define (make-ward-sealer-triplet)
+(define* (make-ward-sealer-triplet #:optional name)
   (define-record-type <ward-sealed>
     (ward-sealed val shattered?)
     ward-sealed?
@@ -64,38 +67,57 @@
     (set-ward-sealed-shattered?! sealed #t)
     (ward-sealed-val sealed))
   (values seal unseal ward-sealed?))
+(define ward-known-sealers
+  `((((goblins actor-lib ward) ward-sealer-triplet) . ,make-ward-sealer-triplet)))
+(define-values (spawn-ward-sealer-triplet ward-sealer-triplet-env)
+  (make-spawn-sealer-triplet
+   `(goblins actor-lib ward)
+   ward-known-sealers
+   make-ward-sealer-triplet))
 
-(define* (spawn-warding-pair #:key [async? #f] [sealer-triplet #f])
-  "Create a Warden and Incanter.
+(define (make-spawn-warding-pair)
+  ;; When invoked, the warden returns either:
+  ;;  - #f: if these are not arguments sealed by the sealer, or
+  ;;  - (list args ...): the unsealed arguments
+  (define-actor (^warden _bcom unseal sealed?)
+    (lambda (maybe-sealed-args)
+      (if ($ sealed? maybe-sealed-args)
+	  ($ unseal maybe-sealed-args)
+	  #f)))
+
+  (define-actor (^incanter _bcom seal async?)
+    (define $/<-
+      (if async? <- $))
+    (lambda (target . args)
+      ($/<- target ($ seal args))))
+
+  (define* (spawn-warding-pair #:key [async? #f] [sealer-triplet #f])
+    "Create a Warden and Incanter.
 
 The Warden is to be used with the ward procedure. The Incanter is used to
 access warded methods. The optional keyword argument ASYNC? indicates whether
 to use $ or <- for message proxying, and the optional keyword argument
 SEALER-TRIPLET is a sealer triplet.
 
-Type: (Optional (#:async? Boolean))
-(Optional (#:sealer-triplet (Values Sealer Unsealer Checker)))
+Type: (Optional (#:sealer-triplet (Values Sealer Unsealer Checker)))
 -> (Values Warden Incanter)"
-  (define-values (seal unseal sealed?)
-    (match sealer-triplet
-      [(seal unseal sealed?)
-       (values seal unseal sealed?)]
-      [#f
-       (make-ward-sealer-triplet)]))
-  ;; When invoked, the warden returns either:
-  ;;  - #f: if these are not arguments sealed by the sealer, or
-  ;;  - (list args ...): the unsealed arguments
-  (define (^warden _bcom)
-    (lambda (maybe-sealed-args)
-      (and (sealed? maybe-sealed-args)
-           (unseal maybe-sealed-args))))
-  (define (^incanter _bcom)
-    (define $/<-
-      (if async? <- $))
-    (lambda (target . args)
-      ($/<- target (seal args))))
+    (define-values (seal unseal sealed?)
+      (match sealer-triplet
+	[(seal unseal sealed?)
+	 (values seal unseal sealed?)]
+	[#f
+	 (spawn-ward-sealer-triplet)]))
+    (values (spawn-named 'warden ^warden unseal sealed?)
+	    (spawn-named 'incanter ^incanter seal async?)))
+  (define ward-env
+    (make-persistence-env
+     `((((goblins actor-lib ward) ^warden) ,^warden)
+       (((goblins actor-lib ward) ^incanter) ,^incanter))
+     #:extends ward-sealer-triplet-env))
+  (values spawn-warding-pair ward-env))
 
-  (values (spawn-named 'warden ^warden) (spawn-named 'incanter ^incanter)))
+(define-values (spawn-warding-pair inner-ward-env)
+  (make-spawn-warding-pair))
 
 (define* (ward warden behavior
                #:key
@@ -166,19 +188,20 @@ Type: Warden -> (Warded-Behavior Behavior -> Warded-Behavior)"
 
 ;; Sets up an "incantified proxy" that always sends messages through
 ;; the incanter
-(define* (^incantified _bcom incanter target
-                       #:key [async? #f])
+(define-actor (^incantified _bcom incanter target
+			    #:key [async? #f])
   (define $/<-
     (if async? <- $))
   (lambda args
     (apply $/<- incanter target args)))
 
-(define* (enchant incanter target
-                  #:key [async? #f])
+(define* (enchant incanter target)
   "Spawn a proxy using INCANTER to message TARGET.
 
-The optional keyword argument ASYNC? indicates whether to use $ or <- for
-message proxying.
+Type: Incanter Actor -> Incantified-Actor"
+  (spawn-named 'incantified ^incantified incanter target))
 
-Type: Incanter Actor (Optional (#:async? Boolean)) -> Incantified-Actor"
-  (spawn-named 'incantified ^incantified incanter target #:async? async?))
+(define ward-env
+  (make-persistence-env
+   `((((goblins actor-lib ward) ^incantified) ,^incantified))
+   #:extends inner-ward-env))

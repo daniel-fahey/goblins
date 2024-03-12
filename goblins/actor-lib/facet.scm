@@ -17,10 +17,10 @@
   #:use-module (goblins)
   #:use-module (goblins actor-lib opportunistic)
   #:use-module (ice-9 match)
-  #:export (^facet facet))
+  #:export (^facet facet facet-env))
 
-(define* (^facet bcom wrap-me
-                 #:rest methods)
+;; TODO: When define-actor supports #:rest, use define-actor instead.
+(define* (^facet bcom wrap-me #:rest methods)
   "Construct an object which limits user access to methods of WRAP-ME.
 
 The METHODS argument is the collection of methods of WRAP-ME to be
@@ -28,16 +28,19 @@ exposed to the user.
 
 The resulting actor can be invoke with any of METHODS."
   (define $/<- (select-$/<- wrap-me))
-  (lambda args
-    (match args
-      [((? symbol? method) args ...)
-       (unless (member method methods)
-         (error (format #f "Access to method ~a denied" method)))
-       (apply $/<- wrap-me method args)]
-      [_ "Requires symbol-based method dispatch"])))
+  (define main-beh
+    (lambda args
+      (match args
+	[((? symbol? method) args ...)
+	 (unless (member method methods)
+           (error (format #f "Access to method ~a denied" method)))
+	 (apply $/<- wrap-me method args)]
+	[_ "Requires symbol-based method dispatch"])))
+  (define (self-portrait)
+    (cons wrap-me methods))
+  (portraitize main-beh self-portrait))
 
-(define* (facet wrap-me
-                #:rest methods)
+(define* (facet wrap-me #:rest methods)
   "Return an object which limits user access to methods of WRAP-ME.
 
 The METHODS argument is the collection of methods of WRAP-ME to be
@@ -46,3 +49,7 @@ exposed to the user.
 Type: Actor (Optional (#:async? Boolean)) (Symbol ...) -> Actor"
   (apply spawn-named (procedure-name wrap-me) ^facet
          methods))
+
+(define facet-env
+  (make-persistence-env
+   `((((goblins actor-lib facet) ^facet) ,^facet))))

@@ -18,11 +18,13 @@
   #:use-module (goblins core)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib define-actor)
+  #:use-module (goblins actor-lib selfish-spawn)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
-  #:export (spawn-ticker))
+  #:export (spawn-ticker ticker-env))
 
-(define (spawn-ticker)
+(define (make-spawn-ticker)
   "Spawn and return a reference to a Ticker actor which invokes a set of
 actors each time its tick method is invoke.
 
@@ -41,29 +43,28 @@ Ticky Methods:
 `to-tick': Same as a Ticker's `to-tick'.
 
 Type: -> Ticker"
-  (define-cell new-ticked
-    '())
+  (define-actor (^to-tick _bcom self new-ticked)
+    (lambda (give-ticky)
+      (define ticky
+	(spawn ^ticky #f self))
+      (define new-refr
+	(give-ticky ticky))
+      ($ new-ticked
+	 (cons (vector new-refr ticky) ($ new-ticked)))
+      new-refr))
 
-  (define (to-tick give-ticky)
-    (define ticky
-      (spawn ^ticky #f))
-    (define new-refr
-      (give-ticky ticky))
-    ($ new-ticked
-       (cons (vector new-refr ticky) ($ new-ticked)))
-    new-refr)
-
-  (define (^ticky bcom dead?)
+  (define-actor (^ticky bcom dead? to-tick)
     (methods
      [(die)
-      (bcom (^ticky bcom #t))]
+      (bcom (^ticky bcom #t to-tick))]
      [(dead?)
       dead?]
-     [to-tick to-tick]))
+     [(to-tick give-ticky)
+      ($ to-tick give-ticky)]))
 
-  (define (^ticker bcom current-ticked)
+  (define-actor (^ticker bcom current-ticked new-ticked to-tick)
     (methods
-     [to-tick to-tick]
+     [(to-tick give-ticky) ($ to-tick give-ticky)]
      [(get-ticked)
       (map (match-lambda
              (#(refr ticky)
@@ -94,7 +95,7 @@ Type: -> Ticker"
                         (apply $ ticked-refr args)
                         (not ($ ticked-ticky 'dead?))))])
                   updated-ticked))
-        (bcom (^ticker bcom next-tickers)))]
+        (bcom (^ticker bcom next-tickers new-ticked to-tick)))]
      ;; Used for collision detection, etc.
      ;; Similar to the above but with a bit of extra overhead to build up
      ;; a value
@@ -124,7 +125,22 @@ Type: -> Ticker"
         ($ new-ticked '()))
 
       ;; return result and become ticker with set of new tickers
-      (bcom (^ticker bcom next-tickers)
+      (bcom (^ticker bcom next-tickers new-ticked to-tick)
             fold-result)]))  ; return fold result
+  (define (spawn-ticker)
+    (define-cell new-ticked '())
+    (define to-tick
+      (selfish-spawn ^to-tick new-ticked))
+    (spawn ^ticker '() new-ticked to-tick))
 
-  (spawn ^ticker '()))
+  (define ticker-env
+    (make-persistence-env
+     `((((goblins actor-lib ticker) ^to-tick) ,^to-tick)
+       (((goblins actor-lib ticker) ^ticky) ,^ticky)
+       (((goblins actor-lib ticker) ^ticker) ,^ticker))
+     #:extends cell-env))
+
+  (values spawn-ticker ticker-env))
+
+(define-values (spawn-ticker ticker-env)
+  (make-spawn-ticker))

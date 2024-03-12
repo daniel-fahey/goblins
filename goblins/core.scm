@@ -2892,6 +2892,12 @@ Type: Actormap PersistenceEnv -> Void"
     (make-hash-table))
   (define slots->refrs
     (make-hash-table))
+  (define msg-queue (make-q))
+  (define (enq-msgs! msgs)
+    (for-each
+     (lambda (msg)
+       (enq! msg-queue msg))
+     msgs))
 
   (define (depiction->debug-name depiction)
     ;; All depictions should be objects
@@ -2904,28 +2910,26 @@ Type: Actormap PersistenceEnv -> Void"
   
   (hash-for-each
    (lambda (slot depiction)
-     (let* ([promise-pair (actormap-run! am spawn-promise-cons)]
-            [vow (car promise-pair)]
-            [resolver (cdr promise-pair)])
+     (let*-values (((vow resolver) (actormap-run! am spawn-promise-values))
+		   ((vow-symlink) (make-mactor:local-link vow))
+		   ((debug-name) (depiction->debug-name depiction))
+		   ((vat-connector) (actormap-vat-connector am))
+		   ((refr) (make-local-object-refr debug-name vat-connector)))
+       (actormap-set! am refr vow-symlink)
        (hashq-set! slots->resolvers slot resolver)
-       (let* ((vow-symlink (make-mactor:local-link vow))
-	      (debug-name (depiction->debug-name depiction))
-	      (vat-connector (actormap-vat-connector am))
-	      (refr (make-local-object-refr debug-name vat-connector)))
-	 (actormap-set! am refr vow-symlink)
-	 (hashq-set! slots->refrs slot refr))))
+       (hashq-set! slots->refrs slot refr)))
    portraits)
 
     (define (restore-slot! slot portrait)
       (define resolver
         (hashq-ref slots->resolvers slot))
+      (define refr
+	(hashq-ref slots->refrs slot))
       (define-values (obj-name obj-debug-name obj-portrait)
 	(match portrait
 	  [(name debug-name portrait-data)
 	   (values name debug-name portrait-data)]
 	  [_ (error "Unknown portrait data")]))
-      (define-values refr
-	(hashq-ref slots->refrs slot))
       (define-values (version restored-args)
         (restore-one obj-portrait))
       (define-values (obj-spec obj-env)
@@ -2955,24 +2959,33 @@ Type: Actormap PersistenceEnv -> Void"
                [_ (error "Unknown depiction type" type)]))]
            [_ depicted]))
 
-      (define restored-obj-refr
-	(actormap-run!
+      (define-values (restored-obj-refr new-am new-msgs)
+	(actormap-run*
 	 am
 	 (lambda ()
-           (define restored-obj
-             (apply rehydrator version restored-args))
-	   ($ resolver 'fulfill restored-obj)
-	   restored-obj)))
-      (let ((restored-mactor (actormap-ref am restored-obj-refr))
-	    (refr (hashq-ref slots->refrs slot)))
-	;; Install the mactor in the refr we created.
-	(actormap-set! am refr restored-mactor)))
+	   (let ((restored-obj (apply rehydrator version restored-args)))
+	     ($ resolver 'fulfill restored-obj)
+	     restored-obj))))
+
+      (transactormap-merge! new-am)
+      (enq-msgs! new-msgs)
+
+      ;; Install the mactor in the refr we created.
+      (actormap-set! am refr (actormap-ref am restored-obj-refr)))
 
     ;; Restore all the objects in the vows we have setup.
     (hash-for-each
      (lambda (slot portrait)
        (restore-slot! slot (portrait-record-data portrait)))
      portraits)
+
+    ;; When an actor is spawned it might send messages
+    ;; so keep track of those so we can dispatch them after.
+    (while (not (q-empty? msg-queue))
+      (let-values (((result new-am new-msgs)
+		    (actormap-turn-message am (deq! msg-queue))))
+	(transactormap-merge! new-am)
+	(enq-msgs! new-msgs)))
 
     (match roots
       [(? list? root-slots)

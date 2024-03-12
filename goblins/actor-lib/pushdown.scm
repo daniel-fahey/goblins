@@ -18,27 +18,12 @@
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib opportunistic)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib define-actor)
   #:use-module (ice-9 match)
   #:export (spawn-pushdown-pair))
 
-(define* (spawn-pushdown-pair #:optional [initial-refr #f])
-  "Spawn a pair which constitute a pushdown automata, a Pd-Stack for the stack
-and a Pd-Forwarder to forward messages to the current top of the stack.
-
-Pd-Stack Methods:
-`push refr': Add REFR to the stack.
-`spawn-push constructor args ...': Spawn the actor constructed by CONSTRUCTOR,
-passing the current top of the stack and the arguments ARGS to the constructor;
-then add the new actor to the top of the stack. Return a reference to the new actor.
-`pop': Remove and return the top empty of the stack, or error if empty.
-`empty?': Return #t if the stack is empty, else #f.
-
-Type: (Optional Actor) -> (Values Pd-Stack Pd-Forwarder)"
-  (define-cell stack
-    (if initial-refr
-        (list initial-refr)
-        '()))
-  (define (^pd-stack bcom)
+(define (make-spawn-pushdown-pair)
+  (define-actor (^pd-stack _bcom stack)
     (methods
      ((push refr)
       ;; Add to the stack
@@ -65,9 +50,40 @@ Type: (Optional Actor) -> (Values Pd-Stack Pd-Forwarder)"
         ['() (error "Empty stack")]))
      ((empty?)
       (null? ($ stack)))))
-  (define (^pd-forwarder bcom)
+  (define-actor (^pd-forwarder _bcom stack)
     (lambda args
       (match ($ stack)
         [(stack-top . rest-stack)
          (apply run-$/<- stack-top args)])))
-  (values (spawn ^pd-stack) (spawn ^pd-forwarder)))
+
+  (define pushdown-env
+    (make-persistence-env
+     `((((goblins actor-lib pushdown) ^pd-stack) ,^pd-stack)
+       (((goblins actor-lib pushdown) ^pd-forwarder) ,^pd-forwarder))
+     #:extends cell-env))
+  
+  (define* (spawn-pushdown-pair #:optional initial-refr)
+    "Spawn a pair which constitute a pushdown automata, a Pd-Stack for the stack
+and a Pd-Forwarder to forward messages to the current top of the stack.
+
+Pd-Stack Methods:
+`push refr': Add REFR to the stack.
+`spawn-push constructor args ...': Spawn the actor constructed by CONSTRUCTOR,
+passing the current top of the stack and the arguments ARGS to the constructor;
+then add the new actor to the top of the stack. Return a reference to the new actor.
+`pop': Remove and return the top empty of the stack, or error if empty.
+`empty?': Return #t if the stack is empty, else #f.
+
+Type: (Optional Actor) -> (Values Pd-Stack Pd-Forwarder)"
+    (let ((stack (spawn-named 'stack
+			      ^cell
+			      (if initial-refr
+				  (list initial-refr)
+				  '()))))
+      (values (spawn ^pd-stack stack)
+	      (spawn ^pd-forwarder stack))))
+  (values spawn-pushdown-pair pushdown-env))
+
+(define-values (spawn-pushdown-pair pushdown-env)
+  (make-spawn-pushdown-pair))
+    

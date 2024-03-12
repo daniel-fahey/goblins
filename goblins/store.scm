@@ -22,7 +22,6 @@
     (values (atomic-box-ref stored-portraits)
             (atomic-box-ref stored-roots)))
   (define* (memory-save-proc delta-portraits #:optional roots)
-    (hash-for-each pk delta-portraits)
     (let ((saved-portraits (atomic-box-ref stored-portraits)))
       (if saved-portraits
           (begin
