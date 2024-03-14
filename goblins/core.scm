@@ -2664,7 +2664,9 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
       (mactor:object-constructor-refr (actormap-ref am this-obj)))
     (define-values (this-obj-spec this-obj-env)
       (persistence-env-ref-by-constructor persistence-env this-obj-constructor-refr))
-
+    (define obj-debug-name
+      (local-object-refr-debug-name this-obj))
+    
     (define (process-one value)
       (match value
         [(? depictable-atom? atom) atom]
@@ -2709,7 +2711,9 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
         [(? versioned-data? data)
          (define processed-data
            (process-one data))
-         (make-portrait-record 'object (list (object-spec-name obj-spec) processed-data))]
+         (make-portrait-record 'object (list (object-spec-name obj-spec)
+					     obj-debug-name
+					     processed-data))]
         [(? list? args)
          ;; No versioning was given, lets tag this as version 0
          (process-portrait obj-spec (versioned 0 args))]))
@@ -2884,27 +2888,44 @@ Type: Actormap PersistenceEnv -> Void"
 
 (define (actormap-restore am persistence-env portraits roots)
   "Restore a self portrait in an actormap"
-  (define slots->promises
-    (make-hash-table))
   (define slots->resolvers
     (make-hash-table))
+  (define slots->refrs
+    (make-hash-table))
 
+  (define (depiction->debug-name depiction)
+    ;; All depictions should be objects
+    (unless (eq? (portrait-record-type depiction) 'object)
+      (error "Object depiction is not of type object ~a"
+	     (portrait-record-type depiction)))
+    (match (portrait-record-data depiction)
+      [(persistence-name debug-name data)
+       debug-name]))
+  
   (hash-for-each
-   (lambda (slot _depiction)
+   (lambda (slot depiction)
      (let* ([promise-pair (actormap-run! am spawn-promise-cons)]
             [vow (car promise-pair)]
             [resolver (cdr promise-pair)])
-       (hashq-set! slots->promises slot vow)
-       (hashq-set! slots->resolvers slot resolver)))
+       (hashq-set! slots->resolvers slot resolver)
+       (let* ((vow-symlink (make-mactor:local-link vow))
+	      (debug-name (depiction->debug-name depiction))
+	      (vat-connector (actormap-vat-connector am))
+	      (refr (make-local-object-refr debug-name vat-connector)))
+	 (actormap-set! am refr vow-symlink)
+	 (hashq-set! slots->refrs slot refr))))
    portraits)
 
     (define (restore-slot! slot portrait)
       (define resolver
         (hashq-ref slots->resolvers slot))
-      (define obj-name
-        (car portrait))
-      (define obj-portrait
-        (cadr portrait))
+      (define-values (obj-name obj-debug-name obj-portrait)
+	(match portrait
+	  [(name debug-name portrait-data)
+	   (values name debug-name portrait-data)]
+	  [_ (error "Unknown portrait data")]))
+      (define-values refr
+	(hashq-ref slots->refrs slot))
       (define-values (version restored-args)
         (restore-one obj-portrait))
       (define-values (obj-spec obj-env)
@@ -2930,16 +2951,22 @@ Type: Actormap PersistenceEnv -> Void"
                  data)]
                ['zilch zilch]
                ['tagged (make-tagged (car data) (cadr data))]
-               ['near-refr (hashq-ref slots->promises data)]
+               ['near-refr (hashq-ref slots->refrs data)]
                [_ (error "Unknown depiction type" type)]))]
            [_ depicted]))
 
-      (actormap-run!
-       am
-       (lambda ()
-         (define restored-obj
-           (apply rehydrator version restored-args))
-         ($ resolver 'fulfill restored-obj))))
+      (define restored-obj-refr
+	(actormap-run!
+	 am
+	 (lambda ()
+           (define restored-obj
+             (apply rehydrator version restored-args))
+	   ($ resolver 'fulfill restored-obj)
+	   restored-obj)))
+      (let ((restored-mactor (actormap-ref am restored-obj-refr))
+	    (refr (hashq-ref slots->refrs slot)))
+	;; Install the mactor in the refr we created.
+	(actormap-set! am refr restored-mactor)))
 
     ;; Restore all the objects in the vows we have setup.
     (hash-for-each
@@ -2950,25 +2977,12 @@ Type: Actormap PersistenceEnv -> Void"
     (match roots
       [(? list? root-slots)
        (define restored-roots
-	 (actormap-run
-	  am
-	  (lambda ()
-            (map (lambda (slot)
-		   (let ((vow (hashq-ref slots->promises slot)))
-		     ;; All the promises created should now be resolved.
-		     (if (near-promise-settled? vow)
-			 (near-settled-promise-value vow)
-			 (error "Restored object promise not settled"))))
-		 root-slots))))
+         (map (lambda (slot)
+		(hashq-ref slots->refrs slot))
+	      root-slots))
        (apply values restored-roots)]
-      [(? integer? slot)
-       (let ((vow (hashq-ref slots->promises slot)))
-	 (actormap-run
-	  am
-	  (lambda ()
-	    (if (near-promise-settled? vow)
-		(near-settled-promise-value vow)
-		(error "Restored object promise not settled")))))]))
+       [(? integer? slot)
+	(hashq-ref slots->refrs slot)]))
 
 (define (actor-name constructor)
   (match constructor

@@ -695,4 +695,29 @@
   (actormap-peek first-actormap astrid-greeter "Ludvig")
   "Salutations Ludvig, I am called *restored Astrid*, delighted to make your acquaintance! (called: 3)")
 
+;; Test that when we restore what we get back is eq?
+(define (^ro-cell _bcom value)
+  (define (main-beh)
+    value)
+  (define (self-portrait)
+    (list value))
+  (portraitize main-beh self-portrait))
+(define ro-cell-env
+  (make-persistence-env
+   `((((tests test-core) ^ro-cell) ,^ro-cell))
+     #:extends incrementer-env))
+(define incrementer
+  (actormap-spawn! first-actormap ^incrementer))
+(define ro-cell
+  (actormap-spawn! first-actormap ^ro-cell incrementer))
+
+(define-values (portraits root-slots)
+  (actormap-take-portrait first-actormap ro-cell-env incrementer ro-cell))
+(define-values (incrementer* ro-cell*)
+  (actormap-restore second-actormap ro-cell-env portraits root-slots))
+
+(test-eq "Restored actor is eq?"
+  incrementer*
+  (actormap-peek second-actormap ro-cell*))
+
 (test-end "test-goblins-core")

@@ -68,12 +68,14 @@
        (with-syntax (((arg-name ...) (args->arg-names #'(arg ...))))
 	 #'(define-redefinable-object
 	     constructor-id
-	     (lambda* (bcom arg ...)
-	       (define (main-beh)
-		 body ...)
-	       (define (self-portrait)
-		 (list arg-name ...))
-	       (portraitize (main-beh) self-portrait))))])))
+	     (let ((constructor-id
+		    (lambda* (bcom arg ...)
+		      (define (main-beh)
+			body ...)
+		      (define (self-portrait)
+			(list arg-name ...))
+		      (portraitize (main-beh) self-portrait))))
+	       constructor-id)))])))
 
 (define-syntax-rule (define-hackable (constructor-id bcom args ...) body ...)
   (define-redefinable-object constructor-id
