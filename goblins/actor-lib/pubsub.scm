@@ -18,7 +18,7 @@
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib define-actor)
-  #:export (^pubsub))
+  #:export (^pubsub pubsub-env))
 
 (define-actor (^pubsub* bcom subscribers)
   "Construct an actor which publishes messages to INITIAL-SUBSCRIBERS
@@ -48,7 +48,10 @@ Methods:
     (apply spawn ^seteq initial-subscribers))
   (^pubsub* bcom subscribers))
 
+(define (restore-pubsub _version subscribers)
+  (spawn ^pubsub* subscribers))
+
 (define pubsub-env
   (make-persistence-env
-   `((((goblins actor-lib pubsub) ^pubsub) ,^pubsub*))
+   `((((goblins actor-lib pubsub) ^pubsub) ,^pubsub ,restore-pubsub))
    #:extends common-env))

@@ -16,6 +16,8 @@
 (define-module (tests actor-lib test-facet)
   #:use-module (goblins core)
   #:use-module (goblins actor-lib facet)
+  #:use-module (goblins actor-lib define-actor)
+  #:use-module (tests utils)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-64))
 
@@ -23,7 +25,7 @@
 
 (define am (make-whactormap))
 
-(define (^wizard bcom)
+(define-actor (^wizard bcom)
   (match-lambda*
     [('magic-missile level)
      (format #f "Casts magic missile level ~a!"
@@ -49,6 +51,21 @@
  (actormap-peek am faceted-wizard 'flame-tongue 3))
 (test-error
  (actormap-peek am faceted-wizard 'world-ender 99))
+
+;; Persistence
+(define env
+  (make-persistence-env
+   `((((tests actor-lib test-facet) ^wizard) ,^wizard))
+   #:extends facet-env))
+(define-values (am* faceted-wizard*)
+  (persist-and-restore am env faceted-wizard))
+(test-equal "Can cast spell after rehydration though facet"
+  "Casts magic missile level 50!"
+  (actormap-peek am* faceted-wizard* 'magic-missile 50))
+(test-error
+ "Cannot cast non-faceted method after rehydration"
+ #t
+ (actormap-peek am* faceted-wizard* 'world-ender 50))
 
 (test-end "test-facet")
 

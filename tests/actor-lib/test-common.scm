@@ -16,6 +16,7 @@
   #:use-module (goblins core)
   #:use-module (goblins ghash)
   #:use-module (goblins actor-lib common)
+  #:use-module (tests utils)
   #:use-module (srfi srfi-64))
 
 (test-begin "test-common")
@@ -59,6 +60,21 @@
 (test-assert
     "Check removing a key means it's no longer in the ghash (relies on has-key? method)"
   (not (actormap-peek am ghash 'has-key? 'my-key)))
+
+;; Persistence
+(define s1 (actormap-spawn! am ^seteq 'a 'b 'c))
+(actormap-poke! am s1 'add 'd)
+(define gh1 (actormap-spawn! am ^ghash))
+(actormap-poke! am gh1 'set 'granny-smith 'green)
+(actormap-poke! am gh1 'set 'jazz 'pink)
+(define-values (am* s1* gh1*)
+  (persist-and-restore am common-env s1 gh1))
+(test-equal "Set still has same items in after rehydration"
+  (actormap-peek am s1 'as-list)
+  (actormap-peek am* s1* 'as-list))
+(test-equal "Ghash lookup still works after rehydration"
+  'green
+  (actormap-peek am* gh1* 'ref 'granny-smith))
 
 (test-end "test-common")
 

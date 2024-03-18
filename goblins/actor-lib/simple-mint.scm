@@ -24,28 +24,34 @@
   #:use-module (goblins core)
   #:export (^mint withdraw mint-env))
 
-(define (make-mint)
-  (define-actor (^purse _bcom initial-balance decr-seal decr-unseal)
-    (define balance (spawn ^cell initial-balance))
-    (define (decr amount)
-      (unless (and (integer? amount) (>= amount 0) (<= amount ($ balance)))
-        (error 'mint-error "invalid decrement amount" amount))
-      ($ balance (- ($ balance) amount)))
-    (methods
-     ((get-balance)
-      ($ balance))
-     ((sprout)
-      (spawn ^purse 0 decr-seal decr-unseal))
-     ((deposit amount src)
-      (unless (and (integer? amount) (>= amount 0))
-        (error 'mint-error "invalid deposit amount" amount))
-      ;; Decrease the amount from the src
-      (($ decr-unseal ($ src 'get-decr)) amount)
-      ;; Increase the balance for us
-      ($ balance (+ ($ balance) amount)))
-     ((get-decr)
-      ($ decr-seal decr))))
-  (define-actor (^mint* bcom decr-seal decr-unseal)
+(define-actor (^purse _bcom balance decr-seal decr-unseal)
+  (define (decr amount)
+    (unless (and (integer? amount) (>= amount 0) (<= amount ($ balance)))
+      (error 'mint-error "invalid decrement amount" amount))
+    ($ balance (- ($ balance) amount)))
+  (methods
+   ((get-balance)
+    ($ balance))
+   ((sprout)
+    (spawn ^purse (spawn ^cell 0) decr-seal decr-unseal))
+   ((deposit amount src)
+    (unless (and (integer? amount) (>= amount 0))
+      (error 'mint-error "invalid deposit amount" amount))
+    ;; Decrease the amount from the src
+    (($ decr-unseal ($ src 'get-decr)) amount)
+    ;; Increase the balance for us
+    ($ balance (+ ($ balance) amount)))
+   ((get-decr)
+    ($ decr-seal decr))))
+
+(define-actor (^mint* bcom decr-seal decr-unseal)
+  (methods
+   ((new-purse initial-balance)
+    (if (and (integer? initial-balance) (>= initial-balance 0))
+        (spawn ^purse (spawn ^cell initial-balance) decr-seal decr-unseal)
+        (error 'mint-error "invalid initial purse balance" initial-balance)))))
+
+(define (^mint bcom)
     "Construct a mint to generate purses associated with the mint's
 token.
 
@@ -59,24 +65,18 @@ Purse Methods:
 `deposit amount src': Add AMOUNT tokens to the Purse from the Purse SRC.
 `get-decr': Seal and return a procedure accepting a single argument, the
 number of tokens to subtract from this Purse."
-    (methods
-     ((new-purse initial-balance)
-      (if (and (integer? initial-balance) (>= initial-balance 0))
-          (spawn ^purse initial-balance decr-seal decr-unseal)
-          (error 'mint-error "invalid initial purse balance" initial-balance)))))
-  (define (^mint bcom)
-    (define-values (decr-seal decr-unseal _decr-sealed?)
-      (spawn-sealer-triplet))
-    (^mint* bcom decr-seal decr-unseal))
-  (define mint-env
-    (make-persistence-env
-     `((((goblins actor-lib simple-mint) ^mint) ^mint*)
-       (((goblins actor-lib simple-mint) ^purse) ^purse))
-     #:extends (list cell-env sealers-env)))
-  (values ^mint mint-env))
+  (define-values (decr-seal decr-unseal _decr-sealed?)
+    (spawn-sealer-triplet))
+  (^mint* bcom decr-seal decr-unseal))
 
-(define-values (^mint mint-env)
-  (make-mint))
+(define (restore-mint _version decr-seal decr-unseal)
+  (spawn ^mint* decr-seal decr-unseal))
+
+(define mint-env
+  (make-persistence-env
+   `((((goblins actor-lib simple-mint) ^mint) ,^mint ,restore-mint)
+     (((goblins actor-lib simple-mint) ^purse) ,^purse))
+   #:extends (list cell-env sealers-env)))
 
 (define (withdraw amount from-purse)
   "Return a new purse containing AMOUNT that has been withdrawn from

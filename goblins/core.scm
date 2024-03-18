@@ -2591,7 +2591,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (parameterize ([current-syscaller #f])
     (proc)))
 
-(define* (make-persistence-env objects #:key extends)
+(define* (make-persistence-env #:optional [objects '()] #:key extends)
   (define object-spec-list>object-spec
      (case-lambda
        [(name constructor)
@@ -2681,11 +2681,13 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
         [(? vector? vector)
          (make-portrait-record 'vector (map process-one (vector->list vector)))]
         [(? ghash?)
-         (ghash-fold
-          (lambda (k v prev)
-            (ghash-set prev (process-one k) (process-one v)))
-          (make-ghash)
-          value)]
+         (make-portrait-record
+	  'ghash
+	  (ghash-fold
+           (lambda (k v prev)
+             (ghash-set prev (process-one k) (process-one v)))
+           (make-ghash)
+           value))]
         [(? keyword? kw)
          (make-portrait-record 'keyword (keyword->symbol kw))]
         [(? tagged? tagged)

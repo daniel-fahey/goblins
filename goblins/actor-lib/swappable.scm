@@ -50,9 +50,7 @@ Type: Actor [String] -> (Values Actor Actor)"
     (spawn-named proxy-name ^proxy target))
   (define swapper
     (spawn-named 'swapper ^swapper target))
-  (define (swap new-target)
-    ($ swapper new-target))
-  (values proxy swap))
+  (values proxy swapper))
 
 (define swappable-env
   (make-persistence-env

@@ -15,7 +15,6 @@
 (use-modules (goblins)
              (goblins actor-lib sealers)
 	     (tests utils)
-	     (ice-9 match)
              (srfi srfi-64))
 
 (test-begin "test-sealers")
@@ -23,79 +22,46 @@
 (define am (make-actormap))
 
 (define-values (alice-sealer alice-unsealer alice-sealed?)
-  (actormap-churn-run! am spawn-sealer-triplet))
+  (actormap-run! am spawn-sealer-triplet))
 (define-values (bob-sealer bob-unsealer bob-sealed?)
   (actormap-run! am spawn-sealer-triplet))
 
 (define alice-sealed-lunch
-  (actormap-churn-run! am (lambda () (<- alice-sealer 'chickpea-salad))))
+  (actormap-poke! am alice-sealer 'chickpea-salad))
 (define bob-sealed-lunch
-  (actormap-churn-run! am (lambda () (<- bob-sealer 'bbq-lentils))))
+  (actormap-poke! am bob-sealer 'bbq-lentils))
 
 (test-equal "Alice can unseal her own lunch"
-  #(ok chickpea-salad)
-  (am-resolve-vow-and-return-result
-   am
-   (lambda ()
-     (<- alice-unsealer alice-sealed-lunch))))
+  'chickpea-salad
+  (actormap-peek am alice-unsealer alice-sealed-lunch))
 
-(test-equal
-    "Alice's lunch confirms it's sealed with her sealed? trademark"
-  #(ok #t)
-  (am-resolve-vow-and-return-result
-   am
-   (lambda ()
-     (<- alice-sealed? alice-sealed-lunch))))
-
+(test-assert
+"Alice's lunch confirms it's sealed with her sealed? trademark"
+  (actormap-peek am alice-sealed? alice-sealed-lunch))
 
 (test-equal "Bob can unseal his own lunch"
-  #(ok bbq-lentils)
-  (am-resolve-vow-and-return-result
-   am
-   (lambda ()
-     (<- bob-unsealer bob-sealed-lunch))))
+  'bbq-lentils
+  (actormap-peek am bob-unsealer bob-sealed-lunch))
 
-(test-equal
+(test-assert
     "Bob's lunch confirms it's sealed with his sealed? trademark"
-  #(ok #t)
-  (am-resolve-vow-and-return-result
-   am
-   (lambda ()
-     (<- bob-sealed? bob-sealed-lunch))))
+  (actormap-peek am bob-sealed? bob-sealed-lunch))
 
-(test-equal
+(test-assert
     "Bob's trademark doesn't claim to have sealed alice's lunch"
-  #(ok #f)
-  (am-resolve-vow-and-return-result
-   am
-   (lambda ()
-     (<- bob-sealed? alice-sealed-lunch))))
+  (not (actormap-peek am bob-sealed? alice-sealed-lunch)))
 
-(test-equal
+(test-assert
     "Alice's trademark doesn't claim to have sealed bob's lunch"
-  #(ok #f)
-  (am-resolve-vow-and-return-result
-   am
-   (lambda ()
-     (<- alice-sealed? bob-sealed-lunch))))
+  (not (actormap-peek am alice-sealed? bob-sealed-lunch)))
 
-(test-assert
-    "Alice can't unseal bob's lunch"
-  (match (am-resolve-vow-and-return-result
-	  am
-	  (lambda ()
-	    (<- alice-unsealer bob-sealed-lunch)))
-    [#(err _err) #t]
-    [_ #f]))
+(test-error
+ "Alice can't unseal bob's lunch"
+ (actormap-peek am alice-unsealer bob-sealed-lunch))
 
-(test-assert
+(test-error
  "Bob can't unseal alice's lunch"
- (match (am-resolve-vow-and-return-result
-	 am
-	 (lambda ()
-	   (<- bob-unsealer alice-sealed-lunch)))
-   [#(err _err) #t]
-   [_ #f]))
+ (actormap-peek am bob-unsealer alice-sealed-lunch))
 
 ;; Custom sealer triplet
 (define custom-sealer-name #f)
@@ -113,45 +79,68 @@
          (eq? (car maybe-sealed) 'sealed)))
   (values seal unseal sealed?))
 
+
 (define known-sealers
   (acons '((tests actor-lib test-sealers) make-sealer-triplet)
 	 make-sealer-triplet
 	 default-sealers-alist))
-
 (define-values (custom-spawn-sealer-triplet custom-sealers-env)
   (make-spawn-sealer-triplet '(tests actor-lib test-sealers) known-sealers))
 
 (define-values (carol-sealer carol-unsealer carol-sealed?)
-  (actormap-churn-run!
+  (actormap-run!
    am
    (lambda ()
      (custom-spawn-sealer-triplet 'carol-sealer-triplet
-                            #:make-sealer-triplet make-sealer-triplet))))
+				  #:make-sealer-triplet make-sealer-triplet))))
 
 (define carol-sealed-lunch
-  (actormap-churn-run! am (lambda () (<- carol-sealer 'tofu-scramble))))
+  (actormap-poke! am carol-sealer 'tofu-scramble))
 
 (test-equal "Check setting the name of a sealer triplet"
   'carol-sealer-triplet
   custom-sealer-name)
 
 (test-equal "Check carol can unseal her lunch"
-  #(ok tofu-scramble)
-  (am-resolve-vow-and-return-result
-   am
-   (lambda ()
-     (<- carol-unsealer carol-sealed-lunch))))
+  'tofu-scramble
+  (actormap-peek am carol-unsealer carol-sealed-lunch))
 
-(test-equal
+(test-assert
     "Carol's lunch confirms it's sealed with her sealed? trademark"
-  #(ok #t)
-  (am-resolve-vow-and-return-result
-   am
-   (lambda ()
-     (<- carol-sealed? carol-sealed-lunch))))
+  (actormap-peek am carol-sealed? carol-sealed-lunch))
 
 (test-equal "Carol's sealed lunch uses custom sealers"
   'tofu-scramble
   custom-sealer-sealed-value)
+
+;; Persistence
+(define env
+  (make-persistence-env
+   #:extends (list custom-sealers-env sealers-env)))
+(define-values (am* carol-sealer* carol-unsealer*
+		    carol-sealed?* bob-unsealer*
+		    carol-sealed-lunch*)
+  (persist-and-restore am env
+		       carol-sealer carol-unsealer
+		       carol-sealed? bob-unsealer
+		       carol-sealed-lunch))
+
+(test-equal "Carol can unseal her own lunch after rehydration"
+  'tofu-scramble
+  (actormap-peek am* carol-unsealer* carol-sealed-lunch*))
+
+(test-error
+ "Bob cannot unseal carol's lunch after rehydration"
+ #t
+ (actormap-peek am* bob-unsealer* carol-sealed-lunch*))
+
+(test-assert "Carol's lunch is still reported as sealed after rehydration"
+  (actormap-peek am* carol-sealed?* carol-sealed-lunch*))
+
+(define carol-sealed-coffee
+  (actormap-poke! am* carol-sealer* 'piping-hot-coffee))
+(test-equal "Carol can seal and unseal item after rehydration"
+  'piping-hot-coffee
+  (actormap-peek am* carol-unsealer* carol-sealed-coffee))
 
 (test-end "test-sealers")

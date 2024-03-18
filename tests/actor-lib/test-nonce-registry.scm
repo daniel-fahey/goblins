@@ -15,16 +15,21 @@
 (define-module (tests actor-lib test-swappable)
   #:use-module (goblins core)
   #:use-module (goblins actor-lib nonce-registry)
+  #:use-module (goblins actor-lib define-actor)
+  #:use-module (tests utils)
   #:use-module (srfi srfi-64))
 
 (test-begin "test-nonce-registry")
 
 (define am (make-actormap))
+(define-actor (^person _bcom name)
+  (lambda ()
+    name))
 
 (define alice
-  (actormap-spawn! am (lambda _ (lambda _ 'i-am-alice))))
+  (actormap-spawn! am ^person 'i-am-alice))
 (define bob
-  (actormap-spawn! am (lambda _ (lambda _ 'i-am-bob))))
+  (actormap-spawn! am ^person 'i-am-bob))
 
 (define-values (registry locator)
   (actormap-run!
@@ -79,5 +84,20 @@
    (actormap-peek
     am
     locator 'fetch bob-swiss-num)))
+
+;; Persistence
+(define env
+  (make-persistence-env
+   `((((tests actor-lib test-nonce-registry) ^person) ,^person))
+   #:extends nonce-registry-env))
+(define-values (am* registry* alice* bob*)
+  (persist-and-restore am env registry alice bob))
+(test-eq "Alice can be looked up in registry after rehydration"
+  alice*
+  (actormap-peek am* registry* 'fetch alice-swiss-num))
+
+(test-eq "Bob can be looked up in registry after rehydration"
+  bob*
+  (actormap-peek am* registry* 'fetch bob-swiss-num))
 
 (test-end "test-nonce-registry")

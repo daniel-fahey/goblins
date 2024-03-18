@@ -15,6 +15,7 @@
 (define-module (tests actor-lib test-queue)
   #:use-module (goblins core)
   #:use-module (goblins actor-lib queue)
+  #:use-module (tests utils)
   #:use-module (srfi srfi-64))
 
 (test-begin "test-queue")
@@ -44,5 +45,18 @@
 (test-equal 'e (actormap-poke! am q 'dequeue))
 (test-equal 0 (actormap-peek am q 'length))
 (test-assert (actormap-peek am q 'empty?))
+
+;; Persistence
+(define q1 (actormap-spawn! am ^queue))
+(actormap-poke! am q1 'enqueue 'a)
+(actormap-poke! am q1 'enqueue 'b)
+(define-values (am* q1*)
+  (persist-and-restore am queue-env q1))
+(test-equal 2 (actormap-peek am* q1* 'length))
+(test-equal #f (actormap-peek am* q1* 'empty?))
+(test-equal 'a (actormap-poke! am* q1* 'dequeue))
+(test-equal 1 (actormap-peek am* q1* 'length))
+(test-equal 'b (actormap-poke! am* q1* 'dequeue))
+(test-equal #t (actormap-peek am* q1* 'empty?))
 
 (test-end "test-queue")
