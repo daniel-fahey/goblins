@@ -720,4 +720,42 @@
   incrementer*
   (actormap-peek second-actormap ro-cell*))
 
+;; Test spawning another actor in the restore behavior
+(define ^second
+  (make-redefinable-object
+   (lambda* (bcom #:optional stored-val)
+     (define* (main-beh #:optional new-val)
+       (if new-val
+	   (bcom (^second bcom new-val) 'second)
+	   (list 'second stored-val)))
+     (define (self-portrait)
+       (list stored-val))
+     (portraitize main-beh self-portrait))))
+(define ^first
+  (make-redefinable-object
+   (lambda (_bcom)
+     (define (main-beh)
+       'first)
+     (define (self-portrait)
+       (list))
+     (portraitize main-beh self-portrait))))
+(define first (actormap-spawn! first-actormap ^first))
+(define env
+  (make-persistence-env
+   `((((tests test-core) ^first) ,^first)
+     (((tests test-core) ^second) ,^second))))
+;; Redefine it so that we spawn another object while being constructed!
+(set-redefinable-object-constructor!
+ ^first
+ (lambda (_bcom)
+   (define second (spawn ^second #f))
+   (<-np second 'pineapple)
+   (lambda ()
+     ($ second))))
+
+(actormap-replace-behavior! first-actormap env)
+(test-equal "Redefinable objects can spawn other objects on construction"
+  '(second pineapple)
+  (actormap-peek first-actormap first))
+
 (test-end "test-goblins-core")
