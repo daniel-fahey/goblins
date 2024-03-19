@@ -75,24 +75,23 @@
    ward-known-sealers
    make-ward-sealer-triplet))
 
-(define (make-spawn-warding-pair)
-  ;; When invoked, the warden returns either:
-  ;;  - #f: if these are not arguments sealed by the sealer, or
-  ;;  - (list args ...): the unsealed arguments
-  (define-actor (^warden _bcom unseal sealed?)
-    (lambda (maybe-sealed-args)
-      (if ($ sealed? maybe-sealed-args)
-	  ($ unseal maybe-sealed-args)
-	  #f)))
+;; When invoked, the warden returns either:
+;;  - #f: if these are not arguments sealed by the sealer, or
+;;  - (list args ...): the unsealed arguments
+(define-actor (^warden _bcom unseal sealed?)
+  (lambda (maybe-sealed-args)
+    (if ($ sealed? maybe-sealed-args)
+	($ unseal maybe-sealed-args)
+	#f)))
 
-  (define-actor (^incanter _bcom seal async?)
-    (define $/<-
-      (if async? <- $))
-    (lambda (target . args)
-      ($/<- target ($ seal args))))
+(define-actor (^incanter _bcom seal async?)
+  (define $/<-
+    (if async? <- $))
+  (lambda (target . args)
+    ($/<- target ($ seal args))))
 
-  (define* (spawn-warding-pair #:key [async? #f] [sealer-triplet #f])
-    "Create a Warden and Incanter.
+(define* (spawn-warding-pair #:key [async? #f] [sealer-triplet #f])
+  "Create a Warden and Incanter.
 
 The Warden is to be used with the ward procedure. The Incanter is used to
 access warded methods. The optional keyword argument ASYNC? indicates whether
@@ -101,23 +100,14 @@ SEALER-TRIPLET is a sealer triplet.
 
 Type: (Optional (#:sealer-triplet (Values Sealer Unsealer Checker)))
 -> (Values Warden Incanter)"
-    (define-values (seal unseal sealed?)
-      (match sealer-triplet
-	[(seal unseal sealed?)
-	 (values seal unseal sealed?)]
-	[#f
-	 (spawn-ward-sealer-triplet)]))
-    (values (spawn-named 'warden ^warden unseal sealed?)
-	    (spawn-named 'incanter ^incanter seal async?)))
-  (define ward-env
-    (make-persistence-env
-     `((((goblins actor-lib ward) ^warden) ,^warden)
-       (((goblins actor-lib ward) ^incanter) ,^incanter))
-     #:extends ward-sealer-triplet-env))
-  (values spawn-warding-pair ward-env))
-
-(define-values (spawn-warding-pair inner-ward-env)
-  (make-spawn-warding-pair))
+  (define-values (seal unseal sealed?)
+    (match sealer-triplet
+      [(seal unseal sealed?)
+       (values seal unseal sealed?)]
+      [#f
+       (spawn-ward-sealer-triplet)]))
+  (values (spawn-named 'warden ^warden unseal sealed?)
+	  (spawn-named 'incanter ^incanter seal async?)))
 
 (define* (ward warden behavior
                #:key
@@ -164,19 +154,6 @@ Type: Warden Behavior (Optional (#:extends Procedure))
            (on #t apply-or-error #:promise? #t)
            (apply-or-error)))]))
 
-;; This doesn't work right in guile as easily because of the way lambda*
-;; lumps all keyword arguments together in case of a rest pattern
-;; Re-enable this shugary multi-ward later...
-#;(define* (ward #:key [extends #f] [async? #f]
-               . warden-behaviors)
-  (let lp ([warden-behaviors warden-behaviors])
-    (match warden-behaviors
-      [(warden behavior rest ...)
-       (_ward warden behavior
-              #:extends (lp rest)
-              #:async? async?)]
-      ['() extends])))
-
 (define (warden->ward-proc warden)
   "Return a procedure to ward with WARDEN.
 
@@ -195,13 +172,17 @@ Type: Warden -> (Warded-Behavior Behavior -> Warded-Behavior)"
   (lambda args
     (apply $/<- incanter target args)))
 
-(define* (enchant incanter target)
+(define* (enchant incanter target #:key [async? #f])
   "Spawn a proxy using INCANTER to message TARGET.
 
+The optional keyword argument ASYNC? indicates whether to use $ or <- for
+message proxying.
+
 Type: Incanter Actor -> Incantified-Actor"
-  (spawn-named 'incantified ^incantified incanter target))
+  (spawn-named 'incantified ^incantified incanter target #:async? async?))
 
 (define ward-env
   (make-persistence-env
-   `((((goblins actor-lib ward) ^incantified) ,^incantified))
-   #:extends inner-ward-env))
+   `((((goblins actor-lib ward) ^incantified) ,^incantified)
+     (((goblins actor-lib ward) ^warden) ,^warden)
+     (((goblins actor-lib ward) ^incanter) ,^incanter))))

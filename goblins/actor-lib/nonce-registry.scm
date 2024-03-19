@@ -48,14 +48,13 @@
       [(swiss-num dflt)
        (ghash-ref ht swiss-num dflt)])]))
 
-(define (make-spawn-nonce-registry-and-locator)
-  (define-actor (^nonce-locator bcom registry)
-    (methods
-     [(fetch swiss-num)
-      ($ registry 'fetch swiss-num)]))
+(define-actor (^nonce-locator bcom registry)
+  (methods
+   [(fetch swiss-num)
+    ($ registry 'fetch swiss-num)]))
 
-  (define (spawn-nonce-registry-and-locator)
-    "Return a new Nonce-Registry and Nonce-Locator.
+(define (spawn-nonce-registry-and-locator)
+  "Return a new Nonce-Registry and Nonce-Locator.
 
 A Nonce-Registry is an object containing Swiss numbers, unique IDs
 which provide access to some capability analogously to a Swiss bank
@@ -73,19 +72,11 @@ Nonce-Locator Methods:
 `fetch swiss-num': Return the object associated with SWISS-NUM.
 
 Type: -> (Values Nonce-Registry Nonce-Locator)"
-    (let* ((registry (spawn-named 'nonce-registry ^nonce-registry))
-	   (locator (spawn-named 'nonce-locator ^nonce-locator registry)))
-      (values registry locator)))
-
-  (define nonce-locator-env
-    (make-persistence-env
-     `((((goblins actor-lib nonce-registry) ^nonce-locator) ,^nonce-locator))))
-  (values spawn-nonce-registry-and-locator nonce-locator-env))
-
-(define-values (spawn-nonce-registry-and-locator nonce-locator-env)
-  (make-spawn-nonce-registry-and-locator))
+  (let* ((registry (spawn-named 'nonce-registry ^nonce-registry))
+	 (locator (spawn-named 'nonce-locator ^nonce-locator registry)))
+    (values registry locator)))
 
 (define nonce-registry-env
   (make-persistence-env
-   `((((goblins actor-lib nonce-registry) ^nonce-registry) ,^nonce-registry))
-   #:extends nonce-locator-env))
+   `((((goblins actor-lib nonce-registry) ^nonce-locator) ,^nonce-locator)
+     (((goblins actor-lib nonce-registry) ^nonce-registry) ,^nonce-registry))))

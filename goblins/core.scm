@@ -2894,6 +2894,10 @@ Type: Actormap PersistenceEnv -> Void"
     (make-hash-table))
   (define slots->refrs
     (make-hash-table))
+  ;; TODO: Make a more generalized approach to "churn" code.
+  ;; There are lots of places around the code base which does
+  ;; something similar to this "churn" mechanism. There's actormap
+  ;; churn code, vat churn stuff, update behavior and this.
   (define msg-queue (make-q))
   (define (enq-msgs! msgs)
     (for-each

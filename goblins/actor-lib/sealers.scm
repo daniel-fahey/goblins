@@ -18,7 +18,6 @@
   #:use-module (goblins)
   #:use-module (goblins actor-lib define-actor)
   #:use-module (goblins actor-lib methods)
-  #:use-module (goblins actor-lib facet)
   #:use-module ((goblins utils simple-sealers) #:prefix simple:)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)

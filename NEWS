@@ -1,6 +1,13 @@
 #+TITLE: Guile Goblins NEWS – history of user-visible changes
 
 * Releases
+** v0.13
+*** API Changes
+- The function to swap the swappable proxy from =(goblins actor-lib
+  swappable)= has now become an actor.
+- When supplying custom sealers to =(goblins actor-lib sealers)= they
+  must be defined in a known sealers alist.
+
 ** v0.12
 *** Highlights
 
