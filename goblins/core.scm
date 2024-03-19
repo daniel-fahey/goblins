@@ -2659,7 +2659,8 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
       (make-hash-table))
     
     (define this-obj-self-portrait-fn
-      (mactor:object-self-portrait (actormap-ref am this-obj)))
+      (mactor:object-self-portrait (or (actormap-ref am this-obj)
+                                       (error "Object not in actormap:" this-obj))))
     (define this-obj-constructor-refr
       (mactor:object-constructor-refr (actormap-ref am this-obj)))
     (define-values (this-obj-spec this-obj-env)
