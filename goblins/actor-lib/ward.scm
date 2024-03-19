@@ -185,4 +185,5 @@ Type: Incanter Actor -> Incantified-Actor"
   (make-persistence-env
    `((((goblins actor-lib ward) ^incantified) ,^incantified)
      (((goblins actor-lib ward) ^warden) ,^warden)
-     (((goblins actor-lib ward) ^incanter) ,^incanter))))
+     (((goblins actor-lib ward) ^incanter) ,^incanter))
+   #:extends ward-sealer-triplet-env))
