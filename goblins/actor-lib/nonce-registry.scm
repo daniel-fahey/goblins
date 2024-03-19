@@ -19,33 +19,39 @@
   #:use-module (goblins core)
   #:use-module (goblins ghash)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib define-actor)
   #:use-module (goblins utils assert-type)
   #:use-module (goblins utils crypto)
-  #:export (spawn-nonce-registry-and-locator))
+  #:export (spawn-nonce-registry-and-locator
+	    nonce-registry-env))
 
 (define (make-swiss-num)
   (gen-random-bv 32 %gcry-strong-random))
 
-(define (^nonce-registry bcom)
-  (let next-self ([ht ghash-null])
-    (define* (register refr #:optional provided-swiss-num)
-      (assert-type refr live-refr?)
-      (let* ((swiss-num (or provided-swiss-num (make-swiss-num)))
-             (new-ht (ghash-set ht swiss-num refr)))
-        (bcom (next-self new-ht) swiss-num)))
-    (methods
-     [register register]
-     [fetch
-      (case-lambda
-        [(swiss-num)
-         ;; TODO: Better errors when no swiss num
-         (unless (ghash-has-key? ht swiss-num)
-           (throw 'no-such-key
-                  (format #f "No object registered with swiss-num: ~a"
-                          (url-base64-encode swiss-num))))
-         (ghash-ref ht swiss-num)]
-        [(swiss-num dflt)
-         (ghash-ref ht swiss-num dflt)])])))
+(define-actor (^nonce-registry bcom #:optional [ht ghash-null])
+  (define* (register refr #:optional provided-swiss-num)
+    (assert-type refr live-refr?)
+    (let* ((swiss-num (or provided-swiss-num (make-swiss-num)))
+           (new-ht (ghash-set ht swiss-num refr)))
+      (bcom (^nonce-registry bcom new-ht) swiss-num)))
+  (methods
+   [register register]
+   [fetch
+    (case-lambda
+      [(swiss-num)
+       ;; TODO: Better errors when no swiss num
+       (unless (ghash-has-key? ht swiss-num)
+         (throw 'no-such-key
+                (format #f "No object registered with swiss-num: ~a"
+                        (url-base64-encode swiss-num))))
+       (ghash-ref ht swiss-num)]
+      [(swiss-num dflt)
+       (ghash-ref ht swiss-num dflt)])]))
+
+(define-actor (^nonce-locator bcom registry)
+  (methods
+   [(fetch swiss-num)
+    ($ registry 'fetch swiss-num)]))
 
 (define (spawn-nonce-registry-and-locator)
   "Return a new Nonce-Registry and Nonce-Locator.
@@ -66,12 +72,11 @@ Nonce-Locator Methods:
 `fetch swiss-num': Return the object associated with SWISS-NUM.
 
 Type: -> (Values Nonce-Registry Nonce-Locator)"
-  (define registry
-    (spawn-named 'nonce-registry ^nonce-registry))
-  (define (^nonce-locator bcom)
-    (methods
-     [(fetch swiss-num)
-      ($ registry 'fetch swiss-num)]))
-  (define locator
-    (spawn-named 'nonce-locator ^nonce-locator))
-  (values registry locator))
+  (let* ((registry (spawn-named 'nonce-registry ^nonce-registry))
+	 (locator (spawn-named 'nonce-locator ^nonce-locator registry)))
+    (values registry locator)))
+
+(define nonce-registry-env
+  (make-persistence-env
+   `((((goblins actor-lib nonce-registry) ^nonce-locator) ,^nonce-locator)
+     (((goblins actor-lib nonce-registry) ^nonce-registry) ,^nonce-registry))))

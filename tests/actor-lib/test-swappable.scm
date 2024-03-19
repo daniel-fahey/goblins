@@ -15,16 +15,21 @@
 (define-module (tests actor-lib test-swappable)
   #:use-module (goblins core)
   #:use-module (goblins actor-lib swappable)
+  #:use-module (goblins actor-lib define-actor)
+  #:use-module (tests utils)
   #:use-module (srfi srfi-64))
 
 (test-begin "test-swappable")
 
 (define am (make-actormap))
+(define-actor (^person _bcom val)
+  (lambda ()
+    val))
 
 (define alice
-  (actormap-spawn! am (lambda _ (lambda _ 'i-am-alice))))
+  (actormap-spawn! am ^person 'i-am-alice))
 (define bob
-  (actormap-spawn! am (lambda _ (lambda _ 'i-am-bob))))
+  (actormap-spawn! am ^person 'i-am-bob))
 
 (define-values (proxy-friend swap)
   (actormap-run!
@@ -36,10 +41,27 @@
  'i-am-alice
  (actormap-peek am proxy-friend))
 
-(actormap-run! am (lambda () (swap bob)))
+(actormap-run! am (lambda () ($ swap bob)))
 
 (test-equal "swappable proxy swaps"
  'i-am-bob
  (actormap-peek am proxy-friend))
+
+;; Persistence
+(define env
+  (make-persistence-env
+   `((((tests actor-lib test-swappable) ^person) ,^person))
+   #:extends swappable-env))
+(define-values (am* proxy-friend* swap* alice*)
+  (persist-and-restore am env proxy-friend swap alice))
+
+(test-equal "Same object swapped to after persistence as before"
+  'i-am-bob
+  (actormap-peek am* proxy-friend*))
+
+(actormap-poke! am* swap* alice*)
+(test-equal "Can use the swapper given back after persistence"
+  'i-am-alice
+  (actormap-peek am* proxy-friend*))
 
 (test-end "test-swappable")

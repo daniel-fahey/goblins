@@ -15,6 +15,7 @@
 (define-module (tests actor-lib test-cell)
   #:use-module (goblins core)
   #:use-module (goblins actor-lib cell)
+  #:use-module (tests utils)
   #:use-module (srfi srfi-64))
 
 (test-begin "test-cell")
@@ -66,6 +67,29 @@
  "Cannot read from a write-only cell"
  #t
  (actormap-peek am wo-a-cell))
+
+;; Persistence
+(actormap-poke! am a-cell 'hello)
+(define-values (am* cell* ro-cell* wo-cell*)
+  (persist-and-restore am cell-env a-cell ro-a-cell wo-a-cell))
+
+(test-equal "After rehydration cell can still be read"
+  'hello
+  (actormap-peek am* cell*))
+
+(actormap-poke! am* wo-cell* 'goodbye)
+(test-equal "After rehydration read-only cell can still be read"
+  'goodbye
+  (actormap-peek am* ro-cell*))
+
+(test-error
+ "After rehydration read-only cell can't be written"
+ #t
+ (actormap-poke! am* ro-cell* 'hello-again))
+(test-error
+ "After rehydration write-only cell cannot be written"
+ #t
+ (actormap-peek am* wo-cell))
 
 (test-end "test-cell")
 

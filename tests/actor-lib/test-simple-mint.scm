@@ -16,6 +16,8 @@
 (define-module (tests actor-lib simple-mint)
   #:use-module (goblins core)
   #:use-module (goblins actor-lib simple-mint)
+  #:use-module (tests utils)
+  #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-64))
 
 (test-begin "test-simple-mint")
@@ -85,5 +87,28 @@
   (test-equal "purse balance remains unchanged after failed deposit"
     0
     (actormap-peek am willow-purse 'get-balance)))
+
+(let* ((alice-purse (actormap-poke! am mint 'new-purse 1000))
+       (bob-purse (actormap-poke! am mint 'new-purse 300))
+       (payment-for-bob (actormap-poke! am alice-purse 'sprout)))
+  ;; Transfer some money from Alice's purse to payment-for-bob.
+  (actormap-poke! am payment-for-bob 'deposit 250 alice-purse)
+  (test-equal "Alice's balance is decreased"
+    750
+    (actormap-peek am alice-purse 'get-balance))
+  (test-equal "the payment purse has the proper amount in it"
+    250
+    (actormap-peek am payment-for-bob 'get-balance))
+  (let-values (((am* mint* alice-purse* bob-purse* payment-for-bob*)
+		(persist-and-restore am mint-env mint alice-purse
+				     bob-purse payment-for-bob)))
+    ;; We've been restored, continue off where we were with the payments!
+    (actormap-poke! am* bob-purse* 'deposit 250 payment-for-bob*)
+    (test-equal "the payment purse is now empty"
+      0
+      (actormap-peek am* payment-for-bob* 'get-balance))
+    (test-equal "Bob's balance is increased"
+      550
+      (actormap-peek am* bob-purse* 'get-balance))))
 
 (test-end "test-simple-mint")

@@ -15,6 +15,8 @@
 (define-module (tests actor-lib test-pubsub)
   #:use-module (goblins core)
   #:use-module (goblins actor-lib pubsub)
+  #:use-module (goblins actor-lib define-actor)
+  #:use-module (tests utils)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-64))
 
@@ -22,7 +24,7 @@
 
 (define am (make-actormap))
 
-(define* (^listener bcom #:optional (heard-back '()))
+(define-actor (^listener bcom #:optional (heard-back '()))
   (lambda msg
     (if (null? msg)
         heard-back
@@ -111,5 +113,32 @@
 (test-equal "Check third subscribed listener got the message"
   '(third)
   (car (actormap-peek am listener3)))
+
+;; Persistence
+(define listener1 (actormap-spawn! am ^listener))
+(define listener2 (actormap-spawn! am ^listener))
+(define listener3 (actormap-spawn! am ^listener))
+(define pubsub (actormap-spawn! am ^pubsub listener1 listener2))
+(actormap-poke! am pubsub 'subscribe listener3)
+
+(define env
+  (make-persistence-env
+   `((((tests actor-lib test-pubsub) ^listener) ,^listener))
+   #:extends pubsub-env))
+(define-values (am* pubsub* listener1* listener2* listener3*)
+  (persist-and-restore am env pubsub listener1 listener2 listener3))
+(actormap-churn-run!
+ am*
+ (lambda ()
+   ($ pubsub* 'publish 'first 1 2 3)))
+(test-equal "After rehydration pubsub published to listener1"
+  '(first 1 2 3)
+  (car (actormap-peek am* listener1*)))
+(test-equal "After rehydration pubsub published to listener2"
+  '(first 1 2 3)
+  (car (actormap-peek am* listener2*)))
+(test-equal "After rehydration pubsub published to listener3"
+  '(first 1 2 3)
+  (car (actormap-peek am* listener3*)))
 
 (test-end "test-pubsub")

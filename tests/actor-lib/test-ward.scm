@@ -15,39 +15,43 @@
 (define-module (tests actor-lib test-ward)
   #:use-module (goblins core)
   #:use-module (goblins actor-lib common)
+  #:use-module (goblins actor-lib define-actor)
   #:use-module (goblins actor-lib ward)
   #:use-module (goblins actor-lib methods)
+  #:use-module (tests utils)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-64))
 
 (test-begin "test-ward")
 
-(define (^inbox bcom mailbox-name admin-warden)
-  (define (make-main-beh mailbox-name messages)
-    (define admin-methods
-      (methods
-       [(revoke)
-        (bcom revoked-beh)]
-       [(get-messages)
-        messages]
-       [(set-name new-name #:key [upcase? #f])
-        (bcom (make-main-beh (if upcase?
-                                 (string-upcase new-name)
-                                 new-name)
-                             messages))]))
-    (define public-methods
-      (methods
-       [(send-message msg)
-        (bcom mailbox-name (make-main-beh msg messages))]
-       [(mailbox-name) mailbox-name]))
-
-    (ward admin-warden admin-methods
-          #:extends public-methods))
+(define-actor (^inbox bcom mailbox-name admin-warden
+		      #:optional [messages '()]
+		      #:key revoked?)
+  (define admin-methods
+    (methods
+     [(revoke) (bcom (^inbox bcom mailbox-name admin-warden
+			     #:revoked? #t))]
+     [(get-messages) messages]
+     [(set-name new-name #:key [upcase? #f])
+      (bcom (^inbox bcom (if upcase?
+                             (string-upcase new-name)
+                             new-name)
+		    admin-warden
+                    messages))]))
+  (define public-methods
+    (methods
+     [(send-message msg)
+      (bcom (^inbox bcom mailbox-name
+		    admin-warden (cons msg messages)))]
+     [(mailbox-name) mailbox-name]))
   
   (define revoked-beh
     (lambda _ (error "revoked")))
 
-  (make-main-beh mailbox-name '()))
+  (if revoked?
+      revoked-beh
+      (ward admin-warden admin-methods
+            #:extends public-methods)))
 
 (define am (make-actormap))
 
@@ -168,5 +172,29 @@
  "...but we can't replay with the caught sealed arguments"
  #t
  (actormap-run! am (lambda () (apply $ mtool caught-args))))
+
+;; Persistence tests
+(actormap-poke! am admin-incanter inbox 'set-name "My first name")
+(define inbox-env
+  (make-persistence-env
+   `((((tests actor-lib test-ward) ^inbox) ,^inbox))
+   #:extends ward-env))
+(define-values (am* inbox* admin-incanter*)
+  (persist-and-restore am inbox-env inbox admin-incanter))
+
+(test-equal "Check warding extends work after resturation"
+ "My first name"
+ (actormap-peek am* inbox* 'mailbox-name))
+
+(test-error
+ "Test we can't set the name without an incanter after resturation"
+ #t
+ (actormap-poke! am* inbox* 'set-name "A brand new name"))
+
+(actormap-poke! am* admin-incanter* inbox* 'set-name "My brand new restored name")
+(test-equal "Check name is set on restored inbox through warding"
+ "My brand new restored name"
+ (actormap-peek am* inbox* 'mailbox-name))
+
 
 (test-end "test-ward")

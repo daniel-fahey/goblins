@@ -15,11 +15,11 @@
 (define-module (goblins actor-lib queue)
   #:use-module (goblins core)
   #:use-module (goblins actor-lib methods)
-  #:export (^queue))
+  #:use-module (goblins actor-lib define-actor)
+  #:export (^queue queue-env))
 
 ;; Uses the approach from Purely Functional Data Structures by Chris Okasaki
-
-(define (^queue bcom)
+(define-actor (^queue* bcom #:optional [length 0] [head '()] [tail '()])
   "Constructs a FIFO queue.
 
 Methods:
@@ -29,34 +29,42 @@ Methods:
 `dequeue': Removes and returns the oldest inserted value from the queue.
 
 Type: -> Queue"
-  (let next-beh ((length 0)
-                 (head '())
-                 (tail '()))
-    (define empty? (zero? length))
-    (methods
-     ((length) length)
-     ((empty?) empty?)
-     ((enqueue val)
-      (bcom (next-beh (1+ length)
-                      head (cons val tail))))
-     ((dequeue)
-      (when empty?
-        (error "Queue is already empty!"))
-      (cond
-       ;; If the head is empty, we reverse the tail, taking
-       ;; the first value from that and handing it to the user,
-       ;; and update our behavior to use the rest of the reversed
-       ;; tail as the new head.
-       ((null? head)
-        (let* ((h* (reverse tail))
-               (val (car h*))
-               (new-head (cdr h*)))
-          (bcom (next-beh (1- length)
-                          new-head '())
-                val)))
-       ;; Otherwise, just pull from the top of the head as the dequeued
-       ;; value.
-       (else
-        (bcom (next-beh (1- length)
-                        (cdr head) tail)
-              (car head))))))))
+  (define empty? (zero? length))
+  (methods
+   ((length) length)
+   ((empty?) empty?)
+   ((enqueue val)
+    (bcom (^queue* bcom (1+ length)
+                   head (cons val tail))))
+   ((dequeue)
+    (when empty?
+      (error "Queue is already empty!"))
+    (cond
+     ;; If the head is empty, we reverse the tail, taking
+     ;; the first value from that and handing it to the user,
+     ;; and update our behavior to use the rest of the reversed
+     ;; tail as the new head.
+     ((null? head)
+      (let* ((h* (reverse tail))
+             (val (car h*))
+             (new-head (cdr h*)))
+        (bcom (^queue* bcom
+		       (1- length)
+                       new-head '())
+              val)))
+     ;; Otherwise, just pull from the top of the head as the dequeued
+     ;; value.
+     (else
+      (bcom (^queue* bcom
+		     (1- length)
+                     (cdr head) tail)
+            (car head)))))))
+
+(define (^queue bcom)
+  (^queue* bcom))
+(define (restore-queue _version length head tail)
+  (spawn ^queue* length head tail))
+
+(define queue-env
+  (make-persistence-env
+   `((((goblins actor-lib queue) ^queue) ,^queue ,restore-queue))))

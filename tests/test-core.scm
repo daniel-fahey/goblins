@@ -720,6 +720,41 @@
   incrementer*
   (actormap-peek second-actormap ro-cell*))
 
+(define (^bar _bcom value)
+  (define (main-beh another-value)
+    (list value another-value))
+  (define (self-portrait)
+    (list value))
+  (portraitize main-beh self-portrait))
+
+(define (^foo _bcom bar value)
+  (define barred-value (<- bar value))
+  (define (main-beh)
+    barred-value)
+  (define (self-portrait)
+    (list bar value))
+  (portraitize main-beh self-portrait))
+
+(define env
+  (make-persistence-env
+   `((((tests test-core) ^bar) ,^bar)
+     (((tests test-core) ^foo) ,^foo))))
+
+(test-equal "Check restored actors can send messages upon construction"
+  '(start-bar start-foo)
+  (let*-values (((am1) (make-actormap))
+		((am2) (make-actormap))
+		((bar1) (actormap-spawn! am1 ^bar 'start-bar))
+		((foo1) (actormap-spawn! am1 ^foo bar1 'start-foo))
+		((portraits roots) (actormap-take-portrait am1 env foo1))
+		((foo2) (actormap-restore am2 env portraits roots)))
+    (actormap-peek
+     am2
+     (actormap-churn-run!
+      am2
+      (lambda ()
+	($ foo2))))))
+
 ;; Test spawning another actor in the restore behavior
 (define ^second
   (make-redefinable-object

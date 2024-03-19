@@ -18,10 +18,51 @@
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib opportunistic)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib define-actor)
   #:use-module (ice-9 match)
-  #:export (spawn-pushdown-pair))
+  #:export (spawn-pushdown-pair pushdown-env))
 
-(define* (spawn-pushdown-pair #:optional [initial-refr #f])
+(define-actor (^pd-stack _bcom stack)
+  (methods
+   ((push refr)
+    ;; Add to the stack
+    ($ stack (cons refr ($ stack))))
+   ((spawn-push constructor #:rest args)
+    (define cur-stack
+      ($ stack))
+    (define stack-top
+      (match cur-stack
+        [(stack-top . rest-stack)
+         stack-top]
+        ['() #f]))
+    (define new-refr
+      (apply spawn constructor stack-top args))
+    ($ stack (cons new-refr cur-stack))
+    new-refr)
+   ((pop)
+    (match ($ stack)
+      [(stack-top . rest-stack)
+       ;; set stack to the remaining value
+       ($ stack rest-stack)
+       ;; return the top value
+       stack-top]
+      ['() (error "Empty stack")]))
+   ((empty?)
+    (null? ($ stack)))))
+
+(define-actor (^pd-forwarder _bcom stack)
+  (lambda args
+    (match ($ stack)
+      [(stack-top . rest-stack)
+       (apply run-$/<- stack-top args)])))
+
+(define pushdown-env
+  (make-persistence-env
+   `((((goblins actor-lib pushdown) ^pd-stack) ,^pd-stack)
+     (((goblins actor-lib pushdown) ^pd-forwarder) ,^pd-forwarder))
+   #:extends cell-env))
+  
+(define* (spawn-pushdown-pair #:optional initial-refr)
   "Spawn a pair which constitute a pushdown automata, a Pd-Stack for the stack
 and a Pd-Forwarder to forward messages to the current top of the stack.
 
@@ -34,40 +75,10 @@ then add the new actor to the top of the stack. Return a reference to the new ac
 `empty?': Return #t if the stack is empty, else #f.
 
 Type: (Optional Actor) -> (Values Pd-Stack Pd-Forwarder)"
-  (define-cell stack
-    (if initial-refr
-        (list initial-refr)
-        '()))
-  (define (^pd-stack bcom)
-    (methods
-     ((push refr)
-      ;; Add to the stack
-      ($ stack (cons refr ($ stack))))
-     ((spawn-push constructor #:rest args)
-      (define cur-stack
-        ($ stack))
-      (define stack-top
-        (match cur-stack
-          [(stack-top . rest-stack)
-           stack-top]
-          ['() #f]))
-      (define new-refr
-        (apply spawn constructor stack-top args))
-      ($ stack (cons new-refr cur-stack))
-      new-refr)
-     ((pop)
-      (match ($ stack)
-        [(stack-top . rest-stack)
-         ;; set stack to the remaining value
-         ($ stack rest-stack)
-         ;; return the top value
-         stack-top]
-        ['() (error "Empty stack")]))
-     ((empty?)
-      (null? ($ stack)))))
-  (define (^pd-forwarder bcom)
-    (lambda args
-      (match ($ stack)
-        [(stack-top . rest-stack)
-         (apply run-$/<- stack-top args)])))
-  (values (spawn ^pd-stack) (spawn ^pd-forwarder)))
+  (let ((stack (spawn-named 'stack
+			    ^cell
+			    (if initial-refr
+				(list initial-refr)
+				'()))))
+    (values (spawn ^pd-stack stack)
+	    (spawn ^pd-forwarder stack))))    

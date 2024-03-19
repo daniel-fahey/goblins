@@ -17,9 +17,10 @@
   #:use-module (goblins core)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
-  #:export (^pubsub))
+  #:use-module (goblins actor-lib define-actor)
+  #:export (^pubsub pubsub-env))
 
-(define (^pubsub bcom . initial-subscribers)
+(define-actor (^pubsub* bcom subscribers)
   "Construct an actor which publishes messages to INITIAL-SUBSCRIBERS
 as well as subscribing, unsubscribing, and listing these subscribers.
 
@@ -28,11 +29,8 @@ Methods:
 `unsubscribe subscriber': Remove SUBSCRIBER from the list of subscribers.
 `publish args ...': Invoke each subscriber asynchronously with ARGS.
 `subscribers': Return the list of subscribers."
-  (define subscribers
-    (apply spawn ^seteq initial-subscribers))
-
   (define (publish . args)
-    (map
+    (for-each
      (lambda (subscriber)
        (apply <-np subscriber args))
      ($ subscribers 'as-list))
@@ -43,3 +41,17 @@ Methods:
    ((unsubscribe subscriber) ($ subscribers 'remove subscriber))
    (publish publish)
    ((subscribers) ($ subscribers 'as-list))))
+
+(define (^pubsub bcom . initial-subscribers)
+  "Public interface to ^pubsub"
+  (define subscribers
+    (apply spawn ^seteq initial-subscribers))
+  (^pubsub* bcom subscribers))
+
+(define (restore-pubsub _version subscribers)
+  (spawn ^pubsub* subscribers))
+
+(define pubsub-env
+  (make-persistence-env
+   `((((goblins actor-lib pubsub) ^pubsub) ,^pubsub ,restore-pubsub))
+   #:extends common-env))

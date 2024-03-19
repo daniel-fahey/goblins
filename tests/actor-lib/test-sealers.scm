@@ -14,6 +14,7 @@
 
 (use-modules (goblins)
              (goblins actor-lib sealers)
+	     (tests utils)
              (srfi srfi-64))
 
 (test-begin "test-sealers")
@@ -78,12 +79,20 @@
          (eq? (car maybe-sealed) 'sealed)))
   (values seal unseal sealed?))
 
+
+(define known-sealers
+  (acons '((tests actor-lib test-sealers) make-sealer-triplet)
+	 make-sealer-triplet
+	 default-sealers-alist))
+(define-values (custom-spawn-sealer-triplet custom-sealers-env)
+  (make-spawn-sealer-triplet '(tests actor-lib test-sealers) known-sealers))
+
 (define-values (carol-sealer carol-unsealer carol-sealed?)
   (actormap-run!
    am
    (lambda ()
-     (spawn-sealer-triplet 'carol-sealer-triplet
-                            #:make-sealer-triplet make-sealer-triplet))))
+     (custom-spawn-sealer-triplet 'carol-sealer-triplet
+				  #:make-sealer-triplet make-sealer-triplet))))
 
 (define carol-sealed-lunch
   (actormap-poke! am carol-sealer 'tofu-scramble))
@@ -103,5 +112,35 @@
 (test-equal "Carol's sealed lunch uses custom sealers"
   'tofu-scramble
   custom-sealer-sealed-value)
+
+;; Persistence
+(define env
+  (make-persistence-env
+   #:extends (list custom-sealers-env sealers-env)))
+(define-values (am* carol-sealer* carol-unsealer*
+		    carol-sealed?* bob-unsealer*
+		    carol-sealed-lunch*)
+  (persist-and-restore am env
+		       carol-sealer carol-unsealer
+		       carol-sealed? bob-unsealer
+		       carol-sealed-lunch))
+
+(test-equal "Carol can unseal her own lunch after rehydration"
+  'tofu-scramble
+  (actormap-peek am* carol-unsealer* carol-sealed-lunch*))
+
+(test-error
+ "Bob cannot unseal carol's lunch after rehydration"
+ #t
+ (actormap-peek am* bob-unsealer* carol-sealed-lunch*))
+
+(test-assert "Carol's lunch is still reported as sealed after rehydration"
+  (actormap-peek am* carol-sealed?* carol-sealed-lunch*))
+
+(define carol-sealed-coffee
+  (actormap-poke! am* carol-sealer* 'piping-hot-coffee))
+(test-equal "Carol can seal and unseal item after rehydration"
+  'piping-hot-coffee
+  (actormap-peek am* carol-unsealer* carol-sealed-coffee))
 
 (test-end "test-sealers")

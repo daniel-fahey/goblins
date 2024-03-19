@@ -1522,7 +1522,7 @@
 
                ;; And set things up so that the incoming-forwarder now goes
                ;; to the captp-incoming-handler
-               (incoming-swap captp-incoming-handler)
+               ($C incoming-swap captp-incoming-handler)
 
                ;; And now install in the open sessions in the directory
                ($C locations->open-session-names 'set remote-location session-name)
