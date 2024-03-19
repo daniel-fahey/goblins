@@ -2828,6 +2828,20 @@ Type: Actormap PersistenceEnv -> TransactorMap"
     (not (eq? (redefinable-object-constructor current-constructor)
               spawned-constructor)))
 
+  (define (dispatch-messages-for-am! am messages)
+    (define msg-queue (make-q))
+    (define (queue-messages! msgs)
+      (for-each
+       (lambda (msg)
+	 (enq! msg-queue msg))
+       msgs))
+    (queue-messages! messages)
+    (while (not (q-empty? msg-queue))
+      (let-values (((_val new-am new-msgs)
+		    (actormap-turn-message am (deq! msg-queue))))
+	(queue-messages! new-msgs)
+	(transactormap-merge! new-am))))
+
   (hash-for-each
    (lambda (refr mactor)
      ;; Find the object spec for the given mactor (might not have one).
@@ -2848,14 +2862,11 @@ Type: Actormap PersistenceEnv -> TransactorMap"
            (if (versioned-data? self-portrait)
                self-portrait
                (versioned 0 self-portrait)))
-         ;; TODO: This doesn't support new references being spawned during
-         ;; upgrade code.  One way to do this is to commit to the actormap
-         ;; rather than a new transactormap, then still do the set! but
-         ;; then the old reference just "dangles" and is eventually gc'ed
-         ;; (we hope)
-         ;; But in the case that the old reference was passed around, we
-         ;; should transform that too... set it to a `mactor:local-link' !
-         (define-values (tmp-refr tmp-am _msgs)
+	 ;; Restoring but we need to commit this, for two important reasons:
+	 ;; 1. The actor may spawn other actors which need to stick around
+	 ;; 2. If the actor gives itself to another actor, that refr
+	 ;;    needs to continue to work.
+         (define-values (tmp-refr new-am* new-msgs)
            (actormap-run*
             new-actormap
             (lambda ()
@@ -2863,14 +2874,20 @@ Type: Actormap PersistenceEnv -> TransactorMap"
                      (versioned-data-version versioned-self-portrait)
                      (versioned-data-data versioned-self-portrait)))))
 
-         ;; For once we handle the above TODO:
-         ;; ;; In the off case that a selfish reference is passed to another
-         ;; ;; actor, we set up a symlink
-         ;; (actormap-set! new-actormap tmp-refr
-         ;;                (mactor:local-link refr))
-
+	 ;; Set the old refr to point to this new mactor we
+	 ;; spawned. We could technically set this to a local-link but
+	 ;; in most cases `temp-refr' will be Gc'd and this will be
+	 ;; the sole refr remaining.
          (actormap-set! new-actormap refr
-                        (actormap-ref tmp-am tmp-refr)))))
+                        (actormap-ref new-am* tmp-refr))
+	 ;; We do still care about making temp-refr still work if it
+	 ;; was given out, see reason number 2 above so set it to a
+	 ;; local-link.
+	 (actormap-set! new-actormap tmp-refr
+			(make-mactor:local-link refr))
+
+	 (dispatch-messages-for-am! new-am* new-msgs)
+	 (transactormap-merge! new-am*))))
    whactormap-table)
   new-actormap)
 
