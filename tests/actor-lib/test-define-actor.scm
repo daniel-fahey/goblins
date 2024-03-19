@@ -15,6 +15,8 @@
 (define-module (tests utils test-define-actor)
   #:use-module (goblins)
   #:use-module (goblins actor-lib define-actor)
+  #:use-module ((goblins core-types)
+                #:select (redefinable-object?))
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
@@ -103,5 +105,18 @@
     "Check first restored robot has same output as non-restored robot"
   (actormap-peek am1 roadblock)
   (actormap-peek restored-am1 restored-roadblock))
+
+(test-assert "By default, define-actor makes redefinable objects"
+  (redefinable-object? ^cell))
+
+(define-actor (^cell-frozen bcom value)
+  #:frozen
+  (case-lambda
+    [() value]
+    [(new-value) (bcom (^cell-frozen bcom new-value))]))
+
+(test-assert "define-actor with #:frozen makes ordinary procedures"
+  (and (not (redefinable-object? ^cell-frozen))
+       (procedure? ^cell-frozen)))
 
 (test-end "test-define-actor")
