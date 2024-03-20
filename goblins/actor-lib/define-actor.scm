@@ -17,7 +17,8 @@
                 #:select (portraitize
                           make-redefinable-object
 			  redefinable-object?
-                          set-redefinable-object-constructor!))
+                          set-redefinable-object-constructor!
+                          versioned))
   #:use-module (srfi srfi-71)   ; extended let for multiple values
   #:export (define-actor define-hackable))
 
@@ -69,27 +70,33 @@
     ;; "special" to define-actor
     (define (extract-body-keywords body)
       (let lp ((body body)
-               (frozen? #f))
+               (frozen? #f)
+               (version #f))
         (syntax-case body ()
           ((#:frozen . rest)
-           (lp #'rest #t))
-          (rest-body (values body frozen?)))))
+           (lp #'rest #t version))
+          ((#:version version . rest)
+           (lp #'rest frozen? #'version))
+          (rest-body (values body frozen? version)))))
     (syntax-case stx ()
       [(_ (constructor-id bcom arg ...) body ...)
-       (let ((kwless-body frozen?
+       (let ((kwless-body frozen? version
               (extract-body-keywords #'(body ...))))
          (with-syntax (((arg-name ...) (args->arg-names #'(arg ...)))
                        ((kwless-body ...) kwless-body)
                        (definer (if frozen?
                                     #'define
                                     #'define-redefinable-object)))
-	   #'(definer constructor-id
+	   #`(definer constructor-id
 	       (let ((constructor-id
 		      (lambda* (bcom arg ...)
 		        (define (main-beh)
 			  kwless-body ...)
 		        (define (self-portrait)
-			  (list arg-name ...))
+                          #,(if version
+                                #`(versioned #,version
+                                             (list arg-name ...))
+                                #'(list arg-name ...)))
 		        (portraitize (main-beh) self-portrait))))
 	         constructor-id))))])))
 
