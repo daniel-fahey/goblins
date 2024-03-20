@@ -18,17 +18,19 @@
                           make-redefinable-object
 			  redefinable-object?
                           set-redefinable-object-constructor!))
+  #:use-module (srfi srfi-71)   ; extended let for multiple values
   #:export (define-actor define-hackable))
 
 
 (define-syntax-rule (define-redefinable-object name proc)
   (define name
-    (if (defined? 'name)
+    (if (and (defined? 'name) (redefinable-object? name))
 	;; We've already defined this, just update the constructor refr
 	(begin
 	  (set-redefinable-object-constructor! name proc)
 	  name)
-	;; First time, lets define it.
+	;; First time (or currently not a redefinable object),
+        ;; lets define it.
 	(make-redefinable-object proc))))
 
 (define-syntax define-actor
@@ -63,19 +65,33 @@
 	((id . rest)
 	 (identifier? #'id)
 	 (cons-id #'id (args->arg-names #'rest #:is-keyword? is-keyword?)))))
+    ;; Walk through the body and extract all the keyword arguments which are
+    ;; "special" to define-actor
+    (define (extract-body-keywords body)
+      (let lp ((body body)
+               (frozen? #f))
+        (syntax-case body ()
+          ((#:frozen . rest)
+           (lp #'rest #t))
+          (rest-body (values body frozen?)))))
     (syntax-case stx ()
       [(_ (constructor-id bcom arg ...) body ...)
-       (with-syntax (((arg-name ...) (args->arg-names #'(arg ...))))
-	 #'(define-redefinable-object
-	     constructor-id
-	     (let ((constructor-id
-		    (lambda* (bcom arg ...)
-		      (define (main-beh)
-			body ...)
-		      (define (self-portrait)
-			(list arg-name ...))
-		      (portraitize (main-beh) self-portrait))))
-	       constructor-id)))])))
+       (let ((kwless-body frozen?
+              (extract-body-keywords #'(body ...))))
+         (with-syntax (((arg-name ...) (args->arg-names #'(arg ...)))
+                       ((kwless-body ...) kwless-body)
+                       (definer (if frozen?
+                                    #'define
+                                    #'define-redefinable-object)))
+	   #'(definer constructor-id
+	       (let ((constructor-id
+		      (lambda* (bcom arg ...)
+		        (define (main-beh)
+			  kwless-body ...)
+		        (define (self-portrait)
+			  (list arg-name ...))
+		        (portraitize (main-beh) self-portrait))))
+	         constructor-id))))])))
 
 (define-syntax-rule (define-hackable (constructor-id bcom args ...) body ...)
   (define-redefinable-object constructor-id
