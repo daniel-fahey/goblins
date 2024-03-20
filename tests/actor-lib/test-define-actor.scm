@@ -24,7 +24,7 @@
   #:use-module (fibers timers)
   #:use-module (ice-9 match)
   #:use-module ((srfi srfi-1)
-                #:select (third))
+                #:select (second third))
   #:use-module (srfi srfi-64))
 
 (test-begin "test-define-actor")
@@ -125,6 +125,7 @@
 
 (define am2 (make-actormap))
 
+;; #:version without #:portrait
 (define-actor (^cell-versioned bcom value)
   #:version (+ 40 2)
   (case-lambda
@@ -146,5 +147,119 @@
 
 (test-eqv "#:version for define-actor works" 42
           (car version-data))
+
+(define am3 (make-actormap))
+
+;; This is an observation from Safe Serialization under Mutual Suspicion by
+;; Mark Miller... an object can become aware of how many times it has been
+;; restored.  In this case, we do so by studying how many times we've been
+;; persisted by tagging that information
+(define-actor (^cell-resurrection-aware bcom #:optional val)
+  #:portrait (lambda () (list (list 'persisted val)))
+  (case-lambda
+    (() val)
+    ((new-val) (bcom (^cell-resurrection-aware new-val)))))
+
+(define resurrection-env
+  (make-persistence-env
+   `((((tests utils test-define-actor) ^cell-resurrection-aware)
+      ,^cell-resurrection-aware))))
+
+(define resurrection-cell
+  (actormap-spawn! am3 ^cell-resurrection-aware 'meep))
+
+;; Let's do two manual persists
+(define restored-am3 (make-actormap))
+(define restored-restored-am3 (make-actormap))
+
+(define-values (resurrected-portraits resurrected-roots)
+  (actormap-take-portrait am3 resurrection-env resurrection-cell))
+
+(define-values (restored-rc)
+  (actormap-restore restored-am3 resurrection-env
+                    resurrected-portraits resurrected-roots))
+
+(test-equal '(persisted meep)
+  (actormap-peek restored-am3 restored-rc))
+
+(define-values (resurrected2x-portraits resurrected2x-roots)
+  (actormap-take-portrait restored-am3 resurrection-env restored-rc))
+
+(define-values (restored2x-rc)
+  (actormap-restore restored-restored-am3 resurrection-env
+                    resurrected2x-portraits resurrected2x-roots))
+
+(test-equal '(persisted (persisted meep))
+  (actormap-peek restored-restored-am3 restored2x-rc))
+
+
+(define am4 (make-actormap))
+
+;; #:version with #:portrait
+(define-actor (^cell-portrait-version bcom #:optional val)
+  #:portrait (lambda ()
+               (list (list 'persisted2 val)))
+  #:version 2
+  (case-lambda
+    (() val)
+    ((new-val) (bcom (^cell-portrait-version new-val)))))
+
+;; #:version and #:portrait both specified but they match
+(define-actor (^cell-portrait-version-match bcom #:optional val)
+  #:portrait (lambda ()
+               (versioned 'two (list (list 'persisted2-match val))))
+  #:version 'two
+  (case-lambda
+    (() val)
+    ((new-val) (bcom (^cell-portrait-version-match new-val)))))
+
+(define-actor (^cell-portrait-version-mismatch bcom #:optional val)
+  #:portrait (lambda ()
+               (versioned 67 (list (list 'persisted2-mismatch val))))
+  #:version 22
+  (case-lambda
+    (() val)
+    ((new-val) (bcom (^cell-portrait-version-mismatch new-val)))))
+
+(define portrait-version-env
+  (make-persistence-env
+   `((((tests utils test-define-actor) ^cell-portrait-version)
+      ,^cell-portrait-version)
+     (((tests utils test-define-actor) ^cell-portrait-version-match)
+      ,^cell-portrait-version-match)
+     (((tests utils test-define-actor) ^cell-portrait-version-mismatch)
+      ,^cell-portrait-version-mismatch))))
+
+(define cpv
+  (actormap-spawn! am3 ^cell-portrait-version 'bloop))
+(define cpv-match
+  (actormap-spawn! am3 ^cell-portrait-version-match 'blop))
+(define cpv-mismatch
+  (actormap-spawn! am3 ^cell-portrait-version-mismatch 'blech))
+
+(define-values (portrait-version-portraits portrait-version-roots)
+  (actormap-take-portrait am3 portrait-version-env cpv cpv-match))
+
+(define cpv-version
+  (car (portrait-record-data (third (portrait-record-data (hash-ref portrait-version-portraits 0))))))
+(define cpv-match-version
+  (car (portrait-record-data (third (portrait-record-data (hash-ref portrait-version-portraits 1))))))
+(define cpv-data
+  (portrait-record-data (second (portrait-record-data (third (portrait-record-data (hash-ref portrait-version-portraits 0)))))))
+(define cpv-match-data
+  (portrait-record-data (second (portrait-record-data (third (portrait-record-data (hash-ref portrait-version-portraits 1)))))))
+
+(test-equal "#:portrait and #:version compose, version"
+  2 cpv-version)
+(test-equal "#:portrait and #:version compose, data"
+  '(persisted2 bloop) cpv-data)
+
+(test-equal "#:portrait and #:version compose when both providing version and matching, version"
+  'two cpv-match-version)
+(test-equal "#:portrait and #:version compose when both providing version and matching, data"
+  '(persisted2-match blop) cpv-match-data)
+
+(test-error "Error raised when #:portrait provides version mismatching with #:version"
+            (actormap-take-portrait am3 portrait-version-env cpv-mismatch))
 
 (test-end "test-define-actor")
