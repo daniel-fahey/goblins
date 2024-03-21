@@ -18,7 +18,9 @@
                           make-redefinable-object
 			  redefinable-object?
                           set-redefinable-object-constructor!
-                          versioned))
+                          versioned
+                          versioned-data?
+                          versioned-data-version))
   #:use-module (srfi srfi-71)   ; extended let for multiple values
   #:export (define-actor define-hackable))
 
@@ -33,6 +35,10 @@
 	;; First time (or currently not a redefinable object),
         ;; lets define it.
 	(make-redefinable-object proc))))
+
+(define (raise-portrait-version-mismatch expected got)
+  (error "define-actor #:version and #:portrait version conflict:"
+         'expected: expected 'got: got))
 
 (define-syntax define-actor
   (lambda (stx)
@@ -71,16 +77,22 @@
     (define (extract-body-keywords body)
       (let lp ((body body)
                (frozen? #f)
-               (version #f))
+               (version #f)
+               (portrait #f)
+               (restore #f))
         (syntax-case body ()
           ((#:frozen . rest)
-           (lp #'rest #t version))
+           (lp #'rest #t version portrait restore))
           ((#:version version . rest)
-           (lp #'rest frozen? #'version))
-          (rest-body (values body frozen? version)))))
+           (lp #'rest frozen? #'version portrait restore))
+          ((#:portrait portrait . rest)
+           (lp #'rest frozen? version #'portrait restore))
+          ((#:restore restore . rest)
+           (lp #'rest frozen? version portrait #'restore))
+          (rest-body (values body frozen? version portrait restore)))))
     (syntax-case stx ()
       [(_ (constructor-id bcom arg ...) body ...)
-       (let ((kwless-body frozen? version
+       (let ((kwless-body frozen? version portrait restore
               (extract-body-keywords #'(body ...))))
          (with-syntax (((arg-name ...) (args->arg-names #'(arg ...)))
                        ((kwless-body ...) kwless-body)
@@ -92,11 +104,43 @@
 		      (lambda* (bcom arg ...)
 		        (define (main-beh)
 			  kwless-body ...)
-		        (define (self-portrait)
-                          #,(if version
-                                #`(versioned #,version
-                                             (list arg-name ...))
-                                #'(list arg-name ...)))
+                        ;; Define the self-portrait in one of several ways depending
+                        ;; on whether portrait and/or version are supplied...
+                        #,@(cond
+                            ;; If there's a portrait AND a version, we want to enforce
+                            ;; that if the inner portrait gives a portrait that we error
+                            ;; out on seeing another version added
+                            ((and portrait version)
+                             ;; doing the let here makes sure the portrait procedure and
+                             ;; version are instantiated once, not on every call
+                             #`((define self-portrait-proc #,portrait)
+                                (define version #,version)
+                                (define (self-portrait)
+                                  (define result (self-portrait-proc))
+                                  (if (versioned-data? result)
+                                      ;; let's make sure the result's version matches
+                                      (if (equal? (versioned-data-version result)
+                                                  version)
+                                          ;; the version matches, so just return it
+                                          result
+                                          ;; otherwise else, mismatching versions!
+                                          (raise-portrait-version-mismatch
+                                           version (versioned-data-version result)))
+                                      ;; and if it isn't versioned data, let's version it!
+                                      (versioned version result)))))
+                            ;; portrait but no version
+                            (portrait
+                             #`((define self-portrait #,portrait)))
+                            ;; version but no portrait
+                            (version
+                             #`((define version #,version)
+                                (define (self-portrait)
+                                  (versioned #,version
+                                             (list arg-name ...)))))
+                            ;; default with default version
+                            (else
+                             #'((define (self-portrait)
+                                  (list arg-name ...)))))
 		        (portraitize (main-beh) self-portrait))))
 	         constructor-id))))])))
 
