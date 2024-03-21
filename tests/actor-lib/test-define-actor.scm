@@ -231,14 +231,14 @@
       ,^cell-portrait-version-mismatch))))
 
 (define cpv
-  (actormap-spawn! am3 ^cell-portrait-version 'bloop))
+  (actormap-spawn! am4 ^cell-portrait-version 'bloop))
 (define cpv-match
-  (actormap-spawn! am3 ^cell-portrait-version-match 'blop))
+  (actormap-spawn! am4 ^cell-portrait-version-match 'blop))
 (define cpv-mismatch
-  (actormap-spawn! am3 ^cell-portrait-version-mismatch 'blech))
+  (actormap-spawn! am4 ^cell-portrait-version-mismatch 'blech))
 
 (define-values (portrait-version-portraits portrait-version-roots)
-  (actormap-take-portrait am3 portrait-version-env cpv cpv-match))
+  (actormap-take-portrait am4 portrait-version-env cpv cpv-match))
 
 (define cpv-version
   (car (portrait-record-data (third (portrait-record-data (hash-ref portrait-version-portraits 0))))))
@@ -260,6 +260,6 @@
   '(persisted2-match blop) cpv-match-data)
 
 (test-error "Error raised when #:portrait provides version mismatching with #:version"
-            (actormap-take-portrait am3 portrait-version-env cpv-mismatch))
+            (actormap-take-portrait am4 portrait-version-env cpv-mismatch))
 
 (test-end "test-define-actor")
