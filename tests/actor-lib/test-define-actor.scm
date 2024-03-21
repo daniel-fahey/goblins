@@ -16,11 +16,15 @@
   #:use-module (goblins)
   #:use-module (goblins actor-lib define-actor)
   #:use-module ((goblins core-types)
-                #:select (redefinable-object?))
+                #:select (redefinable-object?
+                          portrait-record-data))
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
   #:use-module (fibers timers)
+  #:use-module (ice-9 match)
+  #:use-module ((srfi srfi-1)
+                #:select (third))
   #:use-module (srfi srfi-64))
 
 (test-begin "test-define-actor")
@@ -118,5 +122,29 @@
 (test-assert "define-actor with #:frozen makes ordinary procedures"
   (and (not (redefinable-object? ^cell-frozen))
        (procedure? ^cell-frozen)))
+
+(define am2 (make-actormap))
+
+(define-actor (^cell-versioned bcom value)
+  #:version (+ 40 2)
+  (case-lambda
+    [() value]
+    [(new-value) (bcom (^cell-versioned bcom new-value))]))
+
+(define versioned-env
+  (make-persistence-env
+   `((((tests utils test-define-actor) ^cell-versioned) ,^cell-versioned))))
+
+(define versioned-cell
+  (actormap-spawn! am2 ^cell-versioned 'meep))
+
+(define-values (versioned-portraits versioned-roots)
+  (actormap-take-portrait am2 versioned-env versioned-cell))
+
+(define version-data
+  (portrait-record-data (third (portrait-record-data (hash-ref versioned-portraits 0)))))
+
+(test-eqv "#:version for define-actor works" 42
+          (car version-data))
 
 (test-end "test-define-actor")
