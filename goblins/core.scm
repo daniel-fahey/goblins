@@ -2879,12 +2879,12 @@ Type: Actormap PersistenceEnv -> TransactorMap"
 	 ;; spawned. We could technically set this to a local-link but
 	 ;; in most cases `temp-refr' will be Gc'd and this will be
 	 ;; the sole refr remaining.
-         (actormap-set! new-actormap refr
+         (actormap-set! new-am* refr
                         (actormap-ref new-am* tmp-refr))
 	 ;; We do still care about making temp-refr still work if it
 	 ;; was given out, see reason number 2 above so set it to a
 	 ;; local-link.
-	 (actormap-set! new-actormap tmp-refr
+	 (actormap-set! new-am* tmp-refr
 			(make-mactor:local-link refr))
 
 	 (dispatch-messages-for-am! new-am* new-msgs)
