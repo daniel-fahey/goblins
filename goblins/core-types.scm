@@ -94,8 +94,8 @@
             <persistence-env>
             _make-persistence-env
             persistence-env?
-            persistence-env-bindings
-            persistence-env-extends
+	    persistence-env-constructor->object-spec
+	    persistence-env-name->object-spec
 
             <portraitized-behavior>
             portraitize
@@ -304,10 +304,10 @@ Type: Any -> Boolean"
 ;; Persistence
 ;; ===========
 (define-record-type <persistence-env>
-  (_make-persistence-env bindings extends)
+  (_make-persistence-env constructor->object-spec name->object-spec)
   persistence-env?
-  (bindings persistence-env-bindings)
-  (extends persistence-env-extends))
+  (constructor->object-spec persistence-env-constructor->object-spec)
+  (name->object-spec persistence-env-name->object-spec))
 
 ;; Portraitized behavior
 (define-record-type <portraitized-behavior>

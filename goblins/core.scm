@@ -180,69 +180,12 @@
          (display "<sealed>" port))))
   (values seal unseal sealed?))
 
-(define (persistence-env-find match? env)
-  (define (match-bindings bindings)
-    (match bindings
-      [() (values #f #f)]
-      [((? match? found) rest ...)
-       (values found env)]
-      [(_not-matched rest ...)
-       (match-bindings rest)]))
-
-  (define (match-extends extends)
-    (match extends
-      [() (values #f #f)]
-      [(next rest ...)
-       (let ([result (persistence-env-find match? next)])
-         (if result
-             (values result env)
-             (match-extends rest)))]))
-
-  (define-values (found-obj-spec found-env)
-    (match-bindings (persistence-env-bindings env)))
-
-  (if (and found-obj-spec found-env)
-    (values found-obj-spec found-env)
-    (match-extends (persistence-env-extends env))))
-
 (define (persistence-env-ref env name)
   "Finds the object specification within a given persistence environment tree by the provided name"
-  (persistence-env-find
-   (lambda (obj-spec)
-     (equal? (object-spec-name obj-spec) name))
-   env))
+  (hashq-ref (persistence-env-name->object-spec env) name))
 
 (define (persistence-env-ref-by-constructor env constructor)
-  (persistence-env-find
-   (lambda (obj-spec)
-     (eq? (object-spec-constructor obj-spec) constructor))
-   env))
-
-(define (persistence-env-diff old new)
-  ;; use lset-adjoin?
-  (define (flatten env)
-    (define flattened-extends (map flatten (persistence-env-extends env)))
-    (append (persistence-env-bindings env) (apply append flattened-extends)))
-
-  (define (build-name->object-spec persistence-envs)
-    (define tbl (make-hash-table))
-    (for-each
-     (lambda (obj-spec)
-       (hashq-set! tbl (object-spec-name obj-spec) obj-spec))
-     persistence-envs)
-    tbl)
-
-  (define old-map (build-name->object-spec (flatten old)))
-  (define new-map (build-name->object-spec (flatten new)))
-
-  (hash-fold
-   (lambda (name object-spec diff)
-     (define obj-spec-in-new (hashq-ref new-map name))
-     (if (eq? object-spec obj-spec-in-new)
-         diff
-         (cons name diff)))
-   (list)
-   old-map))
+  (hashq-ref (persistence-env-constructor->object-spec env) constructor))
 
 
 ;;;                  .============================.
@@ -2601,18 +2544,42 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
        [(name constructor rehydrator)
         (make-object-spec name constructor rehydrator)]))
 
-  (define object-specs
-    (map (lambda (object-spec-list)
-           (apply object-spec-list>object-spec object-spec-list))
-         objects))
+  (define constructor->object-spec
+    (make-hash-table))
+  (define name->object-spec
+    (make-hash-table))
 
-  (_make-persistence-env
-   object-specs
-   (match extends
-     [#f '()]
-     [(envs ...) envs]
-     [(? persistence-env? env) (list env)]
-     [_ (error "Unknown value to extend persistence environment from" extends)])))
+  (define (add-object-spec! object-spec)
+    (hashq-set! name->object-spec
+		(object-spec-name object-spec)
+		object-spec)
+    (hashq-set! constructor->object-spec
+		(object-spec-constructor object-spec)
+		object-spec))
+
+  (for-each
+   (lambda (object-spec-list)
+     (add-object-spec!
+       (apply object-spec-list>object-spec object-spec-list)))
+   objects)
+
+  (define (merge-persistence-env! env)
+    (hash-for-each
+     (lambda (key value)
+       (add-object-spec! value))
+     (persistence-env-constructor->object-spec env)))
+  
+  (match extends
+    ;; Not extending form anything
+    [#f 'noop]
+    ;; Multiple persistence-envs given
+    [(? list? envs)
+     (for-each merge-persistence-env! envs)]
+    ;; Single persistent env given
+    [(? persistence-env? env) (merge-persistence-env! env)]
+    ;; wut.
+    [_ (error "Unknown value to extend persistence environment from" extends)])
+   (_make-persistence-env constructor->object-spec name->object-spec))
 
 (define (make-actormap-read-portrait! persistence-env roots)
   "Creates a read-portrait function for a given graph to take single object portraits of the graph.
@@ -2663,7 +2630,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                                        (error "Object not in actormap:" this-obj))))
     (define this-obj-constructor-refr
       (mactor:object-constructor-refr (actormap-ref am this-obj)))
-    (define-values (this-obj-spec this-obj-env)
+    (define this-obj-spec
       (persistence-env-ref-by-constructor persistence-env this-obj-constructor-refr))
     (define obj-debug-name
       (local-object-refr-debug-name this-obj))
@@ -2803,8 +2770,6 @@ Type: Actormap PersistenceEnv -> TransactorMap"
   (define whactormap-table (whactormap-data-wht whactormap))
   (define new-actormap (make-transactormap am))
 
-  ;; Used to cache the lookup of object types
-  (define constructor-ref->object-spec (make-hash-table))
   (define (lookup-and-cache-object-spec mactor)
     (define constructor-refr
       (mactor:object-constructor-refr mactor))
@@ -2812,9 +2777,9 @@ Type: Actormap PersistenceEnv -> TransactorMap"
       (hashq-ref constructor-ref->object-spec constructor-refr #f))
     (if cached-object-spec
         cached-object-spec
-        (let-values (((found-object-spec _env)
-                      (persistence-env-ref-by-constructor persistence-env
-                                                          constructor-refr)))
+        (let ((found-object-spec
+               (persistence-env-ref-by-constructor persistence-env
+                                                   constructor-refr)))
           (hashq-set! constructor-ref->object-spec constructor-refr
                       found-object-spec)
           found-object-spec)))
@@ -2849,7 +2814,9 @@ Type: Actormap PersistenceEnv -> TransactorMap"
      (define object-spec
        (if (and (mactor:object? mactor)
                 (redefinable-object? (mactor:object-constructor-refr mactor)))
-           (lookup-and-cache-object-spec mactor)
+	   (persistence-env-ref-by-constructor
+	    persistence-env
+	    (mactor:object-constructor-refr mactor))
            #f))
 
      (when (and object-spec (has-new-beh? object-spec mactor))
@@ -2956,7 +2923,7 @@ Type: Actormap PersistenceEnv -> Void"
 	  [_ (error "Unknown portrait data")]))
       (define-values (version restored-args)
         (restore-one obj-portrait))
-      (define-values (obj-spec obj-env)
+      (define obj-spec
         (persistence-env-ref persistence-env obj-name))
       (define rehydrator
         (object-spec-rehydrator obj-spec))
