@@ -262,4 +262,38 @@
 (test-error "Error raised when #:portrait provides version mismatching with #:version"
             (actormap-take-portrait am4 portrait-version-env cpv-mismatch))
 
+
+;; Testing #:restore
+
+(define-actor (^cell-restore bcom #:optional val)
+  #:restore (lambda (version val)
+              (spawn ^cell-restore (list 'restored version val)))
+  #:version 2
+  (case-lambda
+    (() val)
+    ((new-val) (bcom (^cell-restore new-val)))))
+
+
+(define restorable-env
+  (make-persistence-env
+   `((((tests utils test-define-actor) ^cell-restore)
+      ,^cell-restore))))
+
+(define am5 (make-actormap))
+(define restored-am5 (make-actormap))
+
+(define cr
+  (actormap-spawn! am5 ^cell-restore 'foop))
+
+(define-values (restorable-portraits restorable-roots)
+  (actormap-take-portrait am5 restorable-env cr))
+
+(define-values (restored-cr)
+  (actormap-restore restored-am5 restorable-env
+                    restorable-portraits restorable-roots))
+
+(test-equal "restore procedure works"
+  '(restored 2 foop)
+  (actormap-peek restored-am5 restored-cr))
+
 (test-end "test-define-actor")

@@ -18,6 +18,7 @@
                           make-redefinable-object
 			  redefinable-object?
                           set-redefinable-object-constructor!
+                          set-redefinable-object-rehydrator!
                           versioned
                           versioned-data?
                           versioned-data-version))
@@ -25,16 +26,20 @@
   #:export (define-actor define-hackable))
 
 
-(define-syntax-rule (define-redefinable-object name proc)
+(define-syntax-rule (define-redefinable-object-with-rehydrator name proc rehydrator)
   (define name
     (if (and (defined? 'name) (redefinable-object? name))
 	;; We've already defined this, just update the constructor refr
 	(begin
 	  (set-redefinable-object-constructor! name proc)
+          (set-redefinable-object-rehydrator! name rehydrator)
 	  name)
 	;; First time (or currently not a redefinable object),
         ;; lets define it.
-	(make-redefinable-object proc))))
+	(make-redefinable-object proc rehydrator))))
+
+(define-syntax-rule (define-redefinable-object name proc)
+  (define-redefinable-object-with-rehydrator name proc #f))
 
 (define (raise-portrait-version-mismatch expected got)
   (error "define-actor #:version and #:portrait version conflict:"
@@ -99,8 +104,8 @@
                        (definer (if frozen?
                                     #'define
                                     #'define-redefinable-object)))
-	   #`(definer constructor-id
-	       (let ((constructor-id
+           (define constructor
+             #`(let ((constructor-id
 		      (lambda* (bcom arg ...)
 		        (define (main-beh)
 			  kwless-body ...)
@@ -142,7 +147,23 @@
                              #'((define (self-portrait)
                                   (list arg-name ...)))))
 		        (portraitize (main-beh) self-portrait))))
-	         constructor-id))))])))
+	         constructor-id))
+           (cond
+            ((and frozen? restore)
+             ;; Not meaningfully, since it removes the optimization
+             ;; Perhaps we could let it go silently, but that seems
+             ;; like it might not inform the user right.
+             (error "Can't combine #:frozen and #:restore"))
+            (frozen?
+             #`(define constructor-id
+                 #,constructor))
+            (restore
+             #`(define-redefinable-object-with-rehydrator constructor-id
+                 #,constructor
+                 #,restore))
+            (else
+             #`(define-redefinable-object constructor-id
+                 #,constructor)))))])))
 
 (define-syntax-rule (define-hackable (constructor-id bcom args ...) body ...)
   (define-redefinable-object constructor-id

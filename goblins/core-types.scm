@@ -322,7 +322,13 @@ Type: Any -> Boolean"
   object-spec?
   (name object-spec-name)
   (constructor object-spec-constructor)
-  (rehydrator object-spec-rehydrator))
+  (rehydrator _object-spec-rehydrator))
+
+(define (object-spec-rehydrator obj-spec)
+  (define cstr (object-spec-constructor obj-spec))
+  (or (and (redefinable-object? cstr)
+           (redefinable-object-rehydrator cstr))
+      (_object-spec-rehydrator obj-spec)))
 
 ;; These records are responsible for tagging and holding portrait data. This includes
 ;; tagging objects and also types such as ghashes, lists, vectors, etc so that we can
