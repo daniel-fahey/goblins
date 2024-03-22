@@ -23,6 +23,7 @@
 (define-module (goblins core-types)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
+  #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:export (<actormap>
             _make-actormap
@@ -125,7 +126,9 @@
             make-redefinable-object
             redefinable-object?
             redefinable-object-constructor
-            set-redefinable-object-constructor!))
+            set-redefinable-object-constructor!
+            redefinable-object-rehydrator
+            set-redefinable-object-rehydrator!))
 
 ;; Actormaps, etc
 ;; ==============
@@ -319,7 +322,13 @@ Type: Any -> Boolean"
   object-spec?
   (name object-spec-name)
   (constructor object-spec-constructor)
-  (rehydrator object-spec-rehydrator))
+  (rehydrator _object-spec-rehydrator))
+
+(define (object-spec-rehydrator obj-spec)
+  (define cstr (object-spec-constructor obj-spec))
+  (or (and (redefinable-object? cstr)
+           (redefinable-object-rehydrator cstr))
+      (_object-spec-rehydrator obj-spec)))
 
 ;; These records are responsible for tagging and holding portrait data. This includes
 ;; tagging objects and also types such as ghashes, lists, vectors, etc so that we can
@@ -346,13 +355,17 @@ Type: Any -> Boolean"
 ;; definition eq to itself when in persistence-envs
 ;; NOTE: this is an invocable/applicable struct so that we can call it.
 (define <redefinable-object>
-  (make-struct/no-tail <applicable-struct-vtable> 'pwpwpw))
+  (make-struct/no-tail <applicable-struct-vtable> 'pwpw))
 
 (define (redefinable-object? obj)
   (and (struct? obj) (eq? (struct-vtable obj) <redefinable-object>)))
 
-(define (make-redefinable-object constructor)
-  (make-struct/no-tail <redefinable-object> constructor))
+(define* (make-redefinable-object constructor #:optional rehydrator)
+  "Construct a redefinable object for CONSTRUCTOR
+
+Optionally, REHYDRATOR may be provided, which is a procedure for restoring
+a persisted version of an object spawned via CONSTRUCTOR."
+  (make-struct/no-tail <redefinable-object> constructor rehydrator))
 
 (define (redefinable-object-constructor obj)
   (if (redefinable-object? obj)
@@ -363,3 +376,19 @@ Type: Any -> Boolean"
   (if (redefinable-object? obj)
       (struct-set! obj 0 new-constructor)
       (error "Not a redefinable object")))
+
+(define (redefinable-object-rehydrator obj)
+  (if (redefinable-object? obj)
+      (struct-ref obj 1)
+      (error "Not a redefinable object")))
+
+(define (set-redefinable-object-rehydrator! obj rehydrator)
+  (if (redefinable-object? obj)
+      (struct-set! obj 1 rehydrator)
+      (error "Not a redefinable object")))
+
+(set-record-type-printer! <redefinable-object>
+                          (lambda (ro op)
+                            (format op "#<redefinable ~a>"
+                                    (redefinable-object-constructor ro))))
+
