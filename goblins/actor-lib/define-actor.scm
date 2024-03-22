@@ -100,15 +100,10 @@
        (let ((kwless-body frozen? version portrait restore
               (extract-body-keywords #'(body ...))))
          (with-syntax (((arg-name ...) (args->arg-names #'(arg ...)))
-                       ((kwless-body ...) kwless-body)
-                       (definer (if frozen?
-                                    #'define
-                                    #'define-redefinable-object)))
+                       ((kwless-body-extra ... kwless-body-final) kwless-body))
            (define constructor
              #`(let ((constructor-id
 		      (lambda* (bcom arg ...)
-		        (define (main-beh)
-			  kwless-body ...)
                         ;; Define the self-portrait in one of several ways depending
                         ;; on whether portrait and/or version are supplied...
                         #,@(cond
@@ -146,7 +141,8 @@
                             (else
                              #'((define (self-portrait)
                                   (list arg-name ...)))))
-		        (portraitize (main-beh) self-portrait))))
+			kwless-body-extra ...
+		        (portraitize kwless-body-final self-portrait))))
 	         constructor-id))
            (cond
             ((and frozen? restore)
