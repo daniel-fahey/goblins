@@ -50,7 +50,7 @@
   (make-actormap))
 
 (define restored-sword-cell
-  (actormap-restore restored-am cell-env portraits roots))
+  (actormap-restore! restored-am cell-env portraits roots))
 
 (test-equal "Got back the sword we put in from the sword cell"
   (actormap-peek restored-am restored-sword-cell)
@@ -85,7 +85,7 @@
 (define restored-am1
   (make-actormap))
 (define-values (restored-smashtron500 restored-roadblock)
-  (actormap-restore restored-am1 robot-env robot-portraits robot-roots))
+  (actormap-restore! restored-am1 robot-env robot-portraits robot-roots))
 
 (test-equal
     "Check first restored robot has correct output"

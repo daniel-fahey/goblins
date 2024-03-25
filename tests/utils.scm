@@ -84,5 +84,5 @@
    restored-am
    (call-with-values
       (lambda ()
-	(actormap-restore restored-am env portraits root-slots))
+	(actormap-restore! restored-am env portraits root-slots))
     list)))

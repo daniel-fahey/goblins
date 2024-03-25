@@ -75,7 +75,7 @@
             actormap-take-portrait
             actormap-replace-behavior
             actormap-replace-behavior!
-            actormap-restore
+            actormap-restore!
 
             ;; TODO: separate this out!
             <message>
@@ -2906,7 +2906,7 @@ Type: Actormap PersistenceEnv -> Void"
   (or (number? obj) (boolean? obj) (string? obj)
       (symbol? obj) (bytevector? obj)))
 
-(define (actormap-restore am persistence-env portraits roots)
+(define (actormap-restore! am persistence-env portraits roots)
   "Restore a self portrait in an actormap"
   (define slots->resolvers
     (make-hash-table))

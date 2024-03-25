@@ -177,7 +177,7 @@ The procedure returns two values to its continuation, those are:
 
 @end deffn
 
-@deffn {Procedure} actormap-restore am persistence-env portrait-data roots
+@deffn {Procedure} actormap-restore! am persistence-env portrait-data roots
 
 This restores the objects in the actormap @var{am} from the portrait data
 @var{portrait-data} using the object specifications data stored in

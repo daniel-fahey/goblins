@@ -670,7 +670,7 @@
   (make-actormap))
 
 (define restored-astrid-greeter
-  (actormap-restore second-actormap greeter-env astrid-greeter-portrait astrid-greeter-roots))
+  (actormap-restore! second-actormap greeter-env astrid-greeter-portrait astrid-greeter-roots))
 
 (test-equal "Restored greeter reports correct number of times called"
   (actormap-peek second-actormap restored-astrid-greeter "Ludvig")
@@ -714,7 +714,7 @@
 (define-values (portraits root-slots)
   (actormap-take-portrait first-actormap ro-cell-env incrementer ro-cell))
 (define-values (incrementer* ro-cell*)
-  (actormap-restore second-actormap ro-cell-env portraits root-slots))
+  (actormap-restore! second-actormap ro-cell-env portraits root-slots))
 
 (test-eq "Restored actor is eq?"
   incrementer*
@@ -747,7 +747,7 @@
 		((bar1) (actormap-spawn! am1 ^bar 'start-bar))
 		((foo1) (actormap-spawn! am1 ^foo bar1 'start-foo))
 		((portraits roots) (actormap-take-portrait am1 env foo1))
-		((foo2) (actormap-restore am2 env portraits roots)))
+		((foo2) (actormap-restore! am2 env portraits roots)))
     (actormap-peek
      am2
      (actormap-churn-run!
