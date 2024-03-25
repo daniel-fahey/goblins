@@ -179,7 +179,7 @@
       (let* ([keys-and-encoded
               (hash-fold
                (lambda (key _val prev)
-                 (cons (cons (syrup-encode key)
+                 (cons (cons (encode key)
                              key)
                        prev))
                '()
@@ -196,7 +196,7 @@
                  (match ke
                    [(enc-key . key)
                     (let ([val (hash-ref obj key)])
-                      (cons (bytes-append enc-key (syrup-encode val))
+                      (cons (bytes-append enc-key (encode val))
                             prev))]))
                '()
                sorted-keys-and-encoded)])
