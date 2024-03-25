@@ -13,7 +13,7 @@
 ;;; limitations under the License.
 
 (define-module (tests actor-lib test-pushdown)
-  #:use-module (goblins)
+  #:use-module (goblins core)
   #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib pushdown)
   #:use-module (tests utils)

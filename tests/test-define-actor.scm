@@ -13,7 +13,7 @@
 ;;; limitations under the License.
 ;;;
 (define-module (tests test-define-actor)
-  #:use-module (goblins)
+  #:use-module (goblins core)
   #:use-module (goblins define-actor)
   #:use-module ((goblins core-types)
                 #:select (redefinable-object?
