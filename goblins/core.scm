@@ -134,6 +134,7 @@
                portrait-record-type
                portrait-record-data)
   #:replace (spawn)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (srfi srfi-11)
@@ -2656,6 +2657,14 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
              (ghash-set prev (process-one k) (process-one v)))
            (make-ghash)
            value))]
+	[(? gset?)
+	 (make-portrait-record
+	  'gset
+	  (gset-fold
+	   (lambda (item prev)
+	     (cons (process-one item) prev))
+	   '()
+	   value))]
         [(? keyword? kw)
          (make-portrait-record 'keyword (keyword->symbol kw))]
         [(? tagged? tagged)
@@ -2663,15 +2672,22 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                                              (tagged-data tagged)))]
         [(? zilch?)
          (make-portrait-record 'zilch #f)]
+	[(? unspecified?)
+	 (make-portrait-record 'unspecified #f)]
 	[(? local-object-refr?)
 	 (let-values (((slot created?) (maybe-create-obj-slot! value)))
 	   (when created?
 	     (hashq-set! new-child-objs value #t))
            (make-portrait-record 'near-refr slot))]
         [(? local-promise-refr? vow)
-         (unless (near-promise-settled? vow)
-           (error "Can't create portrait with an unsettled promise: " vow))
-         (process-one (near-settled-promise-value vow))]
+	 (make-portrait-record
+	  'vow
+	  (actormap-run
+	   am
+	   (lambda ()
+             (unless (near-promise-settled? vow)
+               (error "Can't create portrait with an unsettled promise: " vow))
+	     (process-one (near-settled-promise-value vow)))))]
         [_ (error "Unserializable value" value)]))
 
     (define (process-portrait obj-spec portrait-data)
@@ -2922,7 +2938,7 @@ Type: Actormap PersistenceEnv -> Void"
 	   (values name debug-name portrait-data)]
 	  [_ (error "Unknown portrait data")]))
       (define-values (version restored-args)
-        (restore-one obj-portrait))
+        (actormap-run! am (lambda () (restore-one obj-portrait))))
       (define obj-spec
         (persistence-env-ref persistence-env obj-name))
       (define rehydrator
@@ -2944,9 +2960,25 @@ Type: Actormap PersistenceEnv -> Void"
                    (ghash-set prev (restore-one k) (restore-one v)))
                  (make-ghash)
                  data)]
+	       ['gset
+		(fold
+		 (lambda (item prev)
+		   (gset-add prev (restore-one item)))
+		 (make-gset)
+		 data)]
                ['zilch zilch]
+	       ['unspecified *unspecified*]
                ['tagged (make-tagged (car data) (cadr data))]
                ['near-refr (hashq-ref slots->refrs data)]
+	       ['vow
+		;; Promises could be refrs which we should just pass
+		;; back or encased values which we should re-encase
+		(let ((restored (restore-one data)))
+		  (if (local-refr? restored)
+		      restored
+		      (let-values (((vow resolver) (spawn-promise-values)))
+			($ resolver 'fulfill restored)
+			vow)))]
                [_ (error "Unknown depiction type" type)]))]
            [_ depicted]))
 

@@ -17,7 +17,9 @@
 (define-module (tests test-core)
   #:use-module (goblins core)
   #:use-module (goblins core-types)
+  #:use-module (goblins abstract-types)
   #:use-module (ice-9 match)
+  #:use-module (rnrs bytevectors)
   #:use-module (srfi srfi-64)
   #:use-module (srfi srfi-11))
 
@@ -792,5 +794,71 @@
 (test-equal "Redefinable objects can spawn other objects on construction"
   '(second pineapple)
   (actormap-peek first-actormap first))
+
+;; Test all supported types can be serialized correctly
+;; NOTE: ghash and gset tested by common's tests
+(define* (^type-serializer bcom supplied-refr
+			   #:optional
+			   got-number got-symbol got-list
+			   got-keyword got-zilch got-tagged
+			   got-string got-bv got-bool
+			   got-unspecified got-vector
+			   got-near-refr
+			   got-promise-to-refr
+			   got-promise-to-value)
+  ;; Make the promises
+  (define-values (refr-vow refr-resolver)
+    (spawn-promise-values))
+  ($ refr-resolver 'fulfill supplied-refr)
+  (define-values (encased-vow encased-resolver)
+    (spawn-promise-values))
+  ($ encased-resolver 'fulfill 75)
+
+  ;; Make the other values
+  (define number 7.2)
+  (define symbol 'hello)
+  (define my-vector #(1 2 3 zilch))
+  (define my-list (list 1 2 3 zilch))
+  (define bv (make-bytevector 10 10))
+  (define string "tada 🪄")
+  (define keyword #:i-am-a-keyword)
+  (define tagged (make-tagged 'foo supplied-refr))
+  (define bool #t)
+
+  (define (main-beh restored-refr)
+    (and (eq? got-number number)
+	 (eq? got-symbol symbol)
+	 (equal? got-list my-list)
+	 (eq? got-keyword keyword)
+	 (eq? got-zilch zilch)
+	 (equal? got-tagged (make-tagged 'foo restored-refr))
+	 (string=? got-string string)
+	 (equal? got-bv bv)
+	 (eq? got-bool bool)
+	 (unspecified? got-unspecified)
+	 (equal? my-vector got-vector)
+	 (eq? restored-refr got-near-refr)
+	 (live-refr? got-promise-to-refr)
+	 (eq? ($ encased-vow) ($ got-promise-to-value))))
+
+  (define (self-portrait)
+    (list #f
+	  number symbol my-list keyword zilch
+	  tagged string bv bool *unspecified*
+	  my-vector supplied-refr refr-vow encased-vow))
+  (portraitize main-beh self-portrait))
+(define env
+  (make-persistence-env
+   `((((tests test-core) ^type-serializer) ,^type-serializer)
+     (((tests test-core) ^bar) ,^bar))))
+
+(define bar (actormap-spawn! first-actormap ^bar 'foo))
+(define types (actormap-spawn! first-actormap ^type-serializer bar))
+(define-values (portraits slots)
+  (actormap-take-portrait first-actormap env types bar))
+(define-values (types* bar*)
+  (actormap-restore first-actormap env portraits slots))
+(test-assert "All serializable types can be serialized by aurie"
+  (actormap-peek first-actormap types* bar*))
 
 (test-end "test-goblins-core")
