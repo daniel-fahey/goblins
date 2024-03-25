@@ -2786,20 +2786,6 @@ Type: Actormap PersistenceEnv -> TransactorMap"
   (define whactormap-table (whactormap-data-wht whactormap))
   (define new-actormap (make-transactormap am))
 
-  (define (lookup-and-cache-object-spec mactor)
-    (define constructor-refr
-      (mactor:object-constructor-refr mactor))
-    (define cached-object-spec
-      (hashq-ref constructor-ref->object-spec constructor-refr #f))
-    (if cached-object-spec
-        cached-object-spec
-        (let ((found-object-spec
-               (persistence-env-ref-by-constructor persistence-env
-                                                   constructor-refr)))
-          (hashq-set! constructor-ref->object-spec constructor-refr
-                      found-object-spec)
-          found-object-spec)))
-
   (define (has-new-beh? object-spec mactor)
     (define spawned-constructor
       (mactor:object-spawned-constructor mactor))
