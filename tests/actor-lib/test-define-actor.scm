@@ -176,7 +176,7 @@
   (actormap-take-portrait am3 resurrection-env resurrection-cell))
 
 (define-values (restored-rc)
-  (actormap-restore restored-am3 resurrection-env
+  (actormap-restore! restored-am3 resurrection-env
                     resurrected-portraits resurrected-roots))
 
 (test-equal '(persisted meep)
@@ -186,7 +186,7 @@
   (actormap-take-portrait restored-am3 resurrection-env restored-rc))
 
 (define-values (restored2x-rc)
-  (actormap-restore restored-restored-am3 resurrection-env
+  (actormap-restore! restored-restored-am3 resurrection-env
                     resurrected2x-portraits resurrected2x-roots))
 
 (test-equal '(persisted (persisted meep))
@@ -289,8 +289,8 @@
   (actormap-take-portrait am5 restorable-env cr))
 
 (define-values (restored-cr)
-  (actormap-restore restored-am5 restorable-env
-                    restorable-portraits restorable-roots))
+  (actormap-restore! restored-am5 restorable-env
+                     restorable-portraits restorable-roots))
 
 (test-equal "restore procedure works"
   '(restored 2 foop)
