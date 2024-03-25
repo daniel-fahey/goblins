@@ -29,6 +29,7 @@ Methods:
 `unsubscribe subscriber': Remove SUBSCRIBER from the list of subscribers.
 `publish args ...': Invoke each subscriber asynchronously with ARGS.
 `subscribers': Return the list of subscribers."
+  #:frozen
   (define (publish . args)
     (for-each
      (lambda (subscriber)

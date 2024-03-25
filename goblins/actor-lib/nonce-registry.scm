@@ -29,6 +29,7 @@
   (gen-random-bv 32 %gcry-strong-random))
 
 (define-actor (^nonce-registry bcom #:optional [ht ghash-null])
+  #:frozen
   (define* (register refr #:optional provided-swiss-num)
     (assert-type refr live-refr?)
     (let* ((swiss-num (or provided-swiss-num (make-swiss-num)))

@@ -35,6 +35,7 @@
     new-refr))
 
 (define-actor (^ticky bcom dead? new-ticked)
+  #:frozen
   (define to-tick
     (make-to-tick-beh new-ticked))
   (methods
@@ -45,6 +46,7 @@
    [to-tick to-tick]))
 
 (define-actor (^ticker bcom current-ticked new-ticked)
+  #:frozen
   (define to-tick
     (make-to-tick-beh new-ticked))
   (methods

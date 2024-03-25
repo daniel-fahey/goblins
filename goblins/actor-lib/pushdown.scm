@@ -23,6 +23,7 @@
   #:export (spawn-pushdown-pair pushdown-env))
 
 (define-actor (^pd-stack _bcom stack)
+  #:frozen
   (methods
    ((push refr)
     ;; Add to the stack
@@ -51,6 +52,7 @@
     (null? ($ stack)))))
 
 (define-actor (^pd-forwarder _bcom stack)
+  #:frozen
   (lambda args
     (match ($ stack)
       [(stack-top . rest-stack)
