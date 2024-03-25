@@ -2681,7 +2681,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
            (make-portrait-record 'near-refr slot))]
         [(? local-promise-refr? vow)
 	 (make-portrait-record
-	  'vow
+	  'settled-vow
 	  (actormap-run
 	   am
 	   (lambda ()
@@ -2970,7 +2970,7 @@ Type: Actormap PersistenceEnv -> Void"
 	       ['unspecified *unspecified*]
                ['tagged (make-tagged (car data) (cadr data))]
                ['near-refr (hashq-ref slots->refrs data)]
-	       ['vow
+	       ['settled-vow
 		;; Promises could be refrs which we should just pass
 		;; back or encased values which we should re-encase
 		(let ((restored (restore-one data)))
