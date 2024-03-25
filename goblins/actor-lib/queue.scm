@@ -29,6 +29,7 @@ Methods:
 `dequeue': Removes and returns the oldest inserted value from the queue.
 
 Type: -> Queue"
+  #:frozen
   (define empty? (zero? length))
   (methods
    ((length) length)

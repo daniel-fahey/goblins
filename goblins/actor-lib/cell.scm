@@ -32,6 +32,7 @@
 The constructed cell can be invoked without an argument, which will return VAL;
 or with an argument, resulting in the cell becoming a version with the argument
 as VAL."
+  #:frozen
   (case-lambda
     ;; Called with no arguments; return the current value
     [() val]
@@ -42,6 +43,7 @@ as VAL."
 
 (define-actor (^ro-cell _bcom cell)
   "A cell facet that only allows reading"
+  #:frozen
   (lambda ()
     ($ cell)))
 (define (cell->read-only cell)
@@ -52,6 +54,7 @@ Type: Cell -> ROCell"
 
 (define-actor (^wo-cell _bcom cell)
   "A cell facet that only allows writing"
+  #:frozen
   (lambda (new-val)
     ($ cell new-val)))
 (define (cell->write-only cell)

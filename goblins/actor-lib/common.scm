@@ -68,6 +68,7 @@ Methods:
 `has-key? key': Return #t if KEY is in the hashtable, else #f.
 `remove key': Delete KEY and its associated value.
 `data': Return the underlying hashtable."
+  #:frozen
   (methods
    [ref
     (case-lambda

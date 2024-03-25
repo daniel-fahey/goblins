@@ -25,6 +25,7 @@
   #:export (^mint withdraw mint-env))
 
 (define-actor (^purse _bcom balance decr-seal decr-unseal)
+  #:frozen
   (define (decr amount)
     (unless (and (integer? amount) (>= amount 0) (<= amount ($ balance)))
       (error 'mint-error "invalid decrement amount" amount))
@@ -45,6 +46,7 @@
     ($ decr-seal decr))))
 
 (define-actor (^mint* bcom decr-seal decr-unseal)
+  #:frozen
   (methods
    ((new-purse initial-balance)
     (if (and (integer? initial-balance) (>= initial-balance 0))

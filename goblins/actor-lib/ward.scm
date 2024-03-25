@@ -79,12 +79,14 @@
 ;;  - #f: if these are not arguments sealed by the sealer, or
 ;;  - (list args ...): the unsealed arguments
 (define-actor (^warden _bcom unseal sealed?)
+  #:frozen
   (lambda (maybe-sealed-args)
     (if ($ sealed? maybe-sealed-args)
 	($ unseal maybe-sealed-args)
 	#f)))
 
 (define-actor (^incanter _bcom seal async?)
+  #:frozen
   (define $/<-
     (if async? <- $))
   (lambda (target . args)

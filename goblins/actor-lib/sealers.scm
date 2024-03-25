@@ -68,6 +68,7 @@ provided."
     (alist-switch-direction known-sealers))
 
   (define-actor (^sealer-triplet _bcom sealer-id #:optional name)
+    #:frozen
     (define make-sealer-triplet
       (assoc-ref known-sealers sealer-id))
     (define-values (seal unseal sealed?)
@@ -79,14 +80,17 @@ provided."
      [sealed? sealed?]))
 
   (define-actor (^sealed _bcom triplet value)
+    #:frozen
     (lambda ()
       ($ triplet 'seal value)))
 
   (define-actor (^sealer _bcom triplet)
+    #:frozen
     (lambda (value)
       (spawn-named 'sealed-value ^sealed triplet value)))
 
   (define-actor (^unsealer _bcom triplet)
+    #:frozen
     (define (unseal-it value)
       ($ triplet 'unseal ($ value)))
     
@@ -96,6 +100,7 @@ provided."
 	  (on sealed-value unseal-it #:promise? #t))))
 
   (define-actor (^sealed? _bcom triplet)
+    #:frozen
     (define (is-sealed? value)
       (and (local-object-refr? value)
            ($ triplet 'sealed? ($ value))))
