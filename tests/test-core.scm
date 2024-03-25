@@ -18,6 +18,7 @@
   #:use-module (goblins core)
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
+  #:use-module (goblins ghash)
   #:use-module (ice-9 match)
   #:use-module (rnrs bytevectors)
   #:use-module (srfi srfi-64)
@@ -796,13 +797,13 @@
   (actormap-peek first-actormap first))
 
 ;; Test all supported types can be serialized correctly
-;; NOTE: ghash and gset tested by common's tests
 (define* (^type-serializer bcom supplied-refr
 			   #:optional
 			   got-number got-symbol got-list
 			   got-keyword got-zilch got-tagged
 			   got-string got-bv got-bool
 			   got-unspecified got-vector
+			   got-gset got-ghash
 			   got-near-refr
 			   got-promise-to-refr
 			   got-promise-to-value)
@@ -824,6 +825,8 @@
   (define keyword #:i-am-a-keyword)
   (define tagged (make-tagged 'foo supplied-refr))
   (define bool #t)
+  (define gset (make-gset 1 2 3 'foo 'bar 'baz "Hello"))
+  (define ghash (ghash-set (make-ghash) 'banana 'yellow))
 
   (define (main-beh restored-refr)
     (and (eq? got-number number)
@@ -838,6 +841,8 @@
 	 (unspecified? got-unspecified)
 	 (equal? my-vector got-vector)
 	 (eq? restored-refr got-near-refr)
+	 (equal? gset got-gset)
+	 (equal? ghash got-ghash)
 	 (live-refr? got-promise-to-refr)
 	 (eq? ($ encased-vow) ($ got-promise-to-value))))
 
@@ -845,7 +850,8 @@
     (list #f
 	  number symbol my-list keyword zilch
 	  tagged string bv bool *unspecified*
-	  my-vector supplied-refr refr-vow encased-vow))
+	  my-vector gset ghash
+	  supplied-refr refr-vow encased-vow))
   (portraitize main-beh self-portrait))
 (define env
   (make-persistence-env
@@ -857,7 +863,7 @@
 (define-values (portraits slots)
   (actormap-take-portrait first-actormap env types bar))
 (define-values (types* bar*)
-  (actormap-restore first-actormap env portraits slots))
+  (actormap-restore! first-actormap env portraits slots))
 (test-assert "All serializable types can be serialized by aurie"
   (actormap-peek first-actormap types* bar*))
 
