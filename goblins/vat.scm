@@ -1173,7 +1173,7 @@ of events to retain in the log."
     (if (and portraits root-slots)
         (call-with-values
 	    (lambda ()
-	      (actormap-restore vat-am persistence-env portraits root-slots))
+	      (actormap-restore! vat-am persistence-env portraits root-slots))
 	  list)
         (with-vat vat
           (call-with-values spawn-roots-thunk list))))
