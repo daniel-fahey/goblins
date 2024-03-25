@@ -14,7 +14,7 @@
 
 (define-module (tests actor-lib test-ticker)
   #:use-module (goblins core)
-  #:use-module (goblins actor-lib define-actor)
+  #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib ticker)
   #:use-module (goblins actor-lib cell)
   #:use-module (tests utils)

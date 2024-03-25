@@ -14,8 +14,8 @@
 
 (define-module (tests actor-lib test-pubsub)
   #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib pubsub)
-  #:use-module (goblins actor-lib define-actor)
   #:use-module (tests utils)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-64))

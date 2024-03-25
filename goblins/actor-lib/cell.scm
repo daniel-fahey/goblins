@@ -15,7 +15,7 @@
 
 (define-module (goblins actor-lib cell)
   #:use-module (goblins core)
-  #:use-module (goblins actor-lib define-actor)
+  #:use-module (goblins define-actor)
   #:export (^cell
             cell->read-only
             cell->write-only

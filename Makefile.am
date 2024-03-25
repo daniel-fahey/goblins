@@ -47,7 +47,6 @@ SOURCES = goblins.scm \
           goblins/abstract-types.scm \
           goblins/actor-lib/cell.scm \
           goblins/actor-lib/common.scm \
-          goblins/actor-lib/define-actor.scm \
           goblins/actor-lib/facet.scm \
           goblins/actor-lib/io.scm \
           goblins/actor-lib/joiners.scm \
@@ -70,6 +69,7 @@ SOURCES = goblins.scm \
           goblins/core.scm \
           goblins/core-types.scm \
           goblins/default-vat-scheduler.scm \
+          goblins/define-actor.scm \
           goblins/ghash.scm \
           goblins/inbox.scm \
           goblins/ocapn/captp.scm \
@@ -103,7 +103,6 @@ SOURCES = goblins.scm \
 
 TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-common.scm \
-        tests/actor-lib/test-define-actor.scm \
         tests/actor-lib/test-facet.scm \
         tests/actor-lib/test-io.scm \
         tests/actor-lib/test-joiners.scm \
@@ -127,6 +126,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/ocapn/test-ids.scm \
         tests/test-await.scm \
         tests/test-core.scm \
+        tests/test-define-actor.scm \
         tests/test-ghash.scm \
         tests/test-inbox.scm \
         tests/test-vat.scm \

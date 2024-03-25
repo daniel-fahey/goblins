@@ -14,11 +14,11 @@
 ;;; limitations under the License.
 
 (define-module (goblins actor-lib pushdown)
-  #:use-module (goblins)
+  #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib opportunistic)
   #:use-module (goblins actor-lib methods)
-  #:use-module (goblins actor-lib define-actor)
   #:use-module (ice-9 match)
   #:export (spawn-pushdown-pair pushdown-env))
 

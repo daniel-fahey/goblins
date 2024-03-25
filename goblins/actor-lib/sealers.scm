@@ -15,8 +15,8 @@
 ;;; limitations under the License.
 
 (define-module (goblins actor-lib sealers)
-  #:use-module (goblins)
-  #:use-module (goblins actor-lib define-actor)
+  #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib methods)
   #:use-module ((goblins utils simple-sealers) #:prefix simple:)
   #:use-module (ice-9 match)

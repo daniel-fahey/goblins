@@ -15,8 +15,8 @@
 
 (define-module (tests actor-lib test-facet)
   #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib facet)
-  #:use-module (goblins actor-lib define-actor)
   #:use-module (tests utils)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-64))
