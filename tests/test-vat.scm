@@ -16,11 +16,12 @@
 
 (define-module (tests test-vat)
   #:use-module (goblins core)
+  #:use-module (goblins core-types)
   #:use-module (goblins vat)
-  #:use-module (goblins store)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib joiners)
+  #:use-module (goblins persistence-store memory)
   #:use-module (tests utils)
   #:use-module (fibers)
   #:use-module (fibers channels)
@@ -1000,16 +1001,16 @@
 
 (define memory-store
   (make-memory-store))
-(define read-memory
+(define read-from-store
   (persistence-store-read-proc memory-store))
 
 (define-values (persistent-vat list1 list2)
   (spawn-persistent-vat
-   (pk 'list-env list-env)
+   list-env
    (lambda ()
      (values (spawn ^list)
 	     (spawn ^list)))
-   (pk 'memory-store memory-store)))
+   memory-store))
 
 (define one
   (with-vat persistent-vat
@@ -1024,7 +1025,7 @@
   ($ list2 one))
 
 (define-values (portraits _roots)
-  (read-memory))
+  (read-from-store 'graph-and-slots))
 
 ;; There should be 4 objs: one, two, list1, list2
 (test-equal "Number of objects portraits is correct amount"
@@ -1035,7 +1036,7 @@
 (with-vat persistent-vat
   ($ list2 two))
 (define-values (portraits _roots)
-  (read-memory))
+  (read-from-store 'graph-and-slots))
 (test-equal "Number of objects in graph remains same when no new object introduced"
   4
   (hash-count (const #t) portraits))
@@ -1045,7 +1046,7 @@
 (with-vat persistent-vat
   ($ one (spawn ^list)))
 (define-values (portraits _roots)
-  (read-memory))
+  (read-from-store 'graph-and-slots))
 
 (test-equal "Number of objects in graph increases when new object added to child"
   5
@@ -1054,7 +1055,7 @@
 (with-vat persistent-vat
   ($ list2 (spawn ^list)))
 (define-values (portraits _roots)
-  (read-memory))
+  (read-from-store 'graph-and-slots))
 
 (test-equal "Number of objects in graph increases when new object added to parent"
   6

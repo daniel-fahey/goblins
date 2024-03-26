@@ -128,7 +128,12 @@
             redefinable-object-constructor
             set-redefinable-object-constructor!
             redefinable-object-rehydrator
-            set-redefinable-object-rehydrator!))
+            set-redefinable-object-rehydrator!
+
+	    <persistence-store>
+            make-persistence-store
+            persistence-store-read-proc
+            persistence-store-save-proc))
 
 ;; Actormaps, etc
 ;; ==============
@@ -392,3 +397,9 @@ a persisted version of an object spawned via CONSTRUCTOR."
                             (format op "#<redefinable ~a>"
                                     (redefinable-object-constructor ro))))
 
+;; Persistence stores
+(define-record-type <persistence-store>
+  (make-persistence-store read-proc save-proc)
+  persistence-store?
+  (read-proc persistence-store-read-proc)
+  (save-proc persistence-store-save-proc))

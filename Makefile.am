@@ -84,6 +84,7 @@ SOURCES = goblins.scm \
           goblins/ocapn/netlayer/tcp-tls.scm \
           goblins/ocapn/netlayer/testuds.scm \
           goblins/ocapn/netlayer/utils.scm \
+          goblins/persistence-store/memory.scm \
           goblins/utils/assert-type.scm \
           goblins/utils/base32.scm \
           goblins/utils/bytes-stuff.scm \
@@ -97,7 +98,6 @@ SOURCES = goblins.scm \
           goblins/vat.scm \
           goblins/vrun.scm \
           goblins/repl.scm \
-          goblins/store.scm \
           tests/repl-driver.scm \
           tests/utils.scm
 
