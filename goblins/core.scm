@@ -134,7 +134,6 @@
                portrait-record-type
                portrait-record-data)
   #:replace (spawn)
-  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (srfi srfi-11)
@@ -2639,32 +2638,38 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
     (define (process-one value)
       (match value
         [(? depictable-atom? atom) atom]
-        [(? versioned-data?)
-         (let ((version (versioned-data-version value))
-               (data (versioned-data-data value)))
-           (unless (list? data)
-             (error "Self portrait data must be a list"))
-           (make-portrait-record 'versioned (cons version (map process-one data))))]
-        [(? list?)
-         (make-portrait-record 'list (map process-one value))]
+        [(or (? list?) (? pair?))
+	 ;; If the list is a regular list, don't tag it, but if it's a dotted list
+	 ;; we need to tag it as 'dotted-list.
+	 (let lp ((dotted? #f)
+		  (processed-list '())
+		  (remaining value))
+	   (match remaining
+	     [()
+	      (let ((value (reverse processed-list)))
+		(if dotted?
+		    (make-portrait-record 'dotted value)
+		    value))]
+	     [(head rest ...)
+	      (lp dotted? (cons (process-one head) processed-list) rest)]
+	     [(head . last)
+	      (lp #t (cons (process-one head) processed-list) last)]
+	     [last
+	      (lp #t (cons (process-one last) processed-list) '())]))]
         [(? vector? vector)
-         (make-portrait-record 'vector (map process-one (vector->list vector)))]
+         (make-portrait-record 'vec (map process-one (vector->list vector)))]
         [(? ghash?)
-         (make-portrait-record
-	  'ghash
-	  (ghash-fold
-           (lambda (k v prev)
-             (ghash-set prev (process-one k) (process-one v)))
-           (make-ghash)
-           value))]
+	 (ghash-fold
+          (lambda (k v prev)
+            (ghash-set prev (process-one k) (process-one v)))
+          (make-ghash)
+          value)]
 	[(? gset?)
-	 (make-portrait-record
-	  'gset
-	  (gset-fold
-	   (lambda (item prev)
-	     (cons (process-one item) prev))
-	   '()
-	   value))]
+	 (gset-fold
+	  (lambda (item prev)
+	    (gset-add prev (process-one item)))
+	  (make-gset)
+	  value)]
         [(? keyword? kw)
          (make-portrait-record 'keyword (keyword->symbol kw))]
         [(? tagged? tagged)
@@ -2678,10 +2683,10 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
 	 (let-values (((slot created?) (maybe-create-obj-slot! value)))
 	   (when created?
 	     (hashq-set! new-child-objs value #t))
-           (make-portrait-record 'near-refr slot))]
+           (make-portrait-record 'near slot))]
         [(? local-promise-refr? vow)
 	 (make-portrait-record
-	  'settled-vow
+	  'settled
 	  (actormap-run
 	   am
 	   (lambda ()
@@ -2695,11 +2700,12 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
         (error "Don't know how to persist:" this-obj this-obj-constructor-refr))
       (match portrait-data
         [(? versioned-data? data)
-         (define processed-data
-           (process-one data))
+	 (define-values (portrait-version portrait-data)
+	   (values (versioned-data-version data) (versioned-data-data data)))
          (make-portrait-record 'object (list (object-spec-name obj-spec)
 					     obj-debug-name
-					     processed-data))]
+					     portrait-version
+					     (process-one portrait-data)))]
         [(? list? args)
          ;; No versioning was given, lets tag this as version 0
          (process-portrait obj-spec (versioned 0 args))]))
@@ -2912,7 +2918,7 @@ Type: Actormap PersistenceEnv -> Void"
       (error "Object depiction is not of type object ~a"
 	     (portrait-record-type depiction)))
     (match (portrait-record-data depiction)
-      [(persistence-name debug-name data)
+      [(_persistence-name debug-name _portrait-version _portrait-data)
        debug-name]))
   
   (hash-for-each
@@ -2932,12 +2938,12 @@ Type: Actormap PersistenceEnv -> Void"
         (hashq-ref slots->resolvers slot))
       (define refr
 	(hashq-ref slots->refrs slot))
-      (define-values (obj-name obj-debug-name obj-portrait)
+      (define-values (obj-name obj-debug-name obj-portrait-version obj-portrait)
 	(match portrait
-	  [(name debug-name portrait-data)
-	   (values name debug-name portrait-data)]
+	  [(name debug-name portrait-version portrait-data)
+	   (values name debug-name portrait-version portrait-data)]
 	  [_ (error "Unknown portrait data")]))
-      (define-values (version restored-args)
+      (define restored-args
         (actormap-run! am (lambda () (restore-one obj-portrait))))
       (define obj-spec
         (persistence-env-ref persistence-env obj-name))
@@ -2950,27 +2956,26 @@ Type: Actormap PersistenceEnv -> Void"
            (let ([type (portrait-record-type depiction)]
                  [data (portrait-record-data depiction)])
              (match type
-               ['versioned (values (car data) (map restore-one (cdr data)))]
-               ['list (map restore-one data)]
-               ['vector (list->vector (map restore-one data))]
+               ['dotted
+		(let lp ((processed '())
+			 (remaining (reverse data)))
+		  (if (null? processed)
+		      ;; Create the "dottedness!"
+		      (match remaining
+			[(first second rest ...)
+			 (lp (cons (restore-one second) (restore-one first)) rest)])
+		      ;; Process and cons onto new list
+		      (match remaining
+			[() processed]
+			[(head rest ...)
+			 (lp (cons (restore-one head) processed) rest)])))]
+	       ['vec (list->vector (map restore-one data))]
                ['keyword (symbol->keyword data)]
-               ['ghash
-                (ghash-fold
-                 (lambda (k v prev)
-                   (ghash-set prev (restore-one k) (restore-one v)))
-                 (make-ghash)
-                 data)]
-	       ['gset
-		(fold
-		 (lambda (item prev)
-		   (gset-add prev (restore-one item)))
-		 (make-gset)
-		 data)]
                ['zilch zilch]
 	       ['unspecified *unspecified*]
                ['tagged (make-tagged (car data) (cadr data))]
-               ['near-refr (hashq-ref slots->refrs data)]
-	       ['settled-vow
+               ['near (hashq-ref slots->refrs data)]
+	       ['settled
 		;; Promises could be refrs which we should just pass
 		;; back or encased values which we should re-encase
 		(let ((restored (restore-one data)))
@@ -2980,13 +2985,27 @@ Type: Actormap PersistenceEnv -> Void"
 			($ resolver 'fulfill restored)
 			vow)))]
                [_ (error "Unknown depiction type" type)]))]
-           [_ depicted]))
+	  [(? ghash?)
+	   (ghash-fold
+            (lambda (k v prev)
+              (ghash-set prev (restore-one k) (restore-one v)))
+            (make-ghash)
+            depicted)]
+	  [(? gset?)
+	   (gset-fold
+	    (lambda (item prev)
+	      (gset-add prev (restore-one item)))
+	    (make-gset)
+	    depicted)]
+	  [(? list?) (map restore-one depicted)]
+          [(? depictable-atom?) depicted]
+	  [_ (error "Unknown value in portrait data" depicted)]))
 
       (define-values (restored-obj-refr new-am new-msgs)
 	(actormap-run*
 	 am
 	 (lambda ()
-	   (let ((restored-obj (apply rehydrator version restored-args)))
+	   (let ((restored-obj (apply rehydrator obj-portrait-version restored-args)))
 	     ($ resolver 'fulfill restored-obj)
 	     restored-obj))))
 
