@@ -17,11 +17,11 @@
 ;; An extremely simple mint, straight from
 ;;   http://erights.org/elib/capability/ode/index.html
 (define-module (goblins actor-lib simple-mint)
+  #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
-  #:use-module (goblins actor-lib define-actor)
   #:use-module (goblins actor-lib sealers)
-  #:use-module (goblins core)
   #:export (^mint withdraw mint-env))
 
 (define-actor (^purse _bcom balance decr-seal decr-unseal)

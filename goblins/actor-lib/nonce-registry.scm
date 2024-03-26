@@ -17,9 +17,9 @@
   #:use-module (gcrypt random)
   #:use-module (gcrypt base64)
   #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module (goblins ghash)
   #:use-module (goblins actor-lib methods)
-  #:use-module (goblins actor-lib define-actor)
   #:use-module (goblins utils assert-type)
   #:use-module (goblins utils crypto)
   #:export (spawn-nonce-registry-and-locator

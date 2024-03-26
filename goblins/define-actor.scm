@@ -12,7 +12,7 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 ;;;
-(define-module (goblins actor-lib define-actor)
+(define-module (goblins define-actor)
   #:use-module ((goblins core-types)
                 #:select (portraitize
                           make-redefinable-object

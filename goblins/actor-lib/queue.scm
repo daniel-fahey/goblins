@@ -14,8 +14,8 @@
 
 (define-module (goblins actor-lib queue)
   #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib methods)
-  #:use-module (goblins actor-lib define-actor)
   #:export (^queue queue-env))
 
 ;; Uses the approach from Purely Functional Data Structures by Chris Okasaki

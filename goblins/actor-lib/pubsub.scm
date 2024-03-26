@@ -15,9 +15,9 @@
 
 (define-module (goblins actor-lib pubsub)
   #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
-  #:use-module (goblins actor-lib define-actor)
   #:export (^pubsub pubsub-env))
 
 (define-actor (^pubsub* bcom subscribers)

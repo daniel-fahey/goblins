@@ -15,8 +15,8 @@
 
 (define-module (goblins actor-lib ward)
   #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib sealers)
-  #:use-module (goblins actor-lib define-actor)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-9)
   #:export (spawn-warding-pair

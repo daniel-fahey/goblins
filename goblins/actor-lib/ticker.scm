@@ -16,9 +16,9 @@
 
 (define-module (goblins actor-lib ticker)
   #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
-  #:use-module (goblins actor-lib define-actor)
   #:use-module (goblins actor-lib selfish-spawn)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)

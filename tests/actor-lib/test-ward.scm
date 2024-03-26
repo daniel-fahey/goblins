@@ -14,8 +14,8 @@
 
 (define-module (tests actor-lib test-ward)
   #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module (goblins actor-lib common)
-  #:use-module (goblins actor-lib define-actor)
   #:use-module (goblins actor-lib ward)
   #:use-module (goblins actor-lib methods)
   #:use-module (tests utils)

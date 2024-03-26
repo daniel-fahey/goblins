@@ -12,9 +12,9 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 ;;;
-(define-module (tests utils test-define-actor)
-  #:use-module (goblins)
-  #:use-module (goblins actor-lib define-actor)
+(define-module (tests test-define-actor)
+  #:use-module (goblins core)
+  #:use-module (goblins define-actor)
   #:use-module ((goblins core-types)
                 #:select (redefinable-object?
                           portrait-record-data))
