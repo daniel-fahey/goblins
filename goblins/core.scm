@@ -2638,24 +2638,20 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
     (define (process-one value)
       (match value
         [(? depictable-atom? atom) atom]
-        [(or (? list?) (? pair?))
+        [(or (? pair?) ())
 	 ;; If the list is a regular list, don't tag it, but if it's a dotted list
 	 ;; we need to tag it as 'dotted-list.
-	 (let lp ((dotted? #f)
-		  (processed-list '())
+	 (let lp ((processed-list '())
 		  (remaining value))
 	   (match remaining
 	     [()
-	      (let ((value (reverse processed-list)))
-		(if dotted?
-		    (make-portrait-record 'dotted value)
-		    value))]
-	     [(head rest ...)
-	      (lp dotted? (cons (process-one head) processed-list) rest)]
-	     [(head . last)
-	      (lp #t (cons (process-one head) processed-list) last)]
+	      (reverse processed-list)]
+	     [(head . rest)
+	      (lp (cons (process-one head) processed-list) rest)]
 	     [last
-	      (lp #t (cons (process-one last) processed-list) '())]))]
+	      (make-portrait-record
+	       'dotted
+	       (lp (cons (process-one last) processed-list) '()))]))]
         [(? vector? vector)
          (make-portrait-record 'vec (map process-one (vector->list vector)))]
         [(? ghash?)
@@ -2685,14 +2681,18 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
 	     (hashq-set! new-child-objs value #t))
            (make-portrait-record 'near slot))]
         [(? local-promise-refr? vow)
-	 (make-portrait-record
-	  'settled
-	  (actormap-run
-	   am
-	   (lambda ()
-             (unless (near-promise-settled? vow)
-               (error "Can't create portrait with an unsettled promise: " vow))
-	     (process-one (near-settled-promise-value vow)))))]
+	 (actormap-run
+	  am
+	  (lambda ()
+	    (unless (near-promise-settled? vow)
+              (error "Can't create portrait with an unsettled promise: " vow))
+	    (let ((inner (near-settled-promise-value vow)))
+	      (if (local-refr? inner)
+		  (let-values (((slot created?) (maybe-create-obj-slot! inner)))
+		    (when created?
+		      (hashq-set! new-child-objs inner #t))
+		    (make-portrait-record 'near slot))
+		  (make-portrait-record 'encase inner)))))]
         [_ (error "Unserializable value" value)]))
 
     (define (process-portrait obj-spec portrait-data)
@@ -2957,34 +2957,24 @@ Type: Actormap PersistenceEnv -> Void"
                  [data (portrait-record-data depiction)])
              (match type
                ['dotted
-		(let lp ((processed '())
-			 (remaining (reverse data)))
-		  (if (null? processed)
-		      ;; Create the "dottedness!"
-		      (match remaining
-			[(first second rest ...)
-			 (lp (cons (restore-one second) (restore-one first)) rest)])
-		      ;; Process and cons onto new list
-		      (match remaining
-			[() processed]
-			[(head rest ...)
-			 (lp (cons (restore-one head) processed) rest)])))]
+		(let lp ((remaining data))
+		  (match remaining
+		    [(last) (restore-one last)]
+		    [(head . rest)
+		     (cons (restore-one head) (lp rest))]))]
 	       ['vec (list->vector (map restore-one data))]
                ['keyword (symbol->keyword data)]
                ['zilch zilch]
 	       ['unspecified *unspecified*]
                ['tagged (make-tagged (car data) (cadr data))]
                ['near (hashq-ref slots->refrs data)]
-	       ['settled
-		;; Promises could be refrs which we should just pass
-		;; back or encased values which we should re-encase
-		(let ((restored (restore-one data)))
-		  (if (local-refr? restored)
-		      restored
-		      (let-values (((vow resolver) (spawn-promise-values)))
-			($ resolver 'fulfill restored)
-			vow)))]
-               [_ (error "Unknown depiction type" type)]))]
+	       ['encase
+		;; This is a promise which contains a value, re-encase
+		;; in a promise and return that.
+		(let-values (((vow resolver) (spawn-promise-values)))
+		  ($ resolver 'fulfill (restore-one data))
+		  vow)]
+           [_ (error "Unknown depiction type" type)]))]
 	  [(? ghash?)
 	   (ghash-fold
             (lambda (k v prev)
