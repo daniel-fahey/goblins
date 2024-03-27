@@ -82,6 +82,8 @@
                actormap-replace-behavior
                actormap-replace-behavior!
                actormap-restore!
+	       actormap-restore-from-store!
+	       actormap-save-to-store!
 
                versioned
 
