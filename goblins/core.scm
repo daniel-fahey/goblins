@@ -184,7 +184,7 @@
 
 (define (persistence-env-ref env name)
   "Finds the object specification within a given persistence environment tree by the provided name"
-  (hashq-ref (persistence-env-name->object-spec env) name))
+  (hash-ref (persistence-env-name->object-spec env) name))
 
 (define (persistence-env-ref-by-constructor env constructor)
   (hashq-ref (persistence-env-constructor->object-spec env) constructor))
@@ -2552,9 +2552,9 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (make-hash-table))
 
   (define (add-object-spec! object-spec)
-    (hashq-set! name->object-spec
-		(object-spec-name object-spec)
-		object-spec)
+    (hash-set! name->object-spec
+	       (object-spec-name object-spec)
+	       object-spec)
     (hashq-set! constructor->object-spec
 		(object-spec-constructor object-spec)
 		object-spec))
