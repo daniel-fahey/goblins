@@ -26,9 +26,11 @@
   ;; Specify a shorter name as portrait data is very very common
   (make-marshallers <portrait-record> #:name 'pd))
 
+(define current-data-version 0)
 (define-record-type <portrait-graph>
-  (make-portrait-graph portraits slots)
+  (make-portrait-graph version portraits slots)
   portrait-graph?
+  (version portrait-graph-version)
   (portraits portrait-graph-portraits)
   (slots portrait-graph-slots))
 
@@ -48,6 +50,10 @@
 	(lambda (port)
 	  (define portrait-graph
 	    (syrup-read port #:unmarshallers unmarshallers))
+	  (unless (eq? (portrait-graph-version portrait-graph) current-data-version)
+	    (error "Portrait data is different version than supported"
+		   (portrait-graph-version portrait-graph)))
+
 	  ;; Syrup writes both hash-table and ghash as syrup hashmaps
 	  ;; this is fine, but it has no way to know we want a hash-table
 	  ;; not a ghash in return and it picks ghash, lets convert.
@@ -66,7 +72,7 @@
       (values #f #f)))
 (define (write-depictions backing-file portraits slots)
   (define portrait-graph
-    (make-portrait-graph portraits slots))
+    (make-portrait-graph current-data-version portraits slots))
   (call-with-output-file backing-file
     (lambda (port)
       (syrup-write portrait-graph port #:marshallers marshallers))))
