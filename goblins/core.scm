@@ -2870,7 +2870,7 @@ Type: Actormap PersistenceEnv -> TransactorMap"
 	 (actormap-set! new-am* tmp-refr
 			(make-mactor:local-link refr))
 
-	 (dispatch-messages-for-am! new-am* new-msgs)
+	 (dispatch-messages-for-am! new-am* (reverse new-msgs))
 	 (transactormap-merge! new-am*))))
    whactormap-table)
   new-actormap)
@@ -2998,7 +2998,7 @@ Type: Actormap PersistenceEnv -> Void"
 	     restored-obj))))
 
       (transactormap-merge! new-am)
-      (enq-msgs! new-msgs)
+      (enq-msgs! (reverse new-msgs))
 
       ;; Install the mactor in the refr we created.
       (actormap-set! am refr (actormap-ref am restored-obj-refr)))
@@ -3014,7 +3014,7 @@ Type: Actormap PersistenceEnv -> Void"
     (while (not (q-empty? msg-queue))
       (let-values (((result new-am new-msgs)
 		    (actormap-turn-message am (deq! msg-queue))))
-	(transactormap-merge! new-am)
+	;;(transactormap-merge! new-am)
 	(enq-msgs! new-msgs)))
 
     (match roots
