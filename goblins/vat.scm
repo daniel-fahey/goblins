@@ -99,11 +99,10 @@
 
             syscaller-free-fiber
             spawn-fibrous-vow
-            spawn-persistent-vat
             fibrous
 
-            ;; TODO: DEBUG: remove me
-            vat-calculate-changed-objs
+	    spawn-persistent-vat
+	    vat-take-portrait!
 
             define-vat-run
 
@@ -187,10 +186,11 @@
 ;; persist. This could live just on the vat itself but since it's a
 ;; lot of stuff, it's broken into its own record.
 (define-record-type <vat-persistence>
-  (make-vat-persistence persistence-env persist-on store read-portrait! val->slot-ref roots)
+  (make-vat-persistence persistence-environ persist-on store
+			read-portrait! val->slot-ref roots)
   vat-persistence-env?
   ;; This is a <persistence-env> with all objects in the graph.
-  (persistence-env vat-persistence-env set-vat-persistence-env!)
+  (persistence-environ vat-persistence-environ set-vat-persistence-environ!)
   ;; When 'churn it tells the vat to persist on churns, otherwise
   ;; manual persist manually with `vat-take-portrait!'
   (persist-on vat-persistence-persist-on)

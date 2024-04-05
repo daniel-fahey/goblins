@@ -94,7 +94,9 @@
                call-with-vat
                with-vat
                spawn-vat
+	       spawn-persistent-vat
                define-vat-run
+	       vat-take-portrait!
 
                define-actor)
   #:replace (spawn))
