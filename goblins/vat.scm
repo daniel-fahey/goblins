@@ -103,6 +103,7 @@
 
 	    spawn-persistent-vat
 	    vat-take-portrait!
+	    vat-take-single-object-portrait
 
             define-vat-run
 
@@ -1233,6 +1234,31 @@ of events to retain in the log."
            new-child-objs)))
       (save-portraits! slot->portraits))))
 
+(define (vat-take-single-object-portrait vat refr)
+  (define persistence-env
+    (vat-persistence-env vat))
+  (unless persistence-env
+    (error "Cannot get portrait in a non-persistent capable vat" vat))
+
+  (define environ
+    (vat-persistence-environ persistence-env))
+  (define am
+    (vat-actormap vat))
+
+  ;; Because we are not committing this, we don't want to use
+  ;; the standard "read-portrait" functions we normally would
+  ;; we should get the self-portrait function and just give
+  ;; that data.
+  (define get-self-portrait
+    (@@ (goblins core) mactor:object-self-portrait))
+  (define mactor
+    (actormap-ref am refr))
+
+  (unless mactor
+    (error "refr not found in vat" refr))
+  (define take-self-portrait
+    (get-self-portrait mactor))
+  (take-self-portrait))
 
 ;; An example to test against, wip
 #;(run-fibers

@@ -1001,3 +1001,11 @@ Send ARGS to REFR using the snapshot for the current debugger event."
        (format #t "~s\n"
                (apply actormap-peek (vat-event-snapshot event)
                       (repl-eval repl `(list ,refr ,@args))))))))
+
+(define-meta-command ((vat-take-object-portrait goblins) repl refr)
+  "vat-take-object-portrait REFR
+Takes a portrait of a single object returning the portrait data"
+  (with-goblins-error-messages
+   (let* ((vat (current-vat*)))
+     (format #t "~s\n"
+	     (vat-take-single-object-portrait vat (repl-eval repl refr))))))
