@@ -3014,7 +3014,7 @@ Type: Actormap PersistenceEnv -> Void"
     (while (not (q-empty? msg-queue))
       (let-values (((result new-am new-msgs)
 		    (actormap-turn-message am (deq! msg-queue))))
-	;;(transactormap-merge! new-am)
+	(transactormap-merge! new-am)
 	(enq-msgs! new-msgs)))
 
     (match roots
