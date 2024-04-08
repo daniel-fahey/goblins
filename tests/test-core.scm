@@ -803,7 +803,7 @@
 			   got-keyword got-zilch got-tagged
 			   got-string got-bv got-bool
 			   got-unspecified got-vector
-			   got-gset got-ghash
+			   got-gset got-ghash got-dotted
 			   got-near-refr
 			   got-promise-to-refr
 			   got-promise-to-value)
@@ -827,6 +827,7 @@
   (define bool #t)
   (define gset (make-gset 1 2 3 'foo 'bar 'baz "Hello"))
   (define ghash (ghash-set (make-ghash) 'banana 'yellow))
+  (define dotted '(1 2 3 4 . zilch))
 
   (define (main-beh restored-refr)
     (and (eq? got-number number)
@@ -843,6 +844,7 @@
 	 (eq? restored-refr got-near-refr)
 	 (equal? gset got-gset)
 	 (equal? ghash got-ghash)
+	 (equal? dotted got-dotted)
 	 (live-refr? got-promise-to-refr)
 	 (eq? ($ encased-vow) ($ got-promise-to-value))))
 
@@ -850,7 +852,7 @@
     (list #f
 	  number symbol my-list keyword zilch
 	  tagged string bv bool *unspecified*
-	  my-vector gset ghash
+	  my-vector gset ghash dotted
 	  supplied-refr refr-vow encased-vow))
   (portraitize main-beh self-portrait))
 (define env

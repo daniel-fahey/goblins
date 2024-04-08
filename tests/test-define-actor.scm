@@ -142,11 +142,11 @@
 (define-values (versioned-portraits versioned-roots)
   (actormap-take-portrait am2 versioned-env versioned-cell))
 
-(define version-data
-  (portrait-record-data (third (portrait-record-data (hash-ref versioned-portraits 0)))))
+(define version
+  (match (portrait-record-data (hash-ref versioned-portraits 0))
+    ((_name _debug-name version _data) version)))
 
-(test-eqv "#:version for define-actor works" 42
-          (car version-data))
+(test-eqv "#:version for define-actor works" 42 version)
 
 (define am3 (make-actormap))
 
@@ -240,24 +240,24 @@
 (define-values (portrait-version-portraits portrait-version-roots)
   (actormap-take-portrait am4 portrait-version-env cpv cpv-match))
 
-(define cpv-version
-  (car (portrait-record-data (third (portrait-record-data (hash-ref portrait-version-portraits 0))))))
-(define cpv-match-version
-  (car (portrait-record-data (third (portrait-record-data (hash-ref portrait-version-portraits 1))))))
-(define cpv-data
-  (portrait-record-data (second (portrait-record-data (third (portrait-record-data (hash-ref portrait-version-portraits 0)))))))
-(define cpv-match-data
-  (portrait-record-data (second (portrait-record-data (third (portrait-record-data (hash-ref portrait-version-portraits 1)))))))
+(define-values (cpv-version cpv-data)
+  (match (portrait-record-data (hash-ref portrait-version-portraits 0))
+    ((_name _debug-name version data)
+     (values version data))))
+(define-values (cpv-match-version cpv-match-data)
+  (match (portrait-record-data (hash-ref portrait-version-portraits 1))
+    ((_name _debug-name version data)
+     (values version data))))
 
 (test-equal "#:portrait and #:version compose, version"
   2 cpv-version)
 (test-equal "#:portrait and #:version compose, data"
-  '(persisted2 bloop) cpv-data)
+  '((persisted2 bloop)) cpv-data)
 
 (test-equal "#:portrait and #:version compose when both providing version and matching, version"
   'two cpv-match-version)
 (test-equal "#:portrait and #:version compose when both providing version and matching, data"
-  '(persisted2-match blop) cpv-match-data)
+  '((persisted2-match blop)) cpv-match-data)
 
 (test-error "Error raised when #:portrait provides version mismatching with #:version"
             (actormap-take-portrait am4 portrait-version-env cpv-mismatch))
