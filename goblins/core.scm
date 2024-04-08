@@ -2703,7 +2703,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                       (hashq-set! new-child-objs inner #t))
                     (make-portrait-record 'near slot))
                   (make-portrait-record 'encase inner)))))]
-        [_ (error "Unserializable value" value)]))
+        [_ (error "Unserializable value!" 'value: value 'obj this-obj)]))
     
     (define (process-portrait obj-spec portrait-data)
       (unless obj-spec
