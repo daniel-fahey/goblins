@@ -31,7 +31,7 @@
 
   (define field-accessors
     (map (lambda (field) (record-accessor record field))
-	 (record-type-fields record)))
+         (record-type-fields record)))
 
   (define marshaller
     (cons
@@ -39,10 +39,10 @@
        (our-record? obj))
      (lambda (obj)
        (apply
-	make-tagged*
-	syrup-label
-	(map (lambda (get-field) (get-field obj))
-	     field-accessors)))))
+        make-tagged*
+        syrup-label
+        (map (lambda (get-field) (get-field obj))
+             field-accessors)))))
   (define unmarshaller
     (cons
      (lambda (label)
@@ -50,4 +50,4 @@
      make-record))
 
   (values marshaller
-	  unmarshaller))
+          unmarshaller))

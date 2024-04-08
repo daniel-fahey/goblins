@@ -25,24 +25,24 @@
 (test-begin "test-ward")
 
 (define-actor (^inbox bcom mailbox-name admin-warden
-		      #:optional [messages '()]
-		      #:key revoked?)
+                      #:optional [messages '()]
+                      #:key revoked?)
   (define admin-methods
     (methods
      [(revoke) (bcom (^inbox bcom mailbox-name admin-warden
-			     #:revoked? #t))]
+                             #:revoked? #t))]
      [(get-messages) messages]
      [(set-name new-name #:key [upcase? #f])
       (bcom (^inbox bcom (if upcase?
                              (string-upcase new-name)
                              new-name)
-		    admin-warden
+                    admin-warden
                     messages))]))
   (define public-methods
     (methods
      [(send-message msg)
       (bcom (^inbox bcom mailbox-name
-		    admin-warden (cons msg messages)))]
+                    admin-warden (cons msg messages)))]
      [(mailbox-name) mailbox-name]))
   
   (define revoked-beh

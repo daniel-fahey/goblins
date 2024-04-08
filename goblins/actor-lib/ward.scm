@@ -23,7 +23,7 @@
             ward
             enchant
             warden->ward-proc
-	    ward-env))
+            ward-env))
 
 ;; This module provides a "warding" mechanism... behind the ward is
 ;; some interesting behavior an actor might not quite want everyone to
@@ -82,8 +82,8 @@
   #:frozen
   (lambda (maybe-sealed-args)
     (if ($ sealed? maybe-sealed-args)
-	($ unseal maybe-sealed-args)
-	#f)))
+        ($ unseal maybe-sealed-args)
+        #f)))
 
 (define-actor (^incanter _bcom seal async?)
   #:frozen
@@ -109,7 +109,7 @@ Type: (Optional (#:sealer-triplet (Values Sealer Unsealer Checker)))
       [#f
        (spawn-ward-sealer-triplet)]))
   (values (spawn-named 'warden ^warden unseal sealed?)
-	  (spawn-named 'incanter ^incanter seal async?)))
+          (spawn-named 'incanter ^incanter seal async?)))
 
 (define* (ward warden behavior
                #:key
@@ -168,7 +168,7 @@ Type: Warden -> (Warded-Behavior Behavior -> Warded-Behavior)"
 ;; Sets up an "incantified proxy" that always sends messages through
 ;; the incanter
 (define-actor (^incantified _bcom incanter target
-			    #:key [async? #f])
+                            #:key [async? #f])
   (define $/<-
     (if async? <- $))
   (lambda args

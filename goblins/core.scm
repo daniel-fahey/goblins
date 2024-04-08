@@ -70,14 +70,14 @@
             spawn-promise-cons
             spawn-promise-values
 
-	    make-actormap-read-portrait!
-	    actormap-take-portrait-with-read-portrait
+            make-actormap-read-portrait!
+            actormap-take-portrait-with-read-portrait
             actormap-take-portrait
             actormap-replace-behavior
             actormap-replace-behavior!
             actormap-restore!
-	    actormap-restore-from-store!
-	    actormap-save-to-store!
+            actormap-restore-from-store!
+            actormap-save-to-store!
 
             ;; TODO: separate this out!
             <message>
@@ -90,7 +90,7 @@
             <questioned>
             questioned?
             questioned-message
-	    questioned-answer-this-question
+            questioned-answer-this-question
 
             <listen-request>
             make-listen-request listen-request?
@@ -2553,11 +2553,11 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
   (define (add-object-spec! object-spec)
     (hash-set! name->object-spec
-	       (object-spec-name object-spec)
-	       object-spec)
+               (object-spec-name object-spec)
+               object-spec)
     (hashq-set! constructor->object-spec
                 (object-spec-constructor object-spec)
-		object-spec))
+                object-spec))
 
   (for-each
    (lambda (object-spec-list)
@@ -2601,7 +2601,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
     ;; Returns 2 values: (object-slot created?)
     (let ((slot (hashq-ref val->slot obj #f)))
       (if slot
-	  (values slot #f)
+          (values slot #f)
           (let ([new-slot next-id])
             (set! next-id (+ 1 next-id))
             (hashq-set! val->slot obj new-slot)
@@ -2610,10 +2610,10 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
 
   (define root-slots
     (map (lambda (obj)
-	   (define-values (slot _created?)
-	     (maybe-create-obj-slot! obj))
-	   slot)
-	 roots))
+           (define-values (slot _created?)
+             (maybe-create-obj-slot! obj))
+           slot)
+         roots))
 
   (define (read-portrait! am this-obj)
     (define slot
@@ -2641,41 +2641,41 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
       (match value
         [(? depictable-atom? atom) atom]
         [(or (? pair?) ())
-	 ;; If the list is a regular list, don't tag it, but if it's a dotted list
-	 ;; we need to tag it as 'dotted-list.
-	 (let lp ((processed-list '())
-		  (remaining value))
-	   (match remaining
-	     [()
-	      (reverse processed-list)]
-	     [(head . rest)
-	      (lp (cons (process-one head) processed-list) rest)]
-	     [last
-	      (make-portrait-record
-	       'dotted
-	       (lp (cons (process-one last) processed-list) '()))]))]
+         ;; If the list is a regular list, don't tag it, but if it's a dotted list
+         ;; we need to tag it as 'dotted-list.
+         (let lp ((processed-list '())
+                  (remaining value))
+           (match remaining
+             [()
+              (reverse processed-list)]
+             [(head . rest)
+              (lp (cons (process-one head) processed-list) rest)]
+             [last
+              (make-portrait-record
+               'dotted
+               (lp (cons (process-one last) processed-list) '()))]))]
         [(? versioned-data?)
          (let ((version (versioned-data-version value))
                (data (versioned-data-data value)))
            (unless (list? data)
              (error "Self portrait data must be a list"))
            (make-portrait-record 'versioned (cons version (map process-one data))))]
-	[(? char?)
-	 (make-portrait-record 'char (char->integer value))]
+        [(? char?)
+         (make-portrait-record 'char (char->integer value))]
         [(? vector? vector)
          (make-portrait-record 'vec (map process-one (vector->list vector)))]
         [(? ghash?)
-	 (ghash-fold
+         (ghash-fold
           (lambda (k v prev)
             (ghash-set prev (process-one k) (process-one v)))
           (make-ghash)
           value)]
-	[(? gset?)
-	 (gset-fold
-	  (lambda (item prev)
-	    (gset-add prev (process-one item)))
-	  (make-gset)
-	  value)]
+        [(? gset?)
+         (gset-fold
+          (lambda (item prev)
+            (gset-add prev (process-one item)))
+          (make-gset)
+          value)]
         [(? keyword? kw)
          (make-portrait-record 'keyword (keyword->symbol kw))]
         [(? tagged? tagged)
@@ -2683,26 +2683,26 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                                              (tagged-data tagged)))]
         [(? zilch?)
          (make-portrait-record 'zilch #f)]
-	[(? unspecified?)
-	 (make-portrait-record 'unspecified #f)]
-	[(? local-object-refr?)
-	 (let-values (((slot created?) (maybe-create-obj-slot! value)))
-	   (when created?
-	     (hashq-set! new-child-objs value #t))
+        [(? unspecified?)
+         (make-portrait-record 'unspecified #f)]
+        [(? local-object-refr?)
+         (let-values (((slot created?) (maybe-create-obj-slot! value)))
+           (when created?
+             (hashq-set! new-child-objs value #t))
            (make-portrait-record 'near slot))]
         [(? local-promise-refr? vow)
-	 (actormap-run
-	  am
-	  (lambda ()
-	    (unless (near-promise-settled? vow)
+         (actormap-run
+          am
+          (lambda ()
+            (unless (near-promise-settled? vow)
               (error "Can't create portrait with an unsettled promise: " vow))
-	    (let ((inner (near-settled-promise-value vow)))
-	      (if (local-refr? inner)
-		  (let-values (((slot created?) (maybe-create-obj-slot! inner)))
-		    (when created?
-		      (hashq-set! new-child-objs inner #t))
-		    (make-portrait-record 'near slot))
-		  (make-portrait-record 'encase inner)))))]
+            (let ((inner (near-settled-promise-value vow)))
+              (if (local-refr? inner)
+                  (let-values (((slot created?) (maybe-create-obj-slot! inner)))
+                    (when created?
+                      (hashq-set! new-child-objs inner #t))
+                    (make-portrait-record 'near slot))
+                  (make-portrait-record 'encase inner)))))]
         [_ (error "Unserializable value" value)]))
     
     (define (process-portrait obj-spec portrait-data)
@@ -2710,12 +2710,12 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
         (error "Don't know how to persist:" this-obj this-obj-constructor-refr))
       (match portrait-data
         [(? versioned-data? data)
-	 (define-values (portrait-version portrait-data)
-	   (values (versioned-data-version data) (versioned-data-data data)))
+         (define-values (portrait-version portrait-data)
+           (values (versioned-data-version data) (versioned-data-data data)))
          (make-portrait-record 'object (list (object-spec-name obj-spec)
-					     obj-debug-name
-					     portrait-version
-					     (process-one portrait-data)))]
+                                             obj-debug-name
+                                             portrait-version
+                                             (process-one portrait-data)))]
         [(? list? args)
          ;; No versioning was given, lets tag this as version 0
          (process-portrait obj-spec (versioned 0 args))]))
@@ -2739,7 +2739,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
   (values read-portrait! val->slot-ref))
 
 (define (actormap-take-portrait-with-read-portrait am read-portrait!
-						   obj->slot-ref roots)
+                                                   obj->slot-ref roots)
   "Take a portrait of the graph with a given read-portrait! function
 
 Type: Actormap Procedure Procedure LiveRef ... -> Hashmap List"
@@ -2817,14 +2817,14 @@ Type: Actormap PersistenceEnv -> TransactorMap"
     (define (queue-messages! msgs)
       (for-each
        (lambda (msg)
-	 (enq! msg-queue msg))
+         (enq! msg-queue msg))
        msgs))
     (queue-messages! messages)
     (while (not (q-empty? msg-queue))
       (let-values (((_val new-am new-msgs)
-		    (actormap-turn-message am (deq! msg-queue))))
-	(queue-messages! new-msgs)
-	(transactormap-merge! new-am))))
+                    (actormap-turn-message am (deq! msg-queue))))
+        (queue-messages! new-msgs)
+        (transactormap-merge! new-am))))
 
   (hash-for-each
    (lambda (refr mactor)
@@ -2832,9 +2832,9 @@ Type: Actormap PersistenceEnv -> TransactorMap"
      (define object-spec
        (if (and (mactor:object? mactor)
                 (redefinable-object? (mactor:object-constructor-refr mactor)))
-	   (persistence-env-ref-by-constructor
-	    persistence-env
-	    (mactor:object-constructor-refr mactor))
+           (persistence-env-ref-by-constructor
+            persistence-env
+            (mactor:object-constructor-refr mactor))
            #f))
 
      (when (and object-spec (has-new-beh? object-spec mactor))
@@ -2848,10 +2848,10 @@ Type: Actormap PersistenceEnv -> TransactorMap"
            (if (versioned-data? self-portrait)
                self-portrait
                (versioned 0 self-portrait)))
-	 ;; Restoring but we need to commit this, for two important reasons:
-	 ;; 1. The actor may spawn other actors which need to stick around
-	 ;; 2. If the actor gives itself to another actor, that refr
-	 ;;    needs to continue to work.
+         ;; Restoring but we need to commit this, for two important reasons:
+         ;; 1. The actor may spawn other actors which need to stick around
+         ;; 2. If the actor gives itself to another actor, that refr
+         ;;    needs to continue to work.
          (define-values (tmp-refr new-am* new-msgs)
            (actormap-run*
             new-actormap
@@ -2860,20 +2860,20 @@ Type: Actormap PersistenceEnv -> TransactorMap"
                      (versioned-data-version versioned-self-portrait)
                      (versioned-data-data versioned-self-portrait)))))
 
-	 ;; Set the old refr to point to this new mactor we
-	 ;; spawned. We could technically set this to a local-link but
-	 ;; in most cases `temp-refr' will be Gc'd and this will be
-	 ;; the sole refr remaining.
+         ;; Set the old refr to point to this new mactor we
+         ;; spawned. We could technically set this to a local-link but
+         ;; in most cases `temp-refr' will be Gc'd and this will be
+         ;; the sole refr remaining.
          (actormap-set! new-am* refr
                         (actormap-ref new-am* tmp-refr))
-	 ;; We do still care about making temp-refr still work if it
-	 ;; was given out, see reason number 2 above so set it to a
-	 ;; local-link.
-	 (actormap-set! new-am* tmp-refr
-			(make-mactor:local-link refr))
+         ;; We do still care about making temp-refr still work if it
+         ;; was given out, see reason number 2 above so set it to a
+         ;; local-link.
+         (actormap-set! new-am* tmp-refr
+                        (make-mactor:local-link refr))
 
-	 (dispatch-messages-for-am! new-am* (reverse new-msgs))
-	 (transactormap-merge! new-am*))))
+         (dispatch-messages-for-am! new-am* (reverse new-msgs))
+         (transactormap-merge! new-am*))))
    whactormap-table)
   new-actormap)
 
@@ -2912,7 +2912,7 @@ Type: Actormap PersistenceEnv -> Void"
     ;; All depictions should be objects
     (unless (eq? (portrait-record-type depiction) 'object)
       (error "Object depiction is not of type object ~a"
-	     (portrait-record-type depiction)))
+             (portrait-record-type depiction)))
     (match (portrait-record-data depiction)
       [(_persistence-name debug-name _portrait-version _portrait-data)
        debug-name]))
@@ -2920,10 +2920,10 @@ Type: Actormap PersistenceEnv -> Void"
   (hash-for-each
    (lambda (slot depiction)
      (let*-values (((vow resolver) (actormap-run! am spawn-promise-values))
-		   ((vow-symlink) (make-mactor:local-link vow))
-		   ((debug-name) (depiction->debug-name depiction))
-		   ((vat-connector) (actormap-vat-connector am))
-		   ((refr) (make-local-object-refr debug-name vat-connector)))
+                   ((vow-symlink) (make-mactor:local-link vow))
+                   ((debug-name) (depiction->debug-name depiction))
+                   ((vat-connector) (actormap-vat-connector am))
+                   ((refr) (make-local-object-refr debug-name vat-connector)))
        (actormap-set! am refr vow-symlink)
        (hashq-set! slots->resolvers slot resolver)
        (hashq-set! slots->refrs slot refr)))
@@ -2933,12 +2933,12 @@ Type: Actormap PersistenceEnv -> Void"
       (define resolver
         (hashq-ref slots->resolvers slot))
       (define refr
-	(hashq-ref slots->refrs slot))
+        (hashq-ref slots->refrs slot))
       (define-values (obj-name obj-debug-name obj-portrait-version obj-portrait)
-	(match portrait
-	  [(name debug-name portrait-version portrait-data)
-	   (values name debug-name portrait-version portrait-data)]
-	  [_ (error "Unknown portrait data")]))
+        (match portrait
+          [(name debug-name portrait-version portrait-data)
+           (values name debug-name portrait-version portrait-data)]
+          [_ (error "Unknown portrait data")]))
       (define restored-args
         (actormap-run! am (lambda () (restore-one obj-portrait))))
       (define obj-spec
@@ -2953,51 +2953,51 @@ Type: Actormap PersistenceEnv -> Void"
                  [data (portrait-record-data depiction)])
              (match type
                ['dotted
-		(let lp ((remaining data))
-		  (match remaining
-		    [(last) (restore-one last)]
-		    [(head . rest)
-		     (cons (restore-one head) (lp rest))]))]
-	       ['vec (list->vector (map restore-one data))]
+                (let lp ((remaining data))
+                  (match remaining
+                    [(last) (restore-one last)]
+                    [(head . rest)
+                     (cons (restore-one head) (lp rest))]))]
+               ['vec (list->vector (map restore-one data))]
                ['versioned (values (car data) (map restore-one (cdr data)))]
-	       ['char (integer->char data)]
+               ['char (integer->char data)]
                ['list (map restore-one data)]
                ['vector (list->vector (map restore-one data))]
                ['keyword (symbol->keyword data)]
                ['zilch zilch]
-	       ['unspecified *unspecified*]
+               ['unspecified *unspecified*]
                ['tagged (make-tagged (car data) (cadr data))]
                ['near (hashq-ref slots->refrs data)]
-	       ['encase
-		;; This is a promise which contains a value, re-encase
-		;; in a promise and return that.
-		(let-values (((vow resolver) (spawn-promise-values)))
-		  ($ resolver 'fulfill (restore-one data))
-		  vow)]
+               ['encase
+                ;; This is a promise which contains a value, re-encase
+                ;; in a promise and return that.
+                (let-values (((vow resolver) (spawn-promise-values)))
+                  ($ resolver 'fulfill (restore-one data))
+                  vow)]
            [_ (error "Unknown depiction type" type)]))]
-	  [(? ghash?)
-	   (ghash-fold
+          [(? ghash?)
+           (ghash-fold
             (lambda (k v prev)
               (ghash-set prev (restore-one k) (restore-one v)))
             (make-ghash)
             depicted)]
-	  [(? gset?)
-	   (gset-fold
-	    (lambda (item prev)
-	      (gset-add prev (restore-one item)))
-	    (make-gset)
-	    depicted)]
-	  [(? list?) (map restore-one depicted)]
+          [(? gset?)
+           (gset-fold
+            (lambda (item prev)
+              (gset-add prev (restore-one item)))
+            (make-gset)
+            depicted)]
+          [(? list?) (map restore-one depicted)]
           [(? depictable-atom?) depicted]
-	  [_ (error "Unknown value in portrait data" depicted)]))
+          [_ (error "Unknown value in portrait data" depicted)]))
 
       (define-values (restored-obj-refr new-am new-msgs)
-	(actormap-run*
-	 am
-	 (lambda ()
-	   (let ((restored-obj (apply rehydrator obj-portrait-version restored-args)))
-	     ($ resolver 'fulfill restored-obj)
-	     restored-obj))))
+        (actormap-run*
+         am
+         (lambda ()
+           (let ((restored-obj (apply rehydrator obj-portrait-version restored-args)))
+             ($ resolver 'fulfill restored-obj)
+             restored-obj))))
 
       (transactormap-merge! new-am)
       (enq-msgs! (reverse new-msgs))
@@ -3015,19 +3015,19 @@ Type: Actormap PersistenceEnv -> Void"
     ;; so keep track of those so we can dispatch them after.
     (while (not (q-empty? msg-queue))
       (let-values (((result new-am new-msgs)
-		    (actormap-turn-message am (deq! msg-queue))))
-	(transactormap-merge! new-am)
-	(enq-msgs! new-msgs)))
+                    (actormap-turn-message am (deq! msg-queue))))
+        (transactormap-merge! new-am)
+        (enq-msgs! new-msgs)))
 
     (match roots
       [(? list? root-slots)
        (define restored-roots
          (map (lambda (slot)
-		(hashq-ref slots->refrs slot))
-	      root-slots))
+                (hashq-ref slots->refrs slot))
+              root-slots))
        (apply values restored-roots)]
        [(? integer? slot)
-	(hashq-ref slots->refrs slot)]))
+        (hashq-ref slots->refrs slot)]))
 
 (define (actormap-restore-from-store! am env store)
   "Reads portrait graph from STORE and restores into provided AM.

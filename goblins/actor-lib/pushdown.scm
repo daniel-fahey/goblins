@@ -78,9 +78,9 @@ then add the new actor to the top of the stack. Return a reference to the new ac
 
 Type: (Optional Actor) -> (Values Pd-Stack Pd-Forwarder)"
   (let ((stack (spawn-named 'stack
-			    ^cell
-			    (if initial-refr
-				(list initial-refr)
-				'()))))
+                            ^cell
+                            (if initial-refr
+                                (list initial-refr)
+                                '()))))
     (values (spawn ^pd-stack stack)
-	    (spawn ^pd-forwarder stack))))    
+            (spawn ^pd-forwarder stack))))

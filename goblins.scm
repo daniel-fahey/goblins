@@ -82,8 +82,8 @@
                actormap-replace-behavior
                actormap-replace-behavior!
                actormap-restore!
-	       actormap-restore-from-store!
-	       actormap-save-to-store!
+               actormap-restore-from-store!
+               actormap-save-to-store!
 
                versioned
 
@@ -96,9 +96,9 @@
                call-with-vat
                with-vat
                spawn-vat
-	       spawn-persistent-vat
+               spawn-persistent-vat
                define-vat-run
-	       vat-take-portrait!
+               vat-take-portrait!
 
                define-actor)
   #:replace (spawn))

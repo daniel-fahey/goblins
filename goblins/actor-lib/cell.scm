@@ -20,7 +20,7 @@
             cell->read-only
             cell->write-only
             define-cell
-	    cell-env))
+            cell-env))
 
 ;;; Cells
 ;;; =====

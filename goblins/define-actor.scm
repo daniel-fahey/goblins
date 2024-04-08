@@ -16,7 +16,7 @@
   #:use-module ((goblins core-types)
                 #:select (portraitize
                           make-redefinable-object
-			  redefinable-object?
+                          redefinable-object?
                           set-redefinable-object-constructor!
                           set-redefinable-object-rehydrator!
                           versioned
@@ -29,14 +29,14 @@
 (define-syntax-rule (define-redefinable-object-with-rehydrator name proc rehydrator)
   (define name
     (if (and (defined? 'name) (redefinable-object? name))
-	;; We've already defined this, just update the constructor refr
-	(begin
-	  (set-redefinable-object-constructor! name proc)
+        ;; We've already defined this, just update the constructor refr
+        (begin
+          (set-redefinable-object-constructor! name proc)
           (set-redefinable-object-rehydrator! name rehydrator)
-	  name)
-	;; First time (or currently not a redefinable object),
+          name)
+        ;; First time (or currently not a redefinable object),
         ;; lets define it.
-	(make-redefinable-object proc rehydrator))))
+        (make-redefinable-object proc rehydrator))))
 
 (define-syntax-rule (define-redefinable-object name proc)
   (define-redefinable-object-with-rehydrator name proc #f))
@@ -49,34 +49,34 @@
   (lambda (stx)
     (define* (args->arg-names args #:key is-keyword?)
       (define (identifier->keyword id)
-	"Convert identifier to keyword for identifier. (e.g. 'name' -> #:name"
-	(datum->syntax #f (symbol->keyword (syntax->datum id))))
+        "Convert identifier to keyword for identifier. (e.g. 'name' -> #:name"
+        (datum->syntax #f (symbol->keyword (syntax->datum id))))
       (define (cons-id id lst)
-	"Add the provided ID to the list of arguments"
-	;; If we're handling keyword arguments, add the keyword for
-	;; the identifier as well as the identifier itself so that
-	;; when applied it works at as e.g. (#:name name)
-	;; Otherwise just add the id.
-	(if is-keyword?
-	    (cons* (identifier->keyword id) id lst)
-	    (cons id lst)))
+        "Add the provided ID to the list of arguments"
+        ;; If we're handling keyword arguments, add the keyword for
+        ;; the identifier as well as the identifier itself so that
+        ;; when applied it works at as e.g. (#:name name)
+        ;; Otherwise just add the id.
+        (if is-keyword?
+            (cons* (identifier->keyword id) id lst)
+            (cons id lst)))
 
       ;; Go through each argument to the actor pulling out the
       ;; identifier only (e.g. skip #:key, #:optional, default values,
       ;; etc.). If it's a keyword argument we want to include the
       ;; identifier's keyword and the identifier itself.
       (syntax-case args ()
-	(() '())
-	((#:key . rest)
-	 (args->arg-names #'rest #:is-keyword? #t))
-	((#:optional . rest)
-	 (args->arg-names #'rest #:is-keyword? #f))
-	(((id default) . rest)
-	 (identifier? #'id)
-	 (cons-id #'id (args->arg-names #'rest #:is-keyword? is-keyword?)))
-	((id . rest)
-	 (identifier? #'id)
-	 (cons-id #'id (args->arg-names #'rest #:is-keyword? is-keyword?)))))
+        (() '())
+        ((#:key . rest)
+         (args->arg-names #'rest #:is-keyword? #t))
+        ((#:optional . rest)
+         (args->arg-names #'rest #:is-keyword? #f))
+        (((id default) . rest)
+         (identifier? #'id)
+         (cons-id #'id (args->arg-names #'rest #:is-keyword? is-keyword?)))
+        ((id . rest)
+         (identifier? #'id)
+         (cons-id #'id (args->arg-names #'rest #:is-keyword? is-keyword?)))))
     ;; Walk through the body and extract all the keyword arguments which are
     ;; "special" to define-actor
     (define (extract-body-keywords body)
@@ -103,7 +103,7 @@
                        ((kwless-body-extra ... kwless-body-final) kwless-body))
            (define constructor
              #`(let ((constructor-id
-		      (lambda* (bcom arg ...)
+                      (lambda* (bcom arg ...)
                         ;; Define the self-portrait in one of several ways depending
                         ;; on whether portrait and/or version are supplied...
                         #,@(cond
@@ -141,9 +141,9 @@
                             (else
                              #'((define (self-portrait)
                                   (list arg-name ...)))))
-			kwless-body-extra ...
-		        (portraitize kwless-body-final self-portrait))))
-	         constructor-id))
+                        kwless-body-extra ...
+                        (portraitize kwless-body-final self-portrait))))
+                 constructor-id))
            (cond
             ((and frozen? restore)
              ;; Not meaningfully, since it removes the optimization
@@ -164,6 +164,6 @@
 (define-syntax-rule (define-hackable (constructor-id bcom args ...) body ...)
   (define-redefinable-object constructor-id
     (let ((constructor-id
-	   (lambda (bcom args ...)
-	     body ...)))
+           (lambda (bcom args ...)
+             body ...)))
       constructor-id)))

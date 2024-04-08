@@ -50,14 +50,14 @@ Type: -> Queue"
              (val (car h*))
              (new-head (cdr h*)))
         (bcom (^queue* bcom
-		       (1- length)
+                       (1- length)
                        new-head '())
               val)))
      ;; Otherwise, just pull from the top of the head as the dequeued
      ;; value.
      (else
       (bcom (^queue* bcom
-		     (1- length)
+                     (1- length)
                      (cdr head) tail)
             (car head)))))))
 

@@ -66,12 +66,12 @@
     (string-append
      "I am a "
      (if color
-	 (format #f "~a robot" color)
-	 "robot")
+         (format #f "~a robot" color)
+         "robot")
      (format #f " with ~a hit points left. " hp)
      (if ready?
-	 "Lets rumble!"
-	 "... not ready yet!"))))
+         "Lets rumble!"
+         "... not ready yet!"))))
 
 (define am1 (make-actormap))
 (define robot-env

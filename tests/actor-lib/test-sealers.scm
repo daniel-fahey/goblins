@@ -14,7 +14,7 @@
 
 (use-modules (goblins)
              (goblins actor-lib sealers)
-	     (tests utils)
+             (tests utils)
              (srfi srfi-64))
 
 (test-begin "test-sealers")
@@ -82,8 +82,8 @@
 
 (define known-sealers
   (acons '((tests actor-lib test-sealers) make-sealer-triplet)
-	 make-sealer-triplet
-	 default-sealers-alist))
+         make-sealer-triplet
+         default-sealers-alist))
 (define-values (custom-spawn-sealer-triplet custom-sealers-env)
   (make-spawn-sealer-triplet '(tests actor-lib test-sealers) known-sealers))
 
@@ -92,7 +92,7 @@
    am
    (lambda ()
      (custom-spawn-sealer-triplet 'carol-sealer-triplet
-				  #:make-sealer-triplet make-sealer-triplet))))
+                                  #:make-sealer-triplet make-sealer-triplet))))
 
 (define carol-sealed-lunch
   (actormap-poke! am carol-sealer 'tofu-scramble))
@@ -118,12 +118,12 @@
   (make-persistence-env
    #:extends (list custom-sealers-env sealers-env)))
 (define-values (am* carol-sealer* carol-unsealer*
-		    carol-sealed?* bob-unsealer*
-		    carol-sealed-lunch*)
+                    carol-sealed?* bob-unsealer*
+                    carol-sealed-lunch*)
   (persist-and-restore am env
-		       carol-sealer carol-unsealer
-		       carol-sealed? bob-unsealer
-		       carol-sealed-lunch))
+                       carol-sealer carol-unsealer
+                       carol-sealed? bob-unsealer
+                       carol-sealed-lunch))
 
 (test-equal "Carol can unseal her own lunch after rehydration"
   'tofu-scramble

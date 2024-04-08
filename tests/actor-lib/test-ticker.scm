@@ -31,9 +31,9 @@
 (define jane-speaks-here
   (actormap-spawn! am ^cell))
 (define-actor (^malaise-sufferer _bcom ticky name speaking-cell
-				 #:optional
-				 [maximum-suffering 3]
-				 [init-n 1])
+                                 #:optional
+                                 [maximum-suffering 3]
+                                 [init-n 1])
   (define n-cell (spawn ^cell init-n))
   (lambda ()
     (let ((n ($ n-cell)))
@@ -97,11 +97,11 @@
                 (lambda (ticky)
                   (spawn ^malaise-sufferer ticky "joe"
                          joe-speaks-here
-			 2)))
+                         2)))
 (actormap-poke! am ticker 'to-tick
-		(lambda (ticky)
-		  (spawn ^malaise-sufferer ticky "jane"
-			 jane-speaks-here
+                (lambda (ticky)
+                  (spawn ^malaise-sufferer ticky "jane"
+                         jane-speaks-here
                          1)))
 (actormap-churn-run! am (lambda () ($ ticker 'tick)))
 (define env

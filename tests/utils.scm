@@ -21,9 +21,9 @@
   #:use-module (fibers timers)
   #:use-module (ice-9 match)
   #:export (am-resolve-vow-and-return-result
-	    resolve-vow-and-return-result
-	    persist-and-restore
-	    am-churn! am-churn!*))
+            resolve-vow-and-return-result
+            persist-and-restore
+            am-churn! am-churn!*))
 
 (define* (am-resolve-vow-and-return-result am goblins-thunk #:key (timeout 2))
   (define vow (actormap-churn-run! am goblins-thunk))
@@ -33,23 +33,23 @@
      (actormap-churn-run!
       am
       (lambda ()
-	(on vow
-	    (lambda args
-	      (syscaller-free-fiber
-	       (lambda ()
-		 (put-message results-ch (apply vector 'ok args))))
-	      'ok)
-	    #:catch
-	    (lambda err
-	      (syscaller-free-fiber
-	       (lambda ()
-		 (put-message results-ch (vector 'err err))))
+        (on vow
+            (lambda args
+              (syscaller-free-fiber
+               (lambda ()
+                 (put-message results-ch (apply vector 'ok args))))
+              'ok)
+            #:catch
+            (lambda err
+              (syscaller-free-fiber
+               (lambda ()
+                 (put-message results-ch (vector 'err err))))
               'err))))
        (perform-operation
-	(choice-operation (wrap-operation (sleep-operation timeout)
-					  (lambda _
-					    (vector 'err '*timeout*)))
-			  (get-operation results-ch))))))
+        (choice-operation (wrap-operation (sleep-operation timeout)
+                                          (lambda _
+                                            (vector 'err '*timeout*)))
+                          (get-operation results-ch))))))
 
 (define* (resolve-vow-and-return-result vat goblins-thunk #:key (timeout 2))
   (define vow (call-with-vat vat goblins-thunk))
@@ -84,5 +84,5 @@
    restored-am
    (call-with-values
       (lambda ()
-	(actormap-restore! restored-am env portraits root-slots))
+        (actormap-restore! restored-am env portraits root-slots))
     list)))

@@ -746,17 +746,17 @@
 (test-equal "Check restored actors can send messages upon construction"
   '(start-bar start-foo)
   (let*-values (((am1) (make-actormap))
-		((am2) (make-actormap))
-		((bar1) (actormap-spawn! am1 ^bar 'start-bar))
-		((foo1) (actormap-spawn! am1 ^foo bar1 'start-foo))
-		((portraits roots) (actormap-take-portrait am1 env foo1))
-		((foo2) (actormap-restore! am2 env portraits roots)))
+                ((am2) (make-actormap))
+                ((bar1) (actormap-spawn! am1 ^bar 'start-bar))
+                ((foo1) (actormap-spawn! am1 ^foo bar1 'start-foo))
+                ((portraits roots) (actormap-take-portrait am1 env foo1))
+                ((foo2) (actormap-restore! am2 env portraits roots)))
     (actormap-peek
      am2
      (actormap-churn-run!
       am2
       (lambda ()
-	($ foo2))))))
+        ($ foo2))))))
 
 ;; Test spawning another actor in the restore behavior
 (define ^second
@@ -764,8 +764,8 @@
    (lambda* (bcom #:optional stored-val)
      (define* (main-beh #:optional new-val)
        (if new-val
-	   (bcom (^second bcom new-val) 'second)
-	   (list 'second stored-val)))
+           (bcom (^second bcom new-val) 'second)
+           (list 'second stored-val)))
      (define (self-portrait)
        (list stored-val))
      (portraitize main-beh self-portrait))))
@@ -798,15 +798,15 @@
 
 ;; Test all supported types can be serialized correctly
 (define* (^type-serializer bcom supplied-refr
-			   #:optional
-			   got-number got-symbol got-list
-			   got-keyword got-zilch got-tagged
-			   got-string got-char got-bv got-bool
-			   got-unspecified got-vector
-			   got-gset got-ghash got-dotted
-			   got-near-refr
-			   got-promise-to-refr
-			   got-promise-to-value)
+                           #:optional
+                           got-number got-symbol got-list
+                           got-keyword got-zilch got-tagged
+                           got-string got-char got-bv got-bool
+                           got-unspecified got-vector
+                           got-gset got-ghash got-dotted
+                           got-near-refr
+                           got-promise-to-refr
+                           got-promise-to-value)
   ;; Make the promises
   (define-values (refr-vow refr-resolver)
     (spawn-promise-values))
@@ -832,30 +832,30 @@
 
   (define (main-beh restored-refr)
     (and (eq? got-number number)
-	 (eq? got-symbol symbol)
-	 (equal? got-list my-list)
-	 (eq? got-keyword keyword)
-	 (eq? got-zilch zilch)
-	 (equal? got-tagged (make-tagged 'foo restored-refr))
-	 (string=? got-string string)
-	 (char=? got-char char)
-	 (equal? got-bv bv)
-	 (eq? got-bool bool)
-	 (unspecified? got-unspecified)
-	 (equal? my-vector got-vector)
-	 (eq? restored-refr got-near-refr)
-	 (equal? gset got-gset)
-	 (equal? ghash got-ghash)
-	 (equal? dotted got-dotted)
-	 (live-refr? got-promise-to-refr)
-	 (eq? ($ encased-vow) ($ got-promise-to-value))))
+         (eq? got-symbol symbol)
+         (equal? got-list my-list)
+         (eq? got-keyword keyword)
+         (eq? got-zilch zilch)
+         (equal? got-tagged (make-tagged 'foo restored-refr))
+         (string=? got-string string)
+         (char=? got-char char)
+         (equal? got-bv bv)
+         (eq? got-bool bool)
+         (unspecified? got-unspecified)
+         (equal? my-vector got-vector)
+         (eq? restored-refr got-near-refr)
+         (equal? gset got-gset)
+         (equal? ghash got-ghash)
+         (equal? dotted got-dotted)
+         (live-refr? got-promise-to-refr)
+         (eq? ($ encased-vow) ($ got-promise-to-value))))
 
   (define (self-portrait)
     (list #f
-	  number symbol my-list keyword zilch
-	  tagged string char bv bool
-	  *unspecified* my-vector gset ghash dotted
-	  supplied-refr refr-vow encased-vow))
+          number symbol my-list keyword zilch
+          tagged string char bv bool
+          *unspecified* my-vector gset ghash dotted
+          supplied-refr refr-vow encased-vow))
   (portraitize main-beh self-portrait))
 (define env
   (make-persistence-env

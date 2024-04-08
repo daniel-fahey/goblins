@@ -1008,4 +1008,4 @@ Takes a portrait of a single object returning the portrait data"
   (with-goblins-error-messages
    (let* ((vat (current-vat*)))
      (format #t "~s\n"
-	     (vat-take-single-object-portrait vat (repl-eval repl refr))))))
+             (vat-take-single-object-portrait vat (repl-eval repl refr))))))

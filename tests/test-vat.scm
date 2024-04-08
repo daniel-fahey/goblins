@@ -1009,7 +1009,7 @@
    list-env
    (lambda ()
      (values (spawn ^list)
-	     (spawn ^list)))
+             (spawn ^list)))
    memory-store))
 
 (define one

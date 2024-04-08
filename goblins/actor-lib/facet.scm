@@ -31,11 +31,11 @@ The resulting actor can be invoke with any of METHODS."
   (define main-beh
     (lambda args
       (match args
-	[((? symbol? method) args ...)
-	 (unless (member method methods)
+        [((? symbol? method) args ...)
+         (unless (member method methods)
            (error (format #f "Access to method ~a denied" method)))
-	 (apply $/<- wrap-me method args)]
-	[_ "Requires symbol-based method dispatch"])))
+         (apply $/<- wrap-me method args)]
+        [_ "Requires symbol-based method dispatch"])))
   (define (self-portrait)
     (cons wrap-me methods))
   (portraitize main-beh self-portrait))
