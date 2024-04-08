@@ -443,19 +443,36 @@ manually specifying the self-portrait behavior:
 
 The persistence system supports the following types:
 
-- number
-- boolean
-- string
-- symbol
-- bytevector
-- list
-- vector
-- keyword
-- ghash
-- tagged value (from the abstract-types module)
-- zilch (from the abstract-types module)
-- local object refr
-- resolved local promises
+@itemize @bullet
+@item
+number
+@item
+boolean
+@item
+character
+@item
+string
+@item
+symbol
+@item
+bytevector
+@item
+list
+@item
+vector
+@item
+keyword
+@item
+ghash
+@item
+tagged value (from the @code{(goblins abstract-types)} module)
+@item
+zilch (from the @code{(goblins abstract-types)} module)
+@item
+local object refr
+@item
+resolved local promises
+@end itemize
 
 Any other value of another type needs to be converted into one of the
 supported types above.
