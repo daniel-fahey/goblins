@@ -2652,6 +2652,14 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
 	      (make-portrait-record
 	       'dotted
 	       (lp (cons (process-one last) processed-list) '()))]))]
+        [(? versioned-data?)
+         (let ((version (versioned-data-version value))
+               (data (versioned-data-data value)))
+           (unless (list? data)
+             (error "Self portrait data must be a list"))
+           (make-portrait-record 'versioned (cons version (map process-one data))))]
+	[(? char?)
+	 (make-portrait-record 'char (char->integer value))]
         [(? vector? vector)
          (make-portrait-record 'vec (map process-one (vector->list vector)))]
         [(? ghash?)
@@ -2694,7 +2702,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
 		    (make-portrait-record 'near slot))
 		  (make-portrait-record 'encase inner)))))]
         [_ (error "Unserializable value" value)]))
-
+    
     (define (process-portrait obj-spec portrait-data)
       (unless obj-spec
         (error "Don't know how to persist:" this-obj this-obj-constructor-refr))
@@ -2949,6 +2957,10 @@ Type: Actormap PersistenceEnv -> Void"
 		    [(head . rest)
 		     (cons (restore-one head) (lp rest))]))]
 	       ['vec (list->vector (map restore-one data))]
+               ['versioned (values (car data) (map restore-one (cdr data)))]
+	       ['char (integer->char data)]
+               ['list (map restore-one data)]
+               ['vector (list->vector (map restore-one data))]
                ['keyword (symbol->keyword data)]
                ['zilch zilch]
 	       ['unspecified *unspecified*]
