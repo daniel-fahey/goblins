@@ -20,7 +20,6 @@
   #:use-module (goblins core)
   #:use-module (goblins core-types)
   #:use-module (goblins inbox)
-  #:use-module (goblins store)
   #:use-module (goblins abstract-types)
   #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins utils random-name)
@@ -1124,8 +1123,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
     (vat-persistence-store persistence-env))
   (define save-portrait-in-store!
     (persistence-store-save-proc store))
-  (save-portrait-in-store! slot->portrait root-slots)
-  (values slot->portrait root-slots))
+  (save-portrait-in-store! 'save-graph slot->portrait root-slots))
 
 (define* (spawn-persistent-vat persistence-env spawn-roots-thunk store
                                #:key (persist-on 'churn)
@@ -1165,10 +1163,10 @@ of events to retain in the log."
 
   ;; We should either restore from the data in the store if that exists,
   ;; or we should spawn the roots by using `spawn-roots-lambda'.
-  (define read-memory-fn
+  (define read-from-store
     (persistence-store-read-proc store))
   (define-values (portraits root-slots)
-    (read-memory-fn))
+    (read-from-store 'graph-and-slots))
 
   (define roots
     (if (and portraits root-slots)
@@ -1216,23 +1214,24 @@ of events to retain in the log."
          (lambda (changed-obj)
            (when (val->slot-refr changed-obj)
              (enq! process-queue changed-obj)))
-         (transactormap-calculate-obj-delta new-am)))
+         (transactormap-calculate-obj-delta new-am))
 
-      (while (not (q-empty? process-queue))
-        (let ((obj (deq! process-queue)))
-          (define-values (slot portrait new-child-objs)
-            (read-portrait! new-am obj))
+        (while (not (q-empty? process-queue))
+          (let ((obj (deq! process-queue)))
+            (define-values (slot portrait new-child-objs)
+              (read-portrait! new-am obj))
 
-          (hashq-set! slot->portraits slot portrait)
+            (hashq-set! slot->portraits slot portrait)
 
-          ;; The object may have changed by adding a new object not previously in the
-          ;; object graph. In such cases we need to ensure they're queued also.
-          (hash-for-each
-           (lambda (obj _val)
-             (unless (memq obj (car process-queue))
-               (enq! process-queue obj)))
-           new-child-objs)))
-      (save-portraits! slot->portraits))))
+            ;; The object may have changed by adding a new object not previously in the
+            ;; object graph. In such cases we need to ensure they're queued also.
+            (hash-for-each
+             (lambda (obj _val)
+               (unless (memq obj (car process-queue))
+		 (enq! process-queue obj)))
+             new-child-objs)))
+
+	(save-portraits! 'save-delta slot->portraits)))))
 
 (define (vat-take-single-object-portrait vat refr)
   (define persistence-env

@@ -76,6 +76,8 @@
             actormap-replace-behavior
             actormap-replace-behavior!
             actormap-restore!
+	    actormap-restore-from-store!
+	    actormap-save-to-store!
 
             ;; TODO: separate this out!
             <message>
@@ -182,7 +184,7 @@
 
 (define (persistence-env-ref env name)
   "Finds the object specification within a given persistence environment tree by the provided name"
-  (hashq-ref (persistence-env-name->object-spec env) name))
+  (hash-ref (persistence-env-name->object-spec env) name))
 
 (define (persistence-env-ref-by-constructor env constructor)
   (hashq-ref (persistence-env-constructor->object-spec env) constructor))
@@ -2550,11 +2552,11 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (make-hash-table))
 
   (define (add-object-spec! object-spec)
-    (hashq-set! name->object-spec
-		(object-spec-name object-spec)
-		object-spec)
+    (hash-set! name->object-spec
+	       (object-spec-name object-spec)
+	       object-spec)
     (hashq-set! constructor->object-spec
-		(object-spec-constructor object-spec)
+                (object-spec-constructor object-spec)
 		object-spec))
 
   (for-each
@@ -3026,6 +3028,24 @@ Type: Actormap PersistenceEnv -> Void"
        (apply values restored-roots)]
        [(? integer? slot)
 	(hashq-ref slots->refrs slot)]))
+
+(define (actormap-restore-from-store! am env store)
+  "Reads portrait graph from STORE and restores into provided AM.
+
+Returns the root objects of the graph."
+  (define read-proc
+    (persistence-store-read-proc store))
+  (define-values (portraits slots)
+    (read-proc 'graph-and-slots))
+  (actormap-restore! am env portraits slots))
+
+(define (actormap-save-to-store! am env store . roots)
+  "Take portraits of ROOTS and save them into STORE"
+  (define save-proc
+    (persistence-store-save-proc store))
+  (define-values (portraits slots)
+    (apply actormap-take-portrait am env roots))
+  (save-proc 'save-graph portraits slots))
 
 (define (actor-name constructor)
   (match constructor
