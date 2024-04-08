@@ -70,7 +70,7 @@ Lets define one that just has our new shiny persistence @code{^cell}:
 @lisp
 (define my-env
   (make-persistence-env
-   `((((my-cool-scheme-project cell) ^cell) ,^cell)))
+   `((((my-cool-scheme-project cell) ^cell) ,^cell))))
 
 ;;    |-----------------------------------|  |------|
 ;;            this is the label/name          object
@@ -94,7 +94,7 @@ it's not actually saved to any store:
 
 (define memory-store (make-memory-store))
 (define-values (my-vat my-cell)
-  (spawn-persistence-vat
+  (spawn-persistent-vat
     my-env
     (lambda ()
       (spawn ^cell))
@@ -124,8 +124,8 @@ An interesting debugging tool we can use however is the vat command to
 inspect what the persistence data for a given object looks like:
 
 @lisp
-goblins[1]> ,take-object-portrait my-cell
-TODO: Add portrait data.
+goblins[1]> ,vat-take-object-portrait my-cell
+(apple)
 @end lisp
 
 So lets take a more advanced example of a persistent object. Lets
@@ -171,34 +171,27 @@ actually see this happen:
      [(kill) (bcom dead-beh)]))
   active-beh)
 
-goblins[1]> (define ship (spawn ^player-ship))
-goblins[1]> ,take-object-portrait ship
-TODO: fill in
+goblins[1]> (define ship (spawn ^player-ship 0 0))
+goblins[1]> ,vat-take-object-portrait ship
+(0 0)
 goblins[1]> ;; Lets tick the game loop and see if x changes
 goblins[1]> ($ ship 'tick)
-goblins[1]> ,take-object-portrait ship
-TODO: fill in
+goblins[1]> ,vat-take-object-portrait ship
+(0 0)
 goblins[1]> ($ ship 'kill)
-goblins[1]> ,take-object-portrait ship
-TODO: fill in
+goblins[1]> ,vat-take-object-portrait ship
+(0 0)
 @end lisp
 
 As we can see, initially it looked correct. We ticked it once and we
 checked to see what the persistence system would get and it didn't
-update, what's worse is then we tried to kill the ship and then we got
-an error when we tried to take its portrait!
+update, we then killed the ship and the portrait again didn't change,
+how will Goblins know the ship is no longer alive.
 
 The problem we're facing here is that we take two static initial x, y
 values into the object and that's what Goblins is seeing. We then
 spawn cells internally but these cells are not exposed to goblins and
 we're not updating them to bcom.
-
-@code{define-actor} will use the constructor to determine what data to
-store during the persistence. It does this by attaching a self
-portrait function to the returned behavior. When the player ship
-became the dead behavior, it removed that portrait function and so now
-the persistence player ship has been turned into a non-persistent
-player ship.
 
 So how can we write this with persistence aware? This player ship
 solves these problems:
@@ -217,6 +210,14 @@ solves these problems:
   (if active?
       active-beh
       dead-beh))
+
+goblins[1]> (define ship (spawn ^player-ship 0 0))
+goblins[1]> ,vat-take-object-portrait ship
+(0 0 #:active? #t)
+goblins[1]> ;; Lets tick the game loop and see if x changes
+goblins[1]> ($ ship 'tick)
+goblins[1]> ,vat-take-object-portrait ship
+(1 0 #:active? #t)
 @end lisp
 
 Instead of having internal cells we mutate, we just change the values
@@ -288,7 +289,7 @@ Okay, so that's bringing the cells back. Having a sort of ``state''
 flag passed into the object allows us to decide if the active or dead
 behavior should be returned, but there are other ways to do that. Lets
 look at an interesting one which uses Goblin's swappable library (for
-more information on this library @xref{TODO}):
+more information on this library, @xref{Swappable}):
 
 @lisp
 ;; Public constructor again, except this time spawning the swappable
