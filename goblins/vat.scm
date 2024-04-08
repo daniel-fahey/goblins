@@ -1216,7 +1216,7 @@ of events to retain in the log."
              (enq! process-queue changed-obj)))
          (transactormap-calculate-obj-delta new-am))
 
-	(while (not (q-empty? process-queue))
+        (while (not (q-empty? process-queue))
           (let ((obj (deq! process-queue)))
             (define-values (slot portrait new-child-objs)
               (read-portrait! new-am obj))

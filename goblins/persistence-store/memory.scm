@@ -28,7 +28,7 @@
               stored-roots)]
      [(object-portrait slot)
       (unless stored-portraits
-	(error "No portrait data has been stored yet"))
+        (error "No portrait data has been stored yet"))
       (hashq-ref stored-portraits slot)]))
       
   (define memory-save-proc
@@ -38,7 +38,7 @@
       (set! stored-roots roots)]
      [(save-delta delta-portraits)
       (unless (and stored-portraits stored-roots)
-	(error "No portrait data has been stored yet"))
+        (error "No portrait data has been stored yet"))
       (hash-for-each
        (lambda (key value)
          (hashq-set! stored-portraits key value))

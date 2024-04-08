@@ -2556,7 +2556,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 	       (object-spec-name object-spec)
 	       object-spec)
     (hashq-set! constructor->object-spec
-		(object-spec-constructor object-spec)
+                (object-spec-constructor object-spec)
 		object-spec))
 
   (for-each
