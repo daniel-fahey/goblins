@@ -94,8 +94,8 @@
             <persistence-env>
             _make-persistence-env
             persistence-env?
-	    persistence-env-constructor->object-spec
-	    persistence-env-name->object-spec
+            persistence-env-constructor->object-spec
+            persistence-env-name->object-spec
 
             <portraitized-behavior>
             portraitize
@@ -130,7 +130,7 @@
             redefinable-object-rehydrator
             set-redefinable-object-rehydrator!
 
-	    <persistence-store>
+            <persistence-store>
             make-persistence-store
             persistence-store-read-proc
             persistence-store-save-proc))

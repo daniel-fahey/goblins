@@ -39,36 +39,36 @@
 
 (define marshallers
   (list marshaller::portrait-record
-	marshaller::portrait-graph))
+        marshaller::portrait-graph))
 (define unmarshallers
   (list unmarshaller::portrait-record
-	unmarshaller::portrait-graph))
+        unmarshaller::portrait-graph))
 
 (define (read-depictions backing-file)
   (if (file-exists? backing-file)
       (call-with-input-file backing-file
-	(lambda (port)
-	  (define portrait-graph
-	    (syrup-read port #:unmarshallers unmarshallers))
-	  (unless (eq? (portrait-graph-version portrait-graph) current-data-version)
-	    (error "Portrait data is different version than supported"
-		   (portrait-graph-version portrait-graph)))
+        (lambda (port)
+          (define portrait-graph
+            (syrup-read port #:unmarshallers unmarshallers))
+          (unless (eq? (portrait-graph-version portrait-graph) current-data-version)
+            (error "Portrait data is different version than supported"
+                   (portrait-graph-version portrait-graph)))
 
-	  ;; Syrup writes both hash-table and ghash as syrup hashmaps
-	  ;; this is fine, but it has no way to know we want a hash-table
-	  ;; not a ghash in return and it picks ghash, lets convert.
-	  (define portraits-as-ghash
-	    (portrait-graph-portraits portrait-graph))
+          ;; Syrup writes both hash-table and ghash as syrup hashmaps
+          ;; this is fine, but it has no way to know we want a hash-table
+          ;; not a ghash in return and it picks ghash, lets convert.
+          (define portraits-as-ghash
+            (portrait-graph-portraits portrait-graph))
 
-	  (define portraits-as-hash-table
-	    (make-hash-table))
-	  (ghash-for-each
-	   (lambda (key value)
-	     (hashq-set! portraits-as-hash-table key value))
-	   portraits-as-ghash)
-	    
-	  (values portraits-as-hash-table
-		  (portrait-graph-slots portrait-graph))))
+          (define portraits-as-hash-table
+            (make-hash-table))
+          (ghash-for-each
+           (lambda (key value)
+             (hashq-set! portraits-as-hash-table key value))
+           portraits-as-ghash)
+            
+          (values portraits-as-hash-table
+                  (portrait-graph-slots portrait-graph))))
       (values #f #f)))
 (define (write-depictions backing-file portraits slots)
   (define portrait-graph
@@ -89,10 +89,10 @@
       (write-depictions backing-file portraits slots)]
      [(save-delta portraits)
       (unless (and saved-portraits saved-slots)
-	(error "Cannot save deltas until a whole graph has been stored first"))
+        (error "Cannot save deltas until a whole graph has been stored first"))
       (hash-for-each
        (lambda (slot new-portrait-data)
-	 (hashq-set! saved-portraits slot new-portrait-data))
+         (hashq-set! saved-portraits slot new-portrait-data))
        portraits)
       (write-depictions backing-file saved-portraits saved-slots)]))
 
@@ -102,7 +102,7 @@
       (values saved-portraits saved-slots)]
      [(object-portrait slot)
       (unless (and saved-portraits saved-slots)
-	(error "Cannot read an object from an empty store"))
+        (error "Cannot read an object from an empty store"))
       (hashq-ref saved-portraits slot)]))
   
   (make-persistence-store read-proc write-proc))

@@ -22,9 +22,9 @@
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
   #:export (spawn-sealer-triplet
-	    make-spawn-sealer-triplet
-	    default-sealers-alist
-	    sealers-env))
+            make-spawn-sealer-triplet
+            default-sealers-alist
+            sealers-env))
 
 ;; When persisting sealers, we need to make sure they persist and
 ;; restore with the same sealer triplet maker. To do this we need to
@@ -41,7 +41,7 @@
    alist))
 
 (define* (make-spawn-sealer-triplet namespace known-sealers
-				    #:optional default-make-sealer-triplet)
+                                    #:optional default-make-sealer-triplet)
   "Make a spawn-sealer-triplet for a given set of known sealers
 
 The actor-lib sealer system is built to be flexible to allow for
@@ -96,8 +96,8 @@ provided."
     
     (lambda (sealed-value)
       (if (local-object-refr? sealed-value)
-	  (unseal-it sealed-value)
-	  (on sealed-value unseal-it #:promise? #t))))
+          (unseal-it sealed-value)
+          (on sealed-value unseal-it #:promise? #t))))
 
   (define-actor (^sealed? _bcom triplet)
     #:frozen
@@ -107,11 +107,11 @@ provided."
 
     (lambda (maybe-sealed)
       (if (promise-refr? maybe-sealed)
-	  (on maybe-sealed is-sealed? #:promise? #t)
-	  (is-sealed? maybe-sealed))))
+          (on maybe-sealed is-sealed? #:promise? #t)
+          (is-sealed? maybe-sealed))))
   
   (define* (spawn-sealer-triplet #:optional name
-				 #:key (make-sealer-triplet default-make-sealer-triplet))
+                                 #:key (make-sealer-triplet default-make-sealer-triplet))
     "Return seal, unseal, and check capabilities.
 
 The optional NAME argument is the name of the record type when printed by the
@@ -130,7 +130,7 @@ Type: (Optional (U String Symbol))
 
     (values (spawn-named 'sealer ^sealer sealer-triplet)
             (spawn-named 'unsealer ^unsealer sealer-triplet)
-	    (spawn-named 'sealed? ^sealed? sealer-triplet)))
+            (spawn-named 'sealed? ^sealed? sealer-triplet)))
   
   (define sealers-env
     (make-persistence-env

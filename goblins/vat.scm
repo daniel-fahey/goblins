@@ -100,9 +100,9 @@
             spawn-fibrous-vow
             fibrous
 
-	    spawn-persistent-vat
-	    vat-take-portrait!
-	    vat-take-single-object-portrait
+            spawn-persistent-vat
+            vat-take-portrait!
+            vat-take-single-object-portrait
 
             define-vat-run
 
@@ -187,7 +187,7 @@
 ;; lot of stuff, it's broken into its own record.
 (define-record-type <vat-persistence>
   (make-vat-persistence persistence-environ persist-on store
-			read-portrait! val->slot-ref roots)
+                        read-portrait! val->slot-ref roots)
   vat-persistence-env?
   ;; This is a <persistence-env> with all objects in the graph.
   (persistence-environ vat-persistence-environ set-vat-persistence-environ!)
@@ -198,10 +198,10 @@
   (store vat-persistence-store)
   ;; This is a function we get from core.scm to persist a single object.
   (read-portrait! vat-persistence-read-portrait!
-		    set-vat-persistence-read-portrait!)
+                    set-vat-persistence-read-portrait!)
   ;; This is a function we get from core.scm to lookup the slot for a refr.
   (val->slot-ref vat-persistence-val->slot-ref
-		 set-vat-persistence-val->ref!)
+                 set-vat-persistence-val->ref!)
   ;; The root objects in the graph.
   (roots vat-persistence-roots set-vat-persistence-roots!))
 
@@ -1171,9 +1171,9 @@ of events to retain in the log."
   (define roots
     (if (and portraits root-slots)
         (call-with-values
-	    (lambda ()
-	      (actormap-restore! vat-am persistence-env portraits root-slots))
-	  list)
+            (lambda ()
+              (actormap-restore! vat-am persistence-env portraits root-slots))
+          list)
         (with-vat vat
           (call-with-values spawn-roots-thunk list))))
 
@@ -1228,10 +1228,10 @@ of events to retain in the log."
             (hash-for-each
              (lambda (obj _val)
                (unless (memq obj (car process-queue))
-		 (enq! process-queue obj)))
+                 (enq! process-queue obj)))
              new-child-objs)))
 
-	(save-portraits! 'save-delta slot->portraits)))))
+        (save-portraits! 'save-delta slot->portraits)))))
 
 (define (vat-take-single-object-portrait vat refr)
   (define persistence-env

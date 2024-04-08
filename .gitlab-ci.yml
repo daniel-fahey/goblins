@@ -2,6 +2,7 @@ image: registry.gitlab.com/spritely/guile-goblins:latest
 
 stages:
   - build
+  - lint
 
 unit-tests:
   stage: build
@@ -28,3 +29,10 @@ perf-tests:
   artifacts:
     reports:
       metrics: 'perf-metrics.txt'
+
+no-tabs-please:
+  stage: lint
+  script:
+    - FOUND_TABS=0
+    - find . -name \*.scm | xargs grep $'\t' && FOUND_TABS=1
+    - exit $FOUND_TABS

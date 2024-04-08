@@ -52,9 +52,9 @@
 (test-assert "Check data method returns a hash with all the values in"
   (let ((data (actormap-peek am ghash 'data)))
     (and (ghash? data)
-	 (eq? (ghash-ref data 'my-key) 'my-value)
-	 (eq? (ghash-ref data 'foobar) 'baz)
-	 (eq? (ghash-length data) 2))))
+         (eq? (ghash-ref data 'my-key) 'my-value)
+         (eq? (ghash-ref data 'foobar) 'baz)
+         (eq? (ghash-length data) 2))))
 
 (actormap-poke! am ghash 'remove 'my-key)
 (test-assert

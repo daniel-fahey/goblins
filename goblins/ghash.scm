@@ -46,16 +46,16 @@
 
             hash-table->ghash
 
-	    make-gset
+            make-gset
             gset?
             gset-add
             gset-remove
-	    gset-length
+            gset-length
             gset->list
             gset-member?
-	    
-	    gset-fold
-	    gset-for-each))
+            
+            gset-fold
+            gset-for-each))
 
 
 (define-record-type <ghash>
@@ -169,21 +169,21 @@
     (fold
      (lambda (item vh)
        (define-values (add assoc)
-	 (if (or (live-refr? item) (symbol? item))
-	     (values vhash-consq vhash-assoc)
-	     (values vhash-cons vhash-assq)))
+         (if (or (live-refr? item) (symbol? item))
+             (values vhash-consq vhash-assoc)
+             (values vhash-cons vhash-assq)))
        ;; Ensure it's unique to the set
        (if (assoc item vh)
-	   vh
-	   (add item #t vh)))
+           vh
+           (add item #t vh)))
      vlist-null items))
   (_make-gset vh))
 
 (define (gset-add set item)
   (define add
     (if (or (live-refr? item) (symbol? item))
-	vhash-consq
-	vhash-cons))
+        vhash-consq
+        vhash-cons))
   (if (gset-member? set item)
       set
       (_make-gset (add item #t (_set-ht set)))))
@@ -191,8 +191,8 @@
 (define (gset-remove set item)
   (define del
     (if (or (live-refr? item) (symbol? item))
-	vhash-delq
-	vhash-delete))
+        vhash-delq
+        vhash-delete))
   (_make-gset (del item (_set-ht set))))
 
 (define (gset-fold proc init set)
@@ -219,8 +219,8 @@
 (define (gset-member? set key)
   (define assoc
     (if (or (live-refr? key) symbol? key)
-	vhash-assq
-	vhash-assoc))
+        vhash-assq
+        vhash-assoc))
   
   (match (assoc key (_set-ht set))
     [(_val . #t) #t]

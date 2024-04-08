@@ -22,7 +22,7 @@
   #:use-module (goblins actor-lib methods)
   #:export (^seteq
             ^ghash
-	    common-env))
+            common-env))
 
 ;; And the rest, eventually...
 (define (^seteq bcom . initial)
@@ -38,13 +38,13 @@ Methods:
     (define main-beh
       (methods
        [(add val)
-	(bcom (seteq (vhash-consq val #t vh)))]
+        (bcom (seteq (vhash-consq val #t vh)))]
        [(remove val)
-	(bcom (seteq (vhash-delq val vh)))]
+        (bcom (seteq (vhash-delq val vh)))]
        [(member? val)
-	(and (vhash-assq val vh) #t)]
+        (and (vhash-assq val vh) #t)]
        [(as-list)
-	(vhash-fold (lambda (k v lst)
+        (vhash-fold (lambda (k v lst)
                       (cons k lst))
                     (list)
                     vh)]))
@@ -54,8 +54,8 @@ Methods:
   (define vh
     (fold (lambda (i vh)
             (vhash-consq i #t vh))
-	  vlist-null
-	  initial))
+          vlist-null
+          initial))
   (seteq vh))
 
 (define-actor (^ghash bcom #:optional [ht ghash-null])

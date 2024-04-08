@@ -100,8 +100,8 @@
     250
     (actormap-peek am payment-for-bob 'get-balance))
   (let-values (((am* mint* alice-purse* bob-purse* payment-for-bob*)
-		(persist-and-restore am mint-env mint alice-purse
-				     bob-purse payment-for-bob)))
+                (persist-and-restore am mint-env mint alice-purse
+                                     bob-purse payment-for-bob)))
     ;; We've been restored, continue off where we were with the payments!
     (actormap-poke! am* bob-purse* 'deposit 250 payment-for-bob*)
     (test-equal "the payment purse is now empty"

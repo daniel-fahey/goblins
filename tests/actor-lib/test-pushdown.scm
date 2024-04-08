@@ -31,14 +31,14 @@
 
 (define first-actor
   (actormap-poke! am pd-stack 'spawn-push
-		  ^actor 'first 'foo))
+                  ^actor 'first 'foo))
 (test-equal "Pushdown forwarder sends to first actor if only one on stack"
  `(first #f foo bar)
  (actormap-poke! am pd-forwarder 'bar))
 
 (define second-actor
   (actormap-poke! am pd-stack 'spawn-push
-		  ^actor 'second 'foo2))
+                  ^actor 'second 'foo2))
 (test-equal "Pushdown forwarder sends to second actor once pushed onto stack"
  `(second ,first-actor foo2 bar2)
  (actormap-poke! am pd-forwarder 'bar2))
@@ -63,10 +63,10 @@
   (actormap-run! am spawn-pushdown-pair))
 (define first-actor
   (actormap-poke! am pd-stack 'spawn-push
-		  ^actor 'first 'foo))
+                  ^actor 'first 'foo))
 (define second-actor
   (actormap-poke! am pd-stack 'spawn-push
-		  ^actor 'second 'foo2))
+                  ^actor 'second 'foo2))
 (define env
   (make-persistence-env
    `((((tests actor-lib test-pushdown) ^actor) ,^actor))

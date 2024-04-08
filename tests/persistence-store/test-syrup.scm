@@ -9,8 +9,8 @@
 (define-actor (^greeter bcom our-name #:optional [called 0])
   (lambda (their-name)
     (bcom (^greeter bcom our-name (+ 1 called))
-	  (format #f "Hello ~a, my name is ~a (called: ~a)"
-		  their-name our-name called))))
+          (format #f "Hello ~a, my name is ~a (called: ~a)"
+                  their-name our-name called))))
 
 (define env
   (make-persistence-env

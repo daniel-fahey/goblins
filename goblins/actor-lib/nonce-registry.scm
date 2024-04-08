@@ -23,7 +23,7 @@
   #:use-module (goblins utils assert-type)
   #:use-module (goblins utils crypto)
   #:export (spawn-nonce-registry-and-locator
-	    nonce-registry-env))
+            nonce-registry-env))
 
 (define (make-swiss-num)
   (gen-random-bv 32 %gcry-strong-random))
@@ -74,7 +74,7 @@ Nonce-Locator Methods:
 
 Type: -> (Values Nonce-Registry Nonce-Locator)"
   (let* ((registry (spawn-named 'nonce-registry ^nonce-registry))
-	 (locator (spawn-named 'nonce-locator ^nonce-locator registry)))
+         (locator (spawn-named 'nonce-locator ^nonce-locator registry)))
     (values registry locator)))
 
 (define nonce-registry-env

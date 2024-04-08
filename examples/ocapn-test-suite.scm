@@ -38,7 +38,7 @@
     (define cars
       (map
        (lambda (car-spec)
-	       (apply spawn ^car car-spec))
+               (apply spawn ^car car-spec))
        car-specs))
     (apply values cars)))
 
