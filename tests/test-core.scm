@@ -801,7 +801,7 @@
 			   #:optional
 			   got-number got-symbol got-list
 			   got-keyword got-zilch got-tagged
-			   got-string got-bv got-bool
+			   got-string got-char got-bv got-bool
 			   got-unspecified got-vector
 			   got-gset got-ghash got-dotted
 			   got-near-refr
@@ -822,6 +822,7 @@
   (define my-list (list 1 2 3 zilch))
   (define bv (make-bytevector 10 10))
   (define string "tada 🪄")
+  (define char #\a)
   (define keyword #:i-am-a-keyword)
   (define tagged (make-tagged 'foo supplied-refr))
   (define bool #t)
@@ -837,6 +838,7 @@
 	 (eq? got-zilch zilch)
 	 (equal? got-tagged (make-tagged 'foo restored-refr))
 	 (string=? got-string string)
+	 (char=? got-char char)
 	 (equal? got-bv bv)
 	 (eq? got-bool bool)
 	 (unspecified? got-unspecified)
@@ -851,8 +853,8 @@
   (define (self-portrait)
     (list #f
 	  number symbol my-list keyword zilch
-	  tagged string bv bool *unspecified*
-	  my-vector gset ghash dotted
+	  tagged string char bv bool
+	  *unspecified* my-vector gset ghash dotted
 	  supplied-refr refr-vow encased-vow))
   (portraitize main-beh self-portrait))
 (define env
