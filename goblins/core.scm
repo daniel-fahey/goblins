@@ -1214,7 +1214,9 @@ Type: Any -> Boolean"
       ;; Not a callable mactor!
       [_other
        (error 'not-callable
-              "Not an encased or object mactor:" mactor)]))
+              "Not callable with $ or from toplevel <-:"
+              'to-refr: to-refr 'args: args
+              'mactor: mactor)]))
 
   ;; spawn a new actor
   (define (_spawn maybe-constructor args debug-name)
