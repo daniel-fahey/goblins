@@ -19,6 +19,7 @@
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
   #:use-module (goblins ghash)
+  #:use-module (goblins ocapn ids)
   #:use-module (ice-9 match)
   #:use-module (rnrs bytevectors)
   #:use-module (srfi srfi-64)
@@ -806,7 +807,8 @@
                            got-gset got-ghash got-dotted
                            got-near-refr
                            got-promise-to-refr
-                           got-promise-to-value)
+                           got-promise-to-value
+                           got-ocapn-node got-ocapn-sref)
   ;; Make the promises
   (define-values (refr-vow refr-resolver)
     (spawn-promise-values))
@@ -829,6 +831,15 @@
   (define gset (make-gset 1 2 3 'foo 'bar 'baz "Hello"))
   (define ghash (ghash-set (make-ghash) 'banana 'yellow))
   (define dotted '(1 2 3 4 . zilch))
+  (define ocapn-node
+    (make-ocapn-node
+     'fake
+     "4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"
+     '((name "test 1"))))
+  (define ocapn-sref
+    (make-ocapn-sturdyref
+     ocapn-node
+     #vu8(74 174 136 226 211 114 92 53 153 139 168 28 82 26 52 183 107 50 123 83 116 61 247 240 172 189 77 35 75 63 51 162)))
 
   (define (main-beh restored-refr)
     (and (eq? got-number number)
@@ -848,14 +859,17 @@
          (equal? ghash got-ghash)
          (equal? dotted got-dotted)
          (live-refr? got-promise-to-refr)
-         (eq? ($ encased-vow) ($ got-promise-to-value))))
+         (eq? ($ encased-vow) ($ got-promise-to-value))
+         (equal? ocapn-node got-ocapn-node)
+         (equal? ocapn-sref got-ocapn-sref)))
 
   (define (self-portrait)
     (list #f
           number symbol my-list keyword zilch
           tagged string char bv bool
           *unspecified* my-vector gset ghash dotted
-          supplied-refr refr-vow encased-vow))
+          supplied-refr refr-vow encased-vow
+          ocapn-node ocapn-sref))
   (portraitize main-beh self-portrait))
 (define env
   (make-persistence-env

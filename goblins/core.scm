@@ -147,7 +147,8 @@
   #:use-module (rnrs bytevectors)
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
-  #:use-module (goblins ghash))
+  #:use-module (goblins ghash)
+  #:use-module (goblins ocapn ids))
 
 
 ;;; Utilities (which should be moved to their own modules)
@@ -2703,6 +2704,8 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                       (hashq-set! new-child-objs inner #t))
                     (make-portrait-record 'near slot))
                   (make-portrait-record 'encase inner)))))]
+        [(? ocapn-id?)
+         (make-portrait-record 'ocapn-id (ocapn-id->string value))]
         [_ (error "Unserializable value!" 'value: value 'obj this-obj)]))
     
     (define (process-portrait obj-spec portrait-data)
@@ -2974,6 +2977,7 @@ Type: Actormap PersistenceEnv -> Void"
                 (let-values (((vow resolver) (spawn-promise-values)))
                   ($ resolver 'fulfill (restore-one data))
                   vow)]
+               ['ocapn-id (string->ocapn-id data)]
            [_ (error "Unknown depiction type" type)]))]
           [(? ghash?)
            (ghash-fold
