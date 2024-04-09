@@ -612,7 +612,7 @@ of the object graph to be persisted.
 
 @item
 @var{store}: The store that persistence data will be read and written
-to (TODO: Link to store section).
+to @xref{Persistence stores}.
 
 @item
 @var{persist-on}: If @code{'churn} will persist on churns, otherwise
@@ -802,4 +802,49 @@ will be converted.
 @node Persistence stores
 @section Persistence stores
 
-TODO
+Persistence stores are an abstraction used primarily for vats, however
+they can also be used with actormaps too. They are used to save and
+retrieve data from different backing stores and other storage
+mechanisms.
+
+Currently Goblins provides two stores, the first is an in memory store
+where nothing is persisted and the second is a syrup store, which
+reads and writes to files, serializing the data in the Syrup
+serialization format.
+
+Note: Stores are currently not designed in a thread safe mannor so
+care should be taken to ensure they are only accessed by one vat.
+
+@node Memory Store
+@subsection Memory Store
+
+The memory store keeps everything within memory and does not persist
+it. This is mostly good for testing.
+
+The memory store can be found in @code{(goblins persistence-store
+memory)}.
+
+@deffn {Procedure} make-memory-store
+
+Returns a memory store.
+
+@end deffn
+
+@node Syrup Store
+@subsection Syrup Store
+
+This provides a persistent storage mechanism which serializes the data
+to a file in syrup format.
+
+The memory store can be found in @code{(goblins persistence-store
+syrup)}.
+
+More informaiton about the Syrup serialization format can be found
+here: @uref{https://github.com/ocapn/syrup}
+
+@deffn {Procedure} make-syrup-store backing-filename
+
+Returns a syrup store which stores the data in a file specified in
+@var{backing-file}.
+
+@end deffn
