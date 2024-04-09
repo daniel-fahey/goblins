@@ -772,6 +772,45 @@ rival service:
 
 @end deffn
 
+@deffn {Procedure} make-spawn-sealer-triplet namespace known-sealers
+                                             [default-make-sealer-triplet]
+
+Returns two values, the first is a @code{spawn-sealer-triplet}
+function setup with a set of custom sealers and the second is a
+persistence environment for Goblins' persistence system.
+
+@var{namespace} is a atomic value which must uniquely identify this
+set of sealers within the object graph.
+
+@var{known-sealers} is an alist mapping a unique name to a thunk which
+returns three values (sealer function, unsealer function and trademark
+function).
+
+@var{default-make-sealer-triplet} specifies what the default
+make-sealer-triplet function is used when none is specified.
+
+If a custom sealer triplet is provided to the returned
+@code{spawn-sealer-triplet} function without being specified in the
+@var{known-sealers} alist, an error will be thrown.
+
+@lisp
+(define* (my-custom-sealer-triplet #:optional name)
+  (define-record-type <custom-sealers>
+    (seal val)
+    sealed?
+    (val unseal))
+  (values seal unseal sealed?))
+
+(define custom-sealers-list
+  `(((ward-sealer-triplet) . ,my-custom-sealer-triplet)))
+
+(define-values (custom-spawn-sealer-triplet custom-sealer-env)
+  (make-spawn-sealer-triplet '(my-library sealers) custom-sealers-list
+			     #:default-make-sealer-triplet my-custom-sealer-triplet))
+@end lisp
+
+@end deffn
+
 @defvr {Persistence Environment} sealers-env
 @end defvr
 
