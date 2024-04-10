@@ -66,6 +66,10 @@
             vat-envelope-timestamp
             vat-envelope-return?
 
+            make-vat-system-operation
+            vat-system-operation?
+            vat-system-operation-proc
+
             all-vats
             lookup-vat
             make-vat
@@ -95,6 +99,8 @@
             make-fibrous-vat
             spawn-fibrous-vat
             spawn-vat
+
+            call-system-op-with-vat
 
             syscaller-free-fiber
             spawn-fibrous-vow
@@ -571,6 +577,11 @@ like this:
   (timestamp vat-envelope-timestamp)
   (return? vat-envelope-return?))
 
+(define-record-type <vat-system-operation>
+  (make-vat-system-operation proc)
+  vat-system-operation?
+  (proc vat-system-operation-proc))
+
 (define-record-type <vat>
   (%make-vat id name actormap running connector current-churn
              clock logging? log start-proc halt-proc send-proc
@@ -823,36 +834,46 @@ Type: Vat -> Void"
          (newline (current-error-port))
          (abort (handler exn)))
        (with-exception-handler handle-error thunk))))
+  (define (churn-message msg sent-at)
+    (define-values (returned new-actormap)
+      (vat-churn vat msg sent-at))
+    (maybe-merge returned new-actormap)
+    returned)
   (define (churn envelope)
     (call-with-error-handling
      (lambda ()
        (let* ((msg-or-proc (vat-envelope-message envelope))
-              (sent-at (vat-envelope-timestamp envelope))
-              (msg
-               (match msg-or-proc
-                 ;; special case, we're asking to "run" a specific
-                 ;; procedure for call-with-vat
-                 ((? procedure? thunk)
-                  ;; The user provided thunk is going to be called
-                  ;; asynchronously within a vat turn, likely in another thread,
-                  ;; which makes handling multiple return values tricky.  To
-                  ;; make things easy for vat implementations, we wrap up all of
-                  ;; the original thunk's return values into a list so there's
-                  ;; only a single value to pass back.  Here in the caller's
-                  ;; thread, the list gets converted back into multiple return
-                  ;; values.
-                  (define (multi-value-thunk)
-                    (call-with-values thunk list))
-                  ;; Spawn a throwaway actor whose behavior is just to apply the
-                  ;; thunk.
-                  (define refr (actormap-spawn! actormap ^call-with-vat
-                                                multi-value-thunk))
-                  (make-message (vat-connector vat) refr #f '()))
-                 (_ msg-or-proc))))
-         (define-values (returned new-actormap)
-           (vat-churn vat msg sent-at))
-         (maybe-merge returned new-actormap)
-         returned))
+              (sent-at (vat-envelope-timestamp envelope)))
+         (match msg-or-proc
+           ;; Special case, we're asking to "run" a specific
+           ;; procedure for call-with-vat
+           ((? procedure? thunk)
+            ;; The user provided thunk is going to be called
+            ;; asynchronously within a vat turn, likely in another thread,
+            ;; which makes handling multiple return values tricky.  To
+            ;; make things easy for vat implementations, we wrap up all of
+            ;; the original thunk's return values into a list so there's
+            ;; only a single value to pass back.  Here in the caller's
+            ;; thread, the list gets converted back into multiple return
+            ;; values.
+            (define (multi-value-thunk)
+              (call-with-values thunk list))
+            ;; Spawn a throwaway actor whose behavior is just to apply the
+            ;; thunk.
+            (define refr (actormap-spawn! actormap ^call-with-vat
+                                          multi-value-thunk))
+            (define msg
+              (make-message (vat-connector vat) refr #f '()))
+            (churn-message msg sent-at))
+           ;; A "system" operation is a special kind which permits operating on
+           ;; the vat's low-level actormap and possibly other features directly.
+           ((? vat-system-operation? system-op)
+            (define system-op-proc
+              (vat-system-operation-proc system-op))
+            (system-op-proc vat))
+           ;; The usual case.
+           (msg
+            (churn-message msg sent-at)))))
      (lambda (exn)
        `#(fail ,exn))))
   (unless (atomic-box-ref running?)
@@ -878,6 +899,12 @@ Type: Vat (-> Any) -> Any"
         (#('ok vals) (apply values vals))
         (#('fail err) (raise-exception err)))
       (error "vat is not running" vat)))
+
+(define (call-system-op-with-vat vat system-op-proc)
+  (define envelope
+    (make-vat-envelope (make-vat-system-operation system-op-proc)
+                       0 #t))
+  (vat-send vat envelope))
 
 (define-syntax-rule (with-vat vat body ...)
   ;;; Evaluate BODY in the context of VAT and return resulting values.
