@@ -25,9 +25,9 @@ upgrade and live hacking.
 When writing goblins code without considering persistence, we simply
 define a outer lambda (the constructor, usually ^my-constructor) and
 an inner lambda (the behavior) that's invoked when the object is sent
-messages. Persistence capable objects are a little different, they do
+messages. Persistence capable objects are a little different; they do
 still follow this general pattern, but they need to provide a way to
-describe themselves. Fortunatelly goblins provides a macro called
+describe themselves. Fortunately goblins provides a macro called
 @code{define-actor} which makes this easier (if you're doing something
 more advanced where the macro is unsuitable, or simply prefer not
 using it, @xref{Persistence capable objects}).
@@ -55,15 +55,15 @@ change it to @code{define-actor}:
      (bcom (^cell bcom new-val)))))
 @end lisp
 
-And it's done! Lets try it out. To use the persistent tooling, you
-need to actually define a persistence environment. What is this extra
-thing I hear you ask?
+And it's done! Lets try it out. To use the persistence tooling, you
+need to define a persistence environment. What is this extra thing I
+hear you ask?
 
-In short, when Goblins serializes all the graphs in the graph it needs
-to take them from scheme procedures (which can't be serialized) to
-something else. It does this by storing them with a name/label and the
-data the actor told Goblins it wanted. The persistence environment is
-simply a mapping between name/label <=> object type.
+In short, when Goblins serializes all the objects in the graph it
+needs to take them from scheme procedures (which can't be serialized)
+to something else. It does this by storing them with a name/label and
+the data the actor told Goblins it wanted. The persistence environment
+is simply a mapping between name/label <=> object type.
 
 Lets define one that just has our new shiny persistence @code{^cell}:
 
@@ -80,13 +80,13 @@ Just remember the label/name should be unique within the object graph,
 or you'll get into quite the pickle (for more information, see
 @xref{Persistence Environments}).
 
-The persistence tools works with both actormaps and vats (they use the
+The persistence tools work with both actormaps and vats (they use the
 same tooling even as vats are built on actormaps). When we use vats we
 need to specify a store which is basically a place for the vat to save
 the serialized data to or find it when it starts back up.
 
-For this example lets just use the memory store, this is ephemeral and
-it's not actually saved to any store:
+For this example lets just use the memory store, which is ephemeral and
+is not actually saved to any long-term storage:
 
 @lisp
 (use-modules (goblins)
@@ -101,7 +101,7 @@ it's not actually saved to any store:
     memory-store))
 @end lisp
 
-Hold on, did we just spawn our object along side spawning the vat?
+Hold on, did we just spawn our object alongside spawning the vat?
 
 Yes we did, we don't need to do it for all the objects in the graph,
 just the roots. When we call @code{spawn-persistence-vat} it checks in
@@ -239,10 +239,10 @@ constructor and then Goblins will be able to see that, but then we
 loose some of the old erganomics and interface of the object, users
 would have to manually spawn these cells.
 
-There are two solutions to continue to use cells but keep the old
-interface, here are them both:
+Here's a solution to continue to use cells but keep the old interface:
+
 @lisp
-;; IMPORTANT: note this is now ^player-ship* not, ^player-ship.
+;; IMPORTANT: note this is now ^player-ship* not ^player-ship.
 (define-actor (^player-ship* bcom x y #:key [active? #t])
   (define (dead-beh)
     (error "I'm already dead!"))
@@ -257,19 +257,10 @@ interface, here are them both:
       active-beh
       dead-beh))
 
-;; Option 1:
 (define (^player-ship bcom x y)
-  (^player-ship bcom
-		(spawn ^cell x)
-		(spawn ^cell y)))
-
-;; Option 2:
-(define (^player-ship bcom x y)
-  (spawn ^player-ship
-	 bcom
-	 (spawn ^cell x)
-	 (spawn ^cell y)))
-
+  (spawn ^player-ship*
+         (spawn ^cell x)
+         (spawn ^cell y)))
 @end lisp
 
 This has a pattern of having a sort of ``public'' constructor which
@@ -278,12 +269,10 @@ off to a ``real'' or ``internal'' constructor for the actor. In this
 case the public version both prevents a user spawning a dead ship to
 begin with and handles the cellification of the x and y coordinates.
 
-But what's the difference between the two options? Normally in Goblins
-an object returns behavior from the constructor, you can however
-return a refr to another object and Goblins will instead of creating a
-new object with spawn, simply return the refr returned by the object's
-constructor. There isn't much difference between them, but it is
-useful to know.
+Normally in Goblins an object returns behavior as a procedure from the
+constructor, however you can return a refr to another object and
+Goblins will instead of creating a new object with spawn, simply
+return the refr returned by the object's constructor.
 
 Okay, so that's bringing the cells back. Having a sort of ``state''
 flag passed into the object allows us to decide if the active or dead
@@ -302,9 +291,9 @@ more information on this library, @xref{Swappable}):
     (swappable (spawn (lambda _ (lambda _ 'noop)))))
   ($ beh-swapper (spawn ^player-ship:ALIVE beh-swapper))
   (spawn ^player-ship*
-	 (spawn ^cell x)
-	 (spawn ^cell y)
-	 beh-proxy))
+         (spawn ^cell x)
+         (spawn ^cell y)
+         beh-proxy))
 
 ;; The behavior and state for the alive player ship
 (define-actor (^player-ship:ALIVE bcom x y swapper)
@@ -317,14 +306,14 @@ more information on this library, @xref{Swappable}):
 
 ;; The behavior and state for the dead player ship
 (define-actor (^player-ship:DEAD bcom x y swapper
-				 #:optional [countdown 30])
+                                 #:optional [countdown 30])
   (methods
    [(tick)
     ;; When dead instead of moving, just wait until the countdown
     ;; has reached zero and then swap to alive.
     (if (zero? countdown)
-	($ swapper (spawn ^player-ship:ALIVE x y swapper))
-	(bcom (^player-ship:DEAD bcom x y swapper (- countdown 1))))]
+        ($ swapper (spawn ^player-ship:ALIVE x y swapper))
+        (bcom (^player-ship:DEAD bcom x y swapper (- countdown 1))))]
    [(x) ($ x)]
    [(y) ($ y)]
    [(fire) 'noop]   ;; cannot fire when dead
