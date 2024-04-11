@@ -1124,7 +1124,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
    '()
    delta-obj-map))
 
-(define (vat-take-portrait! vat)
+(define (vat-take-portrait!* vat)
   (define persistence-env
     (vat-persistence-env vat))
   (unless (and persistence-env
@@ -1151,6 +1151,9 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
   (define save-portrait-in-store!
     (persistence-store-save-proc store))
   (save-portrait-in-store! 'save-graph slot->portrait root-slots))
+
+(define (vat-take-portrait! vat)
+  (call-system-op-with-vat vat vat-take-portrait!*))
 
 (define* (spawn-persistent-vat persistence-env spawn-roots-thunk store
                                #:key (persist-on 'churn)
@@ -1185,9 +1188,6 @@ of events to retain in the log."
      #:log? log?
      #:log-capacity log-capacity))
 
-  (define vat-am
-    (vat-actormap vat))
-
   ;; We should either restore from the data in the store if that exists,
   ;; or we should spawn the roots by using `spawn-roots-lambda'.
   (define read-from-store
@@ -1197,24 +1197,29 @@ of events to retain in the log."
 
   (define roots
     (if (and portraits root-slots)
-        (call-with-values
-            (lambda ()
-              (actormap-restore! vat-am persistence-env portraits root-slots))
-          list)
+        (call-system-op-with-vat
+         vat (lambda (vat)
+               (define vat-am
+                 (vat-actormap vat))
+               (call-with-values
+                   (lambda ()
+                     (actormap-restore! vat-am persistence-env portraits root-slots))
+                 list)))
         (with-vat vat
           (call-with-values spawn-roots-thunk list))))
 
   (define-values (read-portrait! val->slot-ref)
     (make-actormap-read-portrait! persistence-env roots))
 
-  ;; Setup the persistent environment
-  (set-vat-persistence-read-portrait! vat-persistence read-portrait!)
-  (set-vat-persistence-val->ref! vat-persistence val->slot-ref)
-  (set-vat-persistence-roots! vat-persistence roots)
+  (call-system-op-with-vat
+   vat (lambda (vat)
+         ;; Setup the persistent environment
+         (set-vat-persistence-read-portrait! vat-persistence read-portrait!)
+         (set-vat-persistence-val->ref! vat-persistence val->slot-ref)
+         (set-vat-persistence-roots! vat-persistence roots)
 
-  ;; Finally, lets take the first vat portrait
-  (with-vat vat
-    (vat-take-portrait! vat))
+         ;; Finally, lets take the first vat portrait
+         (vat-take-portrait!* vat)))
 
   (apply values vat roots))
 
@@ -1261,30 +1266,32 @@ of events to retain in the log."
         (save-portraits! 'save-delta slot->portraits)))))
 
 (define (vat-take-single-object-portrait vat refr)
-  (define persistence-env
-    (vat-persistence-env vat))
-  (unless persistence-env
-    (error "Cannot get portrait in a non-persistent capable vat" vat))
+  (define (take-object-portrait vat)
+    (define persistence-env
+      (vat-persistence-env vat))
+    (unless persistence-env
+      (error "Cannot get portrait in a non-persistent capable vat" vat))
 
-  (define environ
-    (vat-persistence-environ persistence-env))
-  (define am
-    (vat-actormap vat))
+    (define environ
+      (vat-persistence-environ persistence-env))
+    (define am
+      (vat-actormap vat))
 
-  ;; Because we are not committing this, we don't want to use
-  ;; the standard "read-portrait" functions we normally would
-  ;; we should get the self-portrait function and just give
-  ;; that data.
-  (define get-self-portrait
-    (@@ (goblins core) mactor:object-self-portrait))
-  (define mactor
-    (actormap-ref am refr))
+    ;; Because we are not committing this, we don't want to use
+    ;; the standard "read-portrait" functions we normally would
+    ;; we should get the self-portrait function and just give
+    ;; that data.
+    (define get-self-portrait
+      (@@ (goblins core) mactor:object-self-portrait))
+    (define mactor
+      (actormap-ref am refr))
 
-  (unless mactor
-    (error "refr not found in vat" refr))
-  (define take-self-portrait
-    (get-self-portrait mactor))
-  (take-self-portrait))
+    (unless mactor
+      (error "refr not found in vat" refr))
+    (define take-self-portrait
+      (get-self-portrait mactor))
+    (take-self-portrait))
+  (call-system-op-with-vat vat take-object-portrait))
 
 ;; An example to test against, wip
 #;(run-fibers
