@@ -1061,4 +1061,9 @@
   6
   (hash-count (const #t) portraits))
 
+(test-equal "call-system-op-with-vat gets vat"
+  (list 'got-vat a-vat)
+  (call-system-op-with-vat
+   a-vat (lambda (vat) (list 'got-vat vat))))
+
 (test-end "test-vat")
