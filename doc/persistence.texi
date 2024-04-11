@@ -157,6 +157,8 @@ seem like it worked, but it actually has some big problems. Let's
 actually see this happen:
 
 @lisp
+(use-modules (goblins actor-lib methods))
+
 (define-actor (^player-ship bcom init-x init-y)
   (define x (spawn ^cell init-x))
   (define y (spawn ^cell init-y))
@@ -242,6 +244,8 @@ would have to manually spawn these cells.
 Here's a solution to continue to use cells but keep the old interface:
 
 @lisp
+(use-modules (goblins actor-lib cell))
+
 ;; IMPORTANT: note this is now ^player-ship* not ^player-ship.
 (define-actor (^player-ship* bcom x y #:key [active? #t])
   (define (dead-beh)
@@ -261,6 +265,13 @@ Here's a solution to continue to use cells but keep the old interface:
   (spawn ^player-ship*
          (spawn ^cell x)
          (spawn ^cell y)))
+
+;; NOTE: Because of the feature of returning a refr described
+;; below, only `^player-ship*` needs to be in the environment
+(define my-env
+  (make-persistence-env
+    `((((my-cool-scheme-project game) ^player-ship) ,player-ship*))
+    #:extends cell-env))
 @end lisp
 
 This has a pattern of having a sort of ``public'' constructor which
@@ -274,6 +285,14 @@ constructor, however you can return a refr to another object and
 Goblins will instead of creating a new object with spawn, simply
 return the refr returned by the object's constructor.
 
+The new persistence environment provided defines a single object, just
+the @code{^player-ship*}. This is because, as explained above, the
+@code{^player-ship} doesn't remain around. This also instead of using
+our cell we defined above, uses the one from actor-lib so we need to
+extend from the @code{cell-env} provided by the cell
+module. Persistence environments can extend from one or a list of
+several environments as needed.
+
 Okay, so that's bringing the cells back. Having a sort of ``state''
 flag passed into the object allows us to decide if the active or dead
 behavior should be returned, but there are other ways to do that. Lets
@@ -281,6 +300,8 @@ look at an interesting one which uses Goblin's swappable library (for
 more information on this library, @xref{Swappable}):
 
 @lisp
+(use-modules (goblins actor-lib swappable))
+
 ;; Public constructor again, except this time spawning the swappable
 ;; object as well as cellifying the x and y coordinates.
 (define (^player-ship bcom x y)
@@ -289,11 +310,14 @@ more information on this library, @xref{Swappable}):
     ;; refr. use a place holder one which we will immidately switch
     ;; away from.
     (swappable (spawn (lambda _ (lambda _ 'noop)))))
-  ($ beh-swapper (spawn ^player-ship:ALIVE beh-swapper))
-  (spawn ^player-ship*
-         (spawn ^cell x)
-         (spawn ^cell y)
-         beh-proxy))
+  ;; Swap away from the dummy place-holder above directly to the
+  ;; initial, default behavior of the alive player-ship
+  ($ beh-swapper (spawn ^player-ship:ALIVE
+			(spawn ^cell x)
+			(spawn ^cell y)
+			beh-swapper))
+  ;; Return the proxy we setup.
+  beh-proxy)
 
 ;; The behavior and state for the alive player ship
 (define-actor (^player-ship:ALIVE bcom x y swapper)
@@ -324,8 +348,7 @@ more information on this library, @xref{Swappable}):
 ;; persistence environment.
 (define game-env
   (make-persistence-env
-   `((((game) ^player-ship*) ,^player-ship)
-     (((game) ^player-ship:ALIVE) ,^player-ship:ALIVE)
+   `((((game) ^player-ship:ALIVE) ,^player-ship:ALIVE)
      (((game) ^player-ship:DEAD) ,^player-ship:DEAD))
    #:extends (list swappable-env cell-env)))
 @end lisp
