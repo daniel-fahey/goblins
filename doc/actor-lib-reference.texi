@@ -95,6 +95,9 @@ Syntax for creating a cell using a form like Scheme @code{define}.
 
 @end deffn
 
+@defvr {Persistence Environment} cell-env
+@end defvr
+
 @node Common
 @section Common
 
@@ -193,6 +196,9 @@ with @var{val}.
 
 @end deffn
 
+@defvr {Persistence Environment} common-env
+@end defvr
+
 @node Facet
 @section Facet
 
@@ -218,6 +224,9 @@ Spawn and return a reference to a @code{^facet}, passing along
 arguments to their equivalents in the constructor.
 
 @end deffn
+
+@defvr {Persistence Environment} facet-env
+@end defvr
 
 @node IO
 @section IO
@@ -278,6 +287,9 @@ Got: o
 @end lisp
 
 @end deffn
+
+Note that currently the io actor is not persistence aware and so
+cannot appear in a persistence graph.
 
 @node Joiners
 @section Joiners
@@ -508,6 +520,9 @@ To clarify, here's an example:
 
 @end deffn
 
+@defvr {Persistence Environment} nonce-registry-env
+@end defvr
+
 @node Opportunistic
 @section Opportunistic
 
@@ -602,6 +617,9 @@ of subscribed actors.
 
 @end deffn
 
+@defvr {Persistence Environment} pubsub-env
+@end defvr
+
 @node Pushdown
 @section Pushdown
 
@@ -669,6 +687,9 @@ whatever arguments it is passed.
 
 @end deffn
 
+@defvr {Persistence Environment} pushdown-env
+@end defvr
+
 @node Queue
 @section Queue
 
@@ -695,6 +716,9 @@ Constructs a FIFO queue actor which has the following methods:
 @end itemize
 
 @end deffn
+
+@defvr {Persistence Environment} queue-env
+@end defvr
 
 @node Sealers
 @section Sealers
@@ -747,6 +771,48 @@ rival service:
 @end lisp
 
 @end deffn
+
+@deffn {Procedure} make-spawn-sealer-triplet namespace known-sealers
+                                             [default-make-sealer-triplet]
+
+Returns two values, the first is a @code{spawn-sealer-triplet}
+function setup with a set of custom sealers and the second is a
+persistence environment for Goblins' persistence system.
+
+@var{namespace} is a atomic value which must uniquely identify this
+set of sealers within the object graph.
+
+@var{known-sealers} is an alist mapping a unique name to a thunk which
+returns three values (sealer function, unsealer function and trademark
+function).
+
+@var{default-make-sealer-triplet} specifies what the default
+make-sealer-triplet function is used when none is specified.
+
+If a custom sealer triplet is provided to the returned
+@code{spawn-sealer-triplet} function without being specified in the
+@var{known-sealers} alist, an error will be thrown.
+
+@lisp
+(define* (my-custom-sealer-triplet #:optional name)
+  (define-record-type <custom-sealers>
+    (seal val)
+    sealed?
+    (val unseal))
+  (values seal unseal sealed?))
+
+(define custom-sealers-list
+  `(((ward-sealer-triplet) . ,my-custom-sealer-triplet)))
+
+(define-values (custom-spawn-sealer-triplet custom-sealer-env)
+  (make-spawn-sealer-triplet '(my-library sealers) custom-sealers-list
+			     #:default-make-sealer-triplet my-custom-sealer-triplet))
+@end lisp
+
+@end deffn
+
+@defvr {Persistence Environment} sealers-env
+@end defvr
 
 @node Selfish-Spawn
 @section Selfish-Spawn
@@ -855,6 +921,9 @@ the same numbers of tokens from @var{from-purse}.
 
 @end deffn
 
+@defvr {Persistence Environment} mint-env
+@end defvr
+
 @node Swappable
 @section Swappable
 
@@ -921,6 +990,9 @@ of @code{tick}.
 
 @end deffn
 
+@defvr {Persistence Environment} ticker-env
+@end defvr
+
 @node Ward
 @section Ward
 
@@ -975,3 +1047,6 @@ the behavior to ward; and @var{extends-beh}, which is the actor to
 extend with that behavior.
 
 @end deffn
+
+@defvr {Persistence Environment} ward-env
+@end defvr
