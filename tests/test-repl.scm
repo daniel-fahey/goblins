@@ -226,4 +226,32 @@
                    (spawn (lambda _bcom (lambda () (+ 1 "two"))))))
            (meta vat-resolve (<- broken)))
 
+(test-repl ",vat-replace-behavior! upgrades behavior"
+           "bar"
+           (meta import (goblins persistence-store memory))
+           (eval (define-actor (^foo _bcom) (lambda () 'foo)))
+           (eval (define env (make-persistence-env `((foo ,^foo)))))
+           (eval (define-values (a-vat foo)
+                   (spawn-persistent-vat env (lambda () (spawn ^foo)) (make-memory-store))))
+           (eval (define-actor (^foo _bcom) (lambda () 'bar)))
+           (meta enter-vat a-vat)
+           (meta vat-replace-behavior)
+           (eval ($ foo)))
+
+(test-repl ",vat-replace-behavior! upgrades behavior with new persistence env"
+           "i-am-bar"
+           (meta import (goblins persistence-store memory))
+           (eval (define-actor (^foo _bcom) (lambda () 'foo)))
+           (eval (define env (make-persistence-env `((foo ,^foo)))))
+           (eval (define-values (a-vat foo)
+                   (spawn-persistent-vat env (lambda () (spawn ^foo)) (make-memory-store))))
+           (eval (define-actor (^bar _bcom) (lambda () 'i-am-bar)))
+           (eval (define-actor (^foo _bcom bar) (lambda () bar)))
+           (eval (define (restore-foo _version) (spawn ^foo (spawn ^bar))))
+           (eval (define new-env
+                   (make-persistence-env `((foo ,^foo ,restore-foo) (bar ,^bar)))))
+           (meta enter-vat a-vat)
+           (meta vat-replace-behavior new-env)
+           (eval ($ ($ foo))))
+
 (test-end "test-repl")

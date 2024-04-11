@@ -108,6 +108,7 @@
 
             spawn-persistent-vat
             vat-take-portrait!
+            vat-replace-behavior!
             vat-take-single-object-portrait
 
             define-vat-run
@@ -1292,6 +1293,24 @@ of events to retain in the log."
       (get-self-portrait mactor))
     (take-self-portrait))
   (call-system-op-with-vat vat take-object-portrait))
+
+(define* (vat-replace-behavior! vat #:optional new-env)
+  (define (replace-behavior! vat)
+    (define vat-persistence
+      (vat-persistence-env vat))
+    (unless vat-persistence
+      (error "Cannot replace the behavior on a non-persistent vat"))
+
+    (when new-env
+      (set-vat-persistence-environ! vat-persistence new-env))
+
+    (define am
+      (vat-actormap vat))
+    ;; Actually perform the upgrade
+    (actormap-replace-behavior!
+     am
+     (vat-persistence-environ vat-persistence)))
+  (call-system-op-with-vat vat replace-behavior!))
 
 ;; An example to test against, wip
 #;(run-fibers
