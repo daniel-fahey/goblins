@@ -484,6 +484,8 @@ zilch (from the @code{(goblins abstract-types)} module)
 local object refr
 @item
 resolved local promises
+@item
+All OCapN IDs from @code{(goblins ocapn ids)}
 @end itemize
 
 Any other value of another type needs to be converted into one of the
