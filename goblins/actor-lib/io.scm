@@ -18,11 +18,12 @@
   #:use-module (goblins vat)
   #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins inbox)
+  #:use-module (goblins actor-lib methods)
   #:use-module (fibers)
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
-  #:export (^io))
+  #:export (^io ^read-write-io))
 
 ;; Not exported for now, but maybe someday it would be useful to export?
 (define* (run-wrapped wrapped #:key init cleanup)
@@ -117,3 +118,40 @@ commands are processed.  When the fiber halts, CLEANUP is run."
   (define halted-beh
     (lambda _ (error "IO access halted!")))
   main-beh)
+
+(define* (^read-write-io bcom wrapped #:key init cleanup)
+  "Spawn a read and write interface for running commands over WRAPPED
+
+Like the ^io object, this spawns a seperate fiber which processes one
+command at a time. This however allows for both reading and writing by
+having a 'read method (taking in a procedure as its only argument),
+and a 'write method (also taking a single procedure as its only
+argument). You can read and write at the same time to the same WRAPPED
+resource without blocking the other.
+
+Like ^io, this supports a 'halt method which stops both fibers and
+runs any CLEANUP provided."
+  (define init-completed?
+    (make-condition))
+  (define read-io
+    (spawn ^io wrapped
+           #:init (lambda (inner-wrapped)
+                    (init inner-wrapped)
+                    (signal-condition! init-completed?))
+           #:cleanup cleanup))
+  (define write-io
+    (spawn ^io wrapped
+           #:init
+           (lambda (_inner-wrapped)
+             (wait init-completed?))))
+
+  (define halted-beh
+    (lambda _ (error "IO access halted!")))
+
+  (methods
+   [(write proc) ($ write-io proc)]
+   [(read proc) ($ read-io proc)]
+   [(halt)
+    ($ read-io 'halt)
+    ($ write-io 'halt)
+    (bcom halted-beh)]))

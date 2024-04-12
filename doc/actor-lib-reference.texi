@@ -288,6 +288,23 @@ Got: o
 
 @end deffn
 
+@deffn {Constructor} ^read-write-io _bcom wrapped
+       [#:init #f] [#:cleanup #f]
+
+Spawn a read and write interface for running commands over WRAPPED
+
+Like the ^io object, this spawns a seperate fiber which processes one
+command at a time. This however allows for both reading and writing by
+having a 'read method (taking in a procedure as its only argument),
+and a 'write method (also taking a single procedure as its only
+argument). You can read and write at the same time to the same WRAPPED
+resource without blocking the other.
+
+Like ^io, this supports a 'halt method which stops both fibers and
+runs any CLEANUP provided.
+
+@end deffn
+
 Note that currently the io actor is not persistence aware and so
 cannot appear in a persistence graph.
 

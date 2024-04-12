@@ -21,6 +21,7 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 textual-ports)
   #:use-module (tests utils)
+  #:use-module (fibers channels)
   #:use-module (fibers conditions)
   #:use-module (fibers operations)
   #:use-module (fibers timers))
@@ -65,5 +66,47 @@
                                        (lambda _ #t)))))
   (test-error "Halted IO actor moves to defunct behavior"
               #t (with-vat a-vat ($ ip-actor get-char))))
+
+;; Test the rw IO actor
+(let* ((init-called 0)
+       (cleanup-called (make-condition))
+       (rw-io (with-vat a-vat
+                (spawn ^read-write-io
+                       (make-channel)
+                       #:init
+                       (lambda (port)
+                         (set! init-called (+ 1 init-called))
+                         #t)
+                       #:cleanup
+                       (lambda (port)
+                         (signal-condition! cleanup-called)
+                         #t)))))
+
+  (test-equal "Init is just called once on read-write IO"
+    init-called
+    1)
+  ;; Write something to the channel
+  (with-vat a-vat
+    ($ rw-io 'write
+       (lambda (ch)
+         (put-message ch "Hello!")
+         #t)))
+  ;; Can we read it?
+  (test-equal "Can read a character from read-write IO"
+    (resolve-vow-and-return-result
+     a-vat
+     (lambda ()
+       ($ rw-io 'read get-message)))
+    #(ok "Hello!"))
+
+  (with-vat a-vat
+    ($ rw-io 'halt))
+  (test-assert "Halt is called for read-write IO"
+    (perform-operation
+     (choice-operation (wrap-operation (wait-operation cleanup-called)
+                                       (lambda _ #t))
+                       (wrap-operation (sleep-operation 2)
+                                       (lambda _ #f)))))
+  #t)
 
 (test-end "test-io")
