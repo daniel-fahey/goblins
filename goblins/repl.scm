@@ -1009,3 +1009,12 @@ Takes a portrait of a single object returning the portrait data"
    (let* ((vat (current-vat*)))
      (format #t "~s\n"
              (vat-take-single-object-portrait vat (repl-eval repl refr))))))
+
+(define-meta-command ((vat-replace-behavior goblins) repl #:optional new-env)
+  "vat-replace-behavior [NEW-PERSISTENCE-ENV]
+Upgrades the behavior in the vat with new behavior in either the current environment
+or the provided enviroment."
+  (with-goblins-error-messages
+   (if new-env
+       (vat-replace-behavior! (current-vat*) (repl-eval repl new-env))
+       (vat-replace-behavior! (current-vat*)))))

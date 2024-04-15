@@ -17,6 +17,7 @@
 (define-module (tests test-vat)
   #:use-module (goblins core)
   #:use-module (goblins core-types)
+  #:use-module (goblins define-actor)
   #:use-module (goblins vat)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
@@ -988,12 +989,9 @@
   
 ;; Test persisting an actor which introduces new actors
 ;; not previously in the graph.
-(define* (^list bcom #:optional [items '()])
-  (define (main-beh obj)
-    (bcom (^list bcom (cons obj items))))
-  (define (self-portrait)
-    (list items))
-  (portraitize main-beh self-portrait))
+(define-actor (^list bcom #:optional [items '()])
+  (lambda (obj)
+    (bcom (^list bcom (cons obj items)))))
 
 (define list-env
   (make-persistence-env
@@ -1065,5 +1063,56 @@
   (list 'got-vat a-vat)
   (call-system-op-with-vat
    a-vat (lambda (vat) (list 'got-vat vat))))
+
+;; Test changing the behavior
+(define-actor (^foo _bcom)
+  (lambda ()
+    'foo))
+
+(define foo-env
+  (make-persistence-env
+   `((((tests test-vat) ^foo) ,^foo))))
+
+(define foo-mem (make-memory-store))
+(define-values (persistent-vat foo)
+  (spawn-persistent-vat
+   foo-env
+   (lambda ()
+     (spawn ^foo))
+   foo-mem))
+
+(define-actor (^foo _bcom)
+  (lambda ()
+    'bar))
+
+(vat-replace-behavior! persistent-vat)
+(test-equal "Object behavior changes after using vat-replace-behavior!"
+  'bar
+  (with-vat persistent-vat
+    ($ foo)))
+
+;; Now change the behavior but add an object to the env
+(define-actor (^bar _bcom)
+  (lambda ()
+    'i-am-bar))
+(define-actor (^foo _bcom bar)
+  (lambda ()
+    bar))
+(define (restore-foo _version)
+  (spawn ^foo (spawn ^bar)))
+(define foo-env
+  (make-persistence-env
+   `((((tests test-vat) ^foo) ,^foo ,restore-foo)
+     (((tests test-vat) ^bar) ,^bar))))
+(vat-replace-behavior! persistent-vat foo-env)
+
+(test-assert
+    (live-refr?
+     (with-vat persistent-vat
+       ($ foo))))
+(test-equal "Objects can add new objects when using vat-replace-behavior!"
+  'i-am-bar
+  (with-vat persistent-vat
+    ($ ($ foo))))
 
 (test-end "test-vat")

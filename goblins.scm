@@ -97,6 +97,7 @@
                with-vat
                spawn-vat
                spawn-persistent-vat
+               vat-replace-behavior!
                define-vat-run
                vat-take-portrait!
 
