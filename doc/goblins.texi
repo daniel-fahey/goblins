@@ -610,7 +610,7 @@ goblins[1]> ($ julius 'get-times-called)
 
 You have seen that the behavior of objects may be invoked
 synchronously with @code{$}.  However, this only works if two objects
-are both defined on the same node within and the same event
+are both defined on the same node and the same event
 loop (vat) within that node.
 
 Now, recall your friend @code{alice} who you defined on vat A@.  The
