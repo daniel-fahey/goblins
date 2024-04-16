@@ -2670,9 +2670,9 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
           (make-gset)
           value)]
         [(? keyword? kw)
-         (make-tagged* 'keyword (keyword->symbol kw))]
+         (make-tagged* 'kw (keyword->symbol kw))]
         [(? tagged? tagged)
-         (make-tagged* 'utagged
+         (make-tagged* 'tagged
                        (tagged-label tagged)
                        (tagged-data tagged))]
         [(? zilch?)
@@ -2955,10 +2955,10 @@ Type: Actormap PersistenceEnv -> Void"
                ['char (integer->char (car data))]
                ['list (map restore-one data)]
                ['vector (list->vector (map restore-one data))]
-               ['keyword (symbol->keyword (car data))]
+               ['kw (symbol->keyword (car data))]
                ['zilch zilch]
                ['void *unspecified*]
-               ['utagged
+               ['tagged
                 (match data
                   [(label payload)
                    (make-tagged label payload)])]
