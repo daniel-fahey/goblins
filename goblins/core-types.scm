@@ -110,12 +110,6 @@
             object-spec-constructor
             object-spec-rehydrator
 
-            <portrait-record>
-            make-portrait-record
-            portrait-record?
-            portrait-record-type
-            portrait-record-data
-
             <versioned-data>
             versioned
             versioned-data?
@@ -334,16 +328,6 @@ Type: Any -> Boolean"
   (or (and (redefinable-object? cstr)
            (redefinable-object-rehydrator cstr))
       (_object-spec-rehydrator obj-spec)))
-
-;; These records are responsible for tagging and holding portrait data. This includes
-;; tagging objects and also types such as ghashes, lists, vectors, etc so that we can
-;; unserialize them correctly to their corresponding objects/types. The persistence
-;; storage providers need to work with these when saving.
-(define-record-type <portrait-record>
-  (make-portrait-record type data)
-  portrait-record?
-  (type portrait-record-type)
-  (data portrait-record-data))
 
 ;; This while looking similar to the above this is used to specify versioned data
 ;; by objects in their self-portrait function. The `versioned' constructor is exported

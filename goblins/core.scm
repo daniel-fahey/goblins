@@ -130,11 +130,7 @@
                whactormap?
 
                portraitize
-               versioned
-               <portrait-record>
-               portrait-record?
-               portrait-record-type
-               portrait-record-data)
+               versioned)
   #:replace (spawn)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
@@ -2654,19 +2650,13 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
              [(head . rest)
               (lp (cons (process-one head) processed-list) rest)]
              [last
-              (make-portrait-record
-               'dotted
+              (make-tagged
+               'dotl
                (lp (cons (process-one last) processed-list) '()))]))]
-        [(? versioned-data?)
-         (let ((version (versioned-data-version value))
-               (data (versioned-data-data value)))
-           (unless (list? data)
-             (error "Self portrait data must be a list"))
-           (make-portrait-record 'versioned (cons version (map process-one data))))]
         [(? char?)
-         (make-portrait-record 'char (char->integer value))]
+         (make-tagged* 'char (char->integer value))]
         [(? vector? vector)
-         (make-portrait-record 'vec (map process-one (vector->list vector)))]
+         (make-tagged 'vec (map process-one (vector->list vector)))]
         [(? ghash?)
          (ghash-fold
           (lambda (k v prev)
@@ -2680,19 +2670,20 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
           (make-gset)
           value)]
         [(? keyword? kw)
-         (make-portrait-record 'keyword (keyword->symbol kw))]
+         (make-tagged* 'kw (keyword->symbol kw))]
         [(? tagged? tagged)
-         (make-portrait-record 'tagged (list (tagged-label tagged)
-                                             (tagged-data tagged)))]
+         (make-tagged* 'tagged
+                       (tagged-label tagged)
+                       (tagged-data tagged))]
         [(? zilch?)
-         (make-portrait-record 'zilch #f)]
+         (make-tagged* 'zilch #f)]
         [(? unspecified?)
-         (make-portrait-record 'unspecified #f)]
+         (make-tagged* 'void #f)]
         [(? local-object-refr?)
          (let-values (((slot created?) (maybe-create-obj-slot! value)))
            (when created?
              (hashq-set! new-child-objs value #t))
-           (make-portrait-record 'near slot))]
+           (make-tagged* 'near slot))]
         [(? local-promise-refr? vow)
          (actormap-run
           am
@@ -2704,10 +2695,10 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                   (let-values (((slot created?) (maybe-create-obj-slot! inner)))
                     (when created?
                       (hashq-set! new-child-objs inner #t))
-                    (make-portrait-record 'near slot))
-                  (make-portrait-record 'encase inner)))))]
+                    (make-tagged* 'near slot))
+                  (make-tagged* 'encase inner)))))]
         [(? ocapn-id?)
-         (make-portrait-record 'ocapn-id (ocapn-id->string value))]
+         (make-tagged* 'ocapn-id (ocapn-id->string value))]
         [_ (error "Unserializable value!" 'value: value 'obj this-obj)]))
     
     (define (process-portrait obj-spec portrait-data)
@@ -2717,10 +2708,10 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
         [(? versioned-data? data)
          (define-values (portrait-version portrait-data)
            (values (versioned-data-version data) (versioned-data-data data)))
-         (make-portrait-record 'object (list (object-spec-name obj-spec)
-                                             obj-debug-name
-                                             portrait-version
-                                             (process-one portrait-data)))]
+         (list (object-spec-name obj-spec)
+               obj-debug-name
+               portrait-version
+               (process-one portrait-data))]
         [(? list? args)
          ;; No versioning was given, lets tag this as version 0
          (process-portrait obj-spec (versioned 0 args))]))
@@ -2915,10 +2906,7 @@ Type: Actormap PersistenceEnv -> Void"
 
   (define (depiction->debug-name depiction)
     ;; All depictions should be objects
-    (unless (eq? (portrait-record-type depiction) 'object)
-      (error "Object depiction is not of type object ~a"
-             (portrait-record-type depiction)))
-    (match (portrait-record-data depiction)
+    (match depiction
       [(_persistence-name debug-name _portrait-version _portrait-data)
        debug-name]))
   
@@ -2953,34 +2941,36 @@ Type: Actormap PersistenceEnv -> Void"
 
       (define (restore-one depicted)
         (match depicted
-          [(? portrait-record? depiction)
-           (let ([type (portrait-record-type depiction)]
-                 [data (portrait-record-data depiction)])
+          [(? tagged? depiction)
+           (let ([type (tagged-label depiction)]
+                 [data (tagged-data depiction)])
              (match type
-               ['dotted
+               ['dotl
                 (let lp ((remaining data))
                   (match remaining
                     [(last) (restore-one last)]
                     [(head . rest)
                      (cons (restore-one head) (lp rest))]))]
                ['vec (list->vector (map restore-one data))]
-               ['versioned (values (car data) (map restore-one (cdr data)))]
-               ['char (integer->char data)]
+               ['char (integer->char (car data))]
                ['list (map restore-one data)]
                ['vector (list->vector (map restore-one data))]
-               ['keyword (symbol->keyword data)]
+               ['kw (symbol->keyword (car data))]
                ['zilch zilch]
-               ['unspecified *unspecified*]
-               ['tagged (make-tagged (car data) (cadr data))]
-               ['near (hashq-ref slots->refrs data)]
+               ['void *unspecified*]
+               ['tagged
+                (match data
+                  [(label payload)
+                   (make-tagged label payload)])]
+               ['near (hashq-ref slots->refrs (car data))]
                ['encase
                 ;; This is a promise which contains a value, re-encase
                 ;; in a promise and return that.
                 (let-values (((vow resolver) (spawn-promise-values)))
-                  ($ resolver 'fulfill (restore-one data))
+                  ($ resolver 'fulfill (restore-one (car data)))
                   vow)]
-               ['ocapn-id (string->ocapn-id data)]
-           [_ (error "Unknown depiction type" type)]))]
+               ['ocapn-id (string->ocapn-id (car data))]
+               [_ (error "Unknown depiction type" type)]))]
           [(? ghash?)
            (ghash-fold
             (lambda (k v prev)
@@ -3014,7 +3004,7 @@ Type: Actormap PersistenceEnv -> Void"
     ;; Restore all the objects in the vows we have setup.
     (hash-for-each
      (lambda (slot portrait)
-       (restore-slot! slot (portrait-record-data portrait)))
+       (restore-slot! slot portrait))
      portraits)
 
     ;; When an actor is spawned it might send messages

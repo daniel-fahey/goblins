@@ -34,16 +34,13 @@
 
 (test-equal "Single object lookup works as expected"
   (read-from-store 'object-portrait 0)
-  (make-portrait-record
-   'object
-   ;; Object name
-   '(((tests persistence-store test-syrup) ^greeter)
-     ;; Debug name
-     ^greeter
-     ;; Version
-     0
-     ;; Data
-     ("Alice" 0))))
+  '(((tests persistence-store test-syrup) ^greeter)
+    ;; Debug name
+    ^greeter
+    ;; Version
+    0
+    ;; Data
+    ("Alice" 0)))
 
 ;; Increment alice's counter a few times
 (actormap-poke! am alice "Carol")
