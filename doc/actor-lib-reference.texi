@@ -308,6 +308,163 @@ runs any CLEANUP provided.
 Note that currently the io actor is not persistence aware and so
 cannot appear in a persistence graph.
 
+@node IO Ping Tutorial
+@subsection IO Ping Tutorial
+
+This tutorial builds up a simple echo server and client using Goblins'
+IO objects. The general way the server works is it has an initial
+@code{^ping-server} object which sets up a socket to bind to an IP and
+port, it then listens for new connections and for each new connection
+spawns a @code{^server-client}. The @code{^server-client} reads a line
+on the socket and writes what it read back to the socket.
+
+Similarly, for the client, there is a @code{^echo-client}; this takes
+an IP and port to connect to and spawns a socket. Its behavior is
+that it takes a message which it writes to the socket and then hands
+back a promise to the line it reads back from the socket.
+
+The origional ping server in the Fibers manual can be found here:
+@uref{https://github.com/wingo/fibers/wiki/Manual#41-ping}).
+
+The server:
+@lisp
+(use-modules (rnrs bytevectors)
+             (ice-9 textual-ports)
+             (ice-9 rdelim)
+             (ice-9 match)
+             (goblins)
+             (goblins actor-lib io)
+             (goblins actor-lib methods)
+             (fibers conditions))
+
+(define (create-non-blocking-socket)
+  "Returns a socket configured for non-blocking interaction"
+  (let ((sock (socket PF_INET SOCK_STREAM 0)))
+    (fcntl sock F_SETFL (logior O_NONBLOCK (fcntl sock F_GETFL)))
+    sock))
+
+(define (setup-socket-to-listen! sock address port)
+  "Sets up the socket to listen to given ADDRESS and PORT"
+  (setsockopt sock SOL_SOCKET SO_REUSEADDR 1)
+  (fcntl sock F_SETFD FD_CLOEXEC)
+  (bind sock AF_INET (inet-pton AF_INET address) port)
+  (listen sock 1024)
+  (sigaction SIGPIPE SIG_IGN))
+
+(define (^ping-server _bcom)
+  (define sock
+    (spawn ^io (create-non-blocking-socket)
+           #:init
+           (lambda (port)
+             ;; This blocks so we want to do it in the #:init
+             ;; code as that happens inside the ^io event loop.
+             (setup-socket-to-listen! port "127.0.0.1" 11211))
+           #:cleanup
+           (lambda (port)
+             (close port))))
+
+  (define (socket-loop)
+    "Accept a new connection and spawn a ^client-server for it"
+    (on (<- sock (lambda (port)
+                   (accept port SOCK_NONBLOCK)))
+        (lambda (client-sock-pair)
+          (match client-sock-pair
+            [(client-sock . addr)
+             (spawn ^server-client client-sock)]))
+        #:finally socket-loop))
+
+  ;; Kick off the socket loop
+  (socket-loop)
+
+  (methods
+   [(shutdown)
+    ($ sock 'halt)]))
+
+(define (^server-client _bcom port)
+  (define sock
+    (spawn ^read-write-io port
+           #:init (lambda (port)
+                    (setvbuf port 'block 1024)
+                    ;; Disable Nagle's algorithm. We buffer ourselves.
+                    (setsockopt port IPPROTO_TCP TCP_NODELAY 1))
+           #:cleanup (lambda (port)
+                       (close port))))
+  (define (read-and-reply-loop)
+    (on (<- sock 'read read-line)
+        (lambda (line)
+          (match line
+            [(? eof-object?) ($ sock 'halt)]
+            [other
+             (<-np sock 'write
+                   (lambda (port)
+                     (put-string port other)
+                     (put-char port #\newline)
+                     (force-output port)))
+             (read-and-reply-loop)]))))
+
+  ;; Kick off loop
+  (read-and-reply-loop)
+  (methods
+   [(shutdown)
+    ($ sock 'halt)]))
+
+;; Setup a vat and spawn the server
+(define server-vat
+  (spawn-vat #:name "server-vat"))
+(with-vat server-vat
+  (spawn ^ping-server))
+@end lisp
+
+The Client:
+@lisp
+;; Same as above:
+(define (create-non-blocking-socket)
+  "Returns a socket configured for non-blocking interaction"
+  (let ((sock (socket PF_INET SOCK_STREAM 0)))
+    (fcntl sock F_SETFL (logior O_NONBLOCK (fcntl sock F_GETFL)))
+    sock))
+
+(define (setup-socket-to-connect! sock addr port)
+  (let ((connection-info (car (getaddrinfo addr (number->string port)))))
+    ;; Disable Nagle's algorithm.  We buffer ourselves.
+    (setsockopt sock IPPROTO_TCP TCP_NODELAY 1)
+    (setvbuf sock 'block 1024)
+    (connect sock (addrinfo:addr connection-info))))
+
+(define (^echo-client _bcom to-address to-port)
+  (define sock
+    (spawn ^read-write-io (create-non-blocking-socket)
+           #:init
+           (lambda (port)
+             (setup-socket-to-connect! port to-address to-port))
+           #:cleanup
+           (lambda (port)
+             (close port))))
+
+  (lambda (msg)
+    ($ sock 'write
+       (lambda (port)
+         (put-string port msg)
+         (put-char port #\newline)
+         (force-output port)))
+    (<- sock 'read get-line)))
+
+(define client-vat
+  (spawn-vat #:name "client-vat"))
+(define echo-client
+  (with-vat client-vat
+    (spawn ^echo-client "127.0.0.1" 11211)))
+@end lisp
+
+Finally, lets try this:
+@lisp
+,enter-vat client-vat
+goblins[1]> (define reply-vow
+              (<- echo-client "Hello world!"))
+goblins[1]> ,vat-resolve reply-vow
+"Hello world!"
+@end lisp
+
 @node Joiners
 @section Joiners
 
