@@ -16,8 +16,7 @@
   #:use-module (goblins core)
   #:use-module (goblins define-actor)
   #:use-module ((goblins core-types)
-                #:select (redefinable-object?
-                          portrait-record-data))
+                #:select (redefinable-object?))
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
@@ -143,7 +142,7 @@
   (actormap-take-portrait am2 versioned-env versioned-cell))
 
 (define version
-  (match (portrait-record-data (hash-ref versioned-portraits 0))
+  (match (hash-ref versioned-portraits 0)
     ((_name _debug-name version _data) version)))
 
 (test-eqv "#:version for define-actor works" 42 version)
@@ -241,11 +240,11 @@
   (actormap-take-portrait am4 portrait-version-env cpv cpv-match))
 
 (define-values (cpv-version cpv-data)
-  (match (portrait-record-data (hash-ref portrait-version-portraits 0))
+  (match (hash-ref portrait-version-portraits 0)
     ((_name _debug-name version data)
      (values version data))))
 (define-values (cpv-match-version cpv-match-data)
-  (match (portrait-record-data (hash-ref portrait-version-portraits 1))
+  (match (hash-ref portrait-version-portraits 1)
     ((_name _debug-name version data)
      (values version data))))
 

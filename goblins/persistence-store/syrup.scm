@@ -22,10 +22,6 @@
   #:use-module (srfi srfi-9)
   #:export (make-syrup-store))
 
-(define-values (marshaller::portrait-record unmarshaller::portrait-record)
-  ;; Specify a shorter name as portrait data is very very common
-  (make-marshallers <portrait-record> #:name 'pd))
-
 (define current-data-version 0)
 (define-record-type <portrait-graph>
   (make-portrait-graph version portraits slots)
@@ -38,11 +34,9 @@
   (make-marshallers <portrait-graph>))
 
 (define marshallers
-  (list marshaller::portrait-record
-        marshaller::portrait-graph))
+  (list marshaller::portrait-graph))
 (define unmarshallers
-  (list unmarshaller::portrait-record
-        unmarshaller::portrait-graph))
+  (list unmarshaller::portrait-graph))
 
 (define (read-depictions backing-file)
   (if (file-exists? backing-file)
@@ -105,6 +99,4 @@
         (error "Cannot read an object from an empty store"))
       (hashq-ref saved-portraits slot)]))
   
-  (make-persistence-store read-proc write-proc))
-
-  
+  (make-persistence-store read-proc write-proc))  
