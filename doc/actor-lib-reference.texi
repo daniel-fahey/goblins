@@ -318,8 +318,8 @@ port, it then listens for new connections and for each new connection
 spawns a @code{^server-client}. The @code{^server-client} reads a line
 on the socket and writes what it read back to the socket.
 
-Similarly, for the client, there is a @code{^echo-client}, this takes
-an IP and port to connect to and spawns a socket. It's behavior is
+Similarly, for the client, there is a @code{^echo-client}; this takes
+an IP and port to connect to and spawns a socket. Its behavior is
 that it takes a message which it writes to the socket and then hands
 back a promise to the line it reads back from the socket.
 
