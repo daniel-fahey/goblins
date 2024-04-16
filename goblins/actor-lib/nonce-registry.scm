@@ -1,5 +1,6 @@
 ;;; Copyright 2020-2021 Christine Lemmer-Webber
 ;;; Copyright 2023 Juliana Sims
+;;; Copyright 2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -16,38 +17,53 @@
 (define-module (goblins actor-lib nonce-registry)
   #:use-module (gcrypt random)
   #:use-module (gcrypt base64)
+  #:use-module (gcrypt hash)
   #:use-module (goblins core)
   #:use-module (goblins define-actor)
   #:use-module (goblins ghash)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils assert-type)
   #:use-module (goblins utils crypto)
+  #:use-module (ice-9 match)
+  #:use-module (scheme base) ;; bytevector-append
   #:export (spawn-nonce-registry-and-locator
             nonce-registry-env))
 
 (define (make-swiss-num)
   (gen-random-bv 32 %gcry-strong-random))
 
-(define-actor (^nonce-registry bcom #:optional [ht ghash-null])
+(define-actor (^nonce-registry bcom
+                               #:optional
+                               [ht ghash-null]
+                               [hash-algorithm 'sha256]
+                               [salt (make-swiss-num)])
   #:frozen
+  (define hash-func
+    (match hash-algorithm
+      ['sha256 sha256]))
+  (define (hash value)
+    (hash-func (bytevector-append value salt)))
   (define* (register refr #:optional provided-swiss-num)
     (assert-type refr live-refr?)
     (let* ((swiss-num (or provided-swiss-num (make-swiss-num)))
-           (new-ht (ghash-set ht swiss-num refr)))
-      (bcom (^nonce-registry bcom new-ht) swiss-num)))
+           (hashed-swiss-num (hash swiss-num))
+           (new-ht (ghash-set ht hashed-swiss-num refr)))
+      (bcom (^nonce-registry bcom new-ht hash-algorithm salt) swiss-num)))
   (methods
    [register register]
    [fetch
     (case-lambda
       [(swiss-num)
-       ;; TODO: Better errors when no swiss num
-       (unless (ghash-has-key? ht swiss-num)
-         (throw 'no-such-key
-                (format #f "No object registered with swiss-num: ~a"
-                        (url-base64-encode swiss-num))))
-       (ghash-ref ht swiss-num)]
+       (let ((hashed-swiss-num (hash swiss-num)))
+         ;; TODO: Better errors when no swiss num
+         (unless (ghash-has-key? ht hashed-swiss-num)
+           (throw 'no-such-key
+                  (format #f "No object registered with swiss-num: ~a"
+                          (url-base64-encode swiss-num))))
+         (ghash-ref ht hashed-swiss-num))]
       [(swiss-num dflt)
-       (ghash-ref ht swiss-num dflt)])]))
+       (let ((hashed-swiss-num (hash swiss-num)))
+         (ghash-ref ht hashed-swiss-num dflt))])]))
 
 (define-actor (^nonce-locator bcom registry)
   (methods
