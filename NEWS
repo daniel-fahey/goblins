@@ -8,6 +8,32 @@
 *** New features and improvements
 - Refactored syrup sets into gsets located in =(goblins ghash)=
 - =(goblins actor-lib selfish-spawn)= is now documented.
+**** New Persistence System
+
+The new persistence system provides a mechanism to safely serialize
+and restore actors within a graph. Actors defined with the new
+=define-actor= macro, or by using the manual mechanism by specifying a
+self-portrait function are able to be serialized, saved and then
+brought back. This makes handling building systems which need to
+shutdown a easy and safe saving mechanism.
+
+Due to how the persistence system works, it also allows for upgrading
+of actor behavior and state. It also allows for a more powerful live
+hacking experience by allowing object definitions to be changed and
+then all objects of that type to be upgraded to the new definition
+while keeping their references the same.
+
+The system works with both actormaps and vats and comes with a syrup
+file based store and a in-memory store.
+
+**** IO Actors
+
+A new actor-lib library (=(goblins actor-lib io)=) has been added
+which makes interacting with external IO resources (or possibly other
+resources) much easier and more natural within Goblins. It abstracts
+the Fibers details and provides an actor which you're able to message
+and receive promises like you'd expect from Goblins' actors.
+
 *** Bug fixes
 - Fixes possible problem with the =^nonce-registry= actor not having
   time consistent lookup times.
