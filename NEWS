@@ -2,12 +2,29 @@
 
 * Releases
 ** v0.13
+*** Highlights
+- New persistence system
+- New IO actors
+*** New features and improvements
+- Refactored syrup sets into gsets located in =(goblins ghash)=
+- =(goblins actor-lib selfish-spawn)= is now documented.
+*** Bug fixes
+- Fixes possible problem with the =^nonce-registry= actor not having
+  time consistent lookup times.
+- Fix race condition during in churns when using =call-with-vat=.
+- Fix timeout issue in some tests caused by
+  =resolve-vow-and-return-result=
+- Fix issue sending =*unspecified*= accross CapTP.
+- Fix ordering issues for expected and actual in tests.
+- Improves error messages when invalid OCapN URIs are parsed.
 *** API Changes
 - The function to swap the swappable proxy from =(goblins actor-lib
   swappable)= has now become an actor.
 - When supplying custom sealers to =(goblins actor-lib sealers)= they
   must be defined in a known sealers alist.
-
+*** Known issues
+- [[https://gitlab.com/spritely/guile-goblins/-/issues/191][#191]] Objects defined with =define-actor= do not retain their docstrings
+- selfish-spawn does not work with new persistence system
 ** v0.12
 *** Highlights
 
@@ -86,8 +103,6 @@ it's accessable (i.e. the OCapN node address). One feature of OCapN is to ensure
 only one connection exists to any given node, since the address provided by a
 new incoming connection is never authenticated, this could lead to a denial of
 service by a malicious actor claiming to be a node it is not.
-
-
 ** v0.11
 
 *** Highlights
