@@ -32,31 +32,33 @@
             ocapn-node->libp2p-multiaddr
             libp2p-multiaddress->ocapn-node))
 
-(define (libp2p-multiaddress->ocapn-node multiaddr)
-  (unless (string? multiaddr)
-    (error "Non-string libp2p multiaddr provided" multiaddr))
-  (let ((peer-id-seperator (string-rindex multiaddr #\/)))
-    (if (not (integer? peer-id-seperator))
-        (error "Not a valid multiaddr" multiaddr)
-        (make-ocapn-node
-         'libp2p
-         ;; Peer ID is the designator as it uniquely identifies the
-         ;; node
-         (substring multiaddr (+ 1 peer-id-seperator))
-
-         ;; The routing is kept as a string as it's order is important.
-         `((addrs ,(substring multiaddr 0 peer-id-seperator)))))))
+(define (libp2p-multiaddress->ocapn-node multiaddrs)
+  (define peer-id
+    (let* ((addr (car multiaddrs))
+           (p2p-index (string-contains addr "/p2p/"))
+           (ipfs-index (string-contains addr "/ipfs/"))
+           (index (or p2p-index ipfs-index)))
+      (if index
+          (match (string-split (substring addr index) #\/)
+            [(""  _p2p peer-id) peer-id]
+            [something-else (error "Couldn't parse peer-id" something-else)]))))
+  (make-ocapn-node
+   'libp2p
+   peer-id
+   (map
+    (lambda (addr)
+      `(multiaddr ,addr))
+    multiaddrs)))
 
 (define (ocapn-node->libp2p-multiaddr node)
   (unless (and (ocapn-node? node) (eq? (ocapn-node-transport node) 'libp2p))
     (error "Can only convert libp2p OCapN node to libp2p mutliaddr"
            node))
-  (define addrs
-    (assq-ref (ocapn-node-hints node) 'addrs))
-  (if (list? addrs)
-      (string-join (list (car addrs) (ocapn-node-designator node))
-                   "/")
-      (error "No libp2p multiaddr in OCapN node hints" node)))
+  (map
+   (lambda (addr)
+     (match addr
+       [('multiaddr multiaddr) multiaddr]))
+   (ocapn-node-hints node)))
 
 (define (build-path . args)
   (string-join args file-name-separator-string))
@@ -113,16 +115,19 @@
                    base-message))
 
   (define (split-control-message message)
-    (let ((pairs (string-split message #\space)))
+    (let* ((trimmed-message (string-trim message #\space))
+           (pairs (string-split trimmed-message #\space)))
       (map (lambda (pair)
-             (string-split pair #\:))
-       pairs)))
+             (let ((seperator-index (string-index pair #\:)))
+               (list (substring pair 0 seperator-index)
+                     (substring pair (+ 1 seperator-index)))))
+           pairs)))
   
   (define-values (our-location new-private-key)
     (let ((message (get-message control-in-ch)))
       (match (split-control-message message)
-        [(("address" multiaddr) ("private-key" privkey))
-         (values (libp2p-multiaddress->ocapn-node multiaddr)
+        [(("address" multiaddrs) ... ("private-key" privkey))
+         (values (libp2p-multiaddress->ocapn-node multiaddrs)
                  privkey)]
         [something (error "Got unknown:" something)])))
 
@@ -146,7 +151,7 @@
 (define (setup-outgoing-sock sock location)
   (display
    (format #f "CONNECT ~a\n"
-           (ocapn-node->libp2p-multiaddr location))
+           (string-join (ocapn-node->libp2p-multiaddr location) " "))
    sock)
   (flush-output-port sock))
 
