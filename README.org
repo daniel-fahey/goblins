@@ -168,7 +168,6 @@ first execute:
 ... from the =*Geiser Guile REPL*=.  Otherwise vats may mysteriously
 "hang".  We know this is an annoyance!  It'll be fixed soon!
 
-
 ** Running test coverage
 
 You should check any changes you make are tested. To help with this
@@ -215,7 +214,34 @@ Build and upload the image:
 ./upload-ci-image
 #+END_SRC
 
+** OCapN Test suite
+If you're working on anything related to OCapN in guile goblins, it's
+good to ensure the test suite still passes. The test suite and how to
+run it is located [[https://github.com/ocapn/ocapn-test-suite][here]].
 
+The test suite requires implementing certain objects and exporting
+them at specific sturdyrefs, this has been done for you and you can
+find those implementations within the
+[[file:examples/ocapn-test-suite.scm][examples/ocapn-test-suite.scm]]. To run this you should run:
+
+#+BEGIN_SRC sh
+  $ ./pre-inst-env guile examples/ocapn-test-suite.scm 
+Connect test suite to: <sturdyref>
+#+END_SRC
+
+Copy the sturdyref it gives you and then in the OCapN test suite you
+can run it with this command:
+#+BEGIN_SRC sh
+  $ python3 test_runner.py --captp-version=goblins-0.12 <sturdyref>
+#+END_SRC
+
+Since this is using the tor onion netlayers, it is very slow, and
+typically takes many minutes to run all the tests.
+
+/Note: the =--captp-version=goblins-0.12= is important as goblins
+lists this as the CapTP version it uses. Since OCapN is currently in
+development, this allows goblins to differentiate between different
+goblins versions as the CapTP specification evolves./
 * A note on licensing
 
 Spritely Goblins is released under [[file:./LICENSE.txt][Apache v2]].
