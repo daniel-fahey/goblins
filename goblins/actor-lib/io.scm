@@ -1,4 +1,5 @@
 ;;; Copyright 2024 Christine Lemmer-Webber
+;;; Copyright 2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -84,8 +85,9 @@ Returns two values to its continuation:
              ;; got a message from `stop!' above
              ('halt
               (signal-condition! stop-inbox?)
-              (cleanup wrapped)        ; run cleanup, if appropriate
-              #f)))))   ; please don't loop!
+              (when cleanup
+                (cleanup wrapped))      ; run cleanup, if appropriate
+              #f)))))                   ; please don't loop!
        ;; loop if appropriate
        (when loop? (lp)))))
   (values run-proc stop!))
@@ -136,7 +138,8 @@ runs any CLEANUP provided."
   (define read-io
     (spawn ^io wrapped
            #:init (lambda (inner-wrapped)
-                    (init inner-wrapped)
+                    (when init
+                      (init inner-wrapped))
                     (signal-condition! init-completed?))
            #:cleanup cleanup))
   (define write-io
