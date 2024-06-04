@@ -3,53 +3,72 @@
 
 (use-modules (goblins)
              (goblins ocapn netlayer onion)
-             (goblins ocapn netlayer fake)
              (goblins ocapn captp)
              (goblins ocapn ids)
+             (goblins persistence-store syrup)
+             (goblins actor-lib cell)
+             (fibers conditions)
              (ice-9 getopt-long)
              (ice-9 match)
              (ice-9 curried-definitions))
 
-(define ((^greeter _bcom my-name) your-name)
-  (format #f "Hello ~a, my name is ~a!" your-name my-name))
+(define-actor (^greeter _bcom my-name)
+  (lambda (your-name)
+    (format #f "Hello ~a, my name is ~a!" your-name my-name)))
 
-(define* (setup-tor-mycapn #:optional tor-onion-pair)
-  (define vat (spawn-vat #:name 'ocapn))
-  (define-values (onion-netlayer private-key service-id)
-    (with-vat vat
-     (match tor-onion-pair
-       ((service-id . private-key)
-        (restore-onion-netlayer private-key service-id))
-       (#f (new-onion-netlayer)))))
-  (define mycapn
-    (with-vat vat (spawn-mycapn onion-netlayer)))
-  (values vat onion-netlayer mycapn))
+(define-actor (^greeter-sref bcom mycapn netlayer greeter
+                             #:optional [swiss-num (spawn ^cell)])
+  (lambda ()
+    (if ($ swiss-num)
+        (on (<- netlayer 'our-location)
+            (lambda (our-location)
+              (make-ocapn-sturdyref our-location ($ swiss-num)))
+            #:promise? #t)
+        (on (<- mycapn 'register greeter ($ netlayer 'netlayer-name))
+            (lambda (sref)
+              ($ swiss-num (ocapn-sturdyref-swiss-num sref))
+              sref)
+            #:promise? #t))))
 
-(define* (tor-server #:key (greeter-name "Alice")
-                     tor-onion-pair)
-  (define-values (node-vat onion-netlayer mycapn)
-    (setup-tor-mycapn tor-onion-pair))
-  (define alice
-    (with-vat node-vat (spawn ^greeter greeter-name)))
-  (define alice-sref
-    (with-vat node-vat ($ mycapn 'register alice 'onion)))
-  (values node-vat onion-netlayer mycapn alice alice-sref))
-
-(use-modules (fibers conditions))
-(use-modules (goblins ocapn netlayer utils)
-             (goblins ocapn netlayer onion-socks))
+(define env
+  (make-persistence-env
+   `((((examples try-captp-onion) ^greeter) ,^greeter)
+     (((examples try-captp-onion) ^greeter-sref) ,^greeter-sref))
+   #:extends (list captp-env onion-netlayer-env)))
 
 (define (onion-server)
-  (define-values (a-node-vat a-onion-netlayer a-mycapn alice alice-sref)
-    (tor-server))
-  (format #t "Connect to: ~a\n" (ocapn-id->string alice-sref))
+  (define-values (vat onion-netlayer onion-mycapn alice-sref)
+    (spawn-persistent-vat
+     env
+     (lambda ()
+       (define onion-netlayer
+         (spawn ^onion-netlayer))
+       (define onion-mycapn
+         (spawn-mycapn onion-netlayer))
+       (define alice
+         (spawn ^greeter "Alice"))
+       (define alice-sref
+         (spawn ^greeter-sref onion-mycapn onion-netlayer alice))
+       (values onion-netlayer onion-mycapn alice-sref))
+     (make-syrup-store "onion-netlayer.syrup")))
+  
+  (with-vat vat
+    (on (<- alice-sref)
+        (lambda (sref)
+          (format #t "Connect to: ~a\n" (ocapn-id->string sref)))))
   (wait (make-condition)))
 
 (define (onion-client greeter-sref-arg)
-  (define-values (onion-vat onion-netlayer mycapn)
-    (setup-tor-mycapn))
+  (define vat
+    (spawn-vat))
+  (define onion-netlayer
+    (with-vat vat
+      (spawn ^onion-netlayer)))
+  (define mycapn
+    (with-vat vat
+      (spawn-mycapn onion-netlayer)))
   (define stop-condition (make-condition))
-  (with-vat onion-vat
+  (with-vat vat
     (define greeter-sref (string->ocapn-id greeter-sref-arg))
     (define greeter-vow (<- mycapn 'enliven greeter-sref))
     (format #t "Connecting to alice on ~a, this can take a while.\n" greeter-sref-arg)
@@ -62,6 +81,12 @@
 (define (main args)
   ;; If called with no arguments, we're the server, otherwise assume the argument
   ;; is a sturdyref to the greeter and message it.
-  (cond [(= 1 (length args)) (onion-server)]
-        [(= 2 (length args)) (onion-client (list-ref args 1))]
-        [else (error "Wrong number of arguments given" args)]))
+  (match args
+    [(_cmd)
+     (onion-server)]
+    [(_cmd alice-sref)
+     (onion-client alice-sref)]
+    [something-else
+     (error "wrong number of arguments given, got ~a" something-else)]))
+
+(main (command-line))

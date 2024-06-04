@@ -1,4 +1,5 @@
 ;;; Copyright 2021-2022 Christine Lemmer-Webber
+;;; Copyright 2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -26,75 +27,60 @@
   #:use-module (goblins)
   #:use-module (goblins vat)
   #:use-module (goblins inbox)
+  #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer utils)
   #:use-module (goblins contrib syrup)
   #:export (^base-port-netlayer))
 
-(define (^base-port-netlayer bcom our-location
+(define (^base-port-netlayer _bcom our-location
                              incoming-accept
                              outgoing-connect-location)
   "A basis for defining netlayers."
   (define our-netlayer-name
     (ocapn-node-transport our-location))
+  (define-values (conn-establisher-vow conn-establisher-resolver)
+    (spawn-promise-values))
 
-  ;; (define shutdown-time (make-condition))
-  (define (start-listen-thread conn-establisher)
-    (define (listen)
-      (define incoming-port (incoming-accept))
-      (define-values (read-message write-message)
-        (read-write-procs incoming-port incoming-port))
-      (<-np-extern conn-establisher read-message write-message #f)
-      (listen))
-    ;; Simplified while we're trying to get this to work.
-    ;; But the dynamic-wind hack above won't work anyway because,
-    ;; well, fibers normally suspends/resumes all the time and
-    ;; this would get triggered incorrectly.  We need new, smarter
-    ;; code for how to shut this down.
-    (syscaller-free-fiber listen))
+  (define (listen-and-handle-new-connection conn-establisher)
+    (on (incoming-accept)
+        (lambda (incoming-port)
+          (define-values (read-message write-message)
+            (read-write-procs incoming-port incoming-port))
+          (<-np conn-establisher read-message write-message #f))
+        #:finally
+        (lambda ()
+          (listen-and-handle-new-connection conn-establisher))))
 
-  (define base-beh
-    (methods
-     [(netlayer-name) our-netlayer-name]
-     [(our-location) our-location]))
-
-  ;; State of the netlayer before it gets called with 'setup
-  (define pre-setup-beh
-    (extend-methods
-     base-beh
-     ;; The node is now wiring us up with the appropriate behavior for
-     ;; when a new connection comes in
-     [(setup conn-establisher)
-      (start-listen-thread conn-establisher)
-      ;; Now that we're set up, transition to the main behavior
-      (bcom (ready-beh conn-establisher))]))
-  (define (ready-beh conn-establisher)
-    (extend-methods
-     base-beh
-     [(self-location? loc)
-      (same-node-location? our-location loc)]
-     [(connect-to remote-node)
-      (unless (eq? (ocapn-node-transport remote-node)
-                   our-netlayer-name)
-        (error "Mismatched netlayer:"
-               (ocapn-node-transport remote-node)
-               our-netlayer-name))
-      ;; Asynchronously set up connection.  Once it's ready, we'll
-      ;; return the value from the connection establisher
-      ;; (which itself returns the meta-bootstrap-vow)
-      (define read-write-message-vow
-        (spawn-fibrous-vow
-         (lambda ()
-           (define connected-port
-             (outgoing-connect-location remote-node))
-           (define-values (read-message write-message)
-             (read-write-procs connected-port connected-port))
-           (list read-message write-message))))
-
-      (on read-write-message-vow
-          (match-lambda
-            ((read-message write-message)
-             (<- conn-establisher read-message write-message remote-node)))
-          #:promise? #t)]))
-  pre-setup-beh)
+  (methods
+   [(netlayer-name) our-netlayer-name]
+   [(our-location) our-location]
+   [(self-location? loc)
+    (same-node-location? our-location loc)]
+   [(setup conn-establisher)
+    (<-np conn-establisher-resolver 'fulfill conn-establisher)
+    (listen-and-handle-new-connection conn-establisher)]
+   [(connect-to remote-node)
+    (unless (eq? (ocapn-node-transport remote-node)
+                 our-netlayer-name)
+      (error "Mismatched netlayer:"
+             (ocapn-node-transport remote-node)
+             our-netlayer-name))
+    ;; Asynchronously set up connection.  Once it's ready, we'll
+    ;; return the value from the connection establisher
+    ;; (which itself returns the meta-bootstrap-vow)
+    (define read-write-message-vow
+      (spawn-fibrous-vow
+       (lambda ()
+         (define connected-port
+           (outgoing-connect-location remote-node))
+         (define-values (read-message write-message)
+           (read-write-procs connected-port connected-port))
+         (list read-message write-message))))
+    
+    (on read-write-message-vow
+        (match-lambda
+          ((read-message write-message)
+           (<- conn-establisher-vow read-message write-message remote-node)))
+        #:promise? #t)]))

@@ -1,4 +1,4 @@
-;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2022-2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -27,13 +27,14 @@
   #:use-module (goblins actor-lib ward)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib joiners)
+  #:use-module (goblins actor-lib io)
   #:use-module (goblins utils random-name)
   #:export (read-write-procs
             random-tmp-filename
             make-server-unix-domain-socket
             make-client-unix-domain-socket
             ^unix-socket
-            line-delimited-ports->channels))
+            ^line-delimited-port))
 
 (define (read-write-procs ip op)
   (define (read-message unmarshallers)
@@ -83,196 +84,46 @@ exist between this time, but they are really extremely unlikely."
                    (fcntl sock F_GETFL)))
     sock))
 
-;;;; Jessica's new line-delimited ports actors design
-;;;; ================================================
 
-;; This makes sequential operations easy in the asynchronous promise based
-;; system, that is Goblins.
-;;
-;; The ^port object exposes several methods (queue-send, queue-recieve-byte,
-;; etc.) which will queue up an operation and return a promise, the promise is
-;; fulfilled when the operation has occured.
-;;
-;; == Operations ==
-;; Each operation is a vow when run from spawn-fibrous-vow. The
-;; `process-operation` function will dequeue the first operation in the queue
-;; and then run that by calling it (getting the promise) and then using `on` to
-;; wait until the promise has resolved.
-;;
-;; Once the promise has resolved, it gets the result of the operation (e.g.
-;; bytes read from the port) and resolves the promise which was created for that
-;; operation with the result. It will break the promise if there's an error.
-;; Once that operation has completed, it will check to see if there are other
-;; operations in the queue, if there are it'll emit a message which calls
-;; `process-operation` again.
-(define (make-port-object p)
-  (define-values (warden incanter)
-    (spawn-warding-pair))
+(define (^line-delimited-port _bcom port)
+  (define port-io
+    (spawn ^read-write-io port
+           #:cleanup
+           (lambda (port)
+             (close-port port))))
 
-  (define (make-op op)
-    (define-values (promise resolver)
-      (spawn-promise-values))
-
-    (values promise
-            (cons resolver op)))
-
-  (define (^port _bcom)
-    (define-cell operations
-      '())
-
-    (define (process-operation)
-      (define current-operations
-        ($ operations))
-      (if (null? current-operations)
-          (error "No operations to be processed.")
-          (let* ((todo (car current-operations))
-                 (resolver (car todo))
-                 (operation (cdr todo)))
-            (on (apply $ incanter self operation)
-                (lambda (result)
-                  (<-np resolver 'fulfill result))
-                #:catch
-                (lambda (err)
-                  (<-np resolver 'break err))
-                #:finally
-                (lambda ()
-                  (unless (null? (cdr current-operations))
-                    (<-np incanter self 'process-operation))))
-            ($ operations (cdr current-operations)))))
-
-    (define (commit-operation op)
-      (define current-operations
-        ($ operations))
-      (when (null? current-operations)
-        (<-np incanter self 'process-operation))
-      ($ operations (append current-operations (list op))))
-
-    ;; These queue up an operation and give you back a promise which will be
-    ;; resolved when the operation has been performed.
-    (define public-beh
-      (methods
-       ((queue-send msg)
-        (define-values (promise op)
-          (make-op `(send ,msg)))
-        (commit-operation op)
-        promise)
-
-       ((queue-recieve-byte)
-        (define-values (promise op)
-          (make-op '(read-byte)))
-        (commit-operation op)
-        promise)
-
-       ((queue-recieve-message)
-        (define-values (promise op)
-          (make-op '(read-message)))
-        (commit-operation op)
-        promise)))
-
-    (define self-beh
-      (methods
-       (process-operation process-operation)
-       ((read-message)
-        ;; What ensures that there's only one of these at any time?
-        (spawn-fibrous-vow
-         (lambda ()
-           (let read-message ((buffer '()))
-             (match (integer->char (get-u8 p))
-               (#\newline (list->string (reverse buffer))) ;; stop & return.
-               (#\return (read-message buffer)) ;; skip.
-               (other-char (read-message (cons other-char buffer))))))))
-       ((read-byte)
-        (spawn-fibrous-vow
-         (lambda ()
-           (get-u8 p))))
-       ((send msg)
-        (spawn-fibrous-vow
-         (lambda ()
-           (cond ((integer? msg) (put-u8 p msg))
-                 ((bytevector? msg) (put-bytevector p msg))))))))
-
-    (ward warden self-beh #:extends public-beh))
-
-  (define self (spawn ^port))
-  self)
-
-(define (^unix-socket bcom path)
-  (define sock
-    (socket PF_UNIX SOCK_STREAM 0))
-  (connect sock AF_UNIX path)
-
-  (define sock-port
-    (make-port-object sock))
-
-  (define defunct
-    (lambda _
-      (error "This connection is no longer active.")))
-
-  (define beh
-    (methods
-     ((shutdown)
-      (shutdown sock 0)
-      (bcom defunct))
-     ((ask msg #:key (replies 1))
-      (beh 'send-message msg)
-      (cond ((<= replies 0) #f)
-            ((= replies 1) (beh 'read-message))
-            (else
-             (all-of* (map (lambda _ (beh 'read-message)) (iota replies))))))
-     ((send-message msg)
-      (cond ((integer? msg) ($ sock-port 'queue-send msg))
-            ((bytevector? msg) ($ sock-port 'queue-send msg))
-            ((string? msg) ($ sock-port 'queue-send (string->utf8 msg)))))
-
-     ((read-message) ($ sock-port 'queue-recieve-message))
-     ((read-byte) ($ sock-port 'queue-recieve-byte))))
-  beh)
-(define (line-delimited-ports->channels ip op)
-  (define-values (in-enq-ch in-deq-ch in-stop?)
-    (spawn-delivery-agent))
-  (define-values (out-enq-ch out-deq-ch out-stop?)
-    (spawn-delivery-agent))
-
-  (syscaller-free-fiber
-   (lambda ()
-     ;; Uh, I'm not sure if onion control sockets ever contain utf-8 encoded
-     ;; data... I'm pretty sure no, so "forcing" a latin-1 perspective here
-     (define (_read-char)
-       (match (get-u8 ip)
-         [(? eof-object? eof) eof]
-         [char-int (integer->char char-int)]))
-     (let lp ([buf '()])
-       (match (_read-char)
-         [(? eof-object?) 'done]
-         [#\newline
-          (let ((incoming-str
-                 ;; Reverse and send to input channel current string
-                 (string-trim-both (list->string (reverse buf)) #\return)))
-            (put-message in-enq-ch incoming-str)
-            (lp '()))]  ; safe to recur, handle-event is called in tail position
-         ;; keep on bufferin'
-         [char (lp (cons char buf))]))))
-
-  (syscaller-free-fiber
-   (lambda ()
-     (let lp ()
-       (match (get-message out-deq-ch)
-         ;; we're done
-         ['close
-          (close-input-port ip)
-          (close-output-port op)]
-         [(? string? msg)
-          (display msg op)
-          (display "\r\n" op)
-          (flush-output-port op)
-          (lp)]
-         [(? bytevector? msg)
-          (put-bytevector op msg)
-          (display "\r\n" op)
-          (flush-output-port op)
-          (lp)]))))
-
-  (values in-deq-ch out-enq-ch))
+  (methods
+   [(read-line)
+    ($ port-io 'read
+       (lambda (ip)
+         ;; Uh, I'm not sure if onion control sockets ever contain utf-8 encoded
+         ;; data... I'm pretty sure no, so "forcing" a latin-1 perspective here
+         (define (_read-char)
+           (match (get-u8 ip)
+             [(? eof-object? eof) eof]
+             [char-int (integer->char char-int)]))
+         (let lp ([buf '()])
+           (match (_read-char)
+             [(? eof-object?) 'done]
+             [#\newline
+              (let ((incoming-str
+                     ;; Reverse and send to input channel current string
+                     (string-trim-both (list->string (reverse buf)) #\return)))
+                incoming-str)]
+             ;; keep on bufferin'
+             [char (lp (cons char buf))]))))]
+   [(write-line line)
+    ($ port-io 'write
+       (lambda (op)
+         (match line
+           [(? string? msg)
+            (display msg op)
+            (display "\r\n" op)
+            (flush-output-port op)]
+           [(? bytevector? msg)
+            (put-bytevector op msg)
+            (display "\r\n" op)
+            (flush-output-port op)])))]))
 
 ;; (define* (line-delimited-port->channel-pair sock)
 ;;   (define keep-going? #t)

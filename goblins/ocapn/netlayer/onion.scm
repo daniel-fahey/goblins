@@ -1,5 +1,5 @@
 ;;; Copyright 2021-2022 Christine Lemmer-Webber
-;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2022-2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -18,24 +18,30 @@
   #:use-module (ice-9 regex)
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 iconv)
+  #:use-module (srfi srfi-11)
   #:use-module (rnrs bytevectors)
   #:use-module (rnrs io ports)
   #:use-module (fibers channels)
   #:use-module (goblins)
   #:use-module (goblins vat)
+  #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib io)
+  #:use-module (goblins actor-lib joiners)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer utils)
   #:use-module (goblins ocapn netlayer onion-socks)
   #:use-module (goblins ocapn netlayer base-port)
   #:use-module (goblins contrib syrup)
   #:export (new-onion-netlayer
-            restore-onion-netlayer))
+            restore-onion-netlayer
+            ^onion-netlayer
+            onion-netlayer-env))
 
-(define (tor-control-connect-unix path)
+(define (spawn-tor-control-connect-unix path)
   (define sock
     (make-client-unix-domain-socket path))
-  (line-delimited-ports->channels sock sock))
+  (spawn ^line-delimited-port sock))
 
 (define (build-path . args)
   (string-join args file-name-separator-string))
@@ -52,8 +58,8 @@
 (define default-tor-ocapn-socks-dir
   (build-path default-goblins-tor-dir "ocapn-sockets"))
 
-(define (expect-250-ok tor-in-ch)
-  (match (get-message tor-in-ch)
+(define (expect-250-ok line)
+  (match line
     ["250 OK" 'ok]
     [something-else
      (error 'wrong-response "Failed to authenticate, got: ~a" something-else)]))
@@ -74,125 +80,194 @@
                            (format #f "ocapn-~a-~a.sock"
                                    (getuid) name))))
 
-  (define-values (tor-in-ch tor-out-ch)
-    (tor-control-connect-unix tor-control-path))
-  
-  (put-message tor-out-ch "AUTHENTICATE")
-  (expect-250-ok tor-in-ch)
+  (define tor-control
+    (spawn-tor-control-connect-unix tor-control-path))
 
-  (define ocapn-sock-listener (make-server-unix-domain-socket ocapn-sock-path))
-  (values ocapn-sock-path ocapn-sock-listener
-          tor-in-ch tor-out-ch))
+  ($ tor-control 'write-line "AUTHENTICATE")
+  (on (<- tor-control 'read-line) expect-250-ok)
+
+  (define ocapn-sock-listener-port
+    (make-server-unix-domain-socket ocapn-sock-path))
+  (define ocapn-sock-listener
+    (spawn ^io ocapn-sock-listener-port
+           #:cleanup
+           (lambda (port)
+             (close-port port))))
+  (values ocapn-sock-path ocapn-sock-listener tor-control))
 
 (define (new-tor-connection tor-control-path tor-ocapn-socks-dir)
-  (define-values (ocapn-sock-path ocapn-sock-listener
-                  tor-in-ch tor-out-ch)
+  (define-values (ocapn-sock-path ocapn-sock-listener tor-control)
     (setup-ocapn-io tor-control-path tor-ocapn-socks-dir))
 
-  (put-message tor-out-ch
-               (format #f "ADD_ONION NEW:ED25519-V3 PORT=9045,unix:~a"
-                       ocapn-sock-path))
+  (<-np tor-control 'write-line
+        (format #f "ADD_ONION NEW:ED25519-V3 PORT=9045,unix:~a"
+                ocapn-sock-path))
 
-  (define service-id
-    (let ([response (get-message tor-in-ch)])
-      (match (string-match "^250-ServiceID=(.+)$" response)
-        [(? regexp-match? rxm)
-         (regexp-substitute #f rxm 1)]
-        [#f (error 'wrong-response "Expected ServiceId response, got:"
-                   response)])))
-  (define private-key
-    (let ([response (get-message tor-in-ch)])
-      (match (string-match "^250-PrivateKey=(.+)$" response)
-        [(? regexp-match? rxm)
-         (regexp-substitute #f rxm 1)]
-        [#f (error 'wrong-response "Expected PrivateKey response, got:"
-                   response)])))
-
-  (expect-250-ok tor-in-ch)
+  (define service-id-vow
+    (on (<- tor-control 'read-line)
+        (lambda (response)
+          (match (string-match "^250-ServiceID=(.+)$" response)
+            [(? regexp-match? rxm)
+             (regexp-substitute #f rxm 1)]
+            [#f (error 'wrong-response "Expected ServiceId response, got:"
+                       response)]))
+        #:promise? #t))
   
-  (values ocapn-sock-path ocapn-sock-listener service-id private-key))
+  (define private-key-vow
+    (on (<- tor-control 'read-line)
+        (lambda (response)
+          (match (string-match "^250-PrivateKey=(.+)$" response)
+            [(? regexp-match? rxm)
+             (regexp-substitute #f rxm 1)]
+            [#f (error 'wrong-response "Expected PrivateKey response, got:"
+                       response)]))
+        #:promise? #t))
+
+  (on (<- tor-control 'read-line) expect-250-ok)
+  (values ocapn-sock-path ocapn-sock-listener service-id-vow private-key-vow))
 
 (define (restore-tor-connection tor-control-path tor-ocapn-socks-dir
                                 private-key service-id)
-  (define-values (ocapn-sock-path ocapn-sock-listener
-                  tor-in-ch tor-out-ch)
+  (define-values (ocapn-sock-path ocapn-sock-listener tor-control)
     (setup-ocapn-io tor-control-path tor-ocapn-socks-dir))
-  (put-message tor-out-ch
-               (format #f "ADD_ONION ~a PORT=9045,unix:~a"
-                       private-key
-                       ocapn-sock-path))
-  (define returned-service-id
-    (let ([response (get-message tor-in-ch)])
-      (match (string-match "^250-ServiceID=(.+)$" response)
-        [(? regexp-match? rxm)
-         (regexp-substitute #f rxm 1)]
-        [#f (error 'wrong-response "Expected ServiceId response, got:"
-                   response)])))
-  (unless (equal? service-id returned-service-id)
-    (error "Got the wrong service-id; expected ~a but got ~a"
-           service-id returned-service-id))
-  (expect-250-ok tor-in-ch)
 
-  (values ocapn-sock-path ocapn-sock-listener))
+  (define-values (private-key-vow private-key-resolver)
+    (spawn-promise-values))
+  ($ private-key-resolver 'fulfill private-key)
 
-(define (^onion-netlayer bcom our-location ocapn-sock-listener
-                         tor-socks-path do-cleanup
-                         private-key service-id)
-  (define (incoming-accept)
-    (match (accept ocapn-sock-listener SOCK_NONBLOCK)
-      ((client . addr)
-       (setvbuf client 'block 1024)
-       client)))
-  (define (outgoing-connect-location location)
-    (unless (eq? (ocapn-node-transport location) 'onion)
-      (error "Wrong netlayer! Expected onion" location))
-    (let* ((designator (ocapn-node-designator location))
-           (sock (make-client-unix-domain-socket tor-socks-path)))
-      (onion-socks5-setup! sock (string-append designator ".onion")
-                           9045)
-      sock))
-  (^base-port-netlayer bcom our-location
-                       incoming-accept outgoing-connect-location))
+  ($ tor-control 'write-line
+     (format #f "ADD_ONION ~a PORT=9045,unix:~a"
+             private-key
+             ocapn-sock-path))
+  
+  (define returned-service-id-vow
+    (on (<- tor-control 'read-line)
+        (lambda (response)
+          (match (string-match "^250-ServiceID=(.+)$" response)
+            [(? regexp-match? rxm)
+             (regexp-substitute #f rxm 1)]
+            [#f (error 'wrong-response "Expected ServiceId response, got:"
+                       response)]))
+        #:promise? #t))
+  (on returned-service-id-vow
+      (lambda (returned-service-id)
+        (unless (equal? service-id returned-service-id)
+          (error "Got the wrong service-id; expected ~a but got ~a"
+                 service-id returned-service-id))))
 
-(define (_finish-setup-onion private-key service-id tor-socks-path
-                             ocapn-sock-path ocapn-sock-listener)
-  ;; TODO: Cleanup tor subprocess also.
-  (define (do-cleanup)
-    (close-port ocapn-sock-listener)
-    (delete-file ocapn-sock-path))
+  (on (<- tor-control 'read-line) expect-250-ok)
+  (values ocapn-sock-path ocapn-sock-listener
+          returned-service-id-vow private-key-vow))
 
-  (define our-location
-    (make-ocapn-node 'onion service-id #f))
+(define-actor (^onion-netlayer* bcom private-key service-id
+                                tor-control-path
+                                tor-socks-path
+                                tor-ocapn-socks-dir)
 
-  (values
-   (spawn ^onion-netlayer our-location ocapn-sock-listener
-          tor-socks-path do-cleanup
-          private-key service-id)
-   private-key service-id))
+  (define (setup-onion-netlayer private-key service-id our-location
+                                ocapn-sock-path ocapn-sock-listener)
+    (define (incoming-accept)
+      (on (<- ocapn-sock-listener
+              (lambda (port)
+                (accept port SOCK_NONBLOCK)))
+          (lambda (accepted)
+            (match accepted
+              ((client . addr)
+               (setvbuf client 'block 1024)
+               client)))
+          #:promise? #t))
+    (define (outgoing-connect-location location)
+      (unless (eq? (ocapn-node-transport location) 'onion)
+        (error "Wrong netlayer! Expected onion" location))
+      (let* ((designator (ocapn-node-designator location))
+             (sock (make-client-unix-domain-socket tor-socks-path)))
+        (onion-socks5-setup! sock (string-append designator ".onion")
+                             9045)
+        sock))
+    (^base-port-netlayer bcom our-location
+                         incoming-accept outgoing-connect-location))
 
-;; TODO: I guess this really *should* return one value to its
-;; continuation, and the pre-setup-beh above should also support
-;; our-location
-(define* (new-onion-netlayer
-          #:key
-          [tor-control-path default-tor-control-path]
-          [tor-socks-path default-tor-socks-path]
-          [tor-ocapn-socks-dir default-tor-ocapn-socks-dir])
-  (define-values (ocapn-sock-path ocapn-sock-listener service-id private-key)
-    (new-tor-connection tor-control-path tor-ocapn-socks-dir))
+  ;; Kinda a weird, maybe even hack to handle `bcom`ing on a promise.
+  ;; This could be much clearner using the swappable but it be slow.
+  (define active-beh (spawn ^cell))
+  (define messages (spawn ^cell '()))
 
-  (_finish-setup-onion private-key service-id tor-socks-path
-                       ocapn-sock-path ocapn-sock-listener))
+  ;; When we have the values for the private-key and service-id we can see
+  ;; about setting ourselves up, either by restoring with the keys provided
+  ;; or setting up a new tor connection.
+  (define tor-connection-vow
+    (on (all-of private-key service-id)
+        (match-lambda
+          [(private-key* service-id*)
+           (define-values (ocapn-sock-path ocapn-sock-listener service-id-vow private-key-vow)
+             (if (and ($ private-key*) ($ service-id*))
+                 (restore-tor-connection tor-control-path tor-ocapn-socks-dir
+                                         ($ private-key*) ($ service-id*))
+                 (new-tor-connection tor-control-path tor-ocapn-socks-dir)))
 
-(define* (restore-onion-netlayer
-          private-key service-id
-          #:key [tor-control-path default-tor-control-path]
-          [tor-socks-path default-tor-socks-path]
-          [tor-ocapn-socks-dir default-tor-ocapn-socks-dir])
-  (define-values (ocapn-sock-path ocapn-sock-listener)
-    (restore-tor-connection tor-control-path tor-ocapn-socks-dir
-                            private-key service-id))
-  (_finish-setup-onion private-key service-id tor-socks-path
-                       ocapn-sock-path ocapn-sock-listener))
+           (list ocapn-sock-path ocapn-sock-listener service-id-vow private-key-vow)])
+        #:promise? #t))
 
+  (on tor-connection-vow
+      (match-lambda
+        [(ocapn-sock-path ocapn-sock-listener service-id-vow private-key-vow)
+         ;; Save the private key and service ID back in the cells
+         (on (all-of private-key-vow service-id-vow)
+             (lambda (private-key-and-service-id)
+               (define-values (private-key* service-id*)
+                 (match private-key-and-service-id
+                   [(private-key* service-id*)
+                    (values private-key* service-id*)]))
+               ;; Add the info we need to restore to the cells so aurie can store it
+               (<-np service-id service-id*)
+               (<-np private-key private-key*)
+               ;; Finally switch to the "ready" beh
+               (let ((setup-beh
+                      (setup-onion-netlayer private-key*
+                                            service-id*
+                                            (make-ocapn-node 'onion service-id* #f)
+                                            ocapn-sock-path
+                                            ocapn-sock-listener)))
+                 ($ active-beh (make-setup-beh setup-beh))
+                 ;; Dispatch previous messages
+                 (for-each
+                  (match-lambda
+                    [(message . resolver)
+                     ($ resolver 'fulfill (apply setup-beh message))])
+                  (reverse ($ messages))))))]))
 
+  (define (make-setup-beh setup-beh)
+    (lambda (args)
+      (bcom setup-beh (apply setup-beh args))))
+
+  (define (pre-setup-beh . args)
+    (if ($ active-beh)
+        (($ active-beh) args)
+        ;; Yuck!
+        (match args
+          [('netlayer-name) 'onion]
+          [something-else
+           ;; Ugh, yuck
+           (define-values (vow resolver)
+             (spawn-promise-values))
+           ($ messages (cons (cons something-else resolver) ($ messages)))
+           vow])))
+  pre-setup-beh)
+
+(define* (^onion-netlayer _bcom
+                          #:optional private-key service-id
+                          #:key
+                          [tor-control-path default-tor-control-path]
+                          [tor-socks-path default-tor-socks-path]
+                          [tor-ocapn-socks-dir default-tor-ocapn-socks-dir])
+  (spawn ^onion-netlayer*
+         (spawn ^cell private-key)
+         (spawn ^cell service-id)
+         tor-control-path
+         tor-socks-path
+         tor-ocapn-socks-dir))
+
+(define onion-netlayer-env
+  (make-persistence-env
+   `((((goblins ocapn netlayer onion) ^onion-netlayer) ,^onion-netlayer*))
+   #:extends cell-env))
