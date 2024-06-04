@@ -46,9 +46,7 @@
   (define (listen-and-handle-new-connection conn-establisher)
     (on (incoming-accept)
         (lambda (incoming-port)
-          (define-values (read-message write-message)
-            (read-write-procs incoming-port incoming-port))
-          (<-np conn-establisher read-message write-message #f))
+          (<-np conn-establisher (spawn ^captp-io incoming-port) #f))
         #:finally
         (lambda ()
           (listen-and-handle-new-connection conn-establisher))))
@@ -70,17 +68,12 @@
     ;; Asynchronously set up connection.  Once it's ready, we'll
     ;; return the value from the connection establisher
     ;; (which itself returns the meta-bootstrap-vow)
-    (define read-write-message-vow
+    (define connected-port-vow
       (spawn-fibrous-vow
        (lambda ()
-         (define connected-port
-           (outgoing-connect-location remote-node))
-         (define-values (read-message write-message)
-           (read-write-procs connected-port connected-port))
-         (list read-message write-message))))
+         (outgoing-connect-location remote-node))))
     
-    (on read-write-message-vow
-        (match-lambda
-          ((read-message write-message)
-           (<- conn-establisher-vow read-message write-message remote-node)))
+    (on connected-port-vow
+        (lambda (connected-port)
+          (<- conn-establisher-vow (spawn ^captp-io connected-port) remote-node))
         #:promise? #t)]))

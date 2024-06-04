@@ -29,20 +29,31 @@
   #:use-module (goblins actor-lib joiners)
   #:use-module (goblins actor-lib io)
   #:use-module (goblins utils random-name)
-  #:export (read-write-procs
+  #:export (^captp-io
             random-tmp-filename
             make-server-unix-domain-socket
             make-client-unix-domain-socket
             ^unix-socket
             ^line-delimited-port))
 
-(define (read-write-procs ip op)
-  (define (read-message unmarshallers)
-    (syrup-read ip #:unmarshallers unmarshallers))
-  (define (write-message msg marshallers)
-    (syrup-write msg op #:marshallers marshallers)
-    (flush-output-port op))
-  (values read-message write-message))
+(define (^captp-io _bcom port)
+  (define io
+    (spawn ^read-write-io
+           port
+           #:cleanup
+           (lambda (resource)
+             (close-port resource))))
+  
+  (methods
+   [(read-message unmarshallers)
+    ($ io 'read
+       (lambda (ip)
+         (syrup-read ip #:unmarshallers unmarshallers)))]
+   [(write-message msg marshallers)
+    ($ io 'write
+       (lambda (op)
+         (syrup-write msg op #:marshallers marshallers)
+         (flush-output-port op)))]))
 
 (define* (random-tmp-filename base-directory
                               #:key

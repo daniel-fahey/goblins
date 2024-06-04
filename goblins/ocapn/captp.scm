@@ -1206,11 +1206,11 @@
   (session-name sessionmeta-session-name))
 
 (define-actor (^connection-establisher bcom mycapn-vow netlayer netlayer-name)
-  (lambda (read-message write-message remote-connect-location)
+  (lambda (io remote-connect-location)
     (on mycapn-vow
         (lambda (mycapn)
-          ($C ($C mycapn) 'new-connection netlayer netlayer-name
-              read-message write-message remote-connect-location))
+          (<- ($C mycapn) 'new-connection netlayer netlayer-name
+              io remote-connect-location))
         #:promise? #t)))
 
 (define-actor (^mycapn bcom self netlayer-map registry locator)
@@ -1396,11 +1396,9 @@
    ;; somewhere...
    ;; TODO: Should this still be an exposed method?  Maybe it's something only
    ;; the ^connection-establisher should call...
-   [(new-connection netlayer netlayer-name read-message write-message remote-connect-location)
-    (define-values (captp-outgoing-enq-ch captp-outgoing-deq-ch captp-outgoing-stop?)
-      (spawn-delivery-agent))
+   [(new-connection netlayer netlayer-name message-io remote-connect-location)
     (define (send-to-remote msg)
-      (put-message captp-outgoing-enq-ch msg)
+      (<-np message-io 'write-message msg marshallers)
       *unspecified*)
     (define our-location
       ($C netlayer 'our-location))
@@ -1414,8 +1412,6 @@
 
     (define-values (remote-bootstrap-vow remote-bootstrap-resolver)
       (spawn-promise-values))
-
-
 
     ;; Complete the initialization step against the remote node.
     ;; Basically this allows the coordinator to know of what remote
@@ -1540,28 +1536,17 @@
       (swappable (spawn ^setup-completer)))
 
     ;; Now spawn fibers that read/write to these ports
-    (syscaller-free-fiber
-     (lambda ()
-       (let lp ()
-         (match (read-message unmarshallers)
-           [(? eof-object?)
-            (<-np-extern incoming-forwarder
-                         (internal-shutdown 'disconnect "Remote disconnected"))]
-           [msg
-            (<-np-extern incoming-forwarder msg)
-            (lp)]))))
-
-    (syscaller-free-fiber
-     (lambda ()
-       (let lp ()
-         (define msg
-           (get-message captp-outgoing-deq-ch))
-         (write-message msg marshallers)
-         ;; (syrup-write msg network-out-port #:marshallers marshallers)
-         ;; ;; TODO: *should* we be flushing output each time we've written out
-         ;; ;; a message?  It seems like "yes" but I'm a bit unsure
-         ;; (force-output network-out-port)
-         (lp))))
+    (define (read-next-message)
+      (on (<- message-io 'read-message unmarshallers)
+          (match-lambda
+            [(? eof-object?)
+             (<-np-extern incoming-forwarder
+                          (internal-shutdown 'disconnect "Remote disconnected"))]
+            [msg
+             (<-np-extern incoming-forwarder msg)
+             (read-next-message)])))
+    ;; Kick off the reading message loop
+    (read-next-message)
 
     ;; The crossed hellos problem is where we try to connect to a location
     ;; at the same time, they are trying to connect to us. Only one of these
