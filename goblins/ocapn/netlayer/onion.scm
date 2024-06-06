@@ -159,11 +159,12 @@
   (values ocapn-sock-path ocapn-sock-listener
           returned-service-id-vow private-key-vow))
 
-(define-actor (^onion-netlayer* bcom private-key service-id
+(define-actor (^onion-netlayer* bcom
+                                self
+                                private-key service-id
                                 tor-control-path
                                 tor-socks-path
                                 tor-ocapn-socks-dir)
-
   (define (setup-onion-netlayer private-key service-id our-location
                                 ocapn-sock-path ocapn-sock-listener)
     (define (incoming-accept)
@@ -187,10 +188,20 @@
     (^base-port-netlayer bcom our-location
                          incoming-accept outgoing-connect-location))
 
-  ;; Kinda a weird, maybe even hack to handle `bcom`ing on a promise.
-  ;; This could be much clearner using the swappable but it be slow.
-  (define active-beh (spawn ^cell))
-  (define messages (spawn ^cell '()))
+  ;; We have to wait until the tor daemon (or aurie) gives us the
+  ;; information we need to fully be setup. We use two things to do
+  ;; that:
+  ;; 1. the `setup-beh' cell which is filled with the behavior from
+  ;;    the ^base-port-netlayer once we're setup. The next time we're
+  ;;    sent a message we'll bcom that behavior.
+  ;;
+  ;; 2. While we're still not setup, we might be sent messages, those
+  ;;    are sent to the setup-netlayer-vow. Once we're setup we
+  ;;    resolve the promise to ourselves which will forward all
+  ;;    messages to us when we're able to process them.
+  (define setup-beh (spawn ^cell))
+  (define-values (setup-netlayer-vow setup-netlayer-resolver)
+    (spawn-promise-values))
 
   ;; When we have the values for the private-key and service-id we can see
   ;; about setting ourselves up, either by restoring with the keys provided
@@ -219,40 +230,24 @@
                    [(private-key* service-id*)
                     (values private-key* service-id*)]))
                ;; Add the info we need to restore to the cells so aurie can store it
-               (<-np service-id service-id*)
-               (<-np private-key private-key*)
+               ($ service-id service-id*)
+               ($ private-key private-key*)
                ;; Finally switch to the "ready" beh
-               (let ((setup-beh
+               (let ((base-port-beh
                       (setup-onion-netlayer private-key*
                                             service-id*
                                             (make-ocapn-node 'onion service-id* #f)
                                             ocapn-sock-path
                                             ocapn-sock-listener)))
-                 ($ active-beh (make-setup-beh setup-beh))
-                 ;; Dispatch previous messages
-                 (for-each
-                  (match-lambda
-                    [(message . resolver)
-                     ($ resolver 'fulfill (apply setup-beh message))])
-                  (reverse ($ messages))))))]))
+                 ($ setup-beh base-port-beh)
+                 ($ setup-netlayer-resolver 'fulfill ($ self)))))]))
 
-  (define (make-setup-beh setup-beh)
-    (lambda (args)
-      (bcom setup-beh (apply setup-beh args))))
 
-  (define (pre-setup-beh . args)
-    (if ($ active-beh)
-        (($ active-beh) args)
-        ;; Yuck!
-        (match args
-          [('netlayer-name) 'onion]
-          [something-else
-           ;; Ugh, yuck
-           (define-values (vow resolver)
-             (spawn-promise-values))
-           ($ messages (cons (cons something-else resolver) ($ messages)))
-           vow])))
-  pre-setup-beh)
+  (lambda args
+    (let ((setup-beh ($ setup-beh)))
+      (if setup-beh
+          (bcom setup-beh (apply setup-beh args))
+          (apply <- setup-netlayer-vow args)))))
 
 (define* (^onion-netlayer _bcom
                           #:optional private-key service-id
@@ -260,12 +255,17 @@
                           [tor-control-path default-tor-control-path]
                           [tor-socks-path default-tor-socks-path]
                           [tor-ocapn-socks-dir default-tor-ocapn-socks-dir])
-  (spawn ^onion-netlayer*
-         (spawn ^cell private-key)
-         (spawn ^cell service-id)
-         tor-control-path
-         tor-socks-path
-         tor-ocapn-socks-dir))
+  (define self (spawn ^cell))
+  (define netlayer
+    (spawn ^onion-netlayer*
+           self
+           (spawn ^cell private-key)
+           (spawn ^cell service-id)
+           tor-control-path
+           tor-socks-path
+           tor-ocapn-socks-dir))
+  ($ self netlayer)
+  netlayer)
 
 (define onion-netlayer-env
   (make-persistence-env
