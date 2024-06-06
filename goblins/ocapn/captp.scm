@@ -29,6 +29,7 @@
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib joiners)
   #:use-module (goblins actor-lib nonce-registry)
   #:use-module (goblins actor-lib swappable)
   #:use-module (goblins actor-lib ward)
@@ -941,20 +942,16 @@
 
   (values captp-incoming-handler remote-bootstrap-obj))
 
-(define* (^coordinator bcom router our-location
+(define* (^coordinator bcom router our-location-vow
                        intra-node-warden intra-node-incanter
                        #:key [handoff-key-pair (generate-key-pair)])
   ;; counters used to increment how many handoff requests have been
   ;; made in this session to prevent replay attacks.
   ;; every time a *request* is made, this should be incremented.
-  (define our-handoff-count 0)
+  (define our-handoff-count
+    (spawn ^cell 0))
   (define remote-handoff-count
     (spawn ^cell 0))
-
-  ;; (define handoff-key-pair
-  ;;   (generate-key
-  ;;    (sexp->canonical-sexp
-  ;;     '(genkey (eddsa (curve Ed25519) (flags eddsa))))))
 
   (define handoff-privkey
     (key-pair->private-key handoff-key-pair))
@@ -965,16 +962,18 @@
   (define (get-handoff-pubkey)
     (gcrypt:pk-crypto:canonical-sexp->sexp handoff-pubkey))
 
-  ;; TODO: maybe the hashing isn't necessary
   (define our-side-name
     (sha256d (syrup-encode (get-handoff-pubkey))))
 
-  (define our-location-sig
-    (let ((encoded-location
-           (syrup-encode
-            (make-tagged* 'my-location our-location)
-            #:marshallers marshallers)))
-      (sign encoded-location handoff-privkey)))
+  (define our-location-sig-vow
+    (on our-location-vow
+        (lambda (our-location)
+          (let ((encoded-location
+                 (syrup-encode
+                  (make-tagged* 'my-location our-location)
+                  #:marshallers marshallers)))
+            (sign encoded-location handoff-privkey)))
+        #:promise? #t))
 
   (define core-beh
     (methods
@@ -983,7 +982,7 @@
      [get-handoff-pubkey get-handoff-pubkey]
      ;; TODO: Horrible, we need to protect against this
      [(get-handoff-privkey) handoff-privkey]
-     [(get-location-sig) our-location-sig]))
+     [(get-location-sig) our-location-sig-vow]))
 
   (define pre-init-beh
     (extend-methods core-beh
@@ -1068,46 +1067,38 @@
       (let ((exporter-location
              (desc:handoff-give-exporter-location
               (desc:sig-envelope-signed signed-handoff-give))))
-        (cond
-         ;; Oh, this is us.  Well, we don't need to open a new session
-         ;; for that, though we do need to coordinate with whatever
-         ;; session is in question
-         [($C router 'self-location? exporter-location)
-          ;; In order for this to happen, we have to be getting a
-          ;; handoff with ourselves as the gifter!  Yikes!  Well,
-          ;; this can happen accidentally if A and B have two simultaneous
-          ;; sessions open with each other.
-          ;;
-          ;; Note that this might be caused by the crossed hellos problem
-          ;; (or simply that even from the outgoing connection side, we
-          ;; don't bother to deduplicate while attempting a connection...
-          ;; oops)
-          ;;
-          ;; TODO: Fix simultaneous outgoing connections problem, which
-          ;;   is related, but easier to fix.  To do so we just need to
-          ;;   recognize that we're "in the middle of" establishing a
-          ;;   connection and buffer multiple waiting connection attempts
-          ;;   together.  It would be okay for them to all fail together
-          ;;   if something goes wrong.  We can delay thinking about whether
-          ;;   or not to supply a re-connect until later.
-          (error "Handoff points at ourselves... crossed hellos or adjacent problem?")]
-         ;; Oh, this is someone else.
-         ;; Well, we're going to need to make a receive certificate
-         ;; and work with the router to pass it along
-         [else
-          (let* ((handoff-receive
-                  (desc:handoff-receive session-name our-side-name
-                                        our-handoff-count signed-handoff-give))
-                 (handoff-receive-sig
-                  (sign (syrup-encode handoff-receive
-                                      #:marshallers marshallers)
-                        handoff-privkey))
-                 (signed-handoff-receive
-                  (desc:sig-envelope handoff-receive
-                                     handoff-receive-sig)))
-            ;; maybe a cell would be better, dunno
-            (set! our-handoff-count (add1 our-handoff-count))
-            (<- router 'send-handoff-receive signed-handoff-receive))])))
+        (on (<- router 'self-location? exporter-location)
+            (lambda (self-location?)
+              (when self-location?
+                ;; Oh, this is us.  Well, we don't need to open a new session
+                ;; for that, though we do need to coordinate with whatever
+                ;; session is in question
+                ;; In order for this to happen, we have to be getting a
+                ;; handoff with ourselves as the gifter!  Yikes!  Well,
+                ;; this can happen accidentally if A and B have two simultaneous
+                ;; sessions open with each other.
+                ;;
+                ;; Note that this might be caused by the crossed hellos problem
+                ;; (or simply that even from the outgoing connection side, we
+                ;; don't bother to deduplicate while attempting a connection...
+                ;; oops)
+                (error "Handoff points at ourselves... crossed hellos or adjacent problem?"))
+              
+              ;; Oh, this is someone else.
+              ;; Well, we're going to need to make a receive certificate
+              ;; and work with the router to pass it along
+              (let* ((handoff-receive
+                      (desc:handoff-receive session-name our-side-name
+                                            ($C our-handoff-count) signed-handoff-give))
+                     (handoff-receive-sig
+                      (sign (syrup-encode handoff-receive
+                                          #:marshallers marshallers)
+                            handoff-privkey))
+                     (signed-handoff-receive
+                      (desc:sig-envelope handoff-receive
+                                         handoff-receive-sig)))
+                ($C our-handoff-count (add1 ($C our-handoff-count)))
+                (<- router 'send-handoff-receive signed-handoff-receive))))))
 
     (define (give-handoff-legit? signed-handoff-give)
       (assert-type signed-handoff-give signed-handoff-give?)
@@ -1128,14 +1119,18 @@
                    (give-sig
                     (gcrypt:pk-crypto:sexp->canonical-sexp
                      give-sig-sexp)))
-        (and (equal? session-name give-session)
-             (equal? give-gifter-side remote-side-name)
-             ;; I'm not sure if this one is critical.
-             ;; Should consider the attack scenarios again.
-             ;; Probably doesn't hurt; maybe can just leave it until
-             ;; we find a reason not to.
-             ($C router 'self-location? give-exporter-location)
-             (verify give-sig encoded-handoff-give remote-key))))
+        (on (<- router 'self-location? give-exporter-location)
+            (lambda (self-location?)
+              
+              (and (equal? session-name give-session)
+                   (equal? give-gifter-side remote-side-name)
+                   ;; I'm not sure if this one is critical.
+                   ;; Should consider the attack scenarios again.
+                   ;; Probably doesn't hurt; maybe can just leave it until
+                   ;; we find a reason not to.
+                   self-location?
+                   (verify give-sig encoded-handoff-give remote-key)))
+            #:promise? #t)))
 
     (define (full-handoff-legit? signed-handoff-receive)
       (assert-type signed-handoff-receive signed-handoff-receive?)
@@ -1164,14 +1159,19 @@
                      receive-sig-sexp)))
 
         (define valid-handoff?
-          (and (give-handoff-legit? signed-handoff-give)
-               (>= this-handoff-count ($C remote-handoff-count))
-               (verify receive-sig encoded-handoff-receive give-recipient-key)))
+          (on (give-handoff-legit? signed-handoff-give)
+              (lambda (handoff-give-legit?)
+                (and handoff-give-legit?
+                     (>= this-handoff-count ($C remote-handoff-count))
+                     (verify receive-sig encoded-handoff-receive give-recipient-key)))
+              #:promise? #t))
 
         ;; If it is in fact a valid handoff, let's increment the count so
         ;; it can't be replayed.
-        (when valid-handoff?
-          ($C remote-handoff-count (+ this-handoff-count 1)))
+        (on valid-handoff?
+            (lambda (valid?)
+              (when valid?
+                ($C remote-handoff-count (+ this-handoff-count 1)))))
 
         valid-handoff?))
 
@@ -1272,16 +1272,20 @@
                           (error 'no-open-session "No open session with key ~s"
                                  session-id)))))
         ;; TODO: count stuff here too, but needs to be in this session
-        (unless ($C cert-session-coordinator 'full-handoff-legit? signed-handoff-receive)
-          (error 'invalid-handoff-cert
-                 "Handoff cert invalid for session: ~s"
-                 signed-handoff-receive))
+        (on (<- cert-session-coordinator 'full-handoff-legit? signed-handoff-receive)
+            (lambda (handoff-legit?)
+              (if handoff-legit?
+                  ($C intra-node-incanter cert-session-local-bootstrap-obj
+                      'pull-out-gift
+                      (desc:handoff-give-gift-id handoff-give))
+                  (error 'invalid-handoff-cert
+                         "Handoff cert invalid for session: ~s"
+                         signed-handoff-receive)))
+            #:promise? #t)))
+              
 
-        ;; If we made it this far, it's ok... so time to get that referenced
-        ;; object!
-        ($C intra-node-incanter cert-session-local-bootstrap-obj
-            'pull-out-gift
-            (desc:handoff-give-gift-id handoff-give))))
+              ;; If we made it this far, it's ok... so time to get that referenced
+        ;; object!))
 
     (define main-beh
       (extend-methods extends
@@ -1323,7 +1327,7 @@
            ($C open-session-names->sessionmeta 'ref session-name)))
         ;; Guess we'll make a new one
         (let ([netlayer (get-netlayer-for-location remote-node-loc)])
-          ($C netlayer 'connect-to remote-node-loc))))
+          (<- netlayer 'connect-to remote-node-loc))))
 
   (define (get-netlayer-for-location loc)
     (define transport-tag (ocapn-node-transport loc))
@@ -1334,7 +1338,7 @@
 
   (define (self-location? loc)
     (define netlayer (get-netlayer-for-location loc))
-    ($C netlayer 'self-location? loc))
+    (<- netlayer 'self-location? loc))
 
   ;; Sturdyref stuff, to be refactored
   ;; TODO: expiry/revocation/unregistry
@@ -1345,7 +1349,7 @@
       (error 'unsupported-transport
              "NETLAYER not supported for this node: ~a" netlayer-name))
     (let* ((netlayer ($C netlayer-map 'ref netlayer-name))
-           (node-loc ($C netlayer 'our-location))
+           (node-loc (<- netlayer 'our-location))
            (nonce ($C registry 'register obj)))
       (if (promise-refr? node-loc)
           (on node-loc
@@ -1358,22 +1362,20 @@
     (let ((sref-loc (ocapn-sturdyref-node sturdyref))
           (sref-swiss-num (ocapn-sturdyref-swiss-num sturdyref)))
       ;; Is it local?
-      (if (self-location? sref-loc)
-          ($C locator 'fetch sref-swiss-num)
-          (<- (retrieve-or-setup-session-vow sref-loc) 'fetch
-              sref-swiss-num))))
+      (on (self-location? sref-loc)
+          (lambda (self?)
+            (if self?
+                (<- locator 'fetch sref-swiss-num)
+                (<- (retrieve-or-setup-session-vow sref-loc) 'fetch
+                    sref-swiss-num)))
+          #:promise? #t)))
 
-  ;; Here's why all netlayers currently are in the same vat as the
-  ;; router, at least currently... to make sure that they're all set up
-  ;; before we continue further.
-  ;;
-  ;; This could be done via some promise-chaining stuff but it's probably
-  ;; best as-is.
+  ;; Setup all the netlayers with a connection establisher.
   (on (<- netlayer-map 'data)
       (lambda (netlayer-map-data)
         (ghash-for-each
          (lambda (netlayer-name netlayer)
-           ($C netlayer 'setup (spawn ^connection-establisher self netlayer netlayer-name)))
+           (<-np netlayer 'setup (spawn ^connection-establisher self netlayer netlayer-name)))
          netlayer-map-data)))
 
   (methods
@@ -1386,10 +1388,13 @@
     (define exporter-location
       (desc:handoff-give-exporter-location handoff-give))
     ;; "Returning home" should be handled in start-retrieve-handoff
-    (when (self-location? exporter-location)
-      (error "self-handoff-receive called with self-location"))
     (define session-bootstrap-vow
-      (retrieve-or-setup-session-vow exporter-location))
+      (on (self-location? exporter-location)
+          (lambda (self?)
+            (if self?
+                (error "self-handoff-receive called with self-location")
+                (retrieve-or-setup-session-vow exporter-location)))
+          #:promise? #t))
     (<- session-bootstrap-vow 'withdraw-gift signed-handoff-receive)]
 
    ;; TODO: we should also allow some way to shut things down here or
@@ -1400,15 +1405,15 @@
     (define (send-to-remote msg)
       (<-np message-io 'write-message msg marshallers)
       *unspecified*)
-    (define our-location
-      ($C netlayer 'our-location))
+    (define our-location-vow
+      (<- netlayer 'our-location))
     (define coordinator
-      (spawn ^coordinator self our-location
+      (spawn ^coordinator self our-location-vow
              intra-node-warden intra-node-incanter))
     (define handoff-pubkey
       ($C coordinator 'get-handoff-pubkey))
-    (define our-location-sig
-      ($C coordinator 'get-location-sig))
+    (define our-location-sig-vow
+      (<- coordinator 'get-location-sig))
 
     (define-values (remote-bootstrap-vow remote-bootstrap-resolver)
       (spawn-promise-values))
@@ -1578,11 +1583,13 @@
 
     ;; Send our op:start-session message to the other side, which will be
     ;; handled by the ^setup-completer above.
-    (send-to-remote (op:start-session captp-version
-                                      handoff-pubkey
-                                      our-location
-                                      our-location-sig))
-
+    (on (all-of our-location-vow our-location-sig-vow)
+        (match-lambda
+          [(our-location our-location-sig)
+           (send-to-remote (op:start-session captp-version
+                                             handoff-pubkey
+                                             our-location
+                                             our-location-sig))]))
     remote-bootstrap-vow]
 
    [self-location? self-location?]
@@ -1590,11 +1597,14 @@
    [connect-to-node retrieve-or-setup-session-vow]
 
    [(install-netlayer netlayer)
-    (define netlayer-name ($C netlayer 'netlayer-name))
-    (when ($C netlayer-map 'has-key? netlayer-name)
-      (error (format #f "Already has netlayer key ~a" netlayer-name)))
-    ($C netlayer-map 'set netlayer-name netlayer)
-    ($C netlayer 'setup (spawn ^connection-establisher self netlayer netlayer-name))]
+    (on (<- netlayer 'netlayer-name)
+        (lambda (netlayer-name)
+          (when ($C netlayer-map 'has-key? netlayer-name)
+            (error (format #f "Already has netlayer key ~a" netlayer-name)))
+          
+          ($C netlayer-map 'set netlayer-name netlayer)
+          (<- netlayer 'setup (spawn ^connection-establisher self netlayer netlayer-name)))
+        #:promise? #t)]
    [register register]
    [enliven enliven]
    ;; Get the nonce registry used for sturdyrefs to be able to tweak
