@@ -1,4 +1,5 @@
 ;;; Copyright 2023 David Thompson
+;;; Copyright 2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -19,6 +20,7 @@
   #:use-module (goblins)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer base-port)
+  #:use-module (goblins actor-lib io)
   #:use-module (goblins utils crypto)
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 exceptions)
@@ -27,9 +29,8 @@
   #:use-module (rnrs bytevectors)
   #:export (generate-tls-private-key
             generate-tls-certificate
-            load-tls-private-key
-            load-tls-certificate
-            new-tcp-tls-netlayer))
+            ^tcp-tls-netlayer
+            tcp-tls-netlayer-env))
 
 (define (use-nonblocking-i/o port)
   (fcntl port F_SETFL (logior O_NONBLOCK (fcntl port F_GETFL))))
@@ -55,17 +56,6 @@
        (use-nonblocking-i/o sock)
        (connect sock family address port)
        sock))))
-
-(define (load-bytevector file-name)
-  (call-with-input-file file-name get-bytevector-all))
-
-(define (load-tls-private-key file-name)
-  "Load the PEM encoded X.509 private key in FILE-NAME."
-  (load-bytevector file-name))
-
-(define (load-tls-certificate file-name)
-  "Load the PEM encoded X.509 certificate in FILE-NAME."
-  (load-bytevector file-name))
 
 ;; The GnuTLS bindings used for generating keys/certs are only in
 ;; bleeding edge versions of guile-gnutls, so we cannot rely on them
@@ -235,37 +225,11 @@
          (string->number port)))
       8088))
 
-(define (^tcp-tls-netlayer bcom host port max-connections cert key)
-  (define-values (server-socket server-port)
-    (make-server-socket+port port max-connections))
-  (define our-location
-    (make-ocapn-node 'tcp-tls
-                        (bytevector->base16-string (sha256d cert))
-                        `((host ,host)
-                          (port ,(number->string server-port)))))
-  (define (incoming-accept)
-    (match (accept server-socket)
-      ((client-socket . _)
-       (setvbuf client-socket 'block)
-       (use-nonblocking-i/o client-socket)
-       (make-server-tls-port client-socket cert key))))
-  (define (outgoing-connect-location location)
-    (unless (eq? (ocapn-node-transport location) 'tcp-tls)
-      (error "Wrong netlayer! Expected `tcp-tls'" location))
-    (let* ((host (ocapn-node-hint:host location))
-           (port (ocapn-node-hint:port location))
-           (server-cert-hash (base16-string->bytevector
-                              (ocapn-node-designator location)))
-           (client-socket (make-client-socket host port)))
-      (make-client-tls-port client-socket cert key server-cert-hash)))
-  (^base-port-netlayer bcom our-location incoming-accept
-                       outgoing-connect-location))
-
-(define* (new-tcp-tls-netlayer host #:key port
-                               (max-connections 32)
-                               (key (generate-tls-private-key))
-                               (cert (generate-tls-certificate key)))
-  "Spawn and return a new TCP + TLS netlayer.  HOST specifies the
+(define-actor (^tcp-tls-netlayer bcom host #:key port
+                                 [max-connections 32]
+                                 [key (generate-tls-private-key)]
+                                 [cert (generate-tls-certificate key)])
+    "Spawn and return a new TCP + TLS netlayer.  HOST specifies the
 hostname that appears in the OCapN sturdyrefs that use this netlayer.
 
 If PORT is specified, the netlayer will listen for incoming
@@ -285,4 +249,44 @@ certificates from the file system, use 'load-tls-private-key' and
 and certificates are useful for nodes that do not need persistent
 identity across process lifetimes, but nodes that do should import
 from the file system."
-  (spawn ^tcp-tls-netlayer host port max-connections cert key))
+  (define-values (server-socket server-port)
+    (make-server-socket+port port max-connections))
+  (define server-socket-io
+    (spawn ^io server-socket-io))
+  (define our-location
+    (make-ocapn-node 'tcp-tls
+                     (bytevector->base16-string (sha256d cert))
+                     `((host ,host)
+                       (port ,(number->string server-port)))))
+  (define (incoming-accept)
+    (on (<- server-socket-io (lambda (resource) (accept resource)))
+        (match-lambda
+          ((client-socket . _)
+           (spawn ^read-write-io client-socket
+                  #:init
+                  (lambda (sock)
+                    (setvbuf sock 'block)
+                    (use-nonblocking-i/o sock)
+                    (make-server-tls-port sock cert key)))))
+        #:promise? #t))
+  (define (outgoing-connect-location location)
+    (unless (eq? (ocapn-node-transport location) 'tcp-tls)
+      (error "Wrong netlayer! Expected `tcp-tls'" location))
+    (let* ((host (ocapn-node-hint:host location))
+           (port (ocapn-node-hint:port location))
+           (server-cert-hash (base16-string->bytevector
+                              (ocapn-node-designator location)))
+           (client-socket (make-client-socket host port)))
+      (spawn ^read-write-io
+             #:init
+             (lambda (sock)
+               (make-client-tls-port sock cert key server-cert-hash))
+             #:cleanup
+             (lambda (sock)
+               (close-port sock)))))
+  (^base-port-netlayer bcom our-location incoming-accept
+                       outgoing-connect-location))
+
+(define tcp-tls-netlayer-env
+  (make-persistence-env
+   `((((goblins ocapn netlayer tcp-tls) ^tcp-tls-netlayer) ,^tcp-tls-netlayer))))
