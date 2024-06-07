@@ -1098,7 +1098,8 @@
                       (desc:sig-envelope handoff-receive
                                          handoff-receive-sig)))
                 ($C our-handoff-count (add1 ($C our-handoff-count)))
-                (<- router 'send-handoff-receive signed-handoff-receive))))))
+                (<- router 'send-handoff-receive signed-handoff-receive)))
+            #:promise? #t)))
 
     (define (give-handoff-legit? signed-handoff-give)
       (assert-type signed-handoff-give signed-handoff-give?)
@@ -1357,18 +1358,20 @@
                 (make-ocapn-sturdyref node-loc nonce))
               #:promise? #t)
           (make-ocapn-sturdyref node-loc nonce))))
-  (define (enliven sturdyref)
-    (assert-type sturdyref ocapn-sturdyref?)
-    (let ((sref-loc (ocapn-sturdyref-node sturdyref))
-          (sref-swiss-num (ocapn-sturdyref-swiss-num sturdyref)))
-      ;; Is it local?
-      (on (self-location? sref-loc)
-          (lambda (self?)
-            (if self?
-                (<- locator 'fetch sref-swiss-num)
-                (<- (retrieve-or-setup-session-vow sref-loc) 'fetch
-                    sref-swiss-num)))
-          #:promise? #t)))
+  (define (enliven sturdyref-vow)
+    (on sturdyref-vow
+        (lambda (sturdyref)
+          (let ((sref-loc (ocapn-sturdyref-node sturdyref))
+                (sref-swiss-num (ocapn-sturdyref-swiss-num sturdyref)))
+            ;; Is it local?
+            (on (self-location? sref-loc)
+                (lambda (self?)
+                  (if self?
+                      (<- locator 'fetch sref-swiss-num)
+                      (<- (retrieve-or-setup-session-vow sref-loc) 'fetch
+                          sref-swiss-num)))
+                #:promise? #t)))
+          #:promise? #t))
 
   ;; Setup all the netlayers with a connection establisher.
   (on (<- netlayer-map 'data)
@@ -1408,7 +1411,7 @@
     (define our-location-vow
       (<- netlayer 'our-location))
     (define coordinator
-      (spawn ^coordinator self our-location-vow
+      (spawn ^coordinator ($C self) our-location-vow
              intra-node-warden intra-node-incanter))
     (define handoff-pubkey
       ($C coordinator 'get-handoff-pubkey))

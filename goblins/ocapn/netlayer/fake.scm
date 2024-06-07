@@ -1,5 +1,5 @@
 ;;; Copyright 2021-2022 Christine Lemmer-Webber
-;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2022-2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
   #:use-module (goblins inbox)
   #:use-module (goblins actor-lib common)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib io)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins contrib syrup)
   #:use-module (ice-9 match)
@@ -46,29 +47,36 @@
        (put-message connection-ch (list '*incoming-new-conn* me-enq-ch them-deq-ch))))
     (list '*outgoing-new-conn* me-deq-ch them-enq-ch)]))
 
-(define (make-message-reader incoming-ch)
-  (lambda (unmarshallers)
-    (define msg (get-message incoming-ch))
-    (syrup-decode msg #:unmarshallers unmarshallers)))
-
-(define (make-message-writer outgoing-ch)
-  (lambda (msg marshallers)
-    (put-message outgoing-ch
-                 (syrup-encode msg #:marshallers marshallers))))
+(define (^message-io _bcom incoming-ch outgoing-ch)
+  (define incoming-io (spawn ^io incoming-ch))
+  (define outgoing-io (spawn ^io outgoing-ch))
+  
+  (methods
+   [(read-message unmarshallers)
+    (<- incoming-io
+        (lambda (ch)
+          (define msg (get-message ch))
+          (syrup-decode msg #:unmarshallers unmarshallers)))]
+   [(write-message msg marshallers)
+    (<-np outgoing-io
+        (lambda (ch)
+          (put-message ch
+                       (syrup-encode msg #:marshallers marshallers))
+          *unspecified*))]))
 
 (define (^fake-netlayer _bcom our-name network new-conn-ch)
   (define our-location (make-ocapn-node 'fake our-name #f))
+  (define new-connection-io (spawn ^io new-conn-ch))
   (define (start-listening conn-establisher)
-    (syscaller-free-fiber
-     (lambda ()
-       ;; TODO: Insert shutdown code nere
-       (while #t
-         (match-let ((('*incoming-new-conn* them-enq-ch me-deq-ch)
-                      (get-message new-conn-ch)))
+    (on (<- new-connection-io get-message)
+        (match-lambda
+          (('*incoming-new-conn* them-enq-ch me-deq-ch)
            (<-np-extern conn-establisher
-                        (make-message-reader me-deq-ch)
-                        (make-message-writer them-enq-ch)
-                        #f))))))
+                        (spawn ^message-io me-deq-ch them-enq-ch)
+                        #f)))
+        #:finally
+        (lambda ()
+          (start-listening conn-establisher))))
 
   (define (^netlayer bcom)
     (define base-beh
@@ -95,8 +103,7 @@
                (match-lambda
                  (('*outgoing-new-conn* me-deq-ch them-enq-ch)
                   (<- conn-establisher
-                      (make-message-reader me-deq-ch)
-                      (make-message-writer them-enq-ch)
+                      (spawn ^message-io me-deq-ch them-enq-ch)
                       remote-node)))
                #:promise? #t)))]))
     pre-setup-beh)
