@@ -135,6 +135,7 @@
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (srfi srfi-11)
+  #:use-module (ice-9 exceptions)
   #:use-module (ice-9 match)
   #:use-module (ice-9 control)
   #:use-module (ice-9 vlist)
@@ -2255,14 +2256,10 @@ Type: Actormap (-> Any) (Optioan (#:reckless? Boolean)) -> Any"
 (define (make-no-op msg)
   (lambda _ *unspecified*))
 
-(define &actormap-turn-error
-  (make-exception-type '&actormap-turn-error &error '(stack)))
-
-(define make-actormap-turn-error (record-constructor &actormap-turn-error))
-
-(define actormap-turn-error-stack
-  (exception-accessor &actormap-turn-error
-                      (record-accessor &actormap-turn-error 'stack)))
+(define-exception-type &actormap-turn-error &error
+  make-actormap-turn-error
+  actormap-turn-error?
+  (stack actormap-turn-error-stack))
 
 (define* (actormap-turn-message actormap msg
                                 #:key
