@@ -1,4 +1,5 @@
 ;;; Copyright 2023 Christine Lemmer-Webber
+;;; Copyright 2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -84,16 +85,20 @@
 ;;; Now to create the prelay and register it with Alice and Bob's mycapns
 (define a-prelay-netlayer
   (with-vat a-vat
-    (spawn ^prelay-netlayer ra-endpoint-sref
-           ($ a-mycapn 'enliven ra-controller-sref))))
+    (spawn ^prelay-netlayer
+           (spawn ^facet a-mycapn 'enliven)
+           ra-endpoint-sref
+           ra-controller-sref)))
 
 (with-vat a-vat
   ($ a-mycapn 'install-netlayer a-prelay-netlayer))
 
 (define b-prelay-netlayer
   (with-vat b-vat
-    (spawn ^prelay-netlayer rb-endpoint-sref
-           ($ b-mycapn 'enliven rb-controller-sref))))
+    (spawn ^prelay-netlayer
+           (spawn ^facet a-mycapn 'enliven)
+           rb-endpoint-sref
+           rb-controller-sref)))
 
 (with-vat b-vat
   ($ b-mycapn 'install-netlayer b-prelay-netlayer))

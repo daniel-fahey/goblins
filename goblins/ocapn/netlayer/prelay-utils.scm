@@ -1,4 +1,4 @@
-;;; Copyright 2023 Jessica Tallon
+;;; Copyright 2023-2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -47,8 +47,7 @@ created on this prelay-admin."
       (bcom already-setup-beh
             (all-of
              (<- register 'register prelay-endpoint)
-             prelay-controller))))
-
+             (<- register 'register prelay-controller)))))
   (methods
    [(add-account name)
     (when (ghash-has-key? accounts name)
@@ -91,8 +90,9 @@ created on this prelay-admin."
     (<- base-mycapn 'enliven account-setup-sref))
   (on (<- account-setup-vow)
       (match-lambda
-        ((prelay-endpoint-sref prelay-controller) 
+        ((prelay-endpoint-sref prelay-controller-sref)
          (spawn ^prelay-netlayer
+                (spawn ^facet base-mycapn 'enliven)
                 prelay-endpoint-sref
-                prelay-controller)))
+                prelay-controller-sref)))
       #:promise? #t))
