@@ -173,20 +173,6 @@
 (test-equal 2 (actormap-poke! am a-ctr))
 (test-equal 3 (actormap-peek am a-ctr))
 
-;; Copy of the cell code from cell.scm.  Simplifies some
-;; tests.
-
-;; Constructor for a cell.  Takes an optional initial value, defaults
-;; to false.
-(define* (^cell bcom #:optional val)
-  (case-lambda
-    ;; Called with no arguments; return the current value
-    [() val]
-    ;; Called with one argument, we become a version of ourselves
-    ;; with this new value
-    [(new-val)
-     (bcom (^cell bcom new-val))]))
-
 (define (^spawns-during-constructor bcom)
   (define a-cell
     (spawn ^cell 'foo))
