@@ -74,7 +74,7 @@ created on this prelay-admin."
   (define base-netlayer
     (or netlayer
         (match (ocapn-node-transport account-setup-node)
-          ('onion (new-onion-netlayer))
+          ('onion (spawn ^onion-netlayer))
           ('tcp-tls (spawn ^tcp-tls-netlayer "localhost")))))
 
   ;; While most OCapN connections normally would expect connections to many

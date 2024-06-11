@@ -1,4 +1,4 @@
-;;; Copyright 2023 Jessica Tallon
+;;; Copyright 2023-2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -70,8 +70,8 @@
 
 (define a-vat (spawn-vat))
 (with-vat a-vat
-  (define-values (onion-netlayer _key _id)
-    (new-onion-netlayer))
+  (define onion-netlayer
+    (spawn ^onion-netlayer))
   (define mycapn (spawn-mycapn onion-netlayer))
   (define nonce-registry ($ mycapn 'get-registry))
 

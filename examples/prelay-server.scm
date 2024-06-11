@@ -34,15 +34,15 @@
 
 (define (spawn-netlayer-by-name name options)
   (match name
-    ["onion" (new-onion-netlayer)]
+    ["onion" (spawn ^onion-netlayer)]
     ["tcp-tls"
      (match options
        [(host port)
-        (new-tcp-tls-netlayer host #:port (string->number port))]
+        (spawn ^tcp-tls-netlayer host #:port (string->number port))]
        [(host)
-        (new-tcp-tls-netlayer host)]
+        (spawn ^tcp-tls-netlayer host)]
        [()
-        (new-tcp-tls-netlayer "localhost")]
+        (spawn ^tcp-tls-netlayer "localhost")]
        [something-else
         (error "Expected arguments: tcp-tls <hostname> [<port>]")])]))
 
