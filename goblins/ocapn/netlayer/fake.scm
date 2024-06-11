@@ -82,6 +82,8 @@
     (define base-beh
       (methods
        [(netlayer-name) 'fake]
+       [(self-location? loc)
+        (same-node-location? our-location loc)]
        [(our-location) our-location]))
 
     (define pre-setup-beh
@@ -94,8 +96,6 @@
     (define (ready-beh conn-establisher)
       (extend-methods
        base-beh
-       [(self-location? loc)
-        (same-node-location? our-location loc)]
        [(connect-to remote-node)
         (match remote-node
           (($ <ocapn-node> 'fake name #f)

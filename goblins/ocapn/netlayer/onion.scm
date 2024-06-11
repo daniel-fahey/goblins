@@ -243,11 +243,13 @@
                  ($ setup-netlayer-resolver 'fulfill ($ self)))))]))
 
 
-  (lambda args
-    (let ((setup-beh ($ setup-beh)))
-      (if setup-beh
-          (bcom setup-beh (apply setup-beh args))
-          (apply <- setup-netlayer-vow args)))))
+  (match-lambda
+    [('netlayer-name) 'onion]
+    [args
+     (let ((setup-beh ($ setup-beh)))
+       (if setup-beh
+           (bcom setup-beh (apply setup-beh args))
+           (apply <- setup-netlayer-vow args)))]))
 
 (define* (^onion-netlayer _bcom
                           #:optional private-key service-id

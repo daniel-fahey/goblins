@@ -22,6 +22,7 @@
   #:use-module (goblins ocapn netlayer tcp-tls)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib joiners)
+  #:use-module (goblins actor-lib facet)
   #:use-module (fibers channels)
   #:use-module (ice-9 match)
   #:export (^prelay-admin
@@ -74,7 +75,7 @@ created on this prelay-admin."
     (or netlayer
         (match (ocapn-node-transport account-setup-node)
           ('onion (new-onion-netlayer))
-          ('tcp-tls (new-tcp-tls-netlayer "localhost")))))
+          ('tcp-tls (spawn ^tcp-tls-netlayer "localhost")))))
 
   ;; While most OCapN connections normally would expect connections to many
   ;; different nodes and support for handoffs between those, this situation is a

@@ -91,8 +91,8 @@ This sturdyref represents the underlying prelay endpoint."
      (if (eq? current-value initial-vow)
          (begin
            ($ initial-resolver 'fulfill new-value)
-           (bcom (^promise-cell new-value)))
-         (bcom (^promise-cell new-value))))))
+           (bcom (^promise-cell bcom new-value)))
+         (bcom (^promise-cell bcom new-value))))))
 
 (define-actor (^swappable-forwarder bcom send-to)
   (lambda args
@@ -277,7 +277,9 @@ Takes three arguments at spawn time:
   (define base-beh
     (methods
      ((netlayer-name) 'prelay)
-     ((our-location) ($ our-location-vow))))
+     ((our-location) ($ our-location-vow))
+     ((self-location? loc)
+      (same-node-location? ($ our-location-vow) loc))))
   (define pre-setup-beh
     (extend-methods base-beh
       ((setup conn-establisher)
@@ -286,8 +288,6 @@ Takes three arguments at spawn time:
        (bcom (ready-beh conn-establisher)))))
   (define (ready-beh conn-establisher)
     (extend-methods base-beh
-      ((self-location? loc)
-       (same-node-location? ($ our-location-vow) loc))
       ((connect-to remote-node)
        ;;;; Commented out because the relay is going to do some key authentication
        ;;;; checks later so it needs the node itself... but we're going to need
@@ -311,10 +311,13 @@ Takes three arguments at spawn time:
              (<- conn-establisher message-io remote-node))
            #:promise? #t))))
   (lambda args
-    (let ((setup-beh ($ setup-beh)))
-      (if setup-beh
-          (bcom setup-beh (apply setup-beh args))
-          (apply <- setup-netlayer-vow args)))))
+    (match args
+      [('netlayer-name) 'prelay]
+      [args
+       (let ((setup-beh ($ setup-beh)))
+         (if setup-beh
+             (bcom setup-beh (apply <- ($ self) args))
+             (apply <- setup-netlayer-vow args)))])))
 
 (define (^prelay-netlayer _bcom enliven controller-sref endpoint-sref)
   (define self (spawn ^cell))
