@@ -77,6 +77,8 @@ This sturdyref represents the underlying prelay endpoint."
 ;;; ===============
 
 (define-actor (^promise-cell bcom #:optional initial-value)
+  #:portrait (lambda () '())
+  
   (define-values (initial-vow initial-resolver)
     (spawn-promise-values))
 

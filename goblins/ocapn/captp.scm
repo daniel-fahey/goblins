@@ -1375,10 +1375,14 @@
           #:promise? #t))
 
   ;; Setup all the netlayers with a connection establisher.
-  (ghash-for-each
-   (lambda (netlayer-name netlayer)
-     (<-np netlayer 'setup (spawn ^connection-establisher self netlayer netlayer-name)))
-   ($C netlayer-map 'data))
+  ;; This needs to be a `<-` because we may have a vow to the ^ghash
+  ;; if we're being rehydrated with aurie.
+  (on (<- netlayer-map 'data)
+      (lambda (netlayer-map-data)
+        (ghash-for-each
+         (lambda (netlayer-name netlayer)
+           (<-np netlayer 'setup (spawn ^connection-establisher self netlayer netlayer-name)))
+         netlayer-map-data)))
 
   (methods
    [(send-handoff-receive signed-handoff-receive)

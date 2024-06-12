@@ -252,7 +252,7 @@ from the file system."
   (define-values (server-socket server-port)
     (make-server-socket+port port max-connections))
   (define server-socket-io
-    (spawn ^io server-socket-io))
+    (spawn ^io server-socket))
   (define our-location
     (make-ocapn-node 'tcp-tls
                      (bytevector->base16-string (sha256d cert))
