@@ -2696,7 +2696,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                     (when created?
                       (hashq-set! new-child-objs inner #t))
                     (make-tagged* 'near slot))
-                  (make-tagged* 'encase inner)))))]
+                  (make-tagged* 'encase (process-one inner))))))]
         [(? ocapn-id?)
          (make-tagged* 'ocapn-id (ocapn-id->string value))]
         [_ (error "Unserializable value!" 'value: value 'obj this-obj)]))
