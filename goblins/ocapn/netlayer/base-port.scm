@@ -27,7 +27,6 @@
   #:use-module (goblins)
   #:use-module (goblins vat)
   #:use-module (goblins inbox)
-  #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer utils)
@@ -46,9 +45,7 @@
   (define (listen-and-handle-new-connection conn-establisher)
     (on (incoming-accept)
         (lambda (incoming-port)
-          (<-np conn-establisher (spawn ^captp-io incoming-port) #f))
-        #:finally
-        (lambda ()
+          (<-np conn-establisher (spawn ^captp-io incoming-port) #f)
           (listen-and-handle-new-connection conn-establisher))))
 
   (methods

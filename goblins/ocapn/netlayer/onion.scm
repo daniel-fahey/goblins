@@ -27,6 +27,7 @@
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib io)
+  #:use-module (goblins actor-lib let-on)
   #:use-module (goblins actor-lib joiners)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer utils)
@@ -207,17 +208,14 @@
   ;; about setting ourselves up, either by restoring with the keys provided
   ;; or setting up a new tor connection.
   (define tor-connection-vow
-    (on (all-of private-key service-id)
-        (match-lambda
-          [(private-key* service-id*)
-           (define-values (ocapn-sock-path ocapn-sock-listener service-id-vow private-key-vow)
-             (if (and ($ private-key*) ($ service-id*))
-                 (restore-tor-connection tor-control-path tor-ocapn-socks-dir
-                                         ($ private-key*) ($ service-id*))
-                 (new-tor-connection tor-control-path tor-ocapn-socks-dir)))
-
-           (list ocapn-sock-path ocapn-sock-listener service-id-vow private-key-vow)])
-        #:promise? #t))
+    (let-on ([private-key* private-key]
+             [service-id* service-id])
+      (define-values (ocapn-sock-path ocapn-sock-listener service-id-vow private-key-vow)
+        (if (and ($ private-key*) ($ service-id*))
+            (restore-tor-connection tor-control-path tor-ocapn-socks-dir
+                                    ($ private-key*) ($ service-id*))
+            (new-tor-connection tor-control-path tor-ocapn-socks-dir)))
+      (list ocapn-sock-path ocapn-sock-listener service-id-vow private-key-vow)))
 
   (on tor-connection-vow
       (match-lambda

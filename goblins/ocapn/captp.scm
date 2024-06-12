@@ -965,6 +965,9 @@
   (define our-side-name
     (sha256d (syrup-encode (get-handoff-pubkey))))
 
+  ;; This has added some indirection and promises which are bit slower
+  ;; than just handing around the raw value. We may want to consider
+  ;; memorizing it.
   (define our-location-sig-vow
     (on our-location-vow
         (lambda (our-location)
@@ -1206,7 +1209,7 @@
   (coordinator sessionmeta-coordinator)
   (session-name sessionmeta-session-name))
 
-(define-actor (^connection-establisher bcom mycapn-vow netlayer netlayer-name)
+(define (^connection-establisher bcom mycapn-vow netlayer netlayer-name)
   (lambda (io remote-connect-location)
     (on mycapn-vow
         (lambda (mycapn)
@@ -1228,7 +1231,7 @@
   (define locations->crossed-hellos-mitigator
     (spawn ^ghash))
 
-  (define* (^bootstrap bcom coordinator #:key [extends #f])
+  (define (^bootstrap bcom coordinator)
     (define session-name ($C coordinator 'get-session-name))
     (define gifts
       (spawn ^ghash))
@@ -1275,6 +1278,8 @@
         ;; TODO: count stuff here too, but needs to be in this session
         (on (<- cert-session-coordinator 'full-handoff-legit? signed-handoff-receive)
             (lambda (handoff-legit?)
+              ;; If we made it this far, it's ok... so time to get
+              ;; that referenced object!
               (if handoff-legit?
                   ($C intra-node-incanter cert-session-local-bootstrap-obj
                       'pull-out-gift
@@ -1282,18 +1287,14 @@
                   (error 'invalid-handoff-cert
                          "Handoff cert invalid for session: ~s"
                          signed-handoff-receive)))
-            #:promise? #t)))
-              
-
-              ;; If we made it this far, it's ok... so time to get that referenced
-        ;; object!))
+            #:promise? #t)))              
 
     (define main-beh
-      (extend-methods extends
-                      [deposit-gift deposit-gift]
-                      [withdraw-gift withdraw-gift]
-                      [(fetch swiss-num)
-                       ($C locator 'fetch swiss-num)]))
+      (methods
+       [deposit-gift deposit-gift]
+       [withdraw-gift withdraw-gift]
+       [(fetch swiss-num)
+        ($C locator 'fetch swiss-num)]))
 
     (define cross-gift-beh
       (methods
@@ -1374,12 +1375,10 @@
           #:promise? #t))
 
   ;; Setup all the netlayers with a connection establisher.
-  (on (<- netlayer-map 'data)
-      (lambda (netlayer-map-data)
-        (ghash-for-each
-         (lambda (netlayer-name netlayer)
-           (<-np netlayer 'setup (spawn ^connection-establisher self netlayer netlayer-name)))
-         netlayer-map-data)))
+  (ghash-for-each
+   (lambda (netlayer-name netlayer)
+     (<-np netlayer 'setup (spawn ^connection-establisher self netlayer netlayer-name)))
+   ($C netlayer-map 'data))
 
   (methods
    [(send-handoff-receive signed-handoff-receive)
@@ -1543,7 +1542,6 @@
     (define-values (incoming-forwarder incoming-swap)
       (swappable (spawn ^setup-completer)))
 
-    ;; Now spawn fibers that read/write to these ports
     (define (read-next-message)
       (on (<- message-io 'read-message unmarshallers)
           (match-lambda
@@ -1638,6 +1636,5 @@
 
 (define captp-env
   (make-persistence-env
-   `((((goblins ocapn captp) ^mycapn) ,^mycapn)
-     (((goblins ocapn captp) ^connection-establisher) ,^connection-establisher))
+   `((((goblins ocapn captp) ^mycapn) ,^mycapn))
    #:extends (list cell-env common-env nonce-registry-env)))
