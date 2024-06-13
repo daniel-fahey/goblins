@@ -134,7 +134,8 @@ exist between this time, but they are really extremely unlikely."
            [(? bytevector? msg)
             (put-bytevector op msg)
             (display "\r\n" op)
-            (flush-output-port op)])))]))
+            (flush-output-port op)])))]
+   [(halt) ($ port-io 'halt)]))
 
 ;; (define* (line-delimited-port->channel-pair sock)
 ;;   (define keep-going? #t)
