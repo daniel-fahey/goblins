@@ -550,7 +550,7 @@
     (actormap-churn-run!
      am
      (lambda ()
-       (define promise-and-resolver (actormap-run! am spawn-promise-cons))
+       (define promise-and-resolver (spawn-promise-cons))
        (define some-promise (car promise-and-resolver))
        (define some-resolver (cdr promise-and-resolver))
        (listen-to some-promise
