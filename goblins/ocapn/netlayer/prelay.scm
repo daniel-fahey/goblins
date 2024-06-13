@@ -76,7 +76,21 @@ This sturdyref represents the underlying prelay endpoint."
 ;;; Other utilities
 ;;; ===============
 
+;; This works like a cell like the name where by you can get the value
+;; with no arguments, and set a new value with a value. It differs in
+;; that when spawned with no initial value (how it's used), it'll
+;; create a promise which it'll give out, when the value is set, it'll
+;; then fulfill that promise with that value.
+;;
+;; It's used below as a sort of promise which can be resolved multiple
+;; times.
 (define-actor (^promise-cell bcom #:optional initial-value)
+  ;; There are two main reasons we don't want aurie to persist the
+  ;; value of this cell:
+  ;; 1. It'll almost always either be an unresolved promise or
+  ;;    remote-refr, neither of which are actually depictable (yet).
+  ;; 2. This is used in the prelay netlayer and should be setup anew
+  ;;    each time anyway.
   #:portrait (lambda () '())
   
   (define-values (initial-vow initial-resolver)
@@ -230,18 +244,8 @@ respectively."
 ;;  - Outgoing messages: These are much easier, as we can simply
 ;;    serialize the message and fire it off to the remote actor.
 (define-actor (^prelay-netlayer* bcom self enliven
-                                prelay-endpoint-sref
-                                prelay-controller-sref)
-  "Constructs the prelay netlayer which lives on the client.
-
-Takes three arguments at spawn time:
- - ENLIVEN: is a capability to enliven a sturdyref, provided with the method 'enliven
-   and a sturdyref, it should return a promise.
-   Probably a facet of the MyCapN object.
- - PRELAY-ENDPOINT-SREF: Sturdyref of the endpoint we will use to
-   communicate with
- - PRELAY-CONTROLLER-SREF: Strudyref of the controller which we use to
-   pilot the prelay we communicate through."
+                                 prelay-endpoint-sref
+                                 prelay-controller-sref)
   (define our-location-vow
     (on prelay-endpoint-sref
         (lambda (endpoint-sref)
@@ -267,61 +271,65 @@ Takes three arguments at spawn time:
     ;; Tell the remote endpoint that we're looking for incoming connections
     (<-np prelay-controller 'set-session-listener listener))
 
-  (define setup-beh (spawn ^cell))
   (define-values (setup-netlayer-vow setup-netlayer-resolver)
     (spawn-promise-values))
 
   (on our-location-vow
       (lambda (our-location)
-        ($ setup-beh pre-setup-beh)
-        ($ setup-netlayer-resolver 'fulfill ($ self))))
+        ($ setup-netlayer-resolver 'fulfill (spawn ^netlayer our-location))))
 
-  (define base-beh
+  (define-values (conn-establisher-vow conn-establisher-resolver)
+    (spawn-promise-values))
+
+  (define (^netlayer _bcom our-location)
     (methods
      ((netlayer-name) 'prelay)
-     ((our-location) ($ our-location-vow))
+     ((our-location) our-location)
      ((self-location? loc)
-      (same-node-location? ($ our-location-vow) loc))))
-  (define pre-setup-beh
-    (extend-methods base-beh
-      ((setup conn-establisher)
-       (start-listener conn-establisher)
-       ;; Now that we're set up, transition to the main behavior
-       (bcom (ready-beh conn-establisher)))))
-  (define (ready-beh conn-establisher)
-    (extend-methods base-beh
-      ((connect-to remote-node)
-       ;;;; Commented out because the relay is going to do some key authentication
-       ;;;; checks later so it needs the node itself... but we're going to need
-       ;;;; need to do that too presumably, so maybe we'll uncomment this once we
-       ;;;; add cryptography
-       ;; ;; Now we use our relay controller to connect to the object
-       ;; ;; First that means deconstructing the URI so we can get out
-       ;; ;; the relevant sturdyref object
-       ;; (define remote-endpoint-sref (relay-node->relay-sturdyref remote-node))
-       ;; ;; Now we need to enliven it
-       ;; (define remote-endpoint-vow (enliven remote-endpoint-sref))
-       (define-values (deliver-in incoming-deq-ch incoming-stop?)
-         (setup-delivery-agent-and-actor))
+      (same-node-location? our-location loc))
+     ((setup conn-establisher)
+      (start-listener conn-establisher)
+      ;; Now that we're set up, transition to the main behavior
+      (<-np conn-establisher-resolver 'fulfill conn-establisher))
+     ((connect-to remote-node)
+      ;; Commented out because the relay is going to do some key authentication
+      ;; checks later so it needs the node itself... but we're going to need
+      ;; need to do that too presumably, so maybe we'll uncomment this once we
+      ;; add cryptography
+      ;; ;; Now we use our relay controller to connect to the object
+      ;; ;; First that means deconstructing the URI so we can get out
+      ;; ;; the relevant sturdyref object
+      ;; (define remote-endpoint-sref (relay-node->relay-sturdyref remote-node))
+      ;; ;; Now we need to enliven it
+      ;; (define remote-endpoint-vow (enliven remote-endpoint-sref))
+      (define-values (deliver-in incoming-deq-ch incoming-stop?)
+        (setup-delivery-agent-and-actor))
 
-       ;; TODO: Should we be giving just the sturdyref to the endpoint
-       ;;   or the remote-node?  I'm not sure.
-       (on (<- prelay-controller 'connect remote-node deliver-in)
-           (lambda (session-prelay-outgoing)
-             (define message-io
-               (spawn-message-io incoming-deq-ch session-prelay-outgoing))
-             (<- conn-establisher message-io remote-node))
-           #:promise? #t))))
+      ;; TODO: Should we be giving just the sturdyref to the endpoint
+      ;;   or the remote-node?  I'm not sure.
+      (on (<- prelay-controller 'connect remote-node deliver-in)
+          (lambda (session-prelay-outgoing)
+            (define message-io
+              (spawn-message-io incoming-deq-ch session-prelay-outgoing))
+            (<- conn-establisher-vow message-io remote-node))
+          #:promise? #t))))
   (lambda args
     (match args
       [('netlayer-name) 'prelay]
       [args
-       (let ((setup-beh ($ setup-beh)))
-         (if setup-beh
-             (bcom setup-beh (apply <- ($ self) args))
-             (apply <- setup-netlayer-vow args)))])))
+       (apply <- setup-netlayer-vow args)])))
 
 (define (^prelay-netlayer _bcom enliven controller-sref endpoint-sref)
+    "Constructs the prelay netlayer which lives on the client.
+
+Takes three arguments at spawn time:
+ - ENLIVEN: is a capability to enliven a sturdyref, provided with the method 'enliven
+   and a sturdyref, it should return a promise.
+   Probably a facet of the MyCapN object.
+ - PRELAY-ENDPOINT-SREF: Sturdyref of the endpoint we will use to
+   communicate with
+ - PRELAY-CONTROLLER-SREF: Strudyref of the controller which we use to
+   pilot the prelay we communicate through."
   (define self (spawn ^cell))
   (define netlayer (spawn ^prelay-netlayer* self enliven controller-sref endpoint-sref))
   ($ self netlayer)
