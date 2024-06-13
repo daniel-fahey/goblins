@@ -1,4 +1,5 @@
 ;;; Copyright 2023 Juliana Sims
+;;; Copyright 2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -51,11 +52,9 @@
   (not (equal? alice-swiss-num
                bob-swiss-num)))
 
-(test-assert "swiss nums for same object are not the same"
-  (not (equal? alice-swiss-num
-               (actormap-poke!
-                am
-                registry 'register alice))))
+(test-equal "the same object registered twice will yeild the same swiss-num"
+  alice-swiss-num
+  (actormap-peek am registry 'register alice))
 
 (test-eq "alice swiss num retrieves alice"
   alice
