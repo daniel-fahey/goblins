@@ -450,14 +450,15 @@
 ;; ===================
 
 
-(define* (make-whactormap #:key [vat-connector #f])
+(define* (make-whactormap #:key [vat-connector #f]
+                          [aurie-counter 0])
   "Create and return a reference to a weak-hash actormap. If provided,
 VAT-CONNECTOR is the syscaller of the containing vat.
 
 Type: (Optional Syscaller) -> WHActormap"
   (_make-actormap whactormap-metatype
                   (make-whactormap-data (make-weak-key-hash-table))
-                  vat-connector))
+                  vat-connector aurie-counter))
 
 
 ;; TODO: again, confusing (see <actormap>)
@@ -474,7 +475,8 @@ Type: (Optional Syscaller) -> WHActormap"
   ;; Return newly made whactormap
   (_make-actormap whactormap-metatype
                   (make-whactormap-data new-ht)
-                  (actormap-vat-connector am)))
+                  (actormap-vat-connector am)
+                  (actormap-aurie-counter am)))
 
 
 
@@ -531,6 +533,7 @@ Type: TransActormap -> Void"
        (lambda (key val)
          (hashq-set! root-wht key val))
        (transactormap-data-delta tm-data))
+      (merge-actormap-aurie-counters! root-actormap transactormap)
       (set-transactormap-data-merged?! tm-data #t))
 
     root-actormap)
@@ -567,14 +570,16 @@ Type: Actormap -> TransActormap"
   (define vat-connector (actormap-vat-connector parent))
   (_make-actormap transactormap-metatype
                   (make-transactormap-data parent (make-hash-table) #f)
-                  vat-connector))
+                  vat-connector
+                  (actormap-aurie-counter parent)))
 
 (define (transactormap-reparent transactormap new-parent)
   (define vat-connector (actormap-vat-connector new-parent))
   (define delta (transactormap-data-delta (actormap-data transactormap)))
   (_make-actormap transactormap-metatype
                   (make-transactormap-data new-parent delta #f)
-                  vat-connector))
+                  vat-connector
+                  (actormap-aurie-counter transactormap)))
 
 
 ;; "Become" sealer/unsealers
@@ -1235,7 +1240,8 @@ Type: Any -> Boolean"
         ;; New procedure, so let's set it
         [(? procedure?)
          (let ((actor-refr
-                (make-local-object-refr debug-name vat-connector)))
+                (make-local-object-refr debug-name vat-connector
+                                        (increment-actormap-aurie-counter! actormap))))
            (actormap-set! actormap actor-refr
                           (make-mactor:object beh
                                               constructor-refr
@@ -2053,7 +2059,8 @@ Type: -> (Promise . Resolver)"
                       (portraitized-behavior-self-portrait handler))]
       [(? procedure?)
        (let ((actor-refr
-              (make-local-object-refr debug-name vat-connector)))
+              (make-local-object-refr debug-name vat-connector
+                                      (increment-actormap-aurie-counter! actormap))))
          (actormap-set! actormap actor-refr
                         (make-mactor:object handler constructor-refr
                                             constructor
@@ -2107,7 +2114,8 @@ Type: Actormap Constructor Any ... -> Actor"
     (actormap-vat-connector actormap))
   (define actor-refr
     (if (mactor:object? mactor)
-        (make-local-object-refr debug-name vat-connector)
+        (make-local-object-refr debug-name vat-connector
+                                (increment-actormap-aurie-counter! actormap))
         (make-local-promise-refr vat-connector)))
   (actormap-set! actormap actor-refr mactor)
   actor-refr)
@@ -2913,7 +2921,8 @@ Type: Actormap PersistenceEnv -> Void"
                    ((vow-symlink) (make-mactor:local-link vow))
                    ((debug-name) (depiction->debug-name depiction))
                    ((vat-connector) (actormap-vat-connector am))
-                   ((refr) (make-local-object-refr debug-name vat-connector)))
+                   ;; DEAR GOD FIX ME
+                   ((refr) (make-local-object-refr debug-name vat-connector 666)))
        (actormap-set! am refr vow-symlink)
        (hashq-set! slots->resolvers slot resolver)
        (hashq-set! slots->refrs slot refr)))
