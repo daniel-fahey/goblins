@@ -2594,23 +2594,18 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
   (when (null? roots)
     (error "At least one root object must be specified to take a portrait"))
 
-  (define next-id 0)
-  (define val->slot
-    (make-hash-table))
   (define slot->val
     (make-hash-table))
 
   (define (maybe-create-obj-slot! obj)
     "Looks up or creates slot for object"
     ;; Returns 2 values: (object-slot created?)
-    (let ((slot (hashq-ref val->slot obj #f)))
-      (if slot
+    (let ((slot (local-object-refr-aurie-id obj)))
+      (if (hash-ref slot->val slot #f)
           (values slot #f)
-          (let ([new-slot next-id])
-            (set! next-id (+ 1 next-id))
-            (hashq-set! val->slot obj new-slot)
-            (hashq-set! slot->val new-slot obj)
-            (values new-slot #t)))))
+          (begin
+            (hash-set! slot->val slot obj)
+            (values slot #t)))))
 
   (define root-slots
     (map (lambda (obj)
@@ -2620,9 +2615,8 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
          roots))
 
   (define (read-portrait! am this-obj)
-    (define slot
-      (hashq-ref val->slot this-obj #f))
-    (unless slot
+    (define slot (local-object-refr-aurie-id this-obj))
+    (unless (hash-ref slot->val slot #f)
       (error "Object does not appear in the persistence graph" this-obj))
 
     ;; Keep track of new (previously not in the object graph) objects,
@@ -2731,12 +2725,22 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
 
     (values slot depiction-to-save new-child-objs))
 
-  ;; Facet for looking up within val->slot
+  ;; Really, this changed; the main purpose of this is to avoid giving
+  ;; aurie ids away unless you're actually working with Aurie itself.
   (define val->slot-ref
     (case-lambda
-      ((obj default-value) (hashq-ref val->slot obj default-value))
-      ((obj) (hashq-ref val->slot obj))))
-  
+      ((obj default-value)
+       (let ((slot (local-object-refr-aurie-id obj)))
+         ;; return the slot if this is indeed an object in the aurie
+         ;; table, otherwise return default value
+         (or (and (hash-ref slot->val slot #f)
+                  slot)
+             default-value)))
+      ((obj)
+       (let ((slot (local-object-refr-aurie-id obj)))
+         (and (hash-ref slot->val slot #f)
+              slot)))))
+
   (values read-portrait! val->slot-ref))
 
 (define (actormap-take-portrait-with-read-portrait am read-portrait!
@@ -2921,8 +2925,7 @@ Type: Actormap PersistenceEnv -> Void"
                    ((vow-symlink) (make-mactor:local-link vow))
                    ((debug-name) (depiction->debug-name depiction))
                    ((vat-connector) (actormap-vat-connector am))
-                   ;; DEAR GOD FIX ME
-                   ((refr) (make-local-object-refr debug-name vat-connector 666)))
+                   ((refr) (make-local-object-refr debug-name vat-connector slot)))
        (actormap-set! am refr vow-symlink)
        (hashq-set! slots->resolvers slot resolver)
        (hashq-set! slots->refrs slot refr)))
