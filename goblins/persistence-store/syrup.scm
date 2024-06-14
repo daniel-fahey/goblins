@@ -24,8 +24,9 @@
 
 (define current-data-version 0)
 (define-record-type <portrait-graph>
-  (make-portrait-graph version portraits slots)
+  (make-portrait-graph aurie-vat-id version portraits slots)
   portrait-graph?
+  (aurie-vat-id portrait-graph-aurie-vat-id)
   (version portrait-graph-version)
   (portraits portrait-graph-portraits)
   (slots portrait-graph-slots))
@@ -61,26 +62,28 @@
              (hashq-set! portraits-as-hash-table key value))
            portraits-as-ghash)
             
-          (values portraits-as-hash-table
+          (values (portrait-graph-aurie-vat-id portrait-graph)
+                  portraits-as-hash-table
                   (portrait-graph-slots portrait-graph))))
-      (values #f #f)))
-(define (write-depictions backing-file portraits slots)
+      (values #f #f #f)))
+(define (write-depictions backing-file aurie-vat-id portraits slots)
   (define portrait-graph
-    (make-portrait-graph current-data-version portraits slots))
+    (make-portrait-graph aurie-vat-id current-data-version portraits slots))
   (call-with-output-file backing-file
     (lambda (port)
       (syrup-write portrait-graph port #:marshallers marshallers))))
 
 (define* (make-syrup-store backing-file)
-  (define-values (saved-portraits saved-slots)
+  (define-values (aurie-vat-id saved-portraits saved-slots)
     (read-depictions backing-file))
 
   (define write-proc
     (methods
-     [(save-graph portraits slots)
+     [(save-graph vat-id portraits slots)
+      (set! aurie-vat-id vat-id)
       (set! saved-portraits portraits)
       (set! saved-slots slots)
-      (write-depictions backing-file portraits slots)]
+      (write-depictions backing-file aurie-vat-id portraits slots)]
      [(save-delta portraits)
       (unless (and saved-portraits saved-slots)
         (error "Cannot save deltas until a whole graph has been stored first"))
@@ -88,15 +91,15 @@
        (lambda (slot new-portrait-data)
          (hashq-set! saved-portraits slot new-portrait-data))
        portraits)
-      (write-depictions backing-file saved-portraits saved-slots)]))
+      (write-depictions backing-file aurie-vat-id saved-portraits saved-slots)]))
 
   (define read-proc
     (methods
      [(graph-and-slots)
-      (values saved-portraits saved-slots)]
+      (values aurie-vat-id saved-portraits saved-slots)]
      [(object-portrait slot)
       (unless (and saved-portraits saved-slots)
         (error "Cannot read an object from an empty store"))
       (hashq-ref saved-portraits slot)]))
   
-  (make-persistence-store read-proc write-proc))  
+  (make-persistence-store read-proc write-proc))

@@ -1,5 +1,5 @@
 ;;; Copyright 2021-2022 Christine Lemmer-Webber
-;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2022-2024 Jessica Tallon
 ;;; Copyright 2023 David Thompson
 ;;; Copyright 2023 Juliana Sims
 ;;;
@@ -24,6 +24,7 @@
   #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins utils random-name)
   #:use-module (goblins utils ring-buffer)
+  #:use-module (gcrypt random)
   #:use-module (fibers)
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
@@ -193,9 +194,11 @@
 ;; persist. This could live just on the vat itself but since it's a
 ;; lot of stuff, it's broken into its own record.
 (define-record-type <vat-persistence>
-  (make-vat-persistence persistence-environ persist-on store
-                        read-portrait! val->slot-ref roots)
+  (make-vat-persistence vat-aurie-id persistence-environ persist-on
+                        store read-portrait! val->slot-ref roots)
   vat-persistence-env?
+  ;; A permanent ID which other vats can use to reference a given vat.
+  (vat-aurie-id vat-persistence-vat-aurie-id)
   ;; This is a <persistence-env> with all objects in the graph.
   (persistence-environ vat-persistence-environ set-vat-persistence-environ!)
   ;; When 'churn it tells the vat to persist on churns, otherwise
@@ -678,7 +681,12 @@ Type: (Optional (#:name (U String Symbol)))
       (('find-previous-event event)
        (vat-log-ref-previous vat event))
       (('find-next-events event)
-       (vat-log-ref-next vat event))))
+       (vat-log-ref-next vat event))
+      (('aurie-vat-id)
+       (let ((persistence-env (vat-persistence-env vat)))
+         (if persistence-env
+             (vat-persistence-vat-aurie-id persistence-env)
+             #f)))))
   (define am (make-actormap #:vat-connector connector))
   (define id (next-vat-id))
   (define clock (make-atomic-box 0))
@@ -1151,7 +1159,9 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
     (vat-persistence-store persistence-env))
   (define save-portrait-in-store!
     (persistence-store-save-proc store))
-  (save-portrait-in-store! 'save-graph slot->portrait root-slots))
+  (define aurie-vat-id
+    (vat-persistence-vat-aurie-id persistence-env))
+  (save-portrait-in-store! 'save-graph aurie-vat-id slot->portrait root-slots))
 
 (define (vat-take-portrait! vat)
   (call-system-op-with-vat vat vat-take-portrait!*))
@@ -1179,22 +1189,27 @@ will occur and this should be handled manually.
 If provided, NAME is the debug name of the vat. If LOG? is #t, log
 vat events, otherwise do not. If provided, LOG-CAPACITY is the number
 of events to retain in the log."
-  (define vat-persistence
-    (make-vat-persistence persistence-env persist-on store #f #f #f))
+  ;; We should either restore from the data in the store if that exists,
+  ;; or we should spawn the roots by using `spawn-roots-lambda'.
+  (define read-from-store
+    (persistence-store-read-proc store))
+  (define-values (vat-aurie-id portraits root-slots)
+    (read-from-store 'graph-and-slots))
 
+  (define current-vat-aurie-id
+    (if vat-aurie-id
+        vat-aurie-id
+        (gen-random-bv 32 %gcry-strong-random)))
+
+  (define vat-persistence
+    (make-vat-persistence current-vat-aurie-id persistence-env
+                          persist-on store #f #f #f))
   (define vat
     (vat-constructor
      #:persistence-env vat-persistence
      #:name name
      #:log? log?
      #:log-capacity log-capacity))
-
-  ;; We should either restore from the data in the store if that exists,
-  ;; or we should spawn the roots by using `spawn-roots-lambda'.
-  (define read-from-store
-    (persistence-store-read-proc store))
-  (define-values (portraits root-slots)
-    (read-from-store 'graph-and-slots))
 
   (define roots
     (if (and portraits root-slots)
