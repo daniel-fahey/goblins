@@ -557,6 +557,7 @@ Type: TransActormap -> Void"
    (lambda (key val)
      (transactormap-set! parent key val))
    (transactormap-data-delta tm-data))
+  (merge-actormap-aurie-counters! parent transactormap)
   (set-transactormap-data-merged?! tm-data #t))
 
 (define transactormap-metatype
