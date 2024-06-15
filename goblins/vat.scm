@@ -19,6 +19,7 @@
   #:use-module (goblins base-io-ports)
   #:use-module (goblins core)
   #:use-module (goblins core-types)
+  #:use-module (goblins ghash)
   #:use-module (goblins inbox)
   #:use-module (goblins abstract-types)
   #:use-module (goblins default-vat-scheduler)
@@ -34,9 +35,10 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 q)
   #:use-module (ice-9 threads)
-  #:use-module (srfi srfi-1)
-  #:use-module (srfi srfi-9)
-  #:use-module (srfi srfi-9 gnu)
+  #:use-module (srfi srfi-1)      ; lists
+  #:use-module (srfi srfi-9)      ; records
+  #:use-module (srfi srfi-9 gnu)  ; record extensions
+  #:use-module (srfi srfi-11)     ; let-values
   #:export (vat-event?
             vat-send-event?
             vat-receive-event?
@@ -556,6 +558,65 @@ like this:
 (define (%vat-log-ref-next log event)
   ;; Events are stored in reverse order in which they were processed.
   (reverse (hashq-ref (vat-log-next-index log) event '())))
+
+
+;; Vat registry
+;; ============
+
+;; Two request types for aurie registries follow.
+;; We want to protect these but allow them to be generally available
+;; for all vats to use, and unexported records are reasonable ways of
+;; performing rights amplification.
+
+;; Request to register a vat
+(define-record-type <register-request>
+  (make-register-request vat-aurie-id aurie-id-object-retriever)
+  register-request?
+  (vat-aurie-id register-request-vat-aurie-id)
+  (aurie-id-object-retriever register-request-aurie-id-object-retriever))
+
+(define-record-type <registry-fetch-retriever>
+  (make-registry-fetch-retriever vat-aurie-id)
+  registry-fetch-retriever?
+  (vat-aurie-id registry-fetch-retriever-vat-aurie-id))
+
+(define* (^aurie-registry bcom #:optional (vat-id->retriever ghash-null))
+  (match-lambda
+    ((? register-request? reg-request)
+     (define vat-aurie-id
+       (register-request-vat-aurie-id reg-request))
+     (define aurie-object-retriever
+       (register-request-aurie-id-object-retriever reg-request))
+     ;; fulfill a waiting resolver, if there is one
+     (match (ghash-ref vat-id->retriever vat-aurie-id #f)
+       (('waiting _retriever-vow retriever-resolver)
+        ($ retriever-resolver 'fulfill aurie-object-retriever))
+       (_ 'no-op))
+     ;; but regardless, become a new version of the registry with the
+     ;; retriever being set
+     (bcom (^aurie-registry
+            bcom (ghash-set vat-id->retriever vat-aurie-id aurie-object-retriever))))
+    ((? registry-fetch-retriever? reg-fetch-req)
+     (define vat-aurie-id
+       (registry-fetch-retriever-vat-aurie-id reg-fetch-req))
+     (match (ghash-ref vat-id->retriever vat-aurie-id #f)
+       ;; There's a version waiting
+       (('waiting retriever-vow _retriever-resolver)
+        retriever-vow)
+       ;; Nothing is waiting, but we also don't have a resolution, so
+       ;; let's add a waiting request
+       (#f
+        (let*-values (((retriever-vow retriever-resolver)
+                       (spawn-promise-values))
+                      ((new-vat-id->retriever)
+                       (ghash-set vat-id->retriever
+                                  vat-aurie-id
+                                  (list 'waiting retriever-vow retriever-resolver))))
+          (bcom (^aurie-registry bcom new-vat-id->retriever)
+                retriever-vow)))
+       ;; otherwise, it must be the retriever, so return that
+       (retriever retriever)))))
+
 
 ;; Vats
 ;; ====
@@ -1169,7 +1230,8 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
 (define* (spawn-persistent-vat persistence-env spawn-roots-thunk store
                                #:key (persist-on 'churn)
                                (vat-constructor spawn-fibrous-vat)
-                               name log? (log-capacity default-log-capacity))
+                               name log? (log-capacity default-log-capacity)
+                               aurie-registry)
   "Create and return a reference to a new vat with persistence. All
 objects spawned on the vat that will persist must be persistence
 aware. The objects must be in PERSISTENCE-ENV which is used when the
@@ -1188,7 +1250,10 @@ will occur and this should be handled manually.
 
 If provided, NAME is the debug name of the vat. If LOG? is #t, log
 vat events, otherwise do not. If provided, LOG-CAPACITY is the number
-of events to retain in the log."
+of events to retain in the log.
+
+TODO: Document AURIE-REGISTRY
+"
   ;; We should either restore from the data in the store if that exists,
   ;; or we should spawn the roots by using `spawn-roots-lambda'.
   (define read-from-store
