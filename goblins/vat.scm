@@ -1320,6 +1320,7 @@ TODO: Document AURIE-REGISTRY
      #:log? log?
      #:log-capacity log-capacity))
 
+  ;; TODO: we'll also want to gather up vats-we-found-ids-in here
   (define roots
     (if (and portraits root-slots)
         (call-system-op-with-vat
@@ -1345,6 +1346,32 @@ TODO: Document AURIE-REGISTRY
 
          ;; Finally, lets take the first vat portrait
          (vat-take-portrait!* vat)))
+
+  ;; TODO: If there's no aurie registry should we break all the
+  ;; promises requested immediately?
+  #;(when aurie-registry
+    ;; Register this vat.
+    ;;
+    ;; We wait to talk to the registry until after all our Aurie objects
+    ;; are restored to avoid race conditions.
+    (<-np-extern aurie-registry
+                 (make-register-request current-vat-aurie-id vat))
+
+    ;; TODO: RESUME HERE after gathering all objects to be resolved
+    ;; using `vat-resolve-objs-by-aurie-ids'
+    (for-each (match-lambda
+                ;; Iterating over pairs of aurie-vat-ids and the object aurie-ids
+                ;; we want to retrieve
+                ((far-vat-aurie-id . ids-and-resolvers)
+                 (call-with-vat
+                  vat
+                  (lambda ()
+                    (on (<- aurie-registry (make-registry-fetch-vat far-vat-aurie-id))
+                        (lambda (far-vat-for-aurie-interlink)
+                          (syscaller-free-fiber
+                           (lambda ()
+                             (vat-resolve-objs-by-aurie-ids vat ids-and-resolvers)))))))))
+              vats-we-found-ids-in))
 
   (apply values vat roots))
 
