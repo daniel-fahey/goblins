@@ -562,111 +562,6 @@ like this:
   (reverse (hashq-ref (vat-log-next-index log) event '())))
 
 
-;; Inter-vat Aurie vat registry and retrievers
-;; ===========================================
-
-;; This section is for inter-vat Aurie integration.
-;; DO NOT EXPORT ANY OF THIS MACHINERY FROM THIS MODULE!
-;;
-;; Inter-vat Aurie works by:
-;;  - vats having randomly generated identifiers made *specifically*
-;;    for being identified for Aurie integerchange.  There's not meant
-;;    to be any way to make them yourself; a persistent vat booting up
-;;    will automatically make its own id, register with the given
-;;    registry, and upon being restored, reawake with that id.
-;;  - local-object-refrs also have unique, incremented integer ids
-;;    specific to that vat (or really, actormap).  These also are not
-;;    meant to be used for anything other than inter-vat Aurie.
-
-;; Two request types for aurie registries follow.
-;; We want to protect these but allow them to be generally available
-;; for all vats to use, and unexported records are reasonable ways of
-;; performing rights amplification.
-
-;; Request to register a vat
-(define-record-type <register-request>
-  (make-register-request vat-aurie-id vat)
-  register-request?
-  (vat-aurie-id register-request-vat-aurie-id)
-  (vat register-request-vat))
-
-(define-record-type <registry-fetch-vat>
-  (make-registry-fetch-vat vat-aurie-id)
-  registry-fetch-vat?
-  (vat-aurie-id registry-fetch-vat-vat-aurie-id))
-
-(define* (^aurie-registry bcom #:optional (vat-id->vat ghash-null))
-  (match-lambda
-    ((? register-request? reg-request)
-     (define vat-aurie-id
-       (register-request-vat-aurie-id reg-request))
-     (define vat-to-register
-       (register-request-vat reg-request))
-     (define vat-obj
-       (spawn ^aurie-vat-refr-resolver vat-to-register))
-     ;; fulfill a waiting resolver, if there is one
-     ;; If there is not... we should error (?)
-     (match (ghash-ref vat-id->vat vat-aurie-id #f)
-       (('waiting _registered-vat-vow registered-vat-resolver)
-        ($ registered-vat-resolver 'fulfill vat-obj))
-       (#f 'noop))
-     ;; but regardless, become a new version of the registry with the
-     ;; registered-vat being set
-     (bcom (^aurie-registry
-            bcom (ghash-set vat-id->vat vat-aurie-id vat-obj))))
-    ((? registry-fetch-vat? reg-fetch-req)
-     (define vat-aurie-id
-       (registry-fetch-vat-vat-aurie-id reg-fetch-req))
-     (match (ghash-ref vat-id->vat vat-aurie-id #f)
-       ;; There's a version waiting
-       (('waiting registered-vat-vow _registered-vat-resolver)
-        registered-vat-vow)
-       ;; Nothing is waiting, but we also don't have a resolution, so
-       ;; let's add a waiting request
-       (#f
-        (let*-values (((registered-vat-vow registered-vat-resolver)
-                       (spawn-promise-values))
-                      ((new-vat-id->vat)
-                       (ghash-set vat-id->vat
-                                  vat-aurie-id
-                                  (list 'waiting registered-vat-vow
-                                        registered-vat-resolver))))
-          (bcom (^aurie-registry bcom new-vat-id->vat)
-                registered-vat-vow)))
-       ;; otherwise, it must be the registered vat, so return that
-       (vat vat)))))
-
-;; This is not optimized for efficiency, retrieval of objects by Aurie
-;; id is only meant to be done at startup, so the entire actormap is
-;; traversed to determine the relevant object refrs matching
-;; identifiers.
-
-(define (vat-resolve-objs-by-aurie-ids vat ids-and-resolvers)
-  (call-system-op-with-vat 
-   vat
-   (lambda (vat)
-     (define am (vat-actormap vat))
-     (define mapping (make-hash-table))
-     (match am
-       ;; TODO: Only whactormaps supported so far.  We should really
-       ;; support actormap-for-each / actormap-fold...
-       ((? whactormap?)
-        (let ((wht (whactormap-data-wht (actormap-data am))))
-          (hash-for-each (lambda (obj-refr _v)
-                           (hashv-set! mapping 
-                                       (local-object-refr-aurie-id obj-refr)
-                                       obj-refr))
-                         wht))))
-     (for-each (match-lambda
-                 ((id . resolver)
-                  (let ((obj-with-id (hashv-ref mapping id #f)))
-                    (if obj-with-id
-                        (<-np-extern resolver 'fulfill obj-with-id)
-                        (<-np-extern resolver 'break
-                                     'no-such-object)))))
-               ids-and-resolvers))))
-
-
 ;; Vats
 ;; ====
 
@@ -1473,6 +1368,80 @@ TODO: Document AURIE-REGISTRY
      am
      (vat-persistence-environ vat-persistence)))
   (call-system-op-with-vat vat replace-behavior!))
+
+;; Inter-vat Aurie vat registry and retrievers
+;; ===========================================
+
+;; This section is for inter-vat Aurie integration.
+;; DO NOT EXPORT ANY OF THIS MACHINERY FROM THIS MODULE!
+;;
+;; Inter-vat Aurie works by:
+;;  - vats having randomly generated identifiers made *specifically*
+;;    for being identified for Aurie integerchange.  There's not meant
+;;    to be any way to make them yourself; a persistent vat booting up
+;;    will automatically make its own id, register with the given
+;;    registry, and upon being restored, reawake with that id.
+;;  - local-object-refrs also have unique, incremented integer ids
+;;    specific to that vat (or really, actormap).  These also are not
+;;    meant to be used for anything other than inter-vat Aurie.
+
+;; Two request types for aurie registries follow.
+;; We want to protect these but allow them to be generally available
+;; for all vats to use, and unexported records are reasonable ways of
+;; performing rights amplification.
+
+;; Request to register a vat
+(define-record-type <register-request>
+  (make-register-request vat-aurie-id vat)
+  register-request?
+  (vat-aurie-id register-request-vat-aurie-id)
+  (vat register-request-vat))
+
+(define-record-type <registry-fetch-vat>
+  (make-registry-fetch-vat vat-aurie-id)
+  registry-fetch-vat?
+  (vat-aurie-id registry-fetch-vat-vat-aurie-id))
+
+(define* (^aurie-registry bcom #:optional (vat-id->vat ghash-null))
+  (match-lambda
+    ((? register-request? reg-request)
+     (define vat-aurie-id
+       (register-request-vat-aurie-id reg-request))
+     (define vat-to-register
+       (register-request-vat reg-request))
+     (define vat-obj
+       (spawn ^aurie-vat-refr-resolver vat-to-register))
+     ;; fulfill a waiting resolver, if there is one
+     ;; If there is not... we should error (?)
+     (match (ghash-ref vat-id->vat vat-aurie-id #f)
+       (('waiting _registered-vat-vow registered-vat-resolver)
+        ($ registered-vat-resolver 'fulfill vat-obj))
+       (#f 'noop))
+     ;; but regardless, become a new version of the registry with the
+     ;; registered-vat being set
+     (bcom (^aurie-registry
+            bcom (ghash-set vat-id->vat vat-aurie-id vat-obj))))
+    ((? registry-fetch-vat? reg-fetch-req)
+     (define vat-aurie-id
+       (registry-fetch-vat-vat-aurie-id reg-fetch-req))
+     (match (ghash-ref vat-id->vat vat-aurie-id #f)
+       ;; There's a version waiting
+       (('waiting registered-vat-vow _registered-vat-resolver)
+        registered-vat-vow)
+       ;; Nothing is waiting, but we also don't have a resolution, so
+       ;; let's add a waiting request
+       (#f
+        (let*-values (((registered-vat-vow registered-vat-resolver)
+                       (spawn-promise-values))
+                      ((new-vat-id->vat)
+                       (ghash-set vat-id->vat
+                                  vat-aurie-id
+                                  (list 'waiting registered-vat-vow
+                                        registered-vat-resolver))))
+          (bcom (^aurie-registry bcom new-vat-id->vat)
+                registered-vat-vow)))
+       ;; otherwise, it must be the registered vat, so return that
+       (vat vat)))))
 
 (define (^aurie-vat-refr-resolver _bcom vat)
   (define aurie-id->refr
