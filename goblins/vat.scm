@@ -116,6 +116,8 @@
 
             define-vat-run
 
+            ^aurie-registry
+
             ;; and here's a hack, but maybe someone wants
             ;; to start with it and tweak it
             port-redirect-dynamic-wrap))
@@ -600,15 +602,18 @@ like this:
        (register-request-vat-aurie-id reg-request))
      (define vat-to-register
        (register-request-vat reg-request))
+     (define vat-obj
+       (spawn ^aurie-vat-refr-resolver vat-to-register))
      ;; fulfill a waiting resolver, if there is one
+     ;; If there is not... we should error (?)
      (match (ghash-ref vat-id->vat vat-aurie-id #f)
        (('waiting _registered-vat-vow registered-vat-resolver)
-        ($ registered-vat-resolver 'fulfill vat-to-register))
-       (_ 'no-op))
+        ($ registered-vat-resolver 'fulfill vat-obj))
+       (#f 'noop))
      ;; but regardless, become a new version of the registry with the
      ;; registered-vat being set
      (bcom (^aurie-registry
-            bcom (ghash-set vat-id->vat vat-aurie-id vat-to-register))))
+            bcom (ghash-set vat-id->vat vat-aurie-id vat-obj))))
     ((? registry-fetch-vat? reg-fetch-req)
      (define vat-aurie-id
        (registry-fetch-vat-vat-aurie-id reg-fetch-req))
@@ -1321,18 +1326,19 @@ TODO: Document AURIE-REGISTRY
      #:log-capacity log-capacity))
 
   ;; TODO: we'll also want to gather up vats-we-found-ids-in here
-  (define roots
+  (define-values (far-refr-resolvers roots spawned-new?)
     (if (and portraits root-slots)
-        (call-system-op-with-vat
-         vat (lambda (vat)
-               (define vat-am
-                 (vat-actormap vat))
-               (call-with-values
-                   (lambda ()
-                     (actormap-restore! vat-am persistence-env portraits root-slots))
-                 list)))
+        (match (call-system-op-with-vat
+                vat (lambda (vat)
+                      (define vat-am
+                        (vat-actormap vat))
+                      (call-with-values
+                          (lambda ()
+                            (actormap-restore! vat-am persistence-env portraits root-slots))
+                        list)))
+          [(far-refr-resolvers roots ...) (values far-refr-resolvers roots #f)])
         (with-vat vat
-          (call-with-values spawn-roots-thunk list))))
+          (values #f (call-with-values spawn-roots-thunk list) #t))))
 
   (define-values (read-portrait! val->slot-ref)
     (make-actormap-read-portrait! persistence-env roots))
@@ -1345,11 +1351,12 @@ TODO: Document AURIE-REGISTRY
          (set-vat-persistence-roots! vat-persistence roots)
 
          ;; Finally, lets take the first vat portrait
-         (vat-take-portrait!* vat)))
+         (when spawned-new?
+           (vat-take-portrait!* vat))))
 
   ;; TODO: If there's no aurie registry should we break all the
   ;; promises requested immediately?
-  #;(when aurie-registry
+  (when aurie-registry
     ;; Register this vat.
     ;;
     ;; We wait to talk to the registry until after all our Aurie objects
@@ -1357,21 +1364,24 @@ TODO: Document AURIE-REGISTRY
     (<-np-extern aurie-registry
                  (make-register-request current-vat-aurie-id vat))
 
-    ;; TODO: RESUME HERE after gathering all objects to be resolved
-    ;; using `vat-resolve-objs-by-aurie-ids'
-    (for-each (match-lambda
-                ;; Iterating over pairs of aurie-vat-ids and the object aurie-ids
-                ;; we want to retrieve
-                ((far-vat-aurie-id . ids-and-resolvers)
-                 (call-with-vat
-                  vat
-                  (lambda ()
-                    (on (<- aurie-registry (make-registry-fetch-vat far-vat-aurie-id))
-                        (lambda (far-vat-for-aurie-interlink)
-                          (syscaller-free-fiber
-                           (lambda ()
-                             (vat-resolve-objs-by-aurie-ids vat ids-and-resolvers)))))))))
-              vats-we-found-ids-in))
+
+    ;; Go through all the far actors we're waiting for and try and fetch them.
+    (hash-for-each
+     (lambda (aurie-actor-id resolver)
+       (match aurie-actor-id
+         ;; Iterating over pairs of aurie-vat-ids and the object aurie-ids
+         ;; we want to retrieve
+         ((vat-aurie-id  actor-aurie-id)
+          (with-vat vat
+            (let ((aurie-id->refr
+                   (<- aurie-registry (make-registry-fetch-vat vat-aurie-id))))
+              (on (<- aurie-id->refr actor-aurie-id)
+                  (lambda (refr)
+                    (<-np resolver 'fulfill refr))
+                  #:catch
+                  (lambda (err)
+                    (<-np resolver 'break err))))))))
+     far-refr-resolvers))
 
   (apply values vat roots))
 
@@ -1396,7 +1406,8 @@ TODO: Document AURIE-REGISTRY
         ;; assigned slot. For the ones found queue them up for depiction
         (for-each
          (lambda (changed-obj)
-           (when (val->slot-refr changed-obj)
+           (when (and (local-object-refr? changed-obj)
+                      (val->slot-refr changed-obj))
              (enq! process-queue changed-obj)))
          (transactormap-calculate-obj-delta new-am))
 
@@ -1462,6 +1473,18 @@ TODO: Document AURIE-REGISTRY
      am
      (vat-persistence-environ vat-persistence)))
   (call-system-op-with-vat vat replace-behavior!))
+
+(define (^aurie-vat-refr-resolver _bcom vat)
+  (define aurie-id->refr
+    (make-hash-table))
+  (actormap-for-each
+   (lambda (refr _mactor)
+     ;; Not promises!
+     (when (local-object-refr? refr)
+       (hash-set! aurie-id->refr (local-object-refr-aurie-id refr) refr)))
+   (vat-actormap vat))
+  (lambda (aurie-actor-id)
+    (hash-ref aurie-id->refr aurie-actor-id)))
 
 ;; An example to test against, wip
 #;(run-fibers

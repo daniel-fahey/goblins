@@ -34,6 +34,7 @@
             actormap-aurie-counter
             actormap-ref
             actormap-set!
+            set-actormap-aurie-counter!
 
             merge-actormap-aurie-counters!
             increment-actormap-aurie-counter!
