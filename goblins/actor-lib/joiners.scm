@@ -16,7 +16,7 @@
 (define-module (goblins actor-lib joiners)
   #:use-module (goblins)
   #:use-module (goblins actor-lib cell)
-  #:export (all-of all-of*))
+  #:export (all-of all-of* race))
 
 (define (all-of* promises)
   "Return a promise which resolves on resolution of all PROMISES.
@@ -63,3 +63,20 @@ Type: (Listof Promise) -> Promise"
 
 Type: Promise ... -> Promise"
   (all-of* promises))
+
+(define (race . promises)
+  "Return a promise which resolves when the first promise in @var{promises}
+settles.  If that promise is broken then so is the returned promise.
+
+Type: Promise ... -> Promise"
+  (define-values (race-promise race-resolver)
+    (spawn-promise-values))
+  (for-each (lambda (promise)
+              (on promise
+                  (lambda (result)
+                    (<-np race-resolver 'fulfill result))
+                  #:catch
+                  (lambda (err)
+                    (<-np race-resolver 'break err))))
+            promises)
+  race-promise)
