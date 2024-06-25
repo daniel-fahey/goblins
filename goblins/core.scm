@@ -77,6 +77,7 @@
             actormap-replace-behavior
             actormap-replace-behavior!
             actormap-restore!
+            actormap-restore-with-far-refrs!
             actormap-restore-from-store!
             actormap-save-to-store!
 
@@ -2927,6 +2928,11 @@ Type: Actormap PersistenceEnv -> Void"
       (symbol? obj) (bytevector? obj)))
 
 (define (actormap-restore! am persistence-env portraits roots)
+  (define-values (_far-refrs root-objects)
+    (actormap-restore-with-far-refrs! am persistence-env portraits roots))
+  (apply values root-objects))
+
+(define (actormap-restore-with-far-refrs! am persistence-env portraits roots)
   "Restore a self portrait in an actormap"
   (define slots->resolvers
     (make-hash-table))
@@ -3064,29 +3070,29 @@ Type: Actormap PersistenceEnv -> Void"
     ;; Install the mactor in the refr we created.
     (actormap-set! am refr (actormap-ref am restored-obj-refr)))
 
-    ;; Restore all the objects in the vows we have setup.
-    (hash-for-each
-     (lambda (slot portrait)
-       (restore-slot! slot portrait))
-     portraits)
+  ;; Restore all the objects in the vows we have setup.
+  (hash-for-each
+   (lambda (slot portrait)
+     (restore-slot! slot portrait))
+   portraits)
 
-    ;; When an actor is spawned it might send messages
-    ;; so keep track of those so we can dispatch them after.
-    (while (not (q-empty? msg-queue))
-      (let-values (((result new-am new-msgs)
-                    (actormap-turn-message am (deq! msg-queue))))
-        (transactormap-merge! new-am)
-        (enq-msgs! new-msgs)))
+  ;; When an actor is spawned it might send messages
+  ;; so keep track of those so we can dispatch them after.
+  (while (not (q-empty? msg-queue))
+    (let-values (((result new-am new-msgs)
+                  (actormap-turn-message am (deq! msg-queue))))
+      (transactormap-merge! new-am)
+      (enq-msgs! new-msgs)))
 
-    (match roots
-      [(? list? root-slots)
-       (define restored-roots
-         (map (lambda (slot)
-                (hashq-ref slots->refrs slot))
-              root-slots))
-       (apply values far-refr-resolvers restored-roots)]
-       [(? integer? slot)
-        (values far-refr-resolvers (hashq-ref slots->refrs slot))]))
+  (match roots
+    [(? list? root-slots)
+     (define restored-roots
+       (map (lambda (slot)
+              (hashq-ref slots->refrs slot))
+            root-slots))
+     (values far-refr-resolvers restored-roots)]
+    [(? integer? slot)
+     (values far-refr-resolvers (list (hashq-ref slots->refrs slot)))]))
 
 (define (actormap-restore-from-store! am env store)
   "Reads portrait graph from STORE and restores into provided AM.

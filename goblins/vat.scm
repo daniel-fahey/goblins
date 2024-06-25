@@ -1171,115 +1171,6 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
 (define (vat-take-portrait! vat)
   (call-system-op-with-vat vat vat-take-portrait!*))
 
-(define* (spawn-persistent-vat persistence-env spawn-roots-thunk store
-                               #:key (persist-on 'churn)
-                               (vat-constructor spawn-fibrous-vat)
-                               name log? (log-capacity default-log-capacity)
-                               aurie-registry)
-  "Create and return a reference to a new vat with persistence. All
-objects spawned on the vat that will persist must be persistence
-aware. The objects must be in PERSISTENCE-ENV which is used when the
-vat takes the portrait and rehydrates objects.
-
-The SPAWN-ROOT-THUNK perameter will be run within the vat
-environment and should spawn one or more values which are the root
-objects to be persisted.
-
-STORE is a storage backend mechanism which matches the persistence
-store interface.
-
-If PERSIST-ON is not provided persistence will happen on every churn
-of the vat. If this is #f, no automatic persistence mechanism
-will occur and this should be handled manually.
-
-If provided, NAME is the debug name of the vat. If LOG? is #t, log
-vat events, otherwise do not. If provided, LOG-CAPACITY is the number
-of events to retain in the log.
-
-TODO: Document AURIE-REGISTRY
-"
-  ;; We should either restore from the data in the store if that exists,
-  ;; or we should spawn the roots by using `spawn-roots-lambda'.
-  (define read-from-store
-    (persistence-store-read-proc store))
-  (define-values (vat-aurie-id portraits root-slots)
-    (read-from-store 'graph-and-slots))
-
-  (define current-vat-aurie-id
-    (if vat-aurie-id
-        vat-aurie-id
-        (gen-random-bv 32 %gcry-strong-random)))
-
-  (define vat-persistence
-    (make-vat-persistence current-vat-aurie-id persistence-env
-                          persist-on store #f #f #f))
-  (define vat
-    (vat-constructor
-     #:persistence-env vat-persistence
-     #:name name
-     #:log? log?
-     #:log-capacity log-capacity))
-
-  ;; TODO: we'll also want to gather up vats-we-found-ids-in here
-  (define-values (far-refr-resolvers roots spawned-new?)
-    (if (and portraits root-slots)
-        (match (call-system-op-with-vat
-                vat (lambda (vat)
-                      (define vat-am
-                        (vat-actormap vat))
-                      (call-with-values
-                          (lambda ()
-                            (actormap-restore! vat-am persistence-env portraits root-slots))
-                        list)))
-          [(far-refr-resolvers roots ...) (values far-refr-resolvers roots #f)])
-        (with-vat vat
-          (values #f (call-with-values spawn-roots-thunk list) #t))))
-
-  (define-values (read-portrait! val->slot-ref)
-    (make-actormap-read-portrait! persistence-env roots))
-
-  (call-system-op-with-vat
-   vat (lambda (vat)
-         ;; Setup the persistent environment
-         (set-vat-persistence-read-portrait! vat-persistence read-portrait!)
-         (set-vat-persistence-val->ref! vat-persistence val->slot-ref)
-         (set-vat-persistence-roots! vat-persistence roots)
-
-         ;; Finally, lets take the first vat portrait
-         (when spawned-new?
-           (vat-take-portrait!* vat))))
-
-  ;; TODO: If there's no aurie registry should we break all the
-  ;; promises requested immediately?
-  (when aurie-registry
-    ;; Register this vat.
-    ;;
-    ;; We wait to talk to the registry until after all our Aurie objects
-    ;; are restored to avoid race conditions.
-    (<-np-extern aurie-registry
-                 (make-register-request current-vat-aurie-id vat))
-
-
-    ;; Go through all the far actors we're waiting for and try and fetch them.
-    (hash-for-each
-     (lambda (aurie-actor-id resolver)
-       (match aurie-actor-id
-         ;; Iterating over pairs of aurie-vat-ids and the object aurie-ids
-         ;; we want to retrieve
-         ((vat-aurie-id  actor-aurie-id)
-          (with-vat vat
-            (let ((aurie-id->refr
-                   (<- aurie-registry (make-registry-fetch-vat vat-aurie-id))))
-              (on (<- aurie-id->refr actor-aurie-id)
-                  (lambda (refr)
-                    (<-np resolver 'fulfill refr))
-                  #:catch
-                  (lambda (err)
-                    (<-np resolver 'break err))))))))
-     far-refr-resolvers))
-
-  (apply values vat roots))
-
 (define (vat-maybe-persist-changed-objs! vat new-am)
   (define vat-persistence
     (vat-persistence-env vat))
@@ -1454,6 +1345,116 @@ TODO: Document AURIE-REGISTRY
    (vat-actormap vat))
   (lambda (aurie-actor-id)
     (hash-ref aurie-id->refr aurie-actor-id)))
+
+(define* (spawn-persistent-vat persistence-env spawn-roots-thunk store
+                               #:key (persist-on 'churn)
+                               (vat-constructor spawn-fibrous-vat)
+                               name log? (log-capacity default-log-capacity)
+                               aurie-registry)
+  "Create and return a reference to a new vat with persistence. All
+objects spawned on the vat that will persist must be persistence
+aware. The objects must be in PERSISTENCE-ENV which is used when the
+vat takes the portrait and rehydrates objects.
+
+The SPAWN-ROOT-THUNK perameter will be run within the vat
+environment and should spawn one or more values which are the root
+objects to be persisted.
+
+STORE is a storage backend mechanism which matches the persistence
+store interface.
+
+If PERSIST-ON is not provided persistence will happen on every churn
+of the vat. If this is #f, no automatic persistence mechanism
+will occur and this should be handled manually.
+
+If provided, NAME is the debug name of the vat. If LOG? is #t, log
+vat events, otherwise do not. If provided, LOG-CAPACITY is the number
+of events to retain in the log.
+
+TODO: Document AURIE-REGISTRY
+"
+  ;; We should either restore from the data in the store if that exists,
+  ;; or we should spawn the roots by using `spawn-roots-lambda'.
+  (define read-from-store
+    (persistence-store-read-proc store))
+  (define-values (vat-aurie-id portraits root-slots)
+    (read-from-store 'graph-and-slots))
+
+  (define current-vat-aurie-id
+    (if vat-aurie-id
+        vat-aurie-id
+        (gen-random-bv 32 %gcry-strong-random)))
+
+  (define vat-persistence
+    (make-vat-persistence current-vat-aurie-id persistence-env
+                          persist-on store #f #f #f))
+  (define vat
+    (vat-constructor
+     #:persistence-env vat-persistence
+     #:name name
+     #:log? log?
+     #:log-capacity log-capacity))
+
+  ;; TODO: we'll also want to gather up vats-we-found-ids-in here
+  (define-values (far-refr-resolvers roots spawned-new?)
+    (if (and portraits root-slots)
+        (match (call-system-op-with-vat
+                vat (lambda (vat)
+                      (define vat-am
+                        (vat-actormap vat))
+                      (call-with-values
+                          (lambda ()
+                            (actormap-restore! vat-am persistence-env portraits root-slots))
+                        list)))
+          [(far-refr-resolvers roots ...) (values far-refr-resolvers roots #f)])
+        (with-vat vat
+          (values #f (call-with-values spawn-roots-thunk list) #t))))
+
+  (define-values (read-portrait! val->slot-ref)
+    (make-actormap-read-portrait! persistence-env roots))
+
+  (call-system-op-with-vat
+   vat (lambda (vat)
+         ;; Setup the persistent environment
+         (set-vat-persistence-read-portrait! vat-persistence read-portrait!)
+         (set-vat-persistence-val->ref! vat-persistence val->slot-ref)
+         (set-vat-persistence-roots! vat-persistence roots)
+
+         ;; Finally, lets take the first vat portrait
+         (when spawned-new?
+           (vat-take-portrait!* vat))))
+
+  ;; TODO: If there's no aurie registry should we break all the
+  ;; promises requested immediately?
+  (when aurie-registry
+    ;; Register this vat.
+    ;;
+    ;; We wait to talk to the registry until after all our Aurie objects
+    ;; are restored to avoid race conditions.
+    (<-np-extern aurie-registry
+                 (make-register-request current-vat-aurie-id vat))
+
+
+    ;; Go through all the far actors we're waiting for and try and fetch them.
+    (when far-refr-resolvers
+      (hash-for-each
+       (lambda (aurie-actor-id resolver)
+         (match aurie-actor-id
+           ;; Iterating over pairs of aurie-vat-ids and the object aurie-ids
+           ;; we want to retrieve
+           ((vat-aurie-id  actor-aurie-id)
+            (with-vat vat
+              (let ((aurie-id->refr
+                     (<- aurie-registry (make-registry-fetch-vat vat-aurie-id))))
+                (on (<- aurie-id->refr actor-aurie-id)
+                    (lambda (refr)
+                      (<-np resolver 'fulfill refr))
+                    #:catch
+                    (lambda (err)
+                      (<-np resolver 'break err))))))))
+       far-refr-resolvers)))
+
+  (apply values vat roots))
 
 ;; An example to test against, wip
 #;(run-fibers
