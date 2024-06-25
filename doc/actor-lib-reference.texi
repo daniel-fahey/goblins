@@ -510,6 +510,25 @@ Like @code{all-of}, but @var{promises} is a list of promises.
 
 @end deffn
 
+@deffn {Procedure} race promises @dots{}
+Return a promise which resolves when the first promise in
+@var{promises} settles.  If that promise is broken then so is the
+returned promise.
+
+Suppose we'd like to talk to an actor named @code{slowpoke}.  However,
+as the name implies, @code{slowpoke} doesn't always respond in a
+timely manner.  Suppose also that we had another actor named
+@code{timeout} that responds after a specified amount of time has
+passed.  We can use @code{race} to wait for @code{slowpoke} but give
+up after awhile and move on:
+
+@lisp
+;; Say "hey" to slowpoke, but only wait a minute for their response.
+(race (<- slowpoke 'hey) (<- timeout 60))
+@end lisp
+
+@end deffn
+
 @node Let-On
 @section Let-On
 
