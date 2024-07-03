@@ -24,11 +24,14 @@
   #:use-module (goblins vat)
   #:use-module (goblins utils crypto)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins actor-lib io)
+  #:use-module (goblins actor-lib swappable)
+  #:use-module (goblins actor-lib let-on)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer utils)
   #:use-module (goblins ocapn netlayer base-port)
   #:use-module (goblins contrib syrup)
-  #:export (spawn-libp2p-netlayer
+  #:export (^libp2p-netlayer
             ocapn-node->libp2p-multiaddr
             libp2p-multiaddress->ocapn-node
             libp2p-netlayer-env))
@@ -97,23 +100,23 @@
                                    (getuid) name))))
 
   (define incoming-connections-sock
-    (make-server-unix-domain-socket incoming-connections-path))
-
-  (define control-sock
-    (make-client-unix-domain-socket control-path))
-
-  (define-values (control-in-ch control-out-ch)
-    (line-delimited-ports->channels control-sock control-sock))
+    (spawn ^io (make-server-unix-domain-socket incoming-connections-path)
+           #:cleanup
+           (lambda (resource)
+             (close-port resource))))
 
   (define base-message
     (format #f "NEW incoming:~a outgoing:~a protocol:ocapn version:1.0.0"
             incoming-connections-path
             outgoing-connections-path))
+
+  (define control-sock
+    (spawn ^line-delimited-port (make-client-unix-domain-socket control-path)))
   
-  (put-message control-out-ch
-               (if private-key
-                   (format #f "~a private-key:~a" base-message private-key)
-                   base-message))
+  (<-np control-sock 'write-line
+        (if private-key
+            (format #f "~a private-key:~a" base-message private-key)
+            base-message))
 
   (define (split-control-message message)
     (let* ((trimmed-message (string-trim message #\space))
@@ -124,30 +127,27 @@
                      (substring pair (+ 1 seperator-index)))))
            pairs)))
   
-  (define-values (our-location new-private-key)
-    (let ((message (get-message control-in-ch)))
-      (match (split-control-message message)
-        [(("address" multiaddrs) ... ("private-key" privkey))
-         (values (libp2p-multiaddress->ocapn-node multiaddrs)
-                 privkey)]
-        [something (error "Got unknown:" something)])))
+  (define-values (private-key-vow private-key-resolver)
+    (spawn-promise-values))
+  (define-values (our-location-vow our-location-resolver)
+    (spawn-promise-values))
 
-  (values our-location new-private-key
+  (on (<- control-sock 'read-line)
+      (lambda (message)
+        (match (split-control-message message)
+          [(("address" multiaddrs) ... ("private-key" privkey))
+           ($ private-key-resolver 'fulfill privkey)
+           ($ our-location-resolver 'fulfill
+              (libp2p-multiaddress->ocapn-node multiaddrs))]
+          [something
+           ($ private-key-resolver 'break (format #f "Expected private key, got ~a" something))
+           ($ our-location-resolver 'break (format #f "Expected our-location, got ~a" something))
+           (error "Got unknown:" something)])))
+
+  (values our-location-vow private-key-vow
           control-sock
           incoming-connections-sock
           outgoing-connections-path))
-
-(define* (spawn-libp2p-netlayer #:optional private-key)
-  (define-values (our-location new-private-key control-sock
-                               incoming-conn-sock outgoing-conn-path)
-    (setup-ocapn-io default-libp2p-control-path
-                    default-libp2p-path
-                    private-key))
-  (values (spawn ^libp2p-netlayer
-                  our-location
-                  incoming-conn-sock
-                  outgoing-conn-path)
-          new-private-key))
 
 (define (setup-outgoing-sock sock location)
   (display
@@ -156,15 +156,36 @@
    sock)
   (flush-output-port sock))
 
-(define (^libp2p-netlayer bcom our-location
-                          incoming-connection-sock
-                          outgoing-connection-path)
+(define-actor (^libp2p-netlayer-SETUP bcom
+                                      our-location private-key
+                                      control-path path
+                                      #:optional
+                                      init-control-sock
+                                      init-incoming-connection-sock
+                                      init-outgoing-connection-path)
+  #:portrait (lambda ()
+               (list our-location private-key control-path path))
+
+  (define-values (_our-location _private-key
+                                control-sock
+                                incoming-connection-sock
+                                outgoing-connection-path)
+    (if (and init-control-sock init-incoming-connection-sock init-outgoing-connection-path)
+        (values #f #f init-control-sock
+                init-incoming-connection-sock
+                init-outgoing-connection-path)
+        (setup-ocapn-io control-path path private-key)))
+
   (define (incoming-accept)
-    (match (accept incoming-connection-sock O_NONBLOCK)
-      ((client . addr)
-       (setvbuf client 'block 1024)
-       client)))
-  
+    (on (<- incoming-connection-sock
+            (lambda (port)
+              (accept port O_NONBLOCK)))
+        (match-lambda
+          ((client . addr)
+           (setvbuf client 'block 1024)
+           client))
+        #:promise? #t))
+
   (define (outgoing-connect-location location)
     (unless (eq? (ocapn-node-transport location) 'libp2p)
       (error "Wrong netlayer! Expected libp2p" location))
@@ -175,6 +196,56 @@
   (^base-port-netlayer bcom our-location
                        incoming-accept outgoing-connect-location))
 
+(define-actor (^libp2p-netlayer-FRESH _bcom swap-to control-path path)
+  ;; We're not fully setup yet so setup a promise pair to forward messages
+  ;; sent to us while we're setting ourselves up.
+  (define-values (setup-netlayer-vow setup-netlayer-resolver)
+    (spawn-promise-values))
+
+  (define-values (our-location-vow private-key-vow
+                                   control-sock
+                                   incoming-connection-sock
+                                   outgoing-connection-path)
+    (setup-ocapn-io control-path path))
+
+  (let-on ((our-location our-location-vow)
+           (private-key private-key-vow))
+          (let ((ready (spawn ^libp2p-netlayer-SETUP
+                              our-location private-key
+                              control-path path
+                              control-sock
+                              incoming-connection-sock
+                              outgoing-connection-path)))
+            (<-np swap-to ready)
+            (<-np setup-netlayer-resolver 'fulfill ready)))
+
+  (lambda args
+    (match args
+      [('netlayer-name) 'libp2p]
+      [args (apply <- setup-netlayer-vow args)])))
+
+(define* (^libp2p-netlayer _bcom
+                           #:optional private-key our-location
+                           #:key
+                           [control-path default-libp2p-control-path]
+                           [path default-libp2p-path])
+  (define-values (swap-to-vow swap-to-resolver)
+    (spawn-promise-values))
+
+  (define netlayer
+    (if (and our-location private-key)
+        (spawn ^libp2p-netlayer-SETUP our-location private-key
+               control-path path)
+        (spawn ^libp2p-netlayer-FRESH swap-to-vow
+               control-path path)))
+
+  (define-values (proxy swap-to)
+    (swappable netlayer '^libp2p-netlayer))
+  ($ swap-to-resolver 'fulfill swap-to)
+  proxy)
+
 (define libp2p-netlayer-env
   (make-persistence-env
-   `((((goblins ocapn netlayer libp2p) ^libp2p-netlayer) ^libp2p-netlayer))))
+   `((((goblins ocapn netlayer libp2p) ^libp2p-netlyaer-FRESH) ,^libp2p-netlayer-FRESH)
+     (((goblins ocapn netlayer libp2p) ^libp2p-netlayer-SETUP) ,^libp2p-netlayer-SETUP))
+   #:extends swappable-env))
