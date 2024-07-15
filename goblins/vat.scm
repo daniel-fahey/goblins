@@ -1398,7 +1398,6 @@ TODO: Document AURIE-REGISTRY
      #:log? log?
      #:log-capacity log-capacity))
 
-  ;; TODO: we'll also want to gather up vats-we-found-ids-in here
   (define-values (far-refr-resolvers roots spawned-new?)
     (if (and portraits root-slots)
         (match (call-system-op-with-vat
@@ -1407,9 +1406,10 @@ TODO: Document AURIE-REGISTRY
                         (vat-actormap vat))
                       (call-with-values
                           (lambda ()
-                            (actormap-restore! vat-am persistence-env portraits root-slots))
+                            (actormap-restore-with-far-refrs!
+                             vat-am persistence-env portraits root-slots))
                         list)))
-          [(far-refr-resolvers roots ...) (values far-refr-resolvers roots #f)])
+          [(far-refr-resolvers roots) (values far-refr-resolvers roots #f)])
         (with-vat vat
           (values #f (call-with-values spawn-roots-thunk list) #t))))
 
