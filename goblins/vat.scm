@@ -1440,22 +1440,22 @@ TODO: Document AURIE-REGISTRY
 
     ;; Go through all the far actors we're waiting for and try and fetch them.
     (when far-refr-resolvers
-      (hash-for-each
-       (lambda (aurie-actor-id resolver)
-         (match aurie-actor-id
-           ;; Iterating over pairs of aurie-vat-ids and the object aurie-ids
-           ;; we want to retrieve
-           ((vat-aurie-id  actor-aurie-id)
-            (with-vat vat
-              (let ((aurie-id->refr
-                     (<- aurie-registry (make-registry-fetch-vat vat-aurie-id))))
-                (on (<- aurie-id->refr actor-aurie-id)
-                    (lambda (refr)
-                      (<-np resolver 'fulfill refr))
-                    #:catch
-                    (lambda (err)
-                      (<-np resolver 'break err))))))))
-       far-refr-resolvers)))
+      (with-vat vat
+        (hash-for-each
+          (lambda (aurie-actor-id resolver)
+            (match aurie-actor-id
+              ;; Iterating over pairs of aurie-vat-ids and the object aurie-ids
+              ;; we want to retrieve
+              ((vat-aurie-id actor-aurie-id)
+                (let ((aurie-id->refr
+                        (<- aurie-registry (make-registry-fetch-vat vat-aurie-id))))
+                  (on (<- aurie-id->refr actor-aurie-id)
+                      (lambda (refr)
+                        (<-np resolver 'fulfill refr))
+                      #:catch
+                      (lambda (err)
+                        (<-np resolver 'break err)))))))
+        far-refr-resolvers))))
 
   (apply values vat roots))
 
