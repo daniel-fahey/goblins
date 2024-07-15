@@ -2959,11 +2959,23 @@ Type: Actormap PersistenceEnv -> Void"
       [(_persistence-name debug-name _portrait-version _portrait-data)
        debug-name]))
   
+  ;; We *need* to ensure we set the aurie-id counter on the actormap to the
+  ;; highest within the graph before creating any new local-object-refrs.
+  ;; Unfortunately that means having a pass over the graph just to calculate
+  ;; the highest aurie ID for the counter.
+  ;; TODO: Do we possibly want to serialize the counter so we don't need to do
+  ;; this? - not sure.
   (hash-for-each
    (lambda (slot depiction)
      (when (< highest-slot slot)
-       (set! highest-slot slot))
+       (set! highest-slot slot)))
+    portraits)
+  (set-actormap-aurie-counter! am highest-slot)
 
+  ;; Now loop through and make a refr for each object, we will point that refr
+  ;; at a vow and later change it to point directly at the refr.
+  (hash-for-each
+   (lambda (slot depiction)
      (let*-values (((vow resolver) (actormap-run! am spawn-promise-values))
                    ((vow-symlink) (make-mactor:local-link vow))
                    ((debug-name) (depiction->debug-name depiction))
@@ -2973,8 +2985,6 @@ Type: Actormap PersistenceEnv -> Void"
        (hashq-set! slots->resolvers slot resolver)
        (hashq-set! slots->refrs slot refr)))
    portraits)
-
-  (set-actormap-aurie-counter! am highest-slot)
 
   (define (restore-slot! slot portrait)
     (define resolver
