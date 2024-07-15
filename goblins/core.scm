@@ -32,7 +32,6 @@
 
             actormap-turn-message
 
-            actormap-for-each
             actormap-peek
             actormap-poke!
             actormap-reckless-poke!
@@ -546,15 +545,6 @@ Type: TransActormap -> Void"
   (and (actormap? am)
        (eq? (actormap-metatype am) transactormap-metatype)))
 
-(define (actormap-for-each proc am)
-  (match am
-    [(? whactormap?)
-     (hash-for-each proc (whactormap-data-wht (actormap-data am)))]
-    [(and (? transactormap?) (? transactormap-merged?))
-     (actormap-for-each (transactormap-data-parent am) proc)]
-    [_
-     (error "Cannot do actormap-for-each on non-merged transactormap.")]))
-
 (define (transactormap-buffer-merge! transactormap)
   "Merge TRANSACTORMAP against its parent buffer (also a
 transactormap).
@@ -575,8 +565,17 @@ Type: TransActormap -> Void"
   (merge-actormap-aurie-counters! parent transactormap)
   (set-transactormap-data-merged?! tm-data #t))
 
+(define (transactormap-for-each proc transactormap)
+  (define tm-data (actormap-data transactormap))
+  (define tm-delta
+    (transactormap-data-delta tm-data))
+  (if (transactormap-data-merged? tm-data)
+    (error "Can't use transactormap-for-each on merged transactormap")
+    (hash-for-each proc tm-delta)))
+
 (define transactormap-metatype
-  (make-actormap-metatype 'transactormap transactormap-ref transactormap-set!))
+  (make-actormap-metatype 'transactormap transactormap-ref transactormap-set!
+                          transactormap-for-each))
 
 (define (make-transactormap parent)
   "Create a return a reference to a transactional actormap
@@ -2829,13 +2828,8 @@ a transactormap which the user can choose whether or not to commit.
 
 Type: Actormap PersistenceEnv -> TransactorMap"
   (define metatype (actormap-metatype am))
-
-  ;; For now just deal with whactormaps (maybe always only do this?)
-  ;; TODO: Support all actormap types by adding actormap-fold / actormap-for-each
-  (unless (eq? (actormap-metatype-name metatype) 'whactormap)
-    (error "Provided actormap is not a whactormap."))
-  (define whactormap (actormap-data am))
-  (define whactormap-table (whactormap-data-wht whactormap))
+  (define actormap-for-each
+    (actormap-metatype-for-each-proc metatype))
   (define new-actormap (make-transactormap am))
 
   (define (has-new-beh? object-spec mactor)
@@ -2862,7 +2856,7 @@ Type: Actormap PersistenceEnv -> TransactorMap"
         (queue-messages! new-msgs)
         (transactormap-merge! new-am))))
 
-  (hash-for-each
+  (actormap-for-each
    (lambda (refr mactor)
      ;; Find the object spec for the given mactor (might not have one).
      (define object-spec
@@ -2910,7 +2904,7 @@ Type: Actormap PersistenceEnv -> TransactorMap"
 
          (dispatch-messages-for-am! new-am* (reverse new-msgs))
          (transactormap-merge! new-am*))))
-   whactormap-table)
+   am)
   new-actormap)
 
 (define (actormap-replace-behavior! am persistence-env)

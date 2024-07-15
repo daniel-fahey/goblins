@@ -45,6 +45,7 @@
             actormap-metatype-name
             actormap-metatype-ref-proc
             actormap-metatype-set!-proc
+            actormap-metatype-for-each-proc
 
             <whactormap-data>
             make-whactormap-data
@@ -168,11 +169,12 @@
 ;;    (format port "#<actormap ~a>" (actormap-metatype-name (actormap-metatype am)))))
 
 (define-record-type <actormap-metatype>
-  (make-actormap-metatype name ref-proc set!-proc)
+  (make-actormap-metatype name ref-proc set!-proc for-each-proc)
   actormap-metatype?
   (name actormap-metatype-name)
   (ref-proc actormap-metatype-ref-proc)
-  (set!-proc actormap-metatype-set!-proc))
+  (set!-proc actormap-metatype-set!-proc)
+  (for-each-proc actormap-metatype-for-each-proc))
 
 (define (actormap-set! am key val)
   ((actormap-metatype-set!-proc (actormap-metatype am))
@@ -203,8 +205,12 @@ Type: Any -> Boolean"
   (define wht (whactormap-data-wht (actormap-data am)))
   (hashq-set! wht key val))
 
+(define (whactormap-for-each proc am)
+  (hash-for-each proc (whactormap-data-wht (actormap-data am))))
+
 (define whactormap-metatype
-  (make-actormap-metatype 'whactormap whactormap-ref whactormap-set!))
+  (make-actormap-metatype 'whactormap whactormap-ref whactormap-set!
+                          whactormap-for-each))
 
 ;; Transactional actormaps
 ;; =======================

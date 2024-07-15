@@ -1335,6 +1335,9 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
        (vat vat)))))
 
 (define (^aurie-vat-refr-resolver _bcom vat)
+  (define actormap (vat-actormap vat))
+  (define metatype (actormap-metatype actormap))
+  (define actormap-for-each (actormap-metatype-for-each-proc metatype))
   (define aurie-id->refr
     (make-hash-table))
   (actormap-for-each
@@ -1342,7 +1345,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
      ;; Not promises!
      (when (local-object-refr? refr)
        (hash-set! aurie-id->refr (local-object-refr-aurie-id refr) refr)))
-   (vat-actormap vat))
+   actormap)
   (lambda (aurie-actor-id)
     (hash-ref aurie-id->refr aurie-actor-id)))
 
