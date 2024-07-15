@@ -729,11 +729,12 @@ Type: Vat -> Void"
   ((vat-halt-proc vat)))
 
 (define* (vat-churn vat msg sent-at)
+  (define log? (vat-logging? vat))
   (define churn-id (vat-next-churn-id vat))
   (define near-q (make-q))
   (define far-q (make-q))
   (define am (vat-actormap vat))
-  (define snapshot (copy-whactormap am))
+  (define snapshot (and log? (copy-whactormap am)))
   (define new-am (make-transactormap am))
   (define this-vat-connector (actormap-vat-connector am))
   (define (near-msg? msg)
@@ -742,10 +743,11 @@ Type: Vat -> Void"
          (eq? (local-refr-vat-connector to-refr)
               this-vat-connector)))
   (define* (current-snapshot)
-    (define snapshot* (copy-whactormap snapshot))
-    (define transactormap (transactormap-reparent new-am snapshot*))
-    (transactormap-merge! transactormap)
-    snapshot*)
+    (and log?
+         (let* ((snapshot* (copy-whactormap snapshot))
+                (transactormap (transactormap-reparent new-am snapshot*)))
+           (transactormap-merge! transactormap)
+           snapshot*)))
   (define (queue-messages-appropriately! prev-event msgs)
     (match msgs
       (() 'done)
@@ -765,7 +767,8 @@ Type: Vat -> Void"
               (q (if near? near-q far-q)))
          (let ((event (make-vat-event event-type churn-id timestamp
                                       #f msg snapshot)))
-           (vat-log-append! vat event prev-event)
+           (when log?
+             (vat-log-append! vat event prev-event))
            (enq! q event))))))
   (define (turn event)
     (set-vat-event-snapshot! event (current-snapshot))
@@ -796,7 +799,8 @@ Type: Vat -> Void"
   (define received-at (vat-next-timestamp vat sent-at))
   (define init-event
     (make-vat-event 'receive churn-id received-at sent-at msg snapshot))
-  (vat-log-append! vat init-event #f)
+  (when log?
+    (vat-log-append! vat init-event #f))
   (define result (turn init-event))
   ;; Turn as many additional times as it takes to run this vat to
   ;; quiescence.
@@ -951,8 +955,7 @@ logging."
   (%vat-log-ref-next (vat-log vat) event))
 
 (define (vat-log-append! vat event prev)
-  (when (vat-logging? vat)
-    (%vat-log-append! (vat-log vat) event prev)))
+  (%vat-log-append! (vat-log vat) event prev))
 
 (define (vat-log-error! vat event exception)
   (when (vat-logging? vat)
