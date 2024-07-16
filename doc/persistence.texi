@@ -609,7 +609,7 @@ configured to persist on churns, just the objects which have changed
 
 @deffn {Procedure} spawn-persistent-vat persistent-env spawn-roots-thunk @
        store [#:persist-on] [#:vat-constructor] [#:name] [#:log?]
-       [#:log-capacity]
+       [#:log-capacity] [#:aurie-registry]
 
 Create and return a reference to a new @emph{vat} configured with
 persistence.
@@ -646,6 +646,10 @@ bound to in the current namespace.
 @var{log-capacity}: Number of events to be retained in the log.
 Defaults to 256.
 
+@item
+@var{aurie-registry}: The refr to a shared ^aurie-registry object which, if
+provided, enables persisting and rehydrating objects from other local vats.
+
 @end itemize
 
 @lisp
@@ -664,6 +668,45 @@ Defaults to 256.
      (spawn ^counter 0))
    (make-memory-store)))
 @end lisp
+
+The @code{^aurie-registry} actor is designed to be spawned anew each time the
+program starts (i.e. is not part of the persistence graph) and is shared amongst
+several persistent vats which want to persist/rehydrate objects across vats.
+
+Unlike near local refrs which are promises during rehydration, but are swapped
+to local refrs after rehydration is complete. Far refrs remain promises and
+should resolve after both vats are setup and have registered themselves with
+the @code{^aurie-registry} object.
+
+Here's an example of two vats, the cell on @code{b-vat} holds a reference to
+an object on @code{a-vat}
+
+@lisp
+;; Spawn the aurie registry in its own vat without persistence enabled.
+(define aurie-vat (spawn-vat))
+(define aurie-registry
+  (with-vat aurie-vat
+    (spawn ^aurie-registry)))
+
+;; Spawn the initial a-vat with an a-cell object
+(define a-vat-store (make-memory-store))
+(define-values (a-vat a-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (spawn ^cell))
+   a-vat-store
+   #:aurie-registry aurie-registry))
+
+;; Spawn a b-vat with a b-cell object, that will reference the far refr a-cell
+(define b-vat-store (make-memory-store))
+(define-values (b-vat b-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (spawn ^cell a-cell))
+   b-vat-store
+   #:aurie-registry aurie-registry))
+@end lisp
+
 @end deffn
 
 @node Persistence Environments

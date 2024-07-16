@@ -1374,7 +1374,10 @@ If provided, NAME is the debug name of the vat. If LOG? is #t, log
 vat events, otherwise do not. If provided, LOG-CAPACITY is the number
 of events to retain in the log.
 
-TODO: Document AURIE-REGISTRY
+If the AURIE-REGISTRY is provided, it will register this vat with the
+registry to allow for both this vat and others who share the same registry
+to both persist and rehydrate local far refrs (i.e. refrs on other local vats).
+This value should be the refr of a spawned ^aurie-registry object.
 "
   ;; We should either restore from the data in the store if that exists,
   ;; or we should spawn the roots by using `spawn-roots-lambda'.
