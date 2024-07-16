@@ -1356,8 +1356,8 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
                                aurie-registry)
   "Create and return a reference to a new vat with persistence. All
 objects spawned on the vat that will persist must be persistence
-aware. The objects must be in PERSISTENCE-ENV which is used when the
-vat takes the portrait and rehydrates objects.
+aware. The objects local to the vat must be in PERSISTENCE-ENV which is used
+when the vat takes the portrait and rehydrates objects.
 
 The SPAWN-ROOT-THUNK perameter will be run within the vat
 environment and should spawn one or more values which are the root

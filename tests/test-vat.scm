@@ -1115,4 +1115,51 @@
   (with-vat persistent-vat
     ($ ($ foo))))
 
+(define aurie-vat (spawn-vat))
+(define aurie-registry
+  (with-vat aurie-vat
+    (spawn ^aurie-registry)))
+
+(define a-vat-store (make-memory-store))
+(define-values (a-vat a-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (spawn ^cell))
+   a-vat-store
+   #:aurie-registry aurie-registry))
+
+(define b-vat-store (make-memory-store))
+(define-values (b-vat b-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (spawn ^cell a-cell))
+   b-vat-store
+   #:aurie-registry aurie-registry))
+
+;; Now restore from the same memory stores using an aurie registry
+(define aurie-registry*
+  (with-vat aurie-vat
+    (spawn ^aurie-registry)))
+
+(define-values (a-vat* a-cell*)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (error "Should be being restored from the memory"))
+   a-vat-store
+   #:aurie-registry aurie-registry*))
+
+(define-values (b-vat* b-cell*)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (error "Should be being restored from the memory"))
+   b-vat-store
+   #:aurie-registry aurie-registry*))
+
+(test-assert "A far reference can be persisted and restored"
+  (match (resolve-vow-and-return-result
+          b-vat*
+          (lambda () (<- b-cell*)))
+    [#(ok hopefully-far-refr)
+      (and (with-vat b-vat* (far-refr? hopefully-far-refr))
+           (eq? hopefully-far-refr a-cell*))]))
 (test-end "test-vat")
