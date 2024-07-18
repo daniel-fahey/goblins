@@ -673,8 +673,8 @@ The @code{^aurie-registry} actor is designed to be spawned anew each time the
 program starts (i.e. is not part of the persistence graph) and is shared amongst
 several persistent vats which want to persist/rehydrate objects across vats.
 
-Unlike near local refrs which are promises during rehydration, but are swapped
-to local refrs after rehydration is complete. Far refrs remain promises and
+Unlike local near refrs which are promises during rehydration, but are swapped
+to local refrs after rehydration is complete, Far refrs remain promises and
 should resolve after both vats are setup and have registered themselves with
 the @code{^aurie-registry} object.
 
