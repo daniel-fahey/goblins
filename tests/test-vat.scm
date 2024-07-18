@@ -1,6 +1,6 @@
 ;;; Copyright 2019-2023 Christine Lemmer-Webber
 ;;; Copyright 2022-2023 David Thompson
-;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2022-2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -1022,7 +1022,7 @@
   ($ list1 two)
   ($ list2 one))
 
-(define-values (portraits _roots)
+(define-values (vat-aurie-id portraits _roots)
   (read-from-store 'graph-and-slots))
 
 ;; There should be 4 objs: one, two, list1, list2
@@ -1033,7 +1033,7 @@
 ;; Now add two to list2 (not adding any new objects to the graph)
 (with-vat persistent-vat
   ($ list2 two))
-(define-values (portraits _roots)
+(define-values (vat-aurie-id portraits _roots)
   (read-from-store 'graph-and-slots))
 (test-equal "Number of objects in graph remains same when no new object introduced"
   4
@@ -1043,7 +1043,7 @@
 ;; existing children.
 (with-vat persistent-vat
   ($ one (spawn ^list)))
-(define-values (portraits _roots)
+(define-values (vat-aurie-id portraits _roots)
   (read-from-store 'graph-and-slots))
 
 (test-equal "Number of objects in graph increases when new object added to child"
@@ -1052,7 +1052,7 @@
 
 (with-vat persistent-vat
   ($ list2 (spawn ^list)))
-(define-values (portraits _roots)
+(define-values (vat-aurie-id portraits _roots)
   (read-from-store 'graph-and-slots))
 
 (test-equal "Number of objects in graph increases when new object added to parent"
@@ -1115,4 +1115,51 @@
   (with-vat persistent-vat
     ($ ($ foo))))
 
+(define aurie-vat (spawn-vat))
+(define aurie-registry
+  (with-vat aurie-vat
+    (spawn ^aurie-registry)))
+
+(define a-vat-store (make-memory-store))
+(define-values (a-vat a-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (spawn ^cell))
+   a-vat-store
+   #:aurie-registry aurie-registry))
+
+(define b-vat-store (make-memory-store))
+(define-values (b-vat b-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (spawn ^cell a-cell))
+   b-vat-store
+   #:aurie-registry aurie-registry))
+
+;; Now restore from the same memory stores using an aurie registry
+(define aurie-registry*
+  (with-vat aurie-vat
+    (spawn ^aurie-registry)))
+
+(define-values (a-vat* a-cell*)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (error "Should be being restored from the memory"))
+   a-vat-store
+   #:aurie-registry aurie-registry*))
+
+(define-values (b-vat* b-cell*)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (error "Should be being restored from the memory"))
+   b-vat-store
+   #:aurie-registry aurie-registry*))
+
+(test-assert "A far reference can be persisted and restored"
+  (match (resolve-vow-and-return-result
+          b-vat*
+          (lambda () (<- b-cell*)))
+    [#(ok hopefully-far-refr)
+      (and (with-vat b-vat* (far-refr? hopefully-far-refr))
+           (eq? hopefully-far-refr a-cell*))]))
 (test-end "test-vat")

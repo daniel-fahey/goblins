@@ -19,7 +19,7 @@
 (define am (make-actormap))
 (define alice (actormap-spawn! am ^greeter "Alice"))
 (define bob (actormap-spawn! am ^greeter "Bob"))
-(define-values (portraits values)
+(define-values (portraits slots)
   (actormap-take-portrait am env alice bob))
 
 (define filename (tmpnam))
@@ -33,7 +33,7 @@
   (persistence-store-read-proc store))
 
 (test-equal "Single object lookup works as expected"
-  (read-from-store 'object-portrait 0)
+  (read-from-store 'object-portrait (car slots))
   '(((tests persistence-store test-syrup) ^greeter)
     ;; Debug name
     ^greeter

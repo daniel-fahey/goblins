@@ -23,7 +23,7 @@
   #:use-module (fibers timers)
   #:use-module (ice-9 match)
   #:use-module ((srfi srfi-1)
-                #:select (second third))
+                #:select (first second third))
   #:use-module (srfi srfi-64))
 
 (test-begin "test-define-actor")
@@ -142,7 +142,7 @@
   (actormap-take-portrait am2 versioned-env versioned-cell))
 
 (define version
-  (match (hash-ref versioned-portraits 0)
+  (match (hash-ref versioned-portraits (car versioned-roots))
     ((_name _debug-name version _data) version)))
 
 (test-eqv "#:version for define-actor works" 42 version)
@@ -240,11 +240,11 @@
   (actormap-take-portrait am4 portrait-version-env cpv cpv-match))
 
 (define-values (cpv-version cpv-data)
-  (match (hash-ref portrait-version-portraits 0)
+  (match (hash-ref portrait-version-portraits (first portrait-version-roots))
     ((_name _debug-name version data)
      (values version data))))
 (define-values (cpv-match-version cpv-match-data)
-  (match (hash-ref portrait-version-portraits 1)
+  (match (hash-ref portrait-version-portraits (second portrait-version-roots))
     ((_name _debug-name version data)
      (values version data))))
 
