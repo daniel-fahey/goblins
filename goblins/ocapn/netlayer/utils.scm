@@ -46,14 +46,14 @@
   
   (methods
    [(read-message unmarshallers)
-    ($ io 'read
-       (lambda (ip)
+    (<- io 'read
+        (lambda (ip)
          (syrup-read ip #:unmarshallers unmarshallers)))]
    [(write-message msg marshallers)
-    ($ io 'write
-       (lambda (op)
-         (syrup-write msg op #:marshallers marshallers)
-         (flush-output-port op)))]))
+    (<-np io 'write
+          (lambda (op)
+            (syrup-write msg op #:marshallers marshallers)
+            (flush-output-port op)))]))
 
 (define* (random-tmp-filename base-directory
                               #:key
@@ -105,36 +105,36 @@ exist between this time, but they are really extremely unlikely."
 
   (methods
    [(read-line)
-    ($ port-io 'read
-       (lambda (ip)
-         ;; Uh, I'm not sure if onion control sockets ever contain utf-8 encoded
-         ;; data... I'm pretty sure no, so "forcing" a latin-1 perspective here
-         (define (_read-char)
-           (match (get-u8 ip)
-             [(? eof-object? eof) eof]
-             [char-int (integer->char char-int)]))
-         (let lp ([buf '()])
-           (match (_read-char)
-             [(? eof-object?) 'done]
-             [#\newline
-              (let ((incoming-str
-                     ;; Reverse and send to input channel current string
-                     (string-trim-both (list->string (reverse buf)) #\return)))
-                incoming-str)]
-             ;; keep on bufferin'
-             [char (lp (cons char buf))]))))]
+    (<- port-io 'read
+        (lambda (ip)
+          ;; Uh, I'm not sure if onion control sockets ever contain utf-8 encoded
+          ;; data... I'm pretty sure no, so "forcing" a latin-1 perspective here
+          (define (_read-char)
+            (match (get-u8 ip)
+              [(? eof-object? eof) eof]
+              [char-int (integer->char char-int)]))
+          (let lp ([buf '()])
+            (match (_read-char)
+              [(? eof-object?) 'done]
+              [#\newline
+               (let ((incoming-str
+                      ;; Reverse and send to input channel current string
+                      (string-trim-both (list->string (reverse buf)) #\return)))
+                 incoming-str)]
+              ;; keep on bufferin'
+              [char (lp (cons char buf))]))))]
    [(write-line line)
-    ($ port-io 'write
-       (lambda (op)
-         (match line
-           [(? string? msg)
-            (display msg op)
-            (display "\r\n" op)
-            (flush-output-port op)]
-           [(? bytevector? msg)
-            (put-bytevector op msg)
-            (display "\r\n" op)
-            (flush-output-port op)])))]
+    (<-np port-io 'write
+          (lambda (op)
+            (match line
+              [(? string? msg)
+               (display msg op)
+               (display "\r\n" op)
+               (flush-output-port op)]
+              [(? bytevector? msg)
+               (put-bytevector op msg)
+               (display "\r\n" op)
+               (flush-output-port op)])))]
    [(halt) ($ port-io 'halt)]))
 
 ;; (define* (line-delimited-port->channel-pair sock)
