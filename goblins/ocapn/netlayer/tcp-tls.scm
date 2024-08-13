@@ -20,6 +20,7 @@
   #:use-module (goblins)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer base-port)
+  #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib io)
   #:use-module (goblins utils crypto)
   #:use-module (ice-9 binary-ports)
@@ -225,10 +226,7 @@
          (string->number port)))
       8088))
 
-(define-actor (^tcp-tls-netlayer bcom host #:key port
-                                 [max-connections 32]
-                                 [key (generate-tls-private-key)]
-                                 [cert (generate-tls-certificate key)])
+(define-actor (^tcp-tls-netlayer* bcom host port max-connections key cert)
     "Spawn and return a new TCP + TLS netlayer.  HOST specifies the
 hostname that appears in the OCapN sturdyrefs that use this netlayer.
 
@@ -250,7 +248,12 @@ and certificates are useful for nodes that do not need persistent
 identity across process lifetimes, but nodes that do should import
 from the file system."
   (define-values (server-socket server-port)
-    (make-server-socket+port port max-connections))
+    (make-server-socket+port ($ port) max-connections))
+
+  ;; Save the port back to the cell if we've been given one
+  (unless (equal? server-port ($ port))
+    ($ port server-port))
+
   (define server-socket-io
     (spawn ^io server-socket))
   (define our-location
@@ -259,15 +262,14 @@ from the file system."
                      `((host ,host)
                        (port ,(number->string server-port)))))
   (define (incoming-accept)
-    (on (<- server-socket-io (lambda (resource) (accept resource)))
+    (on (<- server-socket-io
+            (lambda (resource)
+              (accept resource O_NONBLOCK)))
         (match-lambda
           ((client-socket . _)
-           (spawn ^read-write-io client-socket
-                  #:init
-                  (lambda (sock)
-                    (setvbuf sock 'block)
-                    (use-nonblocking-i/o sock)
-                    (make-server-tls-port sock cert key)))))
+           (setvbuf client-socket 'block)
+           (use-nonblocking-i/o client-socket)
+           (make-server-tls-port client-socket cert key)))
         #:promise? #t))
   (define (outgoing-connect-location location)
     (unless (eq? (ocapn-node-transport location) 'tcp-tls)
@@ -277,16 +279,38 @@ from the file system."
            (server-cert-hash (base16-string->bytevector
                               (ocapn-node-designator location)))
            (client-socket (make-client-socket host port)))
-      (spawn ^read-write-io
-             #:init
-             (lambda (sock)
-               (make-client-tls-port sock cert key server-cert-hash))
-             #:cleanup
-             (lambda (sock)
-               (close-port sock)))))
+      (make-client-tls-port client-socket cert key server-cert-hash)))
   (^base-port-netlayer bcom our-location incoming-accept
                        outgoing-connect-location))
 
+(define* (^tcp-tls-netlayer bcom host #:key port
+                            [max-connections 32]
+                            [key (generate-tls-private-key)]
+                            [cert (generate-tls-certificate key)])
+  "Spawn and return a new TCP + TLS netlayer.  HOST specifies the
+hostname that appears in the OCapN sturdyrefs that use this netlayer.
+
+If PORT is specified, the netlayer will listen for incoming
+connections on that port or throw an error if the port is already in
+use.  If PORT is not specified, an open port will be chosen
+automatically.
+
+MAX-CONNECTIONS specifies the number of peers that may be connected to
+the netlayer at any given time.
+
+KEY and CERT specify the X.509 private key and certificate to use for
+encrypting connections.  If one or both are unspecified, they will be
+automatically generated provided that the version of Guile-GnuTLS is
+new enough to do so.  To import PEM encoded private keys and
+certificates from the file system, use 'load-tls-private-key' and
+'load-tls-certificate', respectively.  Automatically generated keys
+and certificates are useful for nodes that do not need persistent
+identity across process lifetimes, but nodes that do should import
+from the file system."
+  (define port-cell (spawn ^cell port))
+  (spawn ^tcp-tls-netlayer* host port-cell max-connections key cert))
+
 (define tcp-tls-netlayer-env
   (make-persistence-env
-   `((((goblins ocapn netlayer tcp-tls) ^tcp-tls-netlayer) ,^tcp-tls-netlayer))))
+   `((((goblins ocapn netlayer tcp-tls) ^tcp-tls-netlayer) ,^tcp-tls-netlayer*))
+   #:extends cell-env))

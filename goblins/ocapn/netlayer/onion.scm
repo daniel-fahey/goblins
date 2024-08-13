@@ -148,10 +148,6 @@
         #:catch
         (lambda (err)
           ($ ocapn-sock-listener 'halt))
-        #:finally
-        (lambda ()
-          ;; We don't pass this further and we're done with it
-          (<-np tor-control 'halt))
         #:promise? #t))
 
   (values ocapn-sock-path ok-ocapn-sock-listener service-id-vow private-key-vow))
@@ -214,7 +210,7 @@
   (define (incoming-accept)
     (on (<- ocapn-sock-listener
             (lambda (port)
-              (accept port SOCK_NONBLOCK)))
+              (accept port O_NONBLOCK)))
         (lambda (accepted)
           (match accepted
             ((client . addr)
@@ -279,7 +275,6 @@ If reconstructing the onion netlayer, both PRIVATE-KEY and SERVICE-ID
 must be provided."
   (define-values (swap-to-vow swap-to-resolver)
     (spawn-promise-values))
-
   
   (define netlayer
     (if (and private-key service-id)
