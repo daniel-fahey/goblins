@@ -32,7 +32,6 @@
             ^prelay-netlayer
             prelay-env))
 
-
 
 ;;; URI utils
 ;;; =========
@@ -244,16 +243,16 @@ respectively."
 ;;  - Outgoing messages: These are much easier, as we can simply
 ;;    serialize the message and fire it off to the remote actor.
 (define-actor (^prelay-netlayer* bcom self enliven
-                                 prelay-endpoint-sref
-                                 prelay-controller-sref)
+                                 prelay-endpoint-sref-vow
+                                 prelay-controller-sref-vow)
   (define our-location-vow
-    (on prelay-endpoint-sref
-        (lambda (endpoint-sref)
-          (prelay-sturdyref->prelay-node endpoint-sref))
+    (on prelay-endpoint-sref-vow
+        (lambda (prelay-endpoint-sref)
+          (prelay-sturdyref->prelay-node prelay-endpoint-sref))
         #:promise? #t))
 
   (define prelay-controller
-    (<- enliven 'enliven prelay-controller-sref))
+    (<- enliven 'enliven prelay-controller-sref-vow))
 
   (define (start-listener conn-establisher)
     (define (^session-listener _bcom)

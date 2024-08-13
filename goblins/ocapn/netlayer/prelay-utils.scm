@@ -89,11 +89,20 @@ created on this prelay-admin."
   ;; Enliven the "setup" sturdyref and then setup the prelay netlayer with that.
   (define account-setup-vow
     (<- base-mycapn 'enliven account-setup-sref))
-  (on (<- account-setup-vow)
+  (define account-vow (<- account-setup-vow))
+  (define prelay-endpoint-sref-vow
+    (on account-vow
       (match-lambda
-        ((prelay-endpoint-sref prelay-controller-sref)
-         (spawn ^prelay-netlayer
-                (spawn ^facet base-mycapn 'enliven)
-                prelay-endpoint-sref
-                prelay-controller-sref)))
+        ((prelay-endpoint-sref _prelay-controller-sref)
+         prelay-endpoint-sref))
       #:promise? #t))
+  (define prelay-controller-sref-vow
+    (on account-vow
+        (match-lambda
+          ((_prelay-endpoint-sref prelay-controller-sref)
+           prelay-controller-sref))
+        #:promise? #t))
+  (spawn ^prelay-netlayer
+         (spawn ^facet base-mycapn 'enliven)
+         prelay-endpoint-sref-vow
+         prelay-controller-sref-vow))
