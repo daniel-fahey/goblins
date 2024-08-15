@@ -26,11 +26,36 @@
              (goblins ocapn netlayer tcp-tls)
              (goblins ocapn netlayer prelay)
              (goblins ocapn netlayer prelay-utils)
+             (goblins persistence-store syrup)
              (fibers conditions)
-             (ice-9 match))
+             (ice-9 match)
+             (srfi srfi-11))
 
-(define relay-vat
-  (spawn-vat #:name "relay-vat"))
+(define syrup-store-path
+  (getenv "PRELAY_SERVER_STORE"))
+
+(define-actor (^register-facet _bcom mycapn netlayer-name)
+  (match-lambda*
+    [('register obj)
+     (<- mycapn 'register obj netlayer-name)]))
+
+(define prelay-server-env
+  (make-persistence-env
+   `((((examples prelay-server) ^register-facet) ,^register-facet))
+   #:extends (list captp-env facet-env tcp-tls-netlayer-env
+                   onion-netlayer-env prelay-env prelay-utils-env)))
+
+(define (spawn-relay-vat spawn-roots-thunk)
+  (if syrup-store-path
+      (spawn-persistent-vat
+       prelay-server-env
+       spawn-roots-thunk
+       (make-syrup-store syrup-store-path)
+       #:name "relay-vat")
+      (let* ((vat (spawn-vat #:name "relay-vat"))
+             (spawn-roots (lambda () (with-vat vat (spawn-roots-thunk))))
+             (roots (call-with-values spawn-roots list)))
+        (apply values vat roots))))
 
 (define (spawn-netlayer-by-name name options)
   (match name
@@ -53,76 +78,78 @@
 (define can-quit?
   (make-condition))
 
-(define (^register-facet _bcom mycapn netlayer-name)
-  (match-lambda*
-    [('register obj)
-     (<- mycapn 'register obj netlayer-name)]))
+(define (make-spawn-relay-server netlayer-name netlayer-options)
+  (lambda ()
+    (define netlayer
+      (spawn-netlayer-by-name netlayer-name netlayer-options))
+    (define mycapn
+      (spawn-mycapn netlayer))
+    (values netlayer
+            mycapn
+            (spawn ^prelay-admin
+                  (spawn ^facet mycapn 'enliven)
+                  (spawn ^register-facet mycapn ($ netlayer 'netlayer-name))))))
 
 (match (command-line)
   [(_cmd "new-relay" netlayer-name netlayer-options ...)
-   (with-vat relay-vat
-     (define base-netlayer
-       (spawn-netlayer-by-name netlayer-name netlayer-options))
-     (define base-mycapn
-       (spawn-mycapn base-netlayer))
-     (define prelay-admin
-       (spawn ^prelay-admin
-              (spawn ^facet base-mycapn 'enliven)
-              (spawn ^register-facet base-mycapn ($ base-netlayer 'netlayer-name))))
-
-     (on (<- base-mycapn 'register prelay-admin ($ base-netlayer 'netlayer-name))
-         (lambda (relay-admin-sref)
-           (format #t "New relay created successfully, the admin object is at: ~a\n"
-                   (ocapn-id->string relay-admin-sref))))
-     ;; NOTE: This has no quit condition as the relay wants to stay open until
-     ;;       we shutdown.
-     )]
+   (let*-values (((spawn-roots) (make-spawn-relay-server netlayer-name netlayer-options))
+                 ((relay-vat netlayer mycapn admin) (spawn-relay-vat spawn-roots)))
+     (with-vat relay-vat
+       (on (<- mycapn 'register admin ($ netlayer 'netlayer-name))
+           (lambda (relay-admin-sref)
+             (format #t "New relay created successfully, the admin object is at: ~a\n"
+                     (ocapn-id->string relay-admin-sref))))))
+   ;; NOTE: This has no quit condition as the relay wants to stay open until
+   ;;       we shutdown.
+   ]
   [(_cmd "add-account" relay-admin-sref-str account-name)
    (define relay-admin-sref
      (string->ocapn-id relay-admin-sref-str))
    (define relay-admin-node
      (ocapn-sturdyref-node relay-admin-sref))
-   (with-vat relay-vat
-     (define netlayer
-       (spawn-netlayer-by-name (symbol->string (ocapn-node-transport relay-admin-node)) (list)))
-     (define mycapn
-       (spawn-mycapn netlayer))
-     (define relay-admin-vow (<- mycapn 'enliven relay-admin-sref))
-     (on (<- relay-admin-vow 'add-account account-name)
-         (lambda (activation-sref)
-           (format #t "Account created, provide this one-time use sturdyref to fetch it: ~a\n"
-                   (ocapn-id->string activation-sref)))
-         #:catch
-         (lambda (err)
-           (display "Oh no! Something went wrong (maybe check the logs for the relay server).\n"))
-         #:finally
-         (lambda ()
-           (signal-condition! can-quit?))))]
+   (let ((relay-vat (spawn-vat #:name "relay-vat")))
+     (with-vat relay-vat
+       (define netlayer
+         (spawn-netlayer-by-name (symbol->string (ocapn-node-transport relay-admin-node)) (list)))
+       (define mycapn
+         (spawn-mycapn netlayer))
+       (define relay-admin-vow (<- mycapn 'enliven relay-admin-sref))
+       (on (<- relay-admin-vow 'add-account account-name)
+           (lambda (activation-sref)
+             (format #t "Account created, provide this one-time use sturdyref to fetch it: ~a\n"
+                     (ocapn-id->string activation-sref)))
+           #:catch
+           (lambda (err)
+             (display "Oh no! Something went wrong (maybe check the logs for the relay server).\n"))
+           #:finally
+           (lambda ()
+             (signal-condition! can-quit?)))))]
   [(_cmd "list-accounts" relay-admin-sref-str)
    (define relay-admin-sref
      (string->ocapn-id relay-admin-sref-str))
    (define relay-admin-node
      (ocapn-sturdyref-node relay-admin-sref))
-   (with-vat relay-vat
-     (define netlayer
-       (spawn-netlayer-by-name (symbol->string (ocapn-node-transport relay-admin-node)) (list)))
-     (define mycapn
-       (spawn-mycapn netlayer))
-     (define relay-admin-vow (<- mycapn 'enliven relay-admin-sref))
-     (on (<- relay-admin-vow 'get-accounts)
-         (lambda (accounts)
-           (if (zero? (length accounts))
-               (begin
-                 (display "No accounts exist yet!\n")
-                 (signal-condition! can-quit?))
-               (begin
-                 (display "Accounts:\n")
-                 (map (lambda (account)
-                        (format #t "- ~a\n" account))
-                      accounts))))
-         #:finally
-         (lambda ()
-           (signal-condition! can-quit?))))]
+   (let ((relay-vat (spawn-vat #:name "relay-vat")))
+     (with-vat relay-vat
+       (define netlayer
+         (spawn-netlayer-by-name (symbol->string (ocapn-node-transport relay-admin-node)) (list)))
+       (define mycapn
+         (spawn-mycapn netlayer))
+       (define relay-admin-vow (<- mycapn 'enliven relay-admin-sref))
+       (on (<- relay-admin-vow 'get-accounts)
+           (lambda (accounts)
+             (if (zero? (length accounts))
+                 (begin
+                   (display "No accounts exist yet!\n")
+                   (signal-condition! can-quit?))
+                 (begin
+                   (display "Accounts:\n")
+                   (map (lambda (account)
+                          (format #t "- ~a\n" account))
+                        accounts))))
+           #:finally
+           (lambda ()
+             (signal-condition! can-quit?)))))]
   [unknown-cmd
    (let ((program-name (car unknown-cmd)))
      (format #t "Unknown command: ~a, please use one of the following:
@@ -133,7 +160,10 @@
 
 Currently supported netlayers:
 - tcp-tls <hostname> [<port>]
-- onion\n"
+- onion\n
+
+To have the server persist itself, specify the path to the syrup store using the
+PRELAY_SERVER_STORE environment variable.\n"
              unknown-cmd
              program-name program-name program-name))
    (signal-condition! can-quit?)])

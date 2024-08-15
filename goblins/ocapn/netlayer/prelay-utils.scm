@@ -26,9 +26,24 @@
   #:use-module (fibers channels)
   #:use-module (ice-9 match)
   #:export (^prelay-admin
-            fetch-and-spawn-prelay-netlayer))
+            fetch-and-spawn-prelay-netlayer
+            prelay-utils-env))
 
-(define* (^prelay-admin bcom enliven register #:optional [accounts (make-ghash)])
+(define-actor (^relay-account bcom enliven register #:key [setup? #f])
+  (define (setup-beh)
+    (error "Already setup"))
+  (define (main-beh)
+    (define-values (prelay-endpoint prelay-controller)
+      (spawn-prelay-pair enliven))
+    (bcom (^relay-account bcom enliven register #:setup? #t)
+          (all-of
+           (<- register 'register prelay-endpoint)
+           (<- register 'register prelay-controller))))
+  (if setup?
+      setup-beh
+      main-beh))
+
+(define-actor (^prelay-admin bcom enliven register #:optional [accounts (make-ghash)])
   "Allows for creating new prelay netlayer accounts with a name
 
 It has two methods, the first `add-account' takes a name and creates a relay account
@@ -37,23 +52,12 @@ once to configure and setup the relay.
 
 The second method is `get-accounts' which lists all the account names that have been
 created on this prelay-admin."
-  (define (^relay-account bcom)
-    (lambda ()
-      (define-values (prelay-endpoint prelay-controller)
-        (spawn-prelay-pair enliven))
 
-      (define (already-setup-beh)
-        (error "Already setup"))
-
-      (bcom already-setup-beh
-            (all-of
-             (<- register 'register prelay-endpoint)
-             (<- register 'register prelay-controller)))))
   (methods
    [(add-account name)
     (when (ghash-has-key? accounts name)
       (error "Account with name already exists" name))
-    (define new-account (spawn ^relay-account))
+    (define new-account (spawn ^relay-account enliven register))
     (bcom (^prelay-admin bcom enliven register
                          (ghash-set accounts name new-account))
           (<- register 'register new-account))]
@@ -106,3 +110,8 @@ created on this prelay-admin."
          (spawn ^facet base-mycapn 'enliven)
          prelay-endpoint-sref-vow
          prelay-controller-sref-vow))
+
+(define prelay-utils-env
+  (make-persistence-env
+   `((((goblins ocapn netlayer prelay-utils) ^relay-account) ,^relay-account)
+     (((goblins ocapn netlayer prelay-utils) ^relay-admin) ,^prelay-admin))))
