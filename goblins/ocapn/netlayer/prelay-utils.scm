@@ -114,4 +114,5 @@ created on this prelay-admin."
 (define prelay-utils-env
   (make-persistence-env
    `((((goblins ocapn netlayer prelay-utils) ^relay-account) ,^relay-account)
-     (((goblins ocapn netlayer prelay-utils) ^relay-admin) ,^prelay-admin))))
+     (((goblins ocapn netlayer prelay-utils) ^relay-admin) ,^prelay-admin))
+    #:extends prelay-env))
