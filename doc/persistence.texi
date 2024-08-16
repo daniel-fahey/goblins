@@ -609,7 +609,7 @@ configured to persist on churns, just the objects which have changed
 
 @deffn {Procedure} spawn-persistent-vat persistent-env spawn-roots-thunk @
        store [#:persist-on] [#:vat-constructor] [#:name] [#:log?]
-       [#:log-capacity] [#:aurie-registry]
+       [#:log-capacity] [#:aurie-registry] [#:version] [#:upgrade]
 
 Create and return a reference to a new @emph{vat} configured with
 persistence.
@@ -649,6 +649,20 @@ Defaults to 256.
 @item
 @var{aurie-registry}: The refr to a shared ^aurie-registry object which, if
 provided, enables persisting and rehydrating objects from other local vats.
+
+@item
+@var{version}: Usually a number (but not limited to), to indicate the a version
+for the roots of the graph. When the roots of the graph change, this version
+should change and an upgrade path in the @var{upgrade} lambda should be
+provided. This defaults to @code{0} when no version is specified.
+
+@item
+@var{upgrade}: This is a lambda which is run if the version of the roots in the
+persistence store does not match the version in @var{version}. The lambda takes
+in the previous version as its first arguments followed by all the roots that
+were read from the store. The lambda should return the upgraded roots which are
+upgraded to the latest version, i.e. the version of the roots expected at the
+version specified by @var{version}.
 
 @end itemize
 
