@@ -72,6 +72,7 @@ SOURCES = goblins.scm \
           goblins/define-actor.scm \
           goblins/ghash.scm \
           goblins/inbox.scm \
+          goblins/migrations.scm \
           goblins/ocapn/captp.scm \
           goblins/ocapn/ids.scm \
           goblins/ocapn/marshalling.scm \
@@ -119,6 +120,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-swappable.scm \
         tests/actor-lib/test-ticker.scm \
         tests/actor-lib/test-ward.scm \
+        tests/test-migrations.scm \
         tests/ocapn/test-marshalling.scm \
         tests/ocapn/test-captp.scm \
         tests/ocapn/netlayer/test-fake.scm \
