@@ -15,37 +15,34 @@
 (define-module (tests test-migrations)
   #:use-module (goblins migrations)
   #:use-module (ice-9 match)
+  #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-64))
 
 (test-begin "test-migrations")
 
 (define test-migration
   (migrations
-   [(0 foo) `(('0->1 ,foo))]
-   [(1 foo) `(('1->2 ,foo))]
+   [(0 foo) (list (list '0->1 foo))]
+   [(1 foo) (list (list '1->2 foo))]
    [(2 bar) (list bar '2->3)]
-   [(3 bar baz)
-    (list bar baz '3->4)]))
+   [(3 bar baz) (list bar baz '3->4)]))
 
 (test-assert "Check we can run all the migrations and get back result"
-  (match (test-migration 0 4 'i-am-starting-value)
-    [(('1->2 ('0->1 'i-am-starting-value)) '2->3 '3->4) #t]))
+  (let-values (((new-version new-roots) (test-migration 0 'i-am-starting-value)))
+    (match new-roots
+      [(('1->2 ('0->1 'i-am-starting-value)) '2->3 '3->4) (= new-version 4)])))
 
 ;; Try dropping a migration entirely
 (define migrations-without-0
   (migrations
-   [(1 foo) `(('1->2 ,foo))]
+   [(1 foo) (list (list '1->2 foo))]
    [(2 bar) (list bar '2->3)]
    [(3 bar baz)
     (list bar baz '3->4)]))
 
 (test-error "Check trying to migrate from unsupported version errors"
  #t
- (migrations-without-0 0 4 'something))
-
-;; Check we can run just one migration
-(test-assert "Check we can just run a single migration"
-  (match (test-migration 0 1 'hello)
-    [('0->1 'hello) #t]))
+ (let-values (((new-version new-roots) (migrations-without-0 0 'something)))
+   new-roots))
 
 (test-end "test-migrations")
