@@ -14,9 +14,11 @@
 ;;;
 (define-module (tests test-define-actor)
   #:use-module (goblins core)
+  #:use-module (goblins migrations)
   #:use-module (goblins define-actor)
   #:use-module ((goblins core-types)
                 #:select (redefinable-object?))
+  #:use-module (tests utils)
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
@@ -294,5 +296,76 @@
 (test-equal "restore procedure works"
   '(restored 2 foop)
   (actormap-peek restored-am5 restored-cr))
+
+;; Testing #:upgrade
+;; Version 0
+(define-actor (^greeter bcom our-name)
+  (lambda (your-name)
+    (format #f "Hello ~a, my name is ~a" your-name our-name)))
+
+(define test-upgrade-env
+  (make-persistence-env
+   `((((tests define-actor) ^greeter) ,^greeter))
+    #:extends cell-env))
+
+(define am-v0 (make-actormap))
+(define alice-v0 (actormap-spawn! am-v0 ^greeter "Alice"))
+
+;; Now lets upgrade our greeter and give it a number-of-times called count
+(define migration-0-called #f)
+(define-actor (^greeter bcom our-name times-called)
+  #:version 1
+  #:upgrade
+  (migrations
+   [(0 our-name)
+    (set! migration-0-called #t)
+    (list our-name 0)])
+
+  (lambda (your-name)
+    (format #f "Hello ~a, my name is ~a (called: ~a)"
+            your-name our-name times-called)))
+
+(define-values (am-v1 alice-v1)
+  (persist-and-restore am-v0 test-upgrade-env alice-v0))
+
+(test-assert "The migration from 0 to 1 was called" migration-0-called)
+(test-equal "Check the new actor version of alice has new behavior"
+  "Hello Bob, my name is Alice (called: 0)"
+  (actormap-peek am-v1 alice-v1 "Bob"))
+
+(define migration-0-called #f)
+(define migration-1-called #f)
+(define-actor (^greeter bcom our-name times-called)
+  #:version 2
+  #:upgrade
+  (migrations
+   [(0 our-name)
+    (set! migration-0-called #t)
+    (list our-name 0)]
+   [(1 our-name times-called)
+    (set! migration-1-called #t)
+    (list our-name (spawn ^cell times-called))])
+
+  (lambda (your-name)
+    (format #f "Hello ~a, my name is ~a (called: ~a)"
+            your-name our-name ($ times-called))))
+
+;; Check first upgrading from v1
+(define-values (am-v2 alice-v2)
+  (persist-and-restore am-v1 test-upgrade-env alice-v1))
+
+(test-assert "Only the migration from 1 to 2 is called"
+  (and migration-1-called (not migration-0-called)))
+
+(test-equal "Check the new actor version of alice has new behavior"
+  "Hello Bob, my name is Alice (called: 0)"
+  (actormap-peek am-v2 alice-v2 "Bob"))
+
+;; Finally lets check a migration from 0 to 2
+(define-values (am-v2* alice-v2*)
+  (persist-and-restore am-v0 test-upgrade-env alice-v0))
+
+(test-assert "Only the migration from 1 to 2 is called"
+  (and migration-1-called migration-0-called))
 
 (test-end "test-define-actor")
