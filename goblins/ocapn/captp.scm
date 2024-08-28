@@ -1225,6 +1225,8 @@
     ;; particular node
     (define-values (intra-node-warden intra-node-incanter)
       (spawn-warding-pair))
+    (define locations->session-name-resolvers
+      (spawn ^ghash))
     (define locations->open-session-names
       (spawn ^ghash))
     (define open-session-names->sessionmeta
@@ -1329,12 +1331,21 @@
     (define (retrieve-or-setup-session-vow remote-node-loc)
       (if ($C locations->open-session-names 'has-key? remote-node-loc)
           ;; found an open session for this location
-          (let ([session-name ($C locations->open-session-names
-                                  'ref remote-node-loc)])
-            (sessionmeta-remote-bootstrap-obj
-             ($C open-session-names->sessionmeta 'ref session-name)))
+          (let ([session-name-vow ($C locations->open-session-names
+                                      'ref remote-node-loc)])
+            (on session-name-vow
+                (lambda (session-name)
+                  (sessionmeta-remote-bootstrap-obj
+                   ($C open-session-names->sessionmeta 'ref session-name)))
+                #:promise? #t))
           ;; Guess we'll make a new one
-          (let ([netlayer (get-netlayer-for-location remote-node-loc)])
+          (let-values ([(netlayer) (get-netlayer-for-location remote-node-loc)]
+                       [(vow resolver) (spawn-promise-values)])
+            ;; To ensure future calls create more than one connection
+            ;; setup a vow for the session name which will be fulfilled later.
+            ($C locations->session-name-resolvers 'set remote-node-loc resolver)
+            ($C locations->open-session-names 'set remote-node-loc vow)
+            ;; Connect to the node
             ($C netlayer 'connect-to remote-node-loc))))
 
     (define (get-netlayer-for-location loc)
@@ -1525,6 +1536,9 @@
                ($C incoming-swap captp-incoming-handler)
 
                ;; And now install in the open sessions in the directory
+               (let ((resolver ($C locations->session-name-resolvers 'ref remote-location)))
+                 (when resolver
+                   ($C resolver 'fulfill session-name)))
                ($C locations->open-session-names 'set remote-location session-name)
                ($C open-session-names->sessionmeta 'set
                    session-name

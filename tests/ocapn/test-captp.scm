@@ -3,6 +3,7 @@
   #:use-module (goblins core)
   #:use-module (goblins core-types)
   #:use-module (goblins vat)
+  #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib joiners)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins ocapn ids)
@@ -296,5 +297,33 @@
   (test-equal "on-sever notifies actor handler on connection sever"
     #(ok (severed abort "testing on-sever with actor handler"))
     result))
+
+;; Test for enlivening the srefs to same node twice at the same time
+;; Requires fresh connections
+(define-values (a-vat a-netlayer a-mycapn)
+  (make-new-node "a"))
+(define-values (b-vat b-netlayer b-mycapn)
+  (make-new-node "b"))
+
+(define-values (cell-1-sref cell-2-sref)
+  (with-vat a-vat
+    (values ($ a-mycapn 'register (spawn ^cell) 'fake)
+            ($ a-mycapn 'register (spawn ^cell) 'fake))))
+
+(test-equal "Two srefs to the same node produce only 1 connection"
+  #(ok #t)
+  (resolve-vow-and-return-result
+          b-vat
+          (lambda ()
+            (let ((cell-1-vow ($ b-mycapn 'enliven cell-1-sref))
+                  (cell-2-vow ($ b-mycapn 'enliven cell-2-sref)))
+              (on cell-1-vow
+                  (lambda (cell-1-resolved)
+                    (on cell-2-vow
+                        (lambda (cell-2-resolved)
+                          (eq? (remote-object-refr-captp-connector cell-1-resolved)
+                               (remote-object-refr-captp-connector cell-2-resolved)))
+                        #:promise? #t))
+                  #:promise? #t)))))
 
 (test-end "test-captp")
