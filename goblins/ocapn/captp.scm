@@ -1341,7 +1341,7 @@
           ;; Guess we'll make a new one
           (let-values ([(netlayer) (get-netlayer-for-location remote-node-loc)]
                        [(vow resolver) (spawn-promise-values)])
-            ;; To ensure future calls create more than one connection
+            ;; To ensure future calls don't create more than one connection
             ;; setup a vow for the session name which will be fulfilled later.
             ($C locations->session-name-resolvers 'set remote-node-loc resolver)
             ($C locations->open-session-names 'set remote-node-loc vow)
