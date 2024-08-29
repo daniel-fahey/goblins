@@ -1094,13 +1094,13 @@ to upgrade some data to a newer version. This is designed to be used with the
 persistence system e.g. to upgrade actor portrait data or graph roots. It is
 however designed to be generic enough to be used elsewhere.
 
-The migrations syntax will generate a lambda with the signature
+The @code{migrations} syntax will generate a procedure with the signature
 @code{(lambda (prev-version data ...) ...)} and will return two values, the 
 version its migrated to and the new data.
 
 @lisp
 (define migrations
-  ;; Versioon 0 -> 1: ignore what I'm given and return 'i-am-version-1
+  ;; Version 0 -> 1: ignore what I'm given and return 'i-am-version-1
   ((0 something) (list 'i-am-version-1))
   ;; Version 1 -> 2: provide two values, 'i-am-version-2 and the something I got
   ((1 something) (list 'i-am-version-2 something))
@@ -1108,11 +1108,12 @@ version its migrated to and the new data.
   ((2 something something-else) (list something-else something))
 @end lisp
 
-This when run would return version 3 (as it ran the version 2 migration and so
-the new version is the next version, version 3). It'd also return the new data
-which would be a list of @code{('i-am-version-1 'i-am-version-2)}.
+When the upgrade procedure is called, it would return version 3 (as it
+ran the version 2 migration and so the new version is the next
+version, version 3). It'd also return the new data which would be a
+list of @code{('i-am-version-1 'i-am-version-2)}.
 
-Note it's important that all migrations appear in oldest version to newst
+Note it's important that all migrations appear in oldest version to newest
 version, following the convention of an incrementing integer for the version.
 
 @end deffn
