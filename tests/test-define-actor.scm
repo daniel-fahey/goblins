@@ -317,7 +317,7 @@
   #:version 1
   #:upgrade
   (migrations
-   [(0 our-name)
+   [(1 our-name)
     (set! migration-0-called #t)
     (list our-name 0)])
 
@@ -333,17 +333,17 @@
   "Hello Bob, my name is Alice (called: 0)"
   (actormap-peek am-v1 alice-v1 "Bob"))
 
-(define migration-0-called #f)
 (define migration-1-called #f)
+(define migration-2-called #f)
 (define-actor (^greeter bcom our-name times-called)
   #:version 2
   #:upgrade
   (migrations
-   [(0 our-name)
-    (set! migration-0-called #t)
-    (list our-name 0)]
-   [(1 our-name times-called)
+   [(1 our-name)
     (set! migration-1-called #t)
+    (list our-name 0)]
+   [(2 our-name times-called)
+    (set! migration-2-called #t)
     (list our-name (spawn ^cell times-called))])
 
   (lambda (your-name)
@@ -355,7 +355,7 @@
   (persist-and-restore am-v1 test-upgrade-env alice-v1))
 
 (test-assert "Only the migration from 1 to 2 is called"
-  (and migration-1-called (not migration-0-called)))
+  (and migration-2-called (not migration-1-called)))
 
 (test-equal "Check the new actor version of alice has new behavior"
   "Hello Bob, my name is Alice (called: 0)"
@@ -366,6 +366,6 @@
   (persist-and-restore am-v0 test-upgrade-env alice-v0))
 
 (test-assert "Only the migration from 1 to 2 is called"
-  (and migration-1-called migration-0-called))
+  (and migration-2-called migration-1-called))
 
 (test-end "test-define-actor")

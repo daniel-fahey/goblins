@@ -22,10 +22,10 @@
 
 (define test-migration
   (migrations
-   [(0 foo) (list (list '0->1 foo))]
-   [(1 foo) (list (list '1->2 foo))]
-   [(2 bar) (list bar '2->3)]
-   [(3 bar baz) (list bar baz '3->4)]))
+   [(1 foo) (list (list '0->1 foo))]
+   [(2 foo) (list (list '1->2 foo))]
+   [(3 bar) (list bar '2->3)]
+   [(4 bar baz) (list bar baz '3->4)]))
 
 (test-assert "Check we can run all the migrations and get back result"
   (let-values (((new-version new-roots) (test-migration 0 'i-am-starting-value)))
@@ -35,9 +35,9 @@
 ;; Try dropping a migration entirely
 (define migrations-without-0
   (migrations
-   [(1 foo) (list (list '1->2 foo))]
-   [(2 bar) (list bar '2->3)]
-   [(3 bar baz)
+   [(2 foo) (list (list '1->2 foo))]
+   [(3 bar) (list bar '2->3)]
+   [(4 bar baz)
     (list bar baz '3->4)]))
 
 (test-error "Check trying to migrate from unsupported version errors"

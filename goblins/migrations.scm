@@ -27,13 +27,16 @@
              (current-roots roots)
              (migrations provided-migrations))
       (match migrations
-        ['() (values current-version current-roots)]
+        [() (values current-version current-roots)]
         [((migration-version . migrator) . remaining-migrations)
-         (cond ((< migration-version current-version)
-                (lp current-version current-roots remaining-migrations))
-               ((= migration-version current-version)
-                (lp (+ current-version 1)
-                    (apply migrator current-roots)
-                    remaining-migrations))
-               ((> migration-version current-version)
-                (error (format #f "Migration for version ~a not supported by this migrator" current-version))))]))))
+         ;; Migration are labled based on the version they are migration to
+         ;; so calculate the target version and look for that.
+         (let ((target-version (+ current-version 1)))
+           (cond ((< migration-version target-version)
+                  (lp current-version current-roots remaining-migrations))
+                 ((= migration-version target-version)
+                  (lp target-version
+                      (apply migrator current-roots)
+                      remaining-migrations))
+                 ((> migration-version target-version)
+                  (error (format #f "No migration found, looking for version ~a migrator" target-version)))))]))))
