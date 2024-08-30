@@ -1343,6 +1343,8 @@
                        [(vow resolver) (spawn-promise-values)])
             ;; To ensure future calls don't create more than one connection
             ;; setup a vow for the session name which will be fulfilled later.
+            ;; Once the vow we're creating here is fulfilled we'll swap it out
+            ;; for the real value so GC can happen & for minor speed improvements.
             ($C locations->session-name-resolvers 'set remote-node-loc resolver)
             ($C locations->open-session-names 'set remote-node-loc vow)
             ;; Connect to the node
