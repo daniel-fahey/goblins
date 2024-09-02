@@ -215,12 +215,11 @@ Build and upload the image:
 #+END_SRC
 
 ** OCapN Test suite
-If you're working on anything related to OCapN in guile goblins, it's
-good to ensure the test suite still passes. The test suite and how to
-run it is located [[https://github.com/ocapn/ocapn-test-suite][here]].
+If you're working on anything related to OCapN in Goblins, it's good to ensure
+the test suite still passes. The test suite and how to run it is located [[https://github.com/ocapn/ocapn-test-suite][here]].
 
 The test suite requires implementing certain objects and exporting
-them at specific sturdyrefs, this has been done for you and you can
+them at specific sturdyrefs. This has been done for you and you can
 find those implementations within the
 [[file:examples/ocapn-test-suite.scm][examples/ocapn-test-suite.scm]]. To run this you should run:
 
