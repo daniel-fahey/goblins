@@ -53,10 +53,9 @@
                              hash-algorithm salt) new-swiss-num)))
   (define* (register refr #:optional provided-swiss-num)
     (assert-type refr live-refr?)
-    (let ((existing-swiss-num (ghash-ref refr->swiss-num refr #f)))
-      (if existing-swiss-num
-          existing-swiss-num
-          (register-refr-new refr provided-swiss-num))))
+    (match (ghash-ref refr->swiss-num refr #f)
+      [#f (register-refr-new refr provided-swiss-num)]
+      [swiss-num swiss-num]))
   (methods
    [register register]
    [fetch
