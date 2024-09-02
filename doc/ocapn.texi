@@ -164,9 +164,9 @@ Here's our client script named @file{captp-alice.scm}:
 
 ;; Create a CapTP router using Tor Onion Services.
 (define node-vat (spawn-vat))
-(define-values (onion-netlayer private-key service-id)
+(define onion-netlayer
   (with-vat node-vat
-    (new-onion-netlayer)))
+    (spawn ^onion-netlayer)))
 (define mycapn
   (with-vat node-vat
     (spawn-mycapn onion-netlayer)))
@@ -362,12 +362,12 @@ number of underlying networking substrates.
 @subsection Tor Onion Services
 
 Assuming a Tor daemon is running, a Goblins Onion netlayer can be
-created using the @code{new-onion-netlayer} procedure from the
+created by spawning the @code{^onion-netlayer} object from the
 @code{(goblins ocapn netlayer onion)} module:
 
 @lisp
-> (define-values (onion-netlayer private-key service-id)
-    (new-onion-netlayer))
+> (define onion-netlayer
+    (spawn ^onion-netlayer))
 @end lisp
 
 That netlayer can then be used to spawn an OCapN router actor:
@@ -376,17 +376,23 @@ That netlayer can then be used to spawn an OCapN router actor:
 > (define mycapn (spawn-mycapn onion-netlayer))
 @end lisp
 
-Each time @code{new-onion-netlayer} is called it generates a new
+Each the @code{^onion-netlayer} is spawned it generates a new
 @code{private-key} and @code{service-id}.  If you wish for these to
 persist, they need to be stored (securely, as anyone with them has
-the capability to host at them) and call @code{restore-onion-netlayer}
-providing them. An example of this is:
+the capability to host at them). This can be done by using Goblins'
+persistence system, an example of this is:
 
 @lisp
-> (define-values (onion-netlayer _private-key _service-id)
-    (restore-onion-netlayer private-key service-id))
+> (define-values (ocapn-vat onion-netlayer onion-mycapn)
+    (spawn-persistent-vat
+     (make-persistence-env #:extends (list onion-netlayer-env captp-env))
+     (lambda ()
+       (define netlyaer
+         (spawn ^onion-netlayer))
+       (values netlayer
+               (spawn-mycapn netlayer)))
+     (make-syrup-store "ocapn.syrup")))
 @end lisp
-
 
 @node TCP + TLS
 @subsection TCP + TLS
@@ -394,22 +400,34 @@ providing them. An example of this is:
 The TCP + TLS netlayer is available as a simpler option than Tor or
 other peer-to-peer networks.  Direct connections are made over
 standard TCP sockets and all traffic is encrypted with self-signed TLS
-keys.  A new netlayer instance can be spawned using the
-@code{new-tcp-tls-netlayer} procedure in the @code{(goblins ocapn
+keys.  A new netlayer instance can be spawned with the
+@code{^tcp-tls-netlayer} object from the @code{(goblins ocapn
 netlayer tcp-tls)} module.  The TCP + TLS netlayer is often used in
 conjunction with, and as a foundation for, the @ref{Prelay} netlayer.
 
 @lisp
-> (define netlayer (new-tcp-tls-netlayer "example.com"))
+> (define netlayer (spawn ^tcp-tls-netlayer "example.com"))
 > (define mycapn (spawn-mycapn netlayer))
 @end lisp
 
 Users of this netlayer can either bring their own X.509 key and
 certificate by importing them from the file system, or let Goblins
-automatically generate them.  Automatically generated keys and
-certificates are useful for nodes that do not need persistent
-identity across process lifetimes, but nodes that do should import
-from the file system.
+automatically generate them.  The @code{^tcp-tls-netlayer} is
+persistence aware meaning that it can be persisted and restored using
+Goblins' persistence system. Here's an example of this:
+
+
+@lisp
+(define-values (ocapn-vat tcp-tls-netlayer tcp-tls-mycapn)
+  (spawn-persistent-vat
+   (make-persistence-env #:extends (list tcp-tls-netlayer-env))
+   (lambda ()
+     (define netlayer
+       (spawn ^tcp-tls-netlayer "example.com"))
+     (values netlayer
+             (spawn-mycapn netlayer)))
+   (make-syrup-store "ocapn.syrup")))
+@end lisp
 
 The @emph{current major limitation} of this netlayer is the lack of
 both ``store and forward'' and NAT hole punching support.  Most
@@ -444,10 +462,10 @@ generally the case already on nation-state level attacks against TLS,
 but is more readily available as a possible avenue of attack here.  In
 the future, hints might be signed in order to prevent this.
 
-@deffn {Procedure} new-tcp-tls-netlayer host [#:port] [#:max-connections 32] @
-                                        [#:key] [#:cert]
+@deffn {Constructor} ^tcp-tls-netlayer host [#:port] [#:max-connections 32] @
+                                       [#:key] [#:cert]
 
-Spawn and return a new TCP + TLS netlayer.  @var{host} specifies the
+Construct an TCP-TLS netlayer actor.  @var{host} specifies the
 hostname that appears in the OCapN sturdyrefs that use this netlayer.
 
 If @var{port} is specified, the netlayer will listen for incoming
@@ -461,10 +479,7 @@ connected to the netlayer at any given time.
 @var{key} and @var{cert} specify the X.509 private key and certificate
 to use for encrypting connections.  If one or both are unspecified,
 they will be automatically generated provided that the version of
-Guile-GnuTLS is new enough to do so.  To import PEM encoded private
-keys and certificates from the file system, use
-@code{load-tls-private-key} and @code{load-tls-certificate},
-respectively.
+Guile-GnuTLS is new enough to do so.
 @end deffn
 
 @deffn {Procedure} generate-tls-private-key
@@ -479,17 +494,8 @@ Return a freshly generated X.509 certificate for @var{key}.
 
 @end deffn
 
-@deffn {Procedure} load-tls-private-key file-name
-
-Load the PEM encoded X.509 private key in @var{file-name}.
-
-@end deffn
-
-@deffn {Procedure} load-tls-certificate file-name
-
-Load the PEM encoded X.509 certificate in @var{file-name}.
-
-@end deffn
+@defvr {Persistence Environment} tcp-tls-netlayer-env
+@end defvr
 
 @node Prelay
 @subsection Prelay (Unencrypted, v0)
@@ -578,6 +584,9 @@ sturdyref of the endpoint we will use to communicate with.
 use to pilot the relay we communicate through.
 
 @end deffn
+
+@defvr {Persistence Environment} prelay-env
+@end defvr
 
 @node Prelay Utils
 @subsection Prelay Utils
