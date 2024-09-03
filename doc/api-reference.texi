@@ -1113,7 +1113,4 @@ ran the version 2 migration and so the new version is the next
 version, version 3). It'd also return the new data which would be a
 list of @code{('i-am-version-1 'i-am-version-2)}.
 
-Note it's important that all migrations appear in oldest version to newest
-version, following the convention of an incrementing integer for the version.
-
 @end deffn

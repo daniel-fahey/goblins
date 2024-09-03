@@ -17,26 +17,34 @@
   #:use-module (srfi srfi-11)
   #:export (migrations))
 
-(define-syntax-rule (migrations ((from-version root ...) body ...) ...)
-  (lambda (prev-version . roots)
-    (define provided-migrations
-      (list (cons from-version (lambda (root ...) body ...))
-            ...))
+(define-syntax migrations
+  (lambda (stx)
+    (define (find-supported-versions versions-stx)
+      (define versions (map syntax->datum versions-stx))
+      (define sorted (sort versions <))
+      (match sorted
+        [(version) (values version version)]
+        [(lowest-version rest ... highest-version)
+         (values lowest-version highest-version)]))
 
-    (let lp ((current-version prev-version)
-             (current-roots roots)
-             (migrations provided-migrations))
-      (match migrations
-        [() (values current-version current-roots)]
-        [((migration-version . migrator) . remaining-migrations)
-         ;; Migration are labled based on the version they are migration to
-         ;; so calculate the target version and look for that.
-         (let ((target-version (+ current-version 1)))
-           (cond ((< migration-version target-version)
-                  (lp current-version current-roots remaining-migrations))
-                 ((= migration-version target-version)
-                  (lp target-version
-                      (apply migrator current-roots)
-                      remaining-migrations))
-                 ((> migration-version target-version)
-                  (error (format #f "No migration found, looking for version ~a migrator" target-version)))))]))))
+    (syntax-case stx ()
+      [(_ ((from-version data ...) body ...) ...)
+       (let-values (((min max) (find-supported-versions #'(from-version ...))))
+         (with-syntax ((min min)
+                       (max max))
+           #`(lambda (init-version . init-data)
+               (define (unsupported? version)
+                 (and (number? version) (< version min)))
+               (define migrator
+                 (match-lambda
+                   [((? unsupported? old-version) unsupported-data :::)
+                    (error (format #f "Data version ~a is too old, minimum supported version is ~a"
+                                   old-version min))]
+                   [(from-version data ...) body ...]
+                   ...))
+               (let lp ((current-version init-version)
+                        (current-data init-data))
+                 (if (< max (+ current-version 1))
+                     (values current-version current-data)
+                     (lp (+ 1 current-version)
+                         (migrator (cons (+ current-version 1) current-data))))))))])))
