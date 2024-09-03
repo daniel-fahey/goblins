@@ -1390,7 +1390,13 @@ If the AURIE-REGISTRY is provided, it will register this vat with the
 registry to allow for both this vat and others who share the same registry
 to both persist and rehydrate local far refrs (i.e. refrs on other local vats).
 This value should be the refr of a spawned ^aurie-registry object.
-"
+
+If UPGRADE is provided, upon resturation the vat will check the version of the
+graph roots read from the store, if that version does not match VERSION then the
+upgrade procedure will be called, this procedure should take in the current
+version of the roots and then the roots and return two values, the new version
+and a list of the new root data. This procedure matches that which is produced
+using the migrations macro."
   ;; We should either restore from the data in the store if that exists,
   ;; or we should spawn the roots by using `spawn-roots-lambda'.
   (define read-from-store
@@ -1429,11 +1435,19 @@ This value should be the refr of a spawned ^aurie-registry object.
         (with-vat vat
           (values #f (call-with-values spawn-roots-thunk list) #t))))
 
+  (define (upgrade-roots)
+    (define-values (new-version new-roots)
+      (with-vat vat (upgrade roots-version roots)))
+    (if (equal? new-version version)
+        new-roots
+        (error (format #f "Migration upgraded the roots from ~a to ~a, but expected upgrade to ~a"
+                       roots-version new-version version))))
+
   ;; If we need to upgrade, apply the upgrader
   (define upgraded-roots
     (if (or spawned-new? (equal? roots-version version))
         roots
-        (upgrade roots-version roots)))
+        (upgrade-roots)))
 
   (define-values (read-portrait! val->slot-ref)
     (make-actormap-read-portrait! persistence-env upgraded-roots))

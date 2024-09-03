@@ -1196,7 +1196,7 @@
       (set! new-root-one (spawn ^cell))
       (set! new-root-two (spawn ^cell))
       ;; Actually do the upgrade
-      (values new-root-one new-root-two))))
+      (values 1 (list new-root-one new-root-two)))))
   (test-equal "Version provided in upgrade is correct"
     found-prev-version
     0)

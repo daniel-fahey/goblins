@@ -657,12 +657,16 @@ should change and an upgrade path in the @var{upgrade} lambda should be
 provided. This defaults to @code{0} when no version is specified.
 
 @item
-@var{upgrade}: This is a lambda which is run if the version of the roots in the
-persistence store does not match the version in @var{version}. The lambda takes
-in the previous version as its first arguments followed by all the roots that
-were read from the store. The lambda should return the upgraded roots which are
-upgraded to the latest version, i.e. the version of the roots expected at the
-version specified by @var{version}.
+@var{upgrade}: This is a procedure which is run if the version of the
+roots in the persistence store does not match the version in
+@var{version}. The procedure takes in the previous version as its
+first arguments followed by all the roots that were read from the
+store. The lambda should return two values, 1) the version of the new
+roots and 2) a list of the new roots themselves. The new root version
+should match that of  @var{version}.
+
+The @code{migrations} macro is generally what would be expected to be
+used for the upgrade procedure
 
 @end itemize
 
