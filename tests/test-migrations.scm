@@ -48,10 +48,10 @@
 ;; Check migrations in random order works
 (define test-migration-random
   (migrations
-   [(1 foo) (list (list '0->1 foo))]
    [(2 foo) (list (list '1->2 foo))]
-   [(3 bar) (list bar '2->3)]
-   [(4 bar baz) (list bar baz '3->4)]))
+   [(1 foo) (list (list '0->1 foo))]
+   [(4 bar baz) (list bar baz '3->4)]
+   [(3 bar) (list bar '2->3)]))
 
 (test-assert "Check migration runs as expected with migrations in random order"
   (let-values (((new-version new-roots) (test-migration-random 0 'i-am-starting-value)))
