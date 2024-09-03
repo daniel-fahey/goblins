@@ -425,15 +425,19 @@
     (define main-beh
       (methods
        [(resolve-on-sever sever-resolver)
-        (let* ((noop-beh
-                (lambda () 'no-op))
-               (^cancel-sever-notification
-                (lambda (bcom)
-                  (lambda ()
-                    ($C interested-in-sever 'remove sever-resolver)
-                    (bcom noop-beh)))))
-          ($C interested-in-sever 'add sever-resolver)
-          (spawn ^cancel-sever-notification))]
+        (if running?
+            (let* ((noop-beh
+                    (lambda () 'no-op))
+                   (^cancel-sever-notification
+                    (lambda (bcom)
+                      (lambda ()
+                        ($C interested-in-sever 'remove sever-resolver)
+                        (bcom noop-beh)))))
+              ($C interested-in-sever 'add sever-resolver)
+              (spawn ^cancel-sever-notification))
+            (match shutdown-reason
+              [(shutdown-type reason)
+               ($C sever-resolver 'fulfill (list 'severed shutdown-type reason))]))]
        [(cancel-sever-interest sever-resolver)
         ($C interested-in-sever 'remove sever-resolver)]))
     (ward intra-node-warden intra-node-beh
@@ -468,6 +472,7 @@
   ;; TODO: This should really be some kind of box that the other side
   ;;   can query, right?
   (define running? #t)
+  (define shutdown-reason #f)
 
   ;; These are imports that we've processed when we already had allocated
   ;; a reference.  We batch send GC messages about these as appropriate.
@@ -772,6 +777,7 @@
     (set! questions #f)
     (set! answers #f)
     (set! running? #f)
+    (set! shutdown-reason (list shutdown-type reason))
     (for-each
      (lambda (interested)
        (<-np interested 'fulfill (list 'severed shutdown-type

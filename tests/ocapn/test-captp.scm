@@ -298,6 +298,42 @@
     #(ok (severed abort "testing on-sever with actor handler"))
     result))
 
+(define-values (a-vat a-netlayer a-mycapn)
+  (make-new-node "a"))
+(define-values (b-vat b-netlayer b-mycapn)
+  (make-new-node "b"))
+(define bob-sref
+  (with-vat b-vat
+    ($ b-mycapn 'register (spawn ^greeter "Bob") 'fake)))
+(let ((result
+       (resolve-vow-and-return-result
+        a-vat
+        (lambda ()
+          (define-values (sever-vow sever-resolver)
+            (spawn-promise-values))
+
+          (define (^notifier-init _bcom refr)
+            (lambda (_shutdown-type _reason)
+              (on-sever refr (spawn ^notifier))))
+          (define (^notifier _bcom)
+            (lambda (shutdown-type reason)
+              ($ sever-resolver 'fulfill (list 'severed shutdown-type reason))))
+
+          (define bob-vow ($ a-mycapn 'enliven bob-sref))
+          (on bob-vow
+              (lambda (bob)
+                ;; To sever the connection send a op:abort
+                (define captp-connector
+                  (remote-refr-captp-connector bob))
+                (captp-connector 'handle-message
+                                 (op:abort "testing on-sever with actor handler"))
+                (on-sever bob (spawn ^notifier-init bob))))
+          sever-vow))))
+  (test-equal "on-sever notifies actor handler immediately if already severed"
+    #(ok (severed abort "testing on-sever with actor handler"))
+    result))
+
+
 ;; Test for enlivening the srefs to same node twice at the same time
 ;; Requires fresh connections
 (define-values (a-vat a-netlayer a-mycapn)
@@ -325,5 +361,6 @@
                                (remote-object-refr-captp-connector cell-2-resolved)))
                         #:promise? #t))
                   #:promise? #t)))))
+
 
 (test-end "test-captp")
