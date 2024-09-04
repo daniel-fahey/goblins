@@ -14,6 +14,7 @@
 
 (define-module (goblins migrations)
   #:use-module (ice-9 match)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
   #:export (migrations))
 
@@ -29,22 +30,25 @@
 
     (syntax-case stx ()
       [(_ ((from-version data ...) body ...) ...)
+       (every exact-integer? (syntax->datum #'(from-version ...)))
        (let-values (((min max) (find-supported-versions #'(from-version ...))))
          (with-syntax ((min min)
                        (max max))
            #`(lambda (init-version . init-data)
                (define (unsupported? version)
-                 (and (number? version) (< version min)))
+                 (< version min))
                (define migrator
                  (match-lambda
                    [((? unsupported? old-version) unsupported-data :::)
+                    ;; We want to define an exception type for all persistence related errors, so they can be caught.
                     (error (format #f "Data version ~a is too old, minimum supported version is ~a"
                                    old-version min))]
                    [(from-version data ...) body ...]
                    ...))
                (let lp ((current-version init-version)
                         (current-data init-data))
-                 (if (< max (+ current-version 1))
-                     (values current-version current-data)
-                     (lp (+ 1 current-version)
-                         (migrator (cons (+ current-version 1) current-data))))))))])))
+                 (let ((target-version (+ current-version 1)))
+                   (if (< max target-version)
+                       (values current-version current-data)
+                       (lp target-version
+                           (migrator (cons target-version current-data)))))))))])))
