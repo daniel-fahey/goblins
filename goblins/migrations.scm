@@ -37,13 +37,15 @@
            #`(lambda (init-version . init-data)
                (define (unsupported? version)
                  (< version min))
-               (define migrator
-                 (match-lambda
-                   [((? unsupported? old-version) unsupported-data :::)
+               (define (migrator version migration-data)
+                 (match version
+                   [(? unsupported? old-version)
                     ;; We want to define an exception type for all persistence related errors, so they can be caught.
                     (error (format #f "Data version ~a is too old, minimum supported version is ~a"
                                    old-version min))]
-                   [(from-version data ...) body ...]
+                   [from-version
+                    (match migration-data
+                      [(data ...) body ...])]
                    ...))
                (let lp ((current-version init-version)
                         (current-data init-data))
@@ -51,4 +53,4 @@
                    (if (< max target-version)
                        (values current-version current-data)
                        (lp target-version
-                           (migrator (cons target-version current-data)))))))))])))
+                           (migrator target-version current-data))))))))])))
