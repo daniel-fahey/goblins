@@ -6,6 +6,7 @@ the documentation for everything imported with
 * Objects::
 * Vats::
 * Actormaps::
+* Misc::
 @end menu
 
 @node Objects
@@ -388,6 +389,7 @@ Return @code{#t} if @var{obj} is a @emph{far} object or promise, else
                          [#:portrait thunk]
                          [#:version version]
                          [#:frozen]
+                         [#:upgrade]
                          body @dots{}
 
 Defines a goblins object with @var{object-name}. The argument syntax
@@ -416,6 +418,11 @@ version.
 When @code{#:frozen} it does not define the object as a redefinable
 object (useful for live hacking) and prevents @code{#:restore} being
 used. Frozen objects have a slight perfomance improvement on spawning.
+
+When @code{#:upgrade} is provided, it uses this to migrate the portrait
+data to the newest version. This is designed to work with the @code{migrations}
+macro, however can be used on its own. This cannot be used in combination with
+@code{#:restore}.
 
 Here is an example defining a simple cell object, portrait would be
 the @var{val}:
@@ -1074,5 +1081,36 @@ Commit the changes in @var{transactormap} to the generational history.
 @deffn {Procedure} transactormap-buffer-merge! transactormap
 
 Commit the changes in @var{transactormap} to its parent.
+
+@end deffn
+
+@node Misc
+@section Misc
+
+@deffn {Syntax} migrations ((version data @dots{}) expr) @dots{}
+                           
+Syntax to describe a collection of migrations to be used to be applied in order
+to upgrade some data to a newer version. This is designed to be used with the
+persistence system e.g. to upgrade actor portrait data or graph roots. However,
+it is generic enough to be used elsewhere.
+
+The @code{migrations} syntax will generate a procedure with the signature
+@code{(lambda (prev-version data ...) ...)} and will return two values, the 
+version its migrated to and the new data.
+
+@lisp
+(define migrations
+  ;; Version 0 -> 1: ignore what I'm given and return 'i-am-version-1
+  ((1 something) (list 'i-am-version-1))
+  ;; Version 1 -> 2: provide two values, 'i-am-version-2 and the something I got
+  ((2 something) (list 'i-am-version-2 something))
+  ;; Version 2 -> 3: Swap the two values around
+  ((3 something something-else) (list something-else something))
+@end lisp
+
+When the upgrade procedure is called, it would return version 3 (as it
+ran the version 2 migration and so the new version is the next
+version, version 3). It'd also return the new data which would be a
+list of @code{('i-am-version-1 'i-am-version-2)}.
 
 @end deffn
