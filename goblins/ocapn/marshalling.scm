@@ -21,13 +21,13 @@
 ;; return two values:
 ;; 1) marshallers: cons cell (<predicate?> <serialiser>)
 ;; 2) unmarshaller: cons cell (<predicate?> <unserialiser>)
-(define* (make-marshallers record #:key [name #f])
+(define* (make-marshallers record #:key name record-constructor)
   (define syrup-label
     (or name (record-type-name record)))
   (define our-record?
     (record-predicate record))
   (define make-record
-    (record-type-constructor record))
+    (or record-constructor (record-type-constructor record)))
 
   (define field-accessors
     (map (lambda (field) (record-accessor record field))

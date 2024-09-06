@@ -199,7 +199,8 @@
 ;; lot of stuff, it's broken into its own record.
 (define-record-type <vat-persistence>
   (make-vat-persistence vat-aurie-id persistence-environ persist-on
-                        store read-portrait! val->slot-ref roots)
+                        store upgrader roots-version read-portrait!
+                        val->slot-ref roots)
   vat-persistence-env?
   ;; A permanent ID which other vats can use to reference a given vat.
   (vat-aurie-id vat-persistence-vat-aurie-id)
@@ -210,6 +211,10 @@
   (persist-on vat-persistence-persist-on)
   ;; The store we should persist two and restore from.
   (store vat-persistence-store)
+  ;; Upgrader lambda which will upgrade roots to latest version
+  (upgrader vat-persistence-upgrade)
+  ;; Version of the roots
+  (roots-version vat-persistence-roots-version)
   ;; This is a function we get from core.scm to persist a single object.
   (read-portrait! vat-persistence-read-portrait!
                     set-vat-persistence-read-portrait!)
@@ -1169,7 +1174,10 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
     (persistence-store-save-proc store))
   (define aurie-vat-id
     (vat-persistence-vat-aurie-id persistence-env))
-  (save-portrait-in-store! 'save-graph aurie-vat-id slot->portrait root-slots))
+  (define roots-version
+    (vat-persistence-roots-version persistence-env))
+  (save-portrait-in-store! 'save-graph aurie-vat-id roots-version
+                           slot->portrait root-slots))
 
 (define (vat-take-portrait! vat)
   (call-system-op-with-vat vat vat-take-portrait!*))
@@ -1356,7 +1364,8 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
                                #:key (persist-on 'churn)
                                (vat-constructor spawn-fibrous-vat)
                                name log? (log-capacity default-log-capacity)
-                               aurie-registry)
+                               aurie-registry
+                               upgrade [version 0])
   "Create and return a reference to a new vat with persistence. All
 objects spawned on the vat that will persist must be persistence
 aware. The objects local to the vat must be in PERSISTENCE-ENV which is used
@@ -1381,12 +1390,18 @@ If the AURIE-REGISTRY is provided, it will register this vat with the
 registry to allow for both this vat and others who share the same registry
 to both persist and rehydrate local far refrs (i.e. refrs on other local vats).
 This value should be the refr of a spawned ^aurie-registry object.
-"
+
+If UPGRADE is provided, upon resturation the vat will check the version of the
+graph roots read from the store, if that version does not match VERSION then the
+upgrade procedure will be called, this procedure should take in the current
+version of the roots and then the roots and return two values, the new version
+and a list of the new root data. This procedure matches that which is produced
+using the migrations macro."
   ;; We should either restore from the data in the store if that exists,
   ;; or we should spawn the roots by using `spawn-roots-lambda'.
   (define read-from-store
     (persistence-store-read-proc store))
-  (define-values (vat-aurie-id portraits root-slots)
+  (define-values (vat-aurie-id roots-version portraits root-slots)
     (read-from-store 'graph-and-slots))
 
   (define current-vat-aurie-id
@@ -1396,7 +1411,8 @@ This value should be the refr of a spawned ^aurie-registry object.
 
   (define vat-persistence
     (make-vat-persistence current-vat-aurie-id persistence-env
-                          persist-on store #f #f #f))
+                          persist-on store upgrade version #f
+                          #f #f))
   (define vat
     (vat-constructor
      #:persistence-env vat-persistence
@@ -1419,18 +1435,32 @@ This value should be the refr of a spawned ^aurie-registry object.
         (with-vat vat
           (values #f (call-with-values spawn-roots-thunk list) #t))))
 
+  (define (upgrade-roots)
+    (define-values (new-version new-roots)
+      (with-vat vat (upgrade roots-version roots)))
+    (if (equal? new-version version)
+        new-roots
+        (error (format #f "Migration upgraded the roots from ~a to ~a, but expected upgrade to ~a"
+                       roots-version new-version version))))
+
+  ;; If we need to upgrade, apply the upgrader
+  (define upgraded-roots
+    (if (or spawned-new? (equal? roots-version version))
+        roots
+        (upgrade-roots)))
+
   (define-values (read-portrait! val->slot-ref)
-    (make-actormap-read-portrait! persistence-env roots))
+    (make-actormap-read-portrait! persistence-env upgraded-roots))
 
   (call-system-op-with-vat
    vat (lambda (vat)
          ;; Setup the persistent environment
          (set-vat-persistence-read-portrait! vat-persistence read-portrait!)
          (set-vat-persistence-val->ref! vat-persistence val->slot-ref)
-         (set-vat-persistence-roots! vat-persistence roots)
+         (set-vat-persistence-roots! vat-persistence upgraded-roots)
 
          ;; Finally, lets take the first vat portrait
-         (when spawned-new?
+         (when (or spawned-new? (not (equal? roots-version version)))
            (vat-take-portrait!* vat))))
 
   ;; TODO: If there's no aurie registry should we break all the
@@ -1442,7 +1472,6 @@ This value should be the refr of a spawned ^aurie-registry object.
     ;; are restored to avoid race conditions.
     (<-np-extern aurie-registry
                  (make-register-request current-vat-aurie-id vat))
-
 
     ;; Go through all the far actors we're waiting for and try and fetch them.
     (when far-refr-resolvers
@@ -1463,7 +1492,7 @@ This value should be the refr of a spawned ^aurie-registry object.
                         (<-np resolver 'break err)))))))
         far-refr-resolvers))))
 
-  (apply values vat roots))
+  (apply values vat upgraded-roots))
 
 ;; An example to test against, wip
 #;(run-fibers

@@ -1008,7 +1008,8 @@
    (lambda ()
      (values (spawn ^list)
              (spawn ^list)))
-   memory-store))
+   memory-store
+   #:version 72))
 
 (define one
   (with-vat persistent-vat
@@ -1022,8 +1023,12 @@
   ($ list1 two)
   ($ list2 one))
 
-(define-values (vat-aurie-id portraits _roots)
+(define-values (vat-aurie-id roots-version portraits _roots)
   (read-from-store 'graph-and-slots))
+  
+(test-equal "Check the version is saved properly"
+  72
+  roots-version)
 
 ;; There should be 4 objs: one, two, list1, list2
 (test-equal "Number of objects portraits is correct amount"
@@ -1033,7 +1038,7 @@
 ;; Now add two to list2 (not adding any new objects to the graph)
 (with-vat persistent-vat
   ($ list2 two))
-(define-values (vat-aurie-id portraits _roots)
+(define-values (vat-aurie-id _roots-version portraits _roots)
   (read-from-store 'graph-and-slots))
 (test-equal "Number of objects in graph remains same when no new object introduced"
   4
@@ -1043,7 +1048,7 @@
 ;; existing children.
 (with-vat persistent-vat
   ($ one (spawn ^list)))
-(define-values (vat-aurie-id portraits _roots)
+(define-values (vat-aurie-id _roots-version portraits _roots)
   (read-from-store 'graph-and-slots))
 
 (test-equal "Number of objects in graph increases when new object added to child"
@@ -1052,7 +1057,7 @@
 
 (with-vat persistent-vat
   ($ list2 (spawn ^list)))
-(define-values (vat-aurie-id portraits _roots)
+(define-values (vat-aurie-id _roots-version portraits _roots)
   (read-from-store 'graph-and-slots))
 
 (test-equal "Number of objects in graph increases when new object added to parent"
@@ -1162,4 +1167,41 @@
     [#(ok hopefully-far-refr)
       (and (with-vat b-vat* (far-refr? hopefully-far-refr))
            (eq? hopefully-far-refr a-cell*))]))
+
+;; Test upgrading the roots of a vat
+(define memory (make-memory-store))
+(define-values (vat a-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda ()
+     (spawn ^cell))
+   memory))
+
+;; Stop the vat as we're done with it.
+(vat-halt! vat)
+
+(let ((found-prev-version #f)
+      (new-root-one #f)
+      (new-root-two #f))
+  (define-values (vat* a-cell b-cell)
+    (spawn-persistent-vat
+    cell-env
+    (lambda ()
+      (error "Should not be spawning fresh roots"))
+    memory
+    #:version 1
+    #:upgrade
+    (lambda (prev-version a-cell)
+      (set! found-prev-version prev-version)
+      (set! new-root-one (spawn ^cell))
+      (set! new-root-two (spawn ^cell))
+      ;; Actually do the upgrade
+      (values 1 (list new-root-one new-root-two)))))
+  (test-equal "Version provided in upgrade is correct"
+    found-prev-version
+    0)
+  (test-equal "Got upgraded two cells as values"
+    (list new-root-one new-root-two)
+    (list a-cell b-cell)))
+
 (test-end "test-vat")

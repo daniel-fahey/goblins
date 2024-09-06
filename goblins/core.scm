@@ -3114,7 +3114,7 @@ Returns the root objects of the graph."
     (persistence-store-save-proc store))
   (define-values (portraits slots)
     (apply actormap-take-portrait am env roots))
-  (save-proc 'save-graph #f portraits slots))
+  (save-proc 'save-graph #f 0 portraits slots))
 
 (define (actor-name constructor)
   (match constructor

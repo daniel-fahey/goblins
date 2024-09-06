@@ -20,12 +20,13 @@
 (define (make-memory-store)
   "Provides a simple in memory store"
   (define vat-aurie-id #f)
+  (define roots-version #f)
   (define stored-portraits #f)
   (define stored-roots #f)
   (define memory-read-proc
     (methods
      [(graph-and-slots)
-      (values vat-aurie-id stored-portraits stored-roots)]
+      (values vat-aurie-id roots-version stored-portraits stored-roots)]
      [(object-portrait slot)
       (unless stored-portraits
         (error "No portrait data has been stored yet"))
@@ -33,8 +34,9 @@
       
   (define memory-save-proc
     (methods
-     [(save-graph aurie-id portraits roots)
+     [(save-graph aurie-id version portraits roots)
       (set! vat-aurie-id aurie-id)
+      (set! roots-version version)
       (set! stored-portraits portraits)
       (set! stored-roots roots)]
      [(save-delta delta-portraits)
