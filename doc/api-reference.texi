@@ -417,7 +417,7 @@ version.
 
 When @code{#:frozen} it does not define the object as a redefinable
 object (useful for live hacking) and prevents @code{#:restore} being
-used. Frozen objects have a slight perfomance improvement on spawning.
+used. Frozen objects have a slight performance improvement on spawning.
 
 When @code{#:upgrade} is provided, it uses this to migrate the portrait
 data to the newest version. This is designed to work with the @code{migrations}
@@ -442,7 +442,7 @@ cell and a reference to a heater. It defines a portrait which removes
 the value from the cell. It specifies a version of @code{1}, as it
 needs to do version upgrade. Finally in the restore function it
 matches on the version and converts from Celsius to Kelvin if it's the
-origional version and spawns the ^thermostat with the cellified set
+original version and spawns the ^thermostat with the cellified set
 temperature:
 @lisp
 (define-actor (^thermostat bcom set-temp-cell heater-refr)
@@ -632,7 +632,7 @@ Here is a pseudocode example illustrating the basic pattern:
   (define (send envelope)
     (if (vat-envelope-return? envelope)
         (enqueue-and-wait-for-result envelope)
-        (enqueue enevelope)))
+        (enqueue envelope)))
   (make-vat #:start start
             #:halt halt
             #:send send))
@@ -753,7 +753,7 @@ write a separate lambda expression.
 This procedure is deprecated.
 
 Return a procedure bound to @var{vat-run-id} accepting a body to be
-evaulated in the context of @var{vat}.
+evaluated in the context of @var{vat}.
 
 @lisp
 (define-vat-run run-in-vat)
@@ -925,7 +925,7 @@ Once objects have been put into an @emph{actormap}, they may be invoked
 to perform some action or other.  There are several ways to do this,
 falling into one of two general categories: @emph{turn}s and
 @emph{churn}s.  A @dfn{turn} can be thought of as the performance of a
-single action, or the processesing of a single message.  A @dfn{churn}
+single action, or the processing of a single message.  A @dfn{churn}
 is best understand in terms of a @emph{turn} as all @emph{turn}s a given
 @emph{actormap} can handle without invoking @emph{far} objects.
 
