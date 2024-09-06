@@ -651,9 +651,9 @@ Defaults to 256.
 provided, enables persisting and rehydrating objects from other local vats.
 
 @item
-@var{version}: Usually a number (but not limited to), to indicate the a version
+@var{version}: Usually a number (but not limited to), to indicate the version
 for the roots of the graph. When the roots of the graph change, this version
-should change and an upgrade path in the @var{upgrade} lambda should be
+should change and an upgrade path in the @var{upgrade} procedure should be
 provided. This defaults to @code{0} when no version is specified.
 
 @item
@@ -661,8 +661,8 @@ provided. This defaults to @code{0} when no version is specified.
 roots in the persistence store does not match the version in
 @var{version}. The procedure takes in the previous version as its
 first arguments followed by all the roots that were read from the
-store. The lambda should return two values, 1) the version of the new
-roots and 2) a list of the new roots themselves. The new root version
+store. The procedure should return two values, 1) the new version number
+and 2) a list of the new roots themselves. The new root version
 should match that of  @var{version}.
 
 The @code{migrations} macro is generally what would be expected to be

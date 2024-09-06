@@ -27,9 +27,7 @@
   (define our-record?
     (record-predicate record))
   (define make-record
-    (if record-constructor
-        record-constructor
-        (record-type-constructor record)))
+    (or record-constructor (record-type-constructor record)))
 
   (define field-accessors
     (map (lambda (field) (record-accessor record field))
