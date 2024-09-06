@@ -27,7 +27,7 @@
 
 This is the manual for @uref{https://spritely.institute/goblins/,
 Spritely Goblins}, a distributed object programming environment.
-Spritely Goblins is mantained by
+Spritely Goblins is maintained by
 @uref{https://spritely.institute/, Spritely Networked Communities Institute} and is built to
 be the core layer for building broader decentralized networking technologies.
 
@@ -177,7 +177,7 @@ However you probably also want some combination of:
 @uref{https://github.com/Fuco1/smartparens, smartparens} (or @uref{https://www.emacswiki.org/emacs/ParEdit, paredit}, which is much more strict@dots{} use
 smartparens if uncertain)
 @item
-@uref{https://github.com/Fanael/rainbow-delimiters, rainbow-delimeters}
+@uref{https://github.com/Fanael/rainbow-delimiters, rainbow-delimiters}
 @item
 @uref{https://www.emacswiki.org/emacs/HighlightParentheses, highlight-parentheses}
 @end itemize
@@ -288,7 +288,7 @@ nesting dolls:
 
 @itemize
 @item
-@strong{Nodes}, which are CapTP capable endpointson a network, these are
+@strong{Nodes}, which are CapTP capable endpoints on a network, these are
 operating system processes, which contain@dots{}
 @item
 @strong{Vats}, which are communicating event loops, which contain@dots{}

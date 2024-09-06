@@ -293,7 +293,7 @@ Got: o
 
 Spawn a read and write interface for running commands over WRAPPED
 
-Like the ^io object, this spawns a seperate fiber which processes one
+Like the ^io object, this spawns a separate fiber which processes one
 command at a time. This however allows for both reading and writing by
 having a 'read method (taking in a procedure as its only argument),
 and a 'write method (also taking a single procedure as its only
@@ -323,7 +323,7 @@ an IP and port to connect to and spawns a socket. Its behavior is
 that it takes a message which it writes to the socket and then hands
 back a promise to the line it reads back from the socket.
 
-The origional ping server in the Fibers manual can be found here:
+The original ping server in the Fibers manual can be found here:
 @uref{https://github.com/wingo/fibers/wiki/Manual#41-ping}).
 
 The server:
@@ -540,7 +540,7 @@ syntax to facilitate promise pipelining.
 Syntax sugar around @code{on}, @code{all-of}, @code{lambda}, and
 @code{match-lambda} to allow using promise pipelining with a
 @code{let}-like syntax.  Each @var{exp} (an asynchronous invocation of
-an actor resulting in a promise) is evaluted concurrently; the
+an actor resulting in a promise) is evaluated concurrently; the
 resulting promises are bound to their corresponding @var{var}s; and
 finally @var{body} is evaluated in an environment where all promises
 are resolved.

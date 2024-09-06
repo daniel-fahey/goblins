@@ -108,7 +108,7 @@ just the roots. When we call @code{spawn-persistence-vat} it checks in
 our store to see if there's already persistence data and if there is
 it doesn't invoke the thunk we provided, it instead restores the graph
 from that data and hands us back the objects. In our case though the
-store is empty so it spanwed our cell from the thunk we provided.
+store is empty so it spawned our cell from the thunk we provided.
 
 Lets enter the vat and use the cell:
 @lisp
@@ -238,7 +238,7 @@ advanced player ship.
 
 We don't have to do away with cells, we could pass cells into the
 constructor and then Goblins will be able to see that, but then we
-loose some of the old erganomics and interface of the object, users
+lose some of the old ergonomics and interface of the object, users
 would have to manually spawn these cells.
 
 Here's a solution to continue to use cells but keep the old interface:
@@ -275,7 +275,7 @@ Here's a solution to continue to use cells but keep the old interface:
 @end lisp
 
 This has a pattern of having a sort of ``public'' constructor which
-allows for nice erganomics, and maybe does some setup and then hands
+allows for nice ergonomics, and maybe does some setup and then hands
 off to a ``real'' or ``internal'' constructor for the actor. In this
 case the public version both prevents a user spawning a dead ship to
 begin with and handles the cellification of the x and y coordinates.
@@ -307,7 +307,7 @@ more information on this library, @xref{Swappable}):
 (define (^player-ship bcom x y)
   (define-values (beh-proxy beh-swapper)
     ;; NOTE: Due to how swappable works, it must be spawned with a
-    ;; refr. use a place holder one which we will immidately switch
+    ;; refr. use a place holder one which we will immediately switch
     ;; away from.
     (swappable (spawn (lambda _ (lambda _ 'noop)))))
   ;; Swap away from the dummy place-holder above directly to the
@@ -363,7 +363,7 @@ objects.
 
 If you're wondering if you could simplify this by removing the swapper
 and just doing a @code{(bcom (spawn ^player-ship:DEAD ...))} this does
-not work, Goblins does not allow the object to beocme something its
+not work, Goblins does not allow the object to become something its
 not, this would be a security issue.
 
 And that's it!
@@ -511,7 +511,7 @@ track of the number of types its been called:
   (^greeter bcom our-name (spawn ^cell number-of-times)))
 @end lisp
 
-This example uses @code{define-actor} with a seperate constructor which
+This example uses @code{define-actor} with a separate constructor which
 ``cellifies` the number-of-times and has a default argument. The
 @code{define-actor} will include both the name (a string, like before)
 and a local reference to the cell object containing the number of times
@@ -569,7 +569,7 @@ Replace actors in actormap @var{am} with new behavior from
 @var{persistence-env}
 
 It's often desirable, especially when developing a system, to update or
-otherwise change the bahavior of objects which already exist in an
+otherwise change the behavior of objects which already exist in an
 actormap. This can easily be done by using the persistence system in
 Goblins. Each object can describe itself through its self portrait and
 then be rehydrated into its new behavior allowing seamless upgrades.
@@ -580,9 +580,9 @@ portrait all those objects, then using that portrait data, rehydrate
 them with the new behavior keeping the object references the same.
 
 It's important to note that in order to be able to replace the
-bahavior the objects must be been defined as redefinable, this is
+behavior the objects must be been defined as redefinable, this is
 commonly done by using the @code{define-hackable} macro provided with
-Goblins. Non-redefinable actors will not have their bahavior replaced
+Goblins. Non-redefinable actors will not have their behavior replaced
 as they will appear as different objects within the
 @var{persistence-env}.
 
@@ -842,7 +842,7 @@ There are two changes here:
 1. The thermostat object's @code{self-portrait} function now versions
 the data with version 1.
 2. We now have this @code{rehydrate-thermostat} function which takes in
-a version and might convert it before spawing the thermostat.
+a version and might convert it before spawning the thermostat.
 
 Goblins has a @code{versioned} function provided which allows the first
 argument to be a version tag which usually is an integer but could be
@@ -853,7 +853,7 @@ portrait data. Later you're able to match on it and upgrade it like the
 example above.
 
 With the above example newly created objects which are created using
-Celcius will not be need to be upgraded, but the old fahrenheit objects
+Celsius will not be need to be upgraded, but the old fahrenheit objects
 will be converted.
 
 @node Persistence stores
@@ -869,7 +869,7 @@ where nothing is persisted and the second is a syrup store, which
 reads and writes to files, serializing the data in the Syrup
 serialization format.
 
-Note: Stores are currently not designed in a thread safe mannor so
+Note: Stores are currently not designed in a thread safe manner so
 care should be taken to ensure they are only accessed by one vat.
 
 @node Memory Store
@@ -896,7 +896,7 @@ to a file in syrup format.
 The memory store can be found in @code{(goblins persistence-store
 syrup)}.
 
-More informaiton about the Syrup serialization format can be found
+More information about the Syrup serialization format can be found
 here: @uref{https://github.com/ocapn/syrup}
 
 @deffn {Procedure} make-syrup-store backing-filename
