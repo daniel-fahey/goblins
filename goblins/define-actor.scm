@@ -13,6 +13,7 @@
 ;;; limitations under the License.
 ;;;
 (define-module (goblins define-actor)
+  #:use-module ((goblins) #:select (spawn))
   #:use-module ((goblins core-types)
                 #:select (portraitize
                           make-redefinable-object
@@ -84,20 +85,23 @@
                (frozen? #f)
                (version #f)
                (portrait #f)
-               (restore #f))
+               (restore #f)
+               (upgrade #f))
         (syntax-case body ()
           ((#:frozen . rest)
-           (lp #'rest #t version portrait restore))
+           (lp #'rest #t version portrait restore upgrade))
           ((#:version version . rest)
-           (lp #'rest frozen? #'version portrait restore))
+           (lp #'rest frozen? #'version portrait restore upgrade))
           ((#:portrait portrait . rest)
-           (lp #'rest frozen? version #'portrait restore))
+           (lp #'rest frozen? version #'portrait restore upgrade))
           ((#:restore restore . rest)
-           (lp #'rest frozen? version portrait #'restore))
-          (rest-body (values body frozen? version portrait restore)))))
+           (lp #'rest frozen? version portrait #'restore upgrade))
+          ((#:upgrade upgrader . rest)
+           (lp #'rest frozen? version portrait restore #'upgrader))
+          (rest-body (values body frozen? version portrait restore upgrade)))))
     (syntax-case stx ()
       [(_ (constructor-id bcom arg ...) body ...)
-       (let ((kwless-body frozen? version portrait restore
+       (let ((kwless-body frozen? version portrait restore upgrade
               (extract-body-keywords #'(body ...))))
          (with-syntax (((arg-name ...) (args->arg-names #'(arg ...)))
                        ((kwless-body-extra ... kwless-body-final) kwless-body))
@@ -153,6 +157,19 @@
             (frozen?
              #`(define constructor-id
                  #,constructor))
+            ;; This *MUST* go above restore.
+            (upgrade
+             #`(define-redefinable-object-with-rehydrator constructor-id
+                 #,constructor
+                 (lambda args
+                   (define provided-restore #,restore)
+                   (define upgrader #,upgrade)
+                   (define-values (new-version new-roots)
+                     (apply upgrader args))
+                   (if provided-restore
+                       (apply provided-restore new-version new-roots)
+                       (apply spawn constructor-id new-roots)))))
+
             (restore
              #`(define-redefinable-object-with-rehydrator constructor-id
                  #,constructor

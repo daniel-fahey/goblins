@@ -1,4 +1,5 @@
 ;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2024 David Thompson <dave@spritely.institute>
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -16,7 +17,8 @@
   #:use-module (goblins)
   #:use-module (goblins vat)
   #:use-module (goblins actor-lib joiners)
-  #:use-module (srfi srfi-64))
+  #:use-module (srfi srfi-64)
+  #:use-module (tests utils))
 
 (test-begin "test-joiners")
 
@@ -55,5 +57,33 @@
     "all-of breaks promise with first error that is raised"
   (equal? (car (run-joiner-get-result all-of 2 4 7 8))
           'broken))
+
+(test-equal "race fulfills its own promise if an arg promise is fulfilled first"
+  #(ok 42)
+  (resolve-vow-and-return-result
+   a-vat
+   (lambda ()
+     (define-values (a-vow a-resolver)
+       (spawn-promise-values))
+     (define-values (b-vow b-resolver)
+       (spawn-promise-values))
+     (let ((vow (race a-vow b-vow)))
+       (<-np a-resolver 'fulfill 42)
+       (<-np b-resolver 'break 'uh-oh)
+       vow))))
+
+(test-equal "race breaks its own promise if an arg promise is broken first"
+  #(err (uh-oh))
+  (resolve-vow-and-return-result
+   a-vat
+   (lambda ()
+     (define-values (a-vow a-resolver)
+       (spawn-promise-values))
+     (define-values (b-vow b-resolver)
+       (spawn-promise-values))
+     (let ((vow (race a-vow b-vow)))
+       (<-np a-resolver 'break 'uh-oh)
+       (<-np b-resolver 'fulfill 42)
+       vow))))
 
 (test-end "test-joiners")

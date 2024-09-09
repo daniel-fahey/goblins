@@ -31,8 +31,13 @@
             actormap-metatype
             actormap-data
             actormap-vat-connector
+            actormap-aurie-counter
             actormap-ref
             actormap-set!
+            set-actormap-aurie-counter!
+
+            merge-actormap-aurie-counters!
+            increment-actormap-aurie-counter!
 
             <actormap-metatype>
             make-actormap-metatype
@@ -40,6 +45,7 @@
             actormap-metatype-name
             actormap-metatype-ref-proc
             actormap-metatype-set!-proc
+            actormap-metatype-for-each-proc
 
             <whactormap-data>
             make-whactormap-data
@@ -65,6 +71,7 @@
             local-object-refr?
             local-object-refr-debug-name
             local-object-refr-vat-connector
+            local-object-refr-aurie-id
 
             <local-promise-refr>
             make-local-promise-refr
@@ -133,11 +140,28 @@
 ;; ==============
 (define-record-type <actormap>
   ;; TODO: This is confusing, naming-wise? (see make-actormap alias)
-  (_make-actormap metatype data vat-connector)
+  (_make-actormap metatype data vat-connector aurie-counter)
   actormap?
   (metatype actormap-metatype)
   (data actormap-data)
-  (vat-connector actormap-vat-connector))
+  (vat-connector actormap-vat-connector)
+  (aurie-counter actormap-aurie-counter set-actormap-aurie-counter!))
+
+(define (merge-actormap-aurie-counters! old-actormap new-actormap)
+  "Merge the NEW-ACTORMAP's counter onto OLD-ACTORMAP"
+  (define old-actormap-aurie-counter (actormap-aurie-counter old-actormap))
+  (define new-actormap-aurie-counter (actormap-aurie-counter new-actormap))
+  (cond
+   ((> old-actormap-aurie-counter new-actormap-aurie-counter)
+    (error "Old actormap's counter is higher than new actormap's"))
+   ((> new-actormap-aurie-counter old-actormap-aurie-counter)
+    (set-actormap-aurie-counter! old-actormap new-actormap-aurie-counter))))
+
+(define (increment-actormap-aurie-counter! actormap)
+  "Increment ACTORMAP counter and return incremented number"
+  (define new-ctr (1+ (actormap-aurie-counter actormap)))
+  (set-actormap-aurie-counter! actormap new-ctr)
+  new-ctr)
 
 ;; (set-record-type-printer!
 ;;  <actormap>
@@ -145,11 +169,12 @@
 ;;    (format port "#<actormap ~a>" (actormap-metatype-name (actormap-metatype am)))))
 
 (define-record-type <actormap-metatype>
-  (make-actormap-metatype name ref-proc set!-proc)
+  (make-actormap-metatype name ref-proc set!-proc for-each-proc)
   actormap-metatype?
   (name actormap-metatype-name)
   (ref-proc actormap-metatype-ref-proc)
-  (set!-proc actormap-metatype-set!-proc))
+  (set!-proc actormap-metatype-set!-proc)
+  (for-each-proc actormap-metatype-for-each-proc))
 
 (define (actormap-set! am key val)
   ((actormap-metatype-set!-proc (actormap-metatype am))
@@ -180,8 +205,12 @@ Type: Any -> Boolean"
   (define wht (whactormap-data-wht (actormap-data am)))
   (hashq-set! wht key val))
 
+(define (whactormap-for-each proc am)
+  (hash-for-each proc (whactormap-data-wht (actormap-data am))))
+
 (define whactormap-metatype
-  (make-actormap-metatype 'whactormap whactormap-ref whactormap-set!))
+  (make-actormap-metatype 'whactormap whactormap-ref whactormap-set!
+                          whactormap-for-each))
 
 ;; Transactional actormaps
 ;; =======================
@@ -200,10 +229,11 @@ Type: Any -> Boolean"
 ;; =======
 
 (define-record-type <local-object-refr>
-  (make-local-object-refr debug-name vat-connector)
+  (make-local-object-refr debug-name vat-connector aurie-id)
   local-object-refr?
   (debug-name local-object-refr-debug-name)
-  (vat-connector local-object-refr-vat-connector))
+  (vat-connector local-object-refr-vat-connector)
+  (aurie-id local-object-refr-aurie-id))
 
 (set-record-type-printer!
  <local-object-refr>

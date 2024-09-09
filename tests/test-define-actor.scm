@@ -14,16 +14,18 @@
 ;;;
 (define-module (tests test-define-actor)
   #:use-module (goblins core)
+  #:use-module (goblins migrations)
   #:use-module (goblins define-actor)
   #:use-module ((goblins core-types)
                 #:select (redefinable-object?))
+  #:use-module (tests utils)
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
   #:use-module (fibers timers)
   #:use-module (ice-9 match)
   #:use-module ((srfi srfi-1)
-                #:select (second third))
+                #:select (first second third))
   #:use-module (srfi srfi-64))
 
 (test-begin "test-define-actor")
@@ -142,7 +144,7 @@
   (actormap-take-portrait am2 versioned-env versioned-cell))
 
 (define version
-  (match (hash-ref versioned-portraits 0)
+  (match (hash-ref versioned-portraits (car versioned-roots))
     ((_name _debug-name version _data) version)))
 
 (test-eqv "#:version for define-actor works" 42 version)
@@ -240,11 +242,11 @@
   (actormap-take-portrait am4 portrait-version-env cpv cpv-match))
 
 (define-values (cpv-version cpv-data)
-  (match (hash-ref portrait-version-portraits 0)
+  (match (hash-ref portrait-version-portraits (first portrait-version-roots))
     ((_name _debug-name version data)
      (values version data))))
 (define-values (cpv-match-version cpv-match-data)
-  (match (hash-ref portrait-version-portraits 1)
+  (match (hash-ref portrait-version-portraits (second portrait-version-roots))
     ((_name _debug-name version data)
      (values version data))))
 
@@ -294,5 +296,76 @@
 (test-equal "restore procedure works"
   '(restored 2 foop)
   (actormap-peek restored-am5 restored-cr))
+
+;; Testing #:upgrade
+;; Version 0
+(define-actor (^greeter bcom our-name)
+  (lambda (your-name)
+    (format #f "Hello ~a, my name is ~a" your-name our-name)))
+
+(define test-upgrade-env
+  (make-persistence-env
+   `((((tests define-actor) ^greeter) ,^greeter))
+    #:extends cell-env))
+
+(define am-v0 (make-actormap))
+(define alice-v0 (actormap-spawn! am-v0 ^greeter "Alice"))
+
+;; Now lets upgrade our greeter and give it a number-of-times called count
+(define migration-0-called #f)
+(define-actor (^greeter bcom our-name times-called)
+  #:version 1
+  #:upgrade
+  (migrations
+   [(1 our-name)
+    (set! migration-0-called #t)
+    (list our-name 0)])
+
+  (lambda (your-name)
+    (format #f "Hello ~a, my name is ~a (called: ~a)"
+            your-name our-name times-called)))
+
+(define-values (am-v1 alice-v1)
+  (persist-and-restore am-v0 test-upgrade-env alice-v0))
+
+(test-assert "The migration from 0 to 1 was called" migration-0-called)
+(test-equal "Check the new actor version of alice has new behavior"
+  "Hello Bob, my name is Alice (called: 0)"
+  (actormap-peek am-v1 alice-v1 "Bob"))
+
+(define migration-1-called #f)
+(define migration-2-called #f)
+(define-actor (^greeter bcom our-name times-called)
+  #:version 2
+  #:upgrade
+  (migrations
+   [(1 our-name)
+    (set! migration-1-called #t)
+    (list our-name 0)]
+   [(2 our-name times-called)
+    (set! migration-2-called #t)
+    (list our-name (spawn ^cell times-called))])
+
+  (lambda (your-name)
+    (format #f "Hello ~a, my name is ~a (called: ~a)"
+            your-name our-name ($ times-called))))
+
+;; Check first upgrading from v1
+(define-values (am-v2 alice-v2)
+  (persist-and-restore am-v1 test-upgrade-env alice-v1))
+
+(test-assert "Only the migration from 1 to 2 is called"
+  (and migration-2-called (not migration-1-called)))
+
+(test-equal "Check the new actor version of alice has new behavior"
+  "Hello Bob, my name is Alice (called: 0)"
+  (actormap-peek am-v2 alice-v2 "Bob"))
+
+;; Finally lets check a migration from 0 to 2
+(define-values (am-v2* alice-v2*)
+  (persist-and-restore am-v0 test-upgrade-env alice-v0))
+
+(test-assert "Only the migration from 1 to 2 is called"
+  (and migration-2-called migration-1-called))
 
 (test-end "test-define-actor")

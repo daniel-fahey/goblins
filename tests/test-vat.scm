@@ -1,6 +1,6 @@
 ;;; Copyright 2019-2023 Christine Lemmer-Webber
 ;;; Copyright 2022-2023 David Thompson
-;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2022-2024 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -1008,7 +1008,8 @@
    (lambda ()
      (values (spawn ^list)
              (spawn ^list)))
-   memory-store))
+   memory-store
+   #:version 72))
 
 (define one
   (with-vat persistent-vat
@@ -1022,8 +1023,12 @@
   ($ list1 two)
   ($ list2 one))
 
-(define-values (portraits _roots)
+(define-values (vat-aurie-id roots-version portraits _roots)
   (read-from-store 'graph-and-slots))
+  
+(test-equal "Check the version is saved properly"
+  72
+  roots-version)
 
 ;; There should be 4 objs: one, two, list1, list2
 (test-equal "Number of objects portraits is correct amount"
@@ -1033,7 +1038,7 @@
 ;; Now add two to list2 (not adding any new objects to the graph)
 (with-vat persistent-vat
   ($ list2 two))
-(define-values (portraits _roots)
+(define-values (vat-aurie-id _roots-version portraits _roots)
   (read-from-store 'graph-and-slots))
 (test-equal "Number of objects in graph remains same when no new object introduced"
   4
@@ -1043,7 +1048,7 @@
 ;; existing children.
 (with-vat persistent-vat
   ($ one (spawn ^list)))
-(define-values (portraits _roots)
+(define-values (vat-aurie-id _roots-version portraits _roots)
   (read-from-store 'graph-and-slots))
 
 (test-equal "Number of objects in graph increases when new object added to child"
@@ -1052,7 +1057,7 @@
 
 (with-vat persistent-vat
   ($ list2 (spawn ^list)))
-(define-values (portraits _roots)
+(define-values (vat-aurie-id _roots-version portraits _roots)
   (read-from-store 'graph-and-slots))
 
 (test-equal "Number of objects in graph increases when new object added to parent"
@@ -1114,5 +1119,89 @@
   'i-am-bar
   (with-vat persistent-vat
     ($ ($ foo))))
+
+(define aurie-vat (spawn-vat))
+(define aurie-registry
+  (with-vat aurie-vat
+    (spawn ^aurie-registry)))
+
+(define a-vat-store (make-memory-store))
+(define-values (a-vat a-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (spawn ^cell))
+   a-vat-store
+   #:aurie-registry aurie-registry))
+
+(define b-vat-store (make-memory-store))
+(define-values (b-vat b-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (spawn ^cell a-cell))
+   b-vat-store
+   #:aurie-registry aurie-registry))
+
+;; Now restore from the same memory stores using an aurie registry
+(define aurie-registry*
+  (with-vat aurie-vat
+    (spawn ^aurie-registry)))
+
+(define-values (a-vat* a-cell*)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (error "Should be being restored from the memory"))
+   a-vat-store
+   #:aurie-registry aurie-registry*))
+
+(define-values (b-vat* b-cell*)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (error "Should be being restored from the memory"))
+   b-vat-store
+   #:aurie-registry aurie-registry*))
+
+(test-assert "A far reference can be persisted and restored"
+  (match (resolve-vow-and-return-result
+          b-vat*
+          (lambda () (<- b-cell*)))
+    [#(ok hopefully-far-refr)
+      (and (with-vat b-vat* (far-refr? hopefully-far-refr))
+           (eq? hopefully-far-refr a-cell*))]))
+
+;; Test upgrading the roots of a vat
+(define memory (make-memory-store))
+(define-values (vat a-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda ()
+     (spawn ^cell))
+   memory))
+
+;; Stop the vat as we're done with it.
+(vat-halt! vat)
+
+(let ((found-prev-version #f)
+      (new-root-one #f)
+      (new-root-two #f))
+  (define-values (vat* a-cell b-cell)
+    (spawn-persistent-vat
+    cell-env
+    (lambda ()
+      (error "Should not be spawning fresh roots"))
+    memory
+    #:version 1
+    #:upgrade
+    (lambda (prev-version a-cell)
+      (set! found-prev-version prev-version)
+      (set! new-root-one (spawn ^cell))
+      (set! new-root-two (spawn ^cell))
+      ;; Actually do the upgrade
+      (values 1 (list new-root-one new-root-two)))))
+  (test-equal "Version provided in upgrade is correct"
+    found-prev-version
+    0)
+  (test-equal "Got upgraded two cells as values"
+    (list new-root-one new-root-two)
+    (list a-cell b-cell)))
 
 (test-end "test-vat")

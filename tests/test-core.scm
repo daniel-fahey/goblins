@@ -50,22 +50,26 @@
 
 ;; set up actormap base with beeper and booper
 (define actormap-base (make-whactormap))
-(define beeper-refr (make-local-object-refr 'beeper #f))
+(define (incr-am-base!)
+  (increment-actormap-aurie-counter! actormap-base))
+(define beeper-refr (make-local-object-refr 'beeper #f (incr-am-base!)))
 (define (beeper-proc . args)
   'beep)
 (whactormap-set! actormap-base beeper-refr beeper-proc)
-(define booper-refr (make-local-object-refr 'booper #f))
+(define booper-refr (make-local-object-refr 'booper #f (incr-am-base!)))
 (define (booper-proc . args)
   'boop)
 (whactormap-set! actormap-base booper-refr booper-proc)
-(define blepper-refr (make-local-object-refr 'blepper #f))
+(define blepper-refr (make-local-object-refr 'blepper #f (incr-am-base!)))
 (define (blepper-proc . args)
   'blep)
 (whactormap-set! actormap-base blepper-refr blepper-proc)
 
 (define tam1
   (make-transactormap actormap-base))
-(define bipper-refr (make-local-object-refr 'bipper #f))
+(define (incr-tam1-base!)
+  (increment-actormap-aurie-counter! tam1))
+(define bipper-refr (make-local-object-refr 'bipper #f (incr-tam1-base!)))
 (define (bipper-proc . args)
   'bippity)
 (transactormap-set! tam1 bipper-refr bipper-proc)
@@ -172,20 +176,6 @@
 (test-equal 2 (actormap-peek am a-ctr))
 (test-equal 2 (actormap-poke! am a-ctr))
 (test-equal 3 (actormap-peek am a-ctr))
-
-;; Copy of the cell code from cell.scm.  Simplifies some
-;; tests.
-
-;; Constructor for a cell.  Takes an optional initial value, defaults
-;; to false.
-(define* (^cell bcom #:optional val)
-  (case-lambda
-    ;; Called with no arguments; return the current value
-    [() val]
-    ;; Called with one argument, we become a version of ourselves
-    ;; with this new value
-    [(new-val)
-     (bcom (^cell bcom new-val))]))
 
 (define (^spawns-during-constructor bcom)
   (define a-cell
@@ -564,7 +554,7 @@
     (actormap-churn-run!
      am
      (lambda ()
-       (define promise-and-resolver (actormap-run! am spawn-promise-cons))
+       (define promise-and-resolver (spawn-promise-cons))
        (define some-promise (car promise-and-resolver))
        (define some-resolver (cdr promise-and-resolver))
        (listen-to some-promise

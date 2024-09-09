@@ -15,6 +15,7 @@
 (define-module (goblins)
   #:use-module (goblins core)
   #:use-module (goblins define-actor)
+  #:use-module (goblins migrations)
   #:use-module (goblins repl)
   #:use-module (goblins vat)
   #:re-export (live-refr?
@@ -101,7 +102,8 @@
                define-vat-run
                vat-take-portrait!
 
-               define-actor)
+               define-actor
+               migrations)
   #:replace (spawn))
 
 ;; In order to replace a core binding with #:replace in define-module,

@@ -1,5 +1,5 @@
 ;;; Copyright 2021-2022 Christine Lemmer-Webber
-;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2022-2024 Jessica Tallon
 ;;; Copyright 2023 David Thompson
 ;;; Copyright 2023 Juliana Sims
 ;;;
@@ -19,11 +19,13 @@
   #:use-module (goblins base-io-ports)
   #:use-module (goblins core)
   #:use-module (goblins core-types)
+  #:use-module (goblins ghash)
   #:use-module (goblins inbox)
   #:use-module (goblins abstract-types)
   #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins utils random-name)
   #:use-module (goblins utils ring-buffer)
+  #:use-module (gcrypt random)
   #:use-module (fibers)
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
@@ -33,9 +35,10 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 q)
   #:use-module (ice-9 threads)
-  #:use-module (srfi srfi-1)
-  #:use-module (srfi srfi-9)
-  #:use-module (srfi srfi-9 gnu)
+  #:use-module (srfi srfi-1)      ; lists
+  #:use-module (srfi srfi-9)      ; records
+  #:use-module (srfi srfi-9 gnu)  ; record extensions
+  #:use-module (srfi srfi-11)     ; let-values
   #:export (vat-event?
             vat-send-event?
             vat-receive-event?
@@ -112,6 +115,8 @@
             vat-take-single-object-portrait
 
             define-vat-run
+
+            ^aurie-registry
 
             ;; and here's a hack, but maybe someone wants
             ;; to start with it and tweak it
@@ -193,9 +198,12 @@
 ;; persist. This could live just on the vat itself but since it's a
 ;; lot of stuff, it's broken into its own record.
 (define-record-type <vat-persistence>
-  (make-vat-persistence persistence-environ persist-on store
-                        read-portrait! val->slot-ref roots)
+  (make-vat-persistence vat-aurie-id persistence-environ persist-on
+                        store upgrader roots-version read-portrait!
+                        val->slot-ref roots)
   vat-persistence-env?
+  ;; A permanent ID which other vats can use to reference a given vat.
+  (vat-aurie-id vat-persistence-vat-aurie-id)
   ;; This is a <persistence-env> with all objects in the graph.
   (persistence-environ vat-persistence-environ set-vat-persistence-environ!)
   ;; When 'churn it tells the vat to persist on churns, otherwise
@@ -203,6 +211,10 @@
   (persist-on vat-persistence-persist-on)
   ;; The store we should persist two and restore from.
   (store vat-persistence-store)
+  ;; Upgrader lambda which will upgrade roots to latest version
+  (upgrader vat-persistence-upgrade)
+  ;; Version of the roots
+  (roots-version vat-persistence-roots-version)
   ;; This is a function we get from core.scm to persist a single object.
   (read-portrait! vat-persistence-read-portrait!
                     set-vat-persistence-read-portrait!)
@@ -554,6 +566,7 @@ like this:
   ;; Events are stored in reverse order in which they were processed.
   (reverse (hashq-ref (vat-log-next-index log) event '())))
 
+
 ;; Vats
 ;; ====
 
@@ -678,7 +691,12 @@ Type: (Optional (#:name (U String Symbol)))
       (('find-previous-event event)
        (vat-log-ref-previous vat event))
       (('find-next-events event)
-       (vat-log-ref-next vat event))))
+       (vat-log-ref-next vat event))
+      (('aurie-vat-id)
+       (let ((persistence-env (vat-persistence-env vat)))
+         (if persistence-env
+             (vat-persistence-vat-aurie-id persistence-env)
+             #f)))))
   (define am (make-actormap #:vat-connector connector))
   (define id (next-vat-id))
   (define clock (make-atomic-box 0))
@@ -729,11 +747,12 @@ Type: Vat -> Void"
   ((vat-halt-proc vat)))
 
 (define* (vat-churn vat msg sent-at)
+  (define log? (vat-logging? vat))
   (define churn-id (vat-next-churn-id vat))
   (define near-q (make-q))
   (define far-q (make-q))
   (define am (vat-actormap vat))
-  (define snapshot (copy-whactormap am))
+  (define snapshot (and log? (copy-whactormap am)))
   (define new-am (make-transactormap am))
   (define this-vat-connector (actormap-vat-connector am))
   (define (near-msg? msg)
@@ -742,10 +761,11 @@ Type: Vat -> Void"
          (eq? (local-refr-vat-connector to-refr)
               this-vat-connector)))
   (define* (current-snapshot)
-    (define snapshot* (copy-whactormap snapshot))
-    (define transactormap (transactormap-reparent new-am snapshot*))
-    (transactormap-merge! transactormap)
-    snapshot*)
+    (and log?
+         (let* ((snapshot* (copy-whactormap snapshot))
+                (transactormap (transactormap-reparent new-am snapshot*)))
+           (transactormap-merge! transactormap)
+           snapshot*)))
   (define (queue-messages-appropriately! prev-event msgs)
     (match msgs
       (() 'done)
@@ -765,7 +785,8 @@ Type: Vat -> Void"
               (q (if near? near-q far-q)))
          (let ((event (make-vat-event event-type churn-id timestamp
                                       #f msg snapshot)))
-           (vat-log-append! vat event prev-event)
+           (when log?
+             (vat-log-append! vat event prev-event))
            (enq! q event))))))
   (define (turn event)
     (set-vat-event-snapshot! event (current-snapshot))
@@ -796,7 +817,8 @@ Type: Vat -> Void"
   (define received-at (vat-next-timestamp vat sent-at))
   (define init-event
     (make-vat-event 'receive churn-id received-at sent-at msg snapshot))
-  (vat-log-append! vat init-event #f)
+  (when log?
+    (vat-log-append! vat init-event #f))
   (define result (turn init-event))
   ;; Turn as many additional times as it takes to run this vat to
   ;; quiescence.
@@ -951,8 +973,7 @@ logging."
   (%vat-log-ref-next (vat-log vat) event))
 
 (define (vat-log-append! vat event prev)
-  (when (vat-logging? vat)
-    (%vat-log-append! (vat-log vat) event prev)))
+  (%vat-log-append! (vat-log vat) event prev))
 
 (define (vat-log-error! vat event exception)
   (when (vat-logging? vat)
@@ -1151,78 +1172,15 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
     (vat-persistence-store persistence-env))
   (define save-portrait-in-store!
     (persistence-store-save-proc store))
-  (save-portrait-in-store! 'save-graph slot->portrait root-slots))
+  (define aurie-vat-id
+    (vat-persistence-vat-aurie-id persistence-env))
+  (define roots-version
+    (vat-persistence-roots-version persistence-env))
+  (save-portrait-in-store! 'save-graph aurie-vat-id roots-version
+                           slot->portrait root-slots))
 
 (define (vat-take-portrait! vat)
   (call-system-op-with-vat vat vat-take-portrait!*))
-
-(define* (spawn-persistent-vat persistence-env spawn-roots-thunk store
-                               #:key (persist-on 'churn)
-                               (vat-constructor spawn-fibrous-vat)
-                               name log? (log-capacity default-log-capacity))
-  "Create and return a reference to a new vat with persistence. All
-objects spawned on the vat that will persist must be persistence
-aware. The objects must be in PERSISTENCE-ENV which is used when the
-vat takes the portrait and rehydrates objects.
-
-The SPAWN-ROOT-THUNK perameter will be run within the vat
-environment and should spawn one or more values which are the root
-objects to be persisted.
-
-STORE is a storage backend mechanism which matches the persistence
-store interface.
-
-If PERSIST-ON is not provided persistence will happen on every churn
-of the vat. If this is #f, no automatic persistence mechanism
-will occur and this should be handled manually.
-
-If provided, NAME is the debug name of the vat. If LOG? is #t, log
-vat events, otherwise do not. If provided, LOG-CAPACITY is the number
-of events to retain in the log."
-  (define vat-persistence
-    (make-vat-persistence persistence-env persist-on store #f #f #f))
-
-  (define vat
-    (vat-constructor
-     #:persistence-env vat-persistence
-     #:name name
-     #:log? log?
-     #:log-capacity log-capacity))
-
-  ;; We should either restore from the data in the store if that exists,
-  ;; or we should spawn the roots by using `spawn-roots-lambda'.
-  (define read-from-store
-    (persistence-store-read-proc store))
-  (define-values (portraits root-slots)
-    (read-from-store 'graph-and-slots))
-
-  (define roots
-    (if (and portraits root-slots)
-        (call-system-op-with-vat
-         vat (lambda (vat)
-               (define vat-am
-                 (vat-actormap vat))
-               (call-with-values
-                   (lambda ()
-                     (actormap-restore! vat-am persistence-env portraits root-slots))
-                 list)))
-        (with-vat vat
-          (call-with-values spawn-roots-thunk list))))
-
-  (define-values (read-portrait! val->slot-ref)
-    (make-actormap-read-portrait! persistence-env roots))
-
-  (call-system-op-with-vat
-   vat (lambda (vat)
-         ;; Setup the persistent environment
-         (set-vat-persistence-read-portrait! vat-persistence read-portrait!)
-         (set-vat-persistence-val->ref! vat-persistence val->slot-ref)
-         (set-vat-persistence-roots! vat-persistence roots)
-
-         ;; Finally, lets take the first vat portrait
-         (vat-take-portrait!* vat)))
-
-  (apply values vat roots))
 
 (define (vat-maybe-persist-changed-objs! vat new-am)
   (define vat-persistence
@@ -1245,7 +1203,8 @@ of events to retain in the log."
         ;; assigned slot. For the ones found queue them up for depiction
         (for-each
          (lambda (changed-obj)
-           (when (val->slot-refr changed-obj)
+           (when (and (local-object-refr? changed-obj)
+                      (val->slot-refr changed-obj))
              (enq! process-queue changed-obj)))
          (transactormap-calculate-obj-delta new-am))
 
@@ -1312,6 +1271,229 @@ of events to retain in the log."
      (vat-persistence-environ vat-persistence)))
   (call-system-op-with-vat vat replace-behavior!))
 
+;; Inter-vat Aurie vat registry and retrievers
+;; ===========================================
+
+;; This section is for inter-vat Aurie integration.
+;; DO NOT EXPORT ANY OF THIS MACHINERY FROM THIS MODULE!
+;;
+;; Inter-vat Aurie works by:
+;;  - vats having randomly generated identifiers made *specifically*
+;;    for being identified for Aurie integerchange.  There's not meant
+;;    to be any way to make them yourself; a persistent vat booting up
+;;    will automatically make its own id, register with the given
+;;    registry, and upon being restored, reawake with that id.
+;;  - local-object-refrs also have unique, incremented integer ids
+;;    specific to that vat (or really, actormap).  These also are not
+;;    meant to be used for anything other than inter-vat Aurie.
+
+;; Two request types for aurie registries follow.
+;; We want to protect these but allow them to be generally available
+;; for all vats to use, and unexported records are reasonable ways of
+;; performing rights amplification.
+
+;; Request to register a vat
+(define-record-type <register-request>
+  (make-register-request vat-aurie-id vat)
+  register-request?
+  (vat-aurie-id register-request-vat-aurie-id)
+  (vat register-request-vat))
+
+(define-record-type <registry-fetch-vat>
+  (make-registry-fetch-vat vat-aurie-id)
+  registry-fetch-vat?
+  (vat-aurie-id registry-fetch-vat-vat-aurie-id))
+
+(define* (^aurie-registry bcom #:optional (vat-id->vat ghash-null))
+  (match-lambda
+    ((? register-request? reg-request)
+     (define vat-aurie-id
+       (register-request-vat-aurie-id reg-request))
+     (define vat-to-register
+       (register-request-vat reg-request))
+     (define vat-obj
+       (spawn ^aurie-vat-refr-resolver vat-to-register))
+     ;; fulfill a waiting resolver, if there is one
+     ;; If there is not... we should error (?)
+     (match (ghash-ref vat-id->vat vat-aurie-id #f)
+       (('waiting _registered-vat-vow registered-vat-resolver)
+        ($ registered-vat-resolver 'fulfill vat-obj))
+       (#f 'noop))
+     ;; but regardless, become a new version of the registry with the
+     ;; registered-vat being set
+     (bcom (^aurie-registry
+            bcom (ghash-set vat-id->vat vat-aurie-id vat-obj))))
+    ((? registry-fetch-vat? reg-fetch-req)
+     (define vat-aurie-id
+       (registry-fetch-vat-vat-aurie-id reg-fetch-req))
+     (match (ghash-ref vat-id->vat vat-aurie-id #f)
+       ;; There's a version waiting
+       (('waiting registered-vat-vow _registered-vat-resolver)
+        registered-vat-vow)
+       ;; Nothing is waiting, but we also don't have a resolution, so
+       ;; let's add a waiting request
+       (#f
+        (let*-values (((registered-vat-vow registered-vat-resolver)
+                       (spawn-promise-values))
+                      ((new-vat-id->vat)
+                       (ghash-set vat-id->vat
+                                  vat-aurie-id
+                                  (list 'waiting registered-vat-vow
+                                        registered-vat-resolver))))
+          (bcom (^aurie-registry bcom new-vat-id->vat)
+                registered-vat-vow)))
+       ;; otherwise, it must be the registered vat, so return that
+       (vat vat)))))
+
+(define (^aurie-vat-refr-resolver _bcom vat)
+  (define actormap (vat-actormap vat))
+  (define metatype (actormap-metatype actormap))
+  (define actormap-for-each (actormap-metatype-for-each-proc metatype))
+  (define aurie-id->refr
+    (make-hash-table))
+  (actormap-for-each
+   (lambda (refr _mactor)
+     ;; Not promises!
+     (when (local-object-refr? refr)
+       (hash-set! aurie-id->refr (local-object-refr-aurie-id refr) refr)))
+   actormap)
+  (lambda (aurie-actor-id)
+    (hash-ref aurie-id->refr aurie-actor-id)))
+
+(define* (spawn-persistent-vat persistence-env spawn-roots-thunk store
+                               #:key (persist-on 'churn)
+                               (vat-constructor spawn-fibrous-vat)
+                               name log? (log-capacity default-log-capacity)
+                               aurie-registry
+                               upgrade [version 0])
+  "Create and return a reference to a new vat with persistence. All
+objects spawned on the vat that will persist must be persistence
+aware. The objects local to the vat must be in PERSISTENCE-ENV which is used
+when the vat takes the portrait and rehydrates objects.
+
+The SPAWN-ROOT-THUNK perameter will be run within the vat
+environment and should spawn one or more values which are the root
+objects to be persisted.
+
+STORE is a storage backend mechanism which matches the persistence
+store interface.
+
+If PERSIST-ON is not provided persistence will happen on every churn
+of the vat. If this is #f, no automatic persistence mechanism
+will occur and this should be handled manually.
+
+If provided, NAME is the debug name of the vat. If LOG? is #t, log
+vat events, otherwise do not. If provided, LOG-CAPACITY is the number
+of events to retain in the log.
+
+If the AURIE-REGISTRY is provided, it will register this vat with the
+registry to allow for both this vat and others who share the same registry
+to both persist and rehydrate local far refrs (i.e. refrs on other local vats).
+This value should be the refr of a spawned ^aurie-registry object.
+
+If UPGRADE is provided, upon resturation the vat will check the version of the
+graph roots read from the store, if that version does not match VERSION then the
+upgrade procedure will be called, this procedure should take in the current
+version of the roots and then the roots and return two values, the new version
+and a list of the new root data. This procedure matches that which is produced
+using the migrations macro."
+  ;; We should either restore from the data in the store if that exists,
+  ;; or we should spawn the roots by using `spawn-roots-lambda'.
+  (define read-from-store
+    (persistence-store-read-proc store))
+  (define-values (vat-aurie-id roots-version portraits root-slots)
+    (read-from-store 'graph-and-slots))
+
+  (define current-vat-aurie-id
+    (if vat-aurie-id
+        vat-aurie-id
+        (gen-random-bv 32 %gcry-strong-random)))
+
+  (define vat-persistence
+    (make-vat-persistence current-vat-aurie-id persistence-env
+                          persist-on store upgrade version #f
+                          #f #f))
+  (define vat
+    (vat-constructor
+     #:persistence-env vat-persistence
+     #:name name
+     #:log? log?
+     #:log-capacity log-capacity))
+
+  (define-values (far-refr-resolvers roots spawned-new?)
+    (if (and portraits root-slots)
+        (match (call-system-op-with-vat
+                vat (lambda (vat)
+                      (define vat-am
+                        (vat-actormap vat))
+                      (call-with-values
+                          (lambda ()
+                            (actormap-restore-with-far-refrs!
+                             vat-am persistence-env portraits root-slots))
+                        list)))
+          [(far-refr-resolvers roots) (values far-refr-resolvers roots #f)])
+        (with-vat vat
+          (values #f (call-with-values spawn-roots-thunk list) #t))))
+
+  (define (upgrade-roots)
+    (define-values (new-version new-roots)
+      (with-vat vat (upgrade roots-version roots)))
+    (if (equal? new-version version)
+        new-roots
+        (error (format #f "Migration upgraded the roots from ~a to ~a, but expected upgrade to ~a"
+                       roots-version new-version version))))
+
+  ;; If we need to upgrade, apply the upgrader
+  (define upgraded-roots
+    (if (or spawned-new? (equal? roots-version version))
+        roots
+        (upgrade-roots)))
+
+  (define-values (read-portrait! val->slot-ref)
+    (make-actormap-read-portrait! persistence-env upgraded-roots))
+
+  (call-system-op-with-vat
+   vat (lambda (vat)
+         ;; Setup the persistent environment
+         (set-vat-persistence-read-portrait! vat-persistence read-portrait!)
+         (set-vat-persistence-val->ref! vat-persistence val->slot-ref)
+         (set-vat-persistence-roots! vat-persistence upgraded-roots)
+
+         ;; Finally, lets take the first vat portrait
+         (when (or spawned-new? (not (equal? roots-version version)))
+           (vat-take-portrait!* vat))))
+
+  ;; TODO: If there's no aurie registry should we break all the
+  ;; promises requested immediately?
+  (when aurie-registry
+    ;; Register this vat.
+    ;;
+    ;; We wait to talk to the registry until after all our Aurie objects
+    ;; are restored to avoid race conditions.
+    (<-np-extern aurie-registry
+                 (make-register-request current-vat-aurie-id vat))
+
+    ;; Go through all the far actors we're waiting for and try and fetch them.
+    (when far-refr-resolvers
+      (with-vat vat
+        (hash-for-each
+          (lambda (aurie-actor-id resolver)
+            (match aurie-actor-id
+              ;; Iterating over pairs of aurie-vat-ids and the object aurie-ids
+              ;; we want to retrieve
+              ((vat-aurie-id actor-aurie-id)
+                (let ((aurie-id->refr
+                        (<- aurie-registry (make-registry-fetch-vat vat-aurie-id))))
+                  (on (<- aurie-id->refr actor-aurie-id)
+                      (lambda (refr)
+                        (<-np resolver 'fulfill refr))
+                      #:catch
+                      (lambda (err)
+                        (<-np resolver 'break err)))))))
+        far-refr-resolvers))))
+
+  (apply values vat upgraded-roots))
+
 ;; An example to test against, wip
 #;(run-fibers
  (lambda ()
@@ -1335,3 +1517,4 @@ of events to retain in the log."
             (<-np sleppy-sam 1)
             (<-np sleppy-sarah .5))))
  #:drain? #t)
+

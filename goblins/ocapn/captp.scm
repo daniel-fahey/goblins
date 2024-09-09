@@ -428,15 +428,19 @@
     (define main-beh
       (methods
        [(resolve-on-sever sever-resolver)
-        (let* ((noop-beh
-                (lambda () 'no-op))
-               (^cancel-sever-notification
-                (lambda (bcom)
-                  (lambda ()
-                    ($C interested-in-sever 'remove sever-resolver)
-                    (bcom noop-beh)))))
-          ($C interested-in-sever 'add sever-resolver)
-          (spawn ^cancel-sever-notification))]
+        (if running?
+            (let* ((noop-beh
+                    (lambda () 'no-op))
+                   (^cancel-sever-notification
+                    (lambda (bcom)
+                      (lambda ()
+                        ($C interested-in-sever 'remove sever-resolver)
+                        (bcom noop-beh)))))
+              ($C interested-in-sever 'add sever-resolver)
+              (spawn ^cancel-sever-notification))
+            (match shutdown-reason
+              [(shutdown-type reason)
+               ($C sever-resolver 'fulfill (list 'severed shutdown-type reason))]))]
        [(cancel-sever-interest sever-resolver)
         ($C interested-in-sever 'remove sever-resolver)]))
     (ward intra-node-warden intra-node-beh
@@ -471,6 +475,7 @@
   ;; TODO: This should really be some kind of box that the other side
   ;;   can query, right?
   (define running? #t)
+  (define shutdown-reason #f)
 
   ;; These are imports that we've processed when we already had allocated
   ;; a reference.  We batch send GC messages about these as appropriate.
@@ -775,6 +780,7 @@
     (set! questions #f)
     (set! answers #f)
     (set! running? #f)
+    (set! shutdown-reason (list shutdown-type reason))
     (for-each
      (lambda (interested)
        (<-np interested 'fulfill (list 'severed shutdown-type
@@ -1222,6 +1228,8 @@
   ;; particular node
   (define-values (intra-node-warden intra-node-incanter)
     (spawn-warding-pair))
+  (define locations->session-name-resolvers
+    (spawn ^ghash))
   (define locations->open-session-names
     (spawn ^ghash))
   (define open-session-names->sessionmeta
@@ -1323,13 +1331,24 @@
   (define (retrieve-or-setup-session-vow remote-node-loc)
     (if ($C locations->open-session-names 'has-key? remote-node-loc)
         ;; found an open session for this location
-        (let ([session-name ($C locations->open-session-names
-                                'ref remote-node-loc)])
-          (sessionmeta-remote-bootstrap-obj
-           ($C open-session-names->sessionmeta 'ref session-name)))
+        (let ([session-name-vow ($C locations->open-session-names
+                                    'ref remote-node-loc)])
+          (on session-name-vow
+              (lambda (session-name)
+                (sessionmeta-remote-bootstrap-obj
+                 ($C open-session-names->sessionmeta 'ref session-name)))
+              #:promise? #t))
         ;; Guess we'll make a new one
-        (let ([netlayer (get-netlayer-for-location remote-node-loc)])
-          (<- netlayer 'connect-to remote-node-loc))))
+        (let-values ([(netlayer) (get-netlayer-for-location remote-node-loc)]
+                     [(vow resolver) (spawn-promise-values)])
+          ;; To ensure future calls don't create more than one connection
+          ;; setup a vow for the session name which will be fulfilled later.
+          ;; Once the vow we're creating here is fulfilled we'll swap it out
+          ;; for the real value so GC can happen & for minor speed improvements.
+          ($C locations->session-name-resolvers 'set remote-node-loc resolver)
+          ($C locations->open-session-names 'set remote-node-loc vow)
+          ;; Connect to the node
+          ($C netlayer 'connect-to remote-node-loc))))
 
   (define (get-netlayer-for-location loc)
     (define transport-tag (ocapn-node-transport loc))
@@ -1525,6 +1544,9 @@
              ($C incoming-swap captp-incoming-handler)
 
              ;; And now install in the open sessions in the directory
+             (let ((resolver ($C locations->session-name-resolvers 'ref remote-location)))
+               (when resolver
+                 ($C resolver 'fulfill session-name)))
              ($C locations->open-session-names 'set remote-location session-name)
              ($C open-session-names->sessionmeta 'set
                  session-name

@@ -6,6 +6,7 @@ the documentation for everything imported with
 * Objects::
 * Vats::
 * Actormaps::
+* Misc::
 @end menu
 
 @node Objects
@@ -388,6 +389,7 @@ Return @code{#t} if @var{obj} is a @emph{far} object or promise, else
                          [#:portrait thunk]
                          [#:version version]
                          [#:frozen]
+                         [#:upgrade]
                          body @dots{}
 
 Defines a goblins object with @var{object-name}. The argument syntax
@@ -415,7 +417,12 @@ version.
 
 When @code{#:frozen} it does not define the object as a redefinable
 object (useful for live hacking) and prevents @code{#:restore} being
-used. Frozen objects have a slight perfomance improvement on spawning.
+used. Frozen objects have a slight performance improvement on spawning.
+
+When @code{#:upgrade} is provided, it uses this to migrate the portrait
+data to the newest version. This is designed to work with the @code{migrations}
+macro, however can be used on its own. This cannot be used in combination with
+@code{#:restore}.
 
 Here is an example defining a simple cell object, portrait would be
 the @var{val}:
@@ -435,7 +442,7 @@ cell and a reference to a heater. It defines a portrait which removes
 the value from the cell. It specifies a version of @code{1}, as it
 needs to do version upgrade. Finally in the restore function it
 matches on the version and converts from Celsius to Kelvin if it's the
-origional version and spawns the ^thermostat with the cellified set
+original version and spawns the ^thermostat with the cellified set
 temperature:
 @lisp
 (define-actor (^thermostat bcom set-temp-cell heater-refr)
@@ -625,7 +632,7 @@ Here is a pseudocode example illustrating the basic pattern:
   (define (send envelope)
     (if (vat-envelope-return? envelope)
         (enqueue-and-wait-for-result envelope)
-        (enqueue enevelope)))
+        (enqueue envelope)))
   (make-vat #:start start
             #:halt halt
             #:send send))
@@ -746,7 +753,7 @@ write a separate lambda expression.
 This procedure is deprecated.
 
 Return a procedure bound to @var{vat-run-id} accepting a body to be
-evaulated in the context of @var{vat}.
+evaluated in the context of @var{vat}.
 
 @lisp
 (define-vat-run run-in-vat)
@@ -918,7 +925,7 @@ Once objects have been put into an @emph{actormap}, they may be invoked
 to perform some action or other.  There are several ways to do this,
 falling into one of two general categories: @emph{turn}s and
 @emph{churn}s.  A @dfn{turn} can be thought of as the performance of a
-single action, or the processesing of a single message.  A @dfn{churn}
+single action, or the processing of a single message.  A @dfn{churn}
 is best understand in terms of a @emph{turn} as all @emph{turn}s a given
 @emph{actormap} can handle without invoking @emph{far} objects.
 
@@ -1074,5 +1081,36 @@ Commit the changes in @var{transactormap} to the generational history.
 @deffn {Procedure} transactormap-buffer-merge! transactormap
 
 Commit the changes in @var{transactormap} to its parent.
+
+@end deffn
+
+@node Misc
+@section Misc
+
+@deffn {Syntax} migrations ((version data @dots{}) expr) @dots{}
+                           
+Syntax to describe a collection of migrations to be used to be applied in order
+to upgrade some data to a newer version. This is designed to be used with the
+persistence system e.g. to upgrade actor portrait data or graph roots. However,
+it is generic enough to be used elsewhere.
+
+The @code{migrations} syntax will generate a procedure with the signature
+@code{(lambda (prev-version data ...) ...)} and will return two values, the 
+version its migrated to and the new data.
+
+@lisp
+(define migrations
+  ;; Version 0 -> 1: ignore what I'm given and return 'i-am-version-1
+  ((1 something) (list 'i-am-version-1))
+  ;; Version 1 -> 2: provide two values, 'i-am-version-2 and the something I got
+  ((2 something) (list 'i-am-version-2 something))
+  ;; Version 2 -> 3: Swap the two values around
+  ((3 something something-else) (list something-else something))
+@end lisp
+
+When the upgrade procedure is called, it would return version 3 (as it
+ran the version 2 migration and so the new version is the next
+version, version 3). It'd also return the new data which would be a
+list of @code{('i-am-version-1 'i-am-version-2)}.
 
 @end deffn
