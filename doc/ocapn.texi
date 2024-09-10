@@ -654,3 +654,6 @@ for the netlayer specified in @var{#:netlayer}, then you can pass that
 in with the @var{#:mycapn} argument.
 
 @end deffn
+
+@defvr {Persistence Environment} prelay-utils-env
+@end defvr
