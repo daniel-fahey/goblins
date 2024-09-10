@@ -17,6 +17,7 @@
 (define-module (tests test-vat)
   #:use-module (goblins core)
   #:use-module (goblins core-types)
+  #:use-module (goblins migrations)
   #:use-module (goblins define-actor)
   #:use-module (goblins vat)
   #:use-module (goblins actor-lib cell)
@@ -1165,8 +1166,8 @@
           b-vat*
           (lambda () (<- b-cell*)))
     [#(ok hopefully-far-refr)
-      (and (with-vat b-vat* (far-refr? hopefully-far-refr))
-           (eq? hopefully-far-refr a-cell*))]))
+     (and (with-vat b-vat* (far-refr? hopefully-far-refr))
+          (eq? hopefully-far-refr a-cell*))]))
 
 ;; Test upgrading the roots of a vat
 (define memory (make-memory-store))
@@ -1180,28 +1181,28 @@
 ;; Stop the vat as we're done with it.
 (vat-halt! vat)
 
-(let ((found-prev-version #f)
+(let ((found-cell #f)
       (new-root-one #f)
       (new-root-two #f))
   (define-values (vat* a-cell b-cell)
     (spawn-persistent-vat
-    cell-env
-    (lambda ()
-      (error "Should not be spawning fresh roots"))
-    memory
-    #:version 1
-    #:upgrade
-    (lambda (prev-version a-cell)
-      (set! found-prev-version prev-version)
-      (set! new-root-one (spawn ^cell))
-      (set! new-root-two (spawn ^cell))
-      ;; Actually do the upgrade
-      (values 1 (list new-root-one new-root-two)))))
-  (test-equal "Version provided in upgrade is correct"
-    found-prev-version
-    0)
-  (test-equal "Got upgraded two cells as values"
-    (list new-root-one new-root-two)
-    (list a-cell b-cell)))
+     cell-env
+     (lambda ()
+       (error "Should not be spawning fresh roots"))
+     memory
+     #:version 1
+     #:upgrade
+     (migrations
+      [(1 cell)
+       (set! found-cell cell)
+       (set! new-root-one (spawn ^cell))
+       (set! new-root-two (spawn ^cell))
+       ;; Actually do the upgrade
+       (list new-root-one new-root-two)])))
+    (test-assert "Previous version was a live-refr"
+      (live-refr? found-cell))
+    (test-equal "Got upgraded two cells as values"
+      (list new-root-one new-root-two)
+      (list a-cell b-cell)))
 
-(test-end "test-vat")
+  (test-end "test-vat")
