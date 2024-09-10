@@ -2,7 +2,11 @@
   #:use-module (goblins)
   #:use-module (goblins core-types)
   #:use-module (goblins persistence-store syrup)
-  #:use-module (srfi srfi-64))
+  #:use-module (goblins ocapn marshalling)
+  #:use-module (goblins contrib syrup)
+  #:use-module (srfi srfi-9)
+  #:use-module (srfi srfi-64)
+  #:use-module (ice-9 match))
 
 (test-begin "test-syrup-store")
 
@@ -62,5 +66,32 @@
 (test-equal "Check restored bob is the same as saved bob"
   "Hello Carol, my name is Bob (called: 0)"
   (actormap-peek am* bob* "Carol"))
+
+;; Check upgrading from a version without aurie-vat-id and root version
+(define-record-type <v0-portrait-graph>
+  (make-v0-portrait-graph version portraits slots)
+  portrait-graph?
+  (version portrait-graph-version)
+  (portraits portrait-graph-portraits)
+  (slots portrait-graph-slots))
+
+(define-values (marshaller::v0-portrait-graph unmarshaller::v0-portrait-graph)
+  (make-marshallers <v0-portrait-graph> #:name '<portrait-graph>))
+
+(define v0-portrait-graph (make-v0-portrait-graph 0 portraits slots))
+(define filename (tmpnam))
+(call-with-output-file filename
+  (lambda (port)
+    (syrup-write v0-portrait-graph port
+                 #:marshallers (list marshaller::v0-portrait-graph))))
+
+(define store (make-syrup-store filename))
+
+(define read-from-store
+  (persistence-store-read-proc store))
+
+(test-assert "Can read version 0 portrait graph data"
+  (match (call-with-values (lambda () (read-from-store 'graph-and-slots)) list)
+    [(aurie-vat-id roots-version portrait slots) #t]))
 
 (test-end "test-syrup-store")

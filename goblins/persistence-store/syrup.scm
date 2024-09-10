@@ -13,6 +13,7 @@
 ;;; limitations under the License.
 
 (define-module (goblins persistence-store syrup)
+  #:use-module (goblins)
   #:use-module (goblins core-types)
   #:use-module (goblins ghash)
   #:use-module (goblins actor-lib methods)
@@ -26,7 +27,7 @@
 
 (define current-data-version 1)
 (define-record-type <portrait-graph>
-  (make-portrait-graph aurie-vat-id version roots-version portraits slots)
+  (make-portrait-graph version aurie-vat-id roots-version portraits slots)
   portrait-graph?
   (aurie-vat-id portrait-graph-aurie-vat-id)
   ;; Version for the <portrait-graph>
@@ -39,13 +40,15 @@
 ;; In the change from portrait graph version 0 to 1 two new fields (aurie-vat-id
 ;; and roots-version) was added, to ensure old version 0 data is unmarshalled
 ;; correctly we need to provide a default value for those.
-(define portrait-graph-unmarshall-constructor
+(define (current-version? version)
+  (= version current-data-version))
+(define portrait-graph-migrations
   (match-lambda
     ;; Version 0
     [(0 portraits slots)
      (let ((new-aurie-vat-id (gen-random-bv 32 %gcry-strong-random))
            (roots-version 0))
-       (make-portrait-graph new-aurie-vat-id current-data-version
+       (make-portrait-graph current-data-version new-aurie-vat-id
                             roots-version portraits slots))]
     ;; There was a development branch with aurie-vat-id but no ugprade code,
     ;; lets add that just incase.
@@ -53,16 +56,23 @@
     ;; probably can remove this in a few versions.
     [(aurie-vat-id 0 portraits slots)
      (let ((roots-version 0))
-       (make-portrait-graph aurie-vat-id current-data-version
+       (make-portrait-graph current-data-version aurie-vat-id
                             roots-version portraits slots))]
-    [(aurie-vat-id graph-version roots-version portraits slots)
-     (if (equal? graph-version current-data-version)
-         (make-portrait-graph aurie-vat-id graph-version roots-version portraits
-                              slots)
-         (error "Unknown portrait graph version"))]))
+    [((? current-version?) aurie-vat-id roots-version portraits slots)
+     (make-portrait-graph current-data-version aurie-vat-id
+                          roots-version portraits slots)]
+    [something-else
+     ;; TODO: Make aurie specific errors so they can be caught later.
+     (error (format #f "Could not read portrait graph data, got: ~a"
+                    something-else))]))
+
+(define (portrait-graph-constructor . args)
+  ;; In the future, use migrations macro and do the correct version check here.
+  (portrait-graph-migrations args))
 
 (define-values (marshaller::portrait-graph unmarshaller::portrait-graph)
-  (make-marshallers <portrait-graph>))
+  (make-marshallers <portrait-graph>
+                    #:record-constructor portrait-graph-constructor))
 
 (define marshallers
   (list marshaller::portrait-graph))
@@ -75,9 +85,6 @@
         (lambda (port)
           (define portrait-graph
             (syrup-read port #:unmarshallers unmarshallers))
-          (unless (eq? (portrait-graph-version portrait-graph) current-data-version)
-            (error "Portrait data is different version than supported"
-                   (portrait-graph-version portrait-graph)))
 
           ;; Syrup writes both hash-table and ghash as syrup hashmaps
           ;; this is fine, but it has no way to know we want a hash-table
@@ -129,7 +136,7 @@
   (define read-proc
     (methods
      [(graph-and-slots)
-      (values aurie-vat-id saved-portraits saved-slots)]
+      (values aurie-vat-id roots-version saved-portraits saved-slots)]
      [(object-portrait slot)
       (unless (and saved-portraits saved-slots)
         (error "Cannot read an object from an empty store"))
