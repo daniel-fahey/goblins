@@ -3104,7 +3104,7 @@ Type: Actormap PersistenceEnv -> Void"
 Returns the root objects of the graph."
   (define read-proc
     (persistence-store-read-proc store))
-  (define-values (vat-aurie-id portraits slots)
+  (define-values (vat-aurie-id roots-version portraits slots)
     (read-proc 'graph-and-slots))
   (actormap-restore! am env portraits slots))
 
