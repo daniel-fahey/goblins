@@ -56,7 +56,10 @@ Type: (Listof Promise) -> Promise"
             ($ broken? #t)
             (<-np join-resolver 'break err)))))
 
-  (map resolve-promise promises)
+  (if (null? promises)
+      (<-np join-resolver 'fulfill '())
+      (for-each resolve-promise promises))
+
   join-promise)
 
 (define (all-of . promises)
