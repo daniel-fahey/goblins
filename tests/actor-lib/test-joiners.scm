@@ -58,6 +58,10 @@
   (equal? (car (run-joiner-get-result all-of 2 4 7 8))
           'broken))
 
+(test-equal "all-of* fulfills promise when passed empty list"
+  #(ok ())
+  (resolve-vow-and-return-result a-vat (lambda () (all-of* '()))))
+
 (test-equal "race fulfills its own promise if an arg promise is fulfilled first"
   #(ok 42)
   (resolve-vow-and-return-result
