@@ -86,68 +86,80 @@
                (version #f)
                (portrait #f)
                (restore #f)
-               (upgrade #f))
+               (upgrade #f)
+               (self #f))
         (syntax-case body ()
           ((#:frozen . rest)
-           (lp #'rest #t version portrait restore upgrade))
+           (lp #'rest #t version portrait restore upgrade self))
           ((#:version version . rest)
-           (lp #'rest frozen? #'version portrait restore upgrade))
+           (lp #'rest frozen? #'version portrait restore upgrade self))
           ((#:portrait portrait . rest)
-           (lp #'rest frozen? version #'portrait restore upgrade))
+           (lp #'rest frozen? version #'portrait restore upgrade self))
           ((#:restore restore . rest)
-           (lp #'rest frozen? version portrait #'restore upgrade))
+           (lp #'rest frozen? version portrait #'restore upgrade self))
           ((#:upgrade upgrader . rest)
-           (lp #'rest frozen? version portrait restore #'upgrader))
-          (rest-body (values body frozen? version portrait restore upgrade)))))
+           (lp #'rest frozen? version portrait restore #'upgrader self))
+          ((#:self self . rest)
+           (lp #'rest frozen? version portrait restore upgrade #'self))
+          (rest-body (values body frozen? version portrait restore upgrade
+                             self)))))
     (syntax-case stx ()
       [(_ (constructor-id bcom arg ...) body ...)
-       (let ((kwless-body frozen? version portrait restore upgrade
-              (extract-body-keywords #'(body ...))))
+       (let ((kwless-body frozen? version portrait restore upgrade self
+                          (extract-body-keywords #'(body ...))))
          (with-syntax (((arg-name ...) (args->arg-names #'(arg ...)))
                        ((kwless-body-extra ... kwless-body-final) kwless-body))
            (define constructor
-             #`(let ((constructor-id
-                      (lambda* (bcom arg ...)
-                        ;; Define the self-portrait in one of several ways depending
-                        ;; on whether portrait and/or version are supplied...
-                        #,@(cond
-                            ;; If there's a portrait AND a version, we want to enforce
-                            ;; that if the inner portrait gives a portrait that we error
-                            ;; out on seeing another version added
-                            ((and portrait version)
-                             ;; doing the let here makes sure the portrait procedure and
-                             ;; version are instantiated once, not on every call
-                             #`((define self-portrait-proc #,portrait)
-                                (define version #,version)
-                                (define (self-portrait)
-                                  (define result (self-portrait-proc))
-                                  (if (versioned-data? result)
-                                      ;; let's make sure the result's version matches
-                                      (if (equal? (versioned-data-version result)
-                                                  version)
-                                          ;; the version matches, so just return it
-                                          result
-                                          ;; otherwise else, mismatching versions!
-                                          (raise-portrait-version-mismatch
-                                           version (versioned-data-version result)))
-                                      ;; and if it isn't versioned data, let's version it!
-                                      (versioned version result)))))
-                            ;; portrait but no version
-                            (portrait
-                             #`((define self-portrait #,portrait)))
-                            ;; version but no portrait
-                            (version
-                             #`((define version #,version)
-                                (define (self-portrait)
-                                  (versioned #,version
-                                             (list arg-name ...)))))
-                            ;; default with default version
-                            (else
-                             #'((define (self-portrait)
-                                  (list arg-name ...)))))
-                        kwless-body-extra ...
-                        (portraitize kwless-body-final self-portrait))))
-                 constructor-id))
+             (with-syntax ((real-constructor
+                            #`(lambda* (bcom arg ...)
+                               ;; Define the self-portrait in one of several ways depending
+                               ;; on whether portrait and/or version are supplied...
+                               #,@(cond
+                                   ;; If there's a portrait AND a version, we want to enforce
+                                   ;; that if the inner portrait gives a portrait that we error
+                                   ;; out on seeing another version added
+                                   ((and portrait version)
+                                    ;; doing the let here makes sure the portrait procedure and
+                                    ;; version are instantiated once, not on every call
+                                    #`((define self-portrait-proc #,portrait)
+                                       (define version #,version)
+                                       (define (self-portrait)
+                                         (define result (self-portrait-proc))
+                                         (if (versioned-data? result)
+                                             ;; let's make sure the result's version matches
+                                             (if (equal? (versioned-data-version result)
+                                                         version)
+                                                 ;; the version matches, so just return it
+                                                 result
+                                                 ;; otherwise else, mismatching versions!
+                                                 (raise-portrait-version-mismatch
+                                                  version (versioned-data-version result)))
+                                             ;; and if it isn't versioned data, let's version it!
+                                             (versioned version result)))))
+                                   ;; portrait but no version
+                                   (portrait
+                                    #`((define self-portrait #,portrait)))
+                                   ;; version but no portrait
+                                   (version
+                                    #`((define version #,version)
+                                       (define (self-portrait)
+                                         (versioned #,version
+                                                    (list arg-name ...)))))
+                                   ;; default with default version
+                                   (else
+                                    #'((define (self-portrait)
+                                         (list arg-name ...)))))
+                               kwless-body-extra ...
+                               (portraitize kwless-body-final self-portrait))))
+               (if self
+                   (let ((constructor-id
+                          #`(lambda* (_bcom arg ...)
+                             (define constructor-id real-constructor)
+                             (define #,self (spawn constructor-id arg ...))
+                             #,self)))
+                     constructor-id)
+                   #`(let ((constructor-id real-constructor))
+                       constructor-id))))
            (cond
             ((and frozen? restore)
              ;; Not meaningfully, since it removes the optimization

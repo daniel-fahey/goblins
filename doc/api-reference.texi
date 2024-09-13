@@ -385,12 +385,13 @@ Return @code{#t} if @var{obj} is a @emph{far} object or promise, else
 @deffn {Syntax} define-actor (object-name var @dots{}
                              [#:optional vardef @dots{}]
                              [#:key vardef @dots{}])
-                         [#:restore procedure]
-                         [#:portrait thunk]
-                         [#:version version]
-                         [#:frozen]
-                         [#:upgrade]
-                         body @dots{}
+                             [#:restore procedure]
+                             [#:portrait thunk]
+                             [#:version version]
+                             [#:frozen]
+                             [#:upgrade migrator]
+                             [#:self name]
+                             body @dots{}
 
 Defines a goblins object with @var{object-name}. The argument syntax
 is that of @code{define*} or @code{lambda*} in that it takes
@@ -423,6 +424,9 @@ When @code{#:upgrade} is provided, it uses this to migrate the portrait
 data to the newest version. This is designed to work with the @code{migrations}
 macro, however can be used on its own. This cannot be used in combination with
 @code{#:restore}.
+
+When @code{#:self} is provided with a name, that name is bound to the refr
+of the actor itself.
 
 Here is an example defining a simple cell object, portrait would be
 the @var{val}:
