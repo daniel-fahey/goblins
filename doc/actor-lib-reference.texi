@@ -6,6 +6,7 @@ actor model patterns.
 * Cell::
 * Common::
 * Facet::
+* Inbox::
 * IO::
 * Joiners::
 * Let-On::
@@ -226,6 +227,24 @@ arguments to their equivalents in the constructor.
 @end deffn
 
 @defvr {Persistence Environment} facet-env
+@end defvr
+
+@node Inbox
+@section Inbox
+
+The @code{(goblins actor-lib inbox)} module provides an inbox actor
+which allows for writing messages to an inbox, reading them and
+stopping the inbox altogether.
+
+When a message is read from the inbox it will return the next message
+if available. If no message is available it will return a promise. If
+the inbox is stopped it'll break all pending unfulfilled promises.
+
+@deffn {Procedure} spawn-inbox
+Spawns a new inbox, returning three actors: read, write, and stop actor.
+@end deffn
+
+@defvr {Persistence Environment} inbox-env
 @end defvr
 
 @node IO
