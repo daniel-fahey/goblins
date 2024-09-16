@@ -30,7 +30,8 @@
   #:use-module (goblins contrib syrup)
   #:export (spawn-libp2p-netlayer
             ocapn-node->libp2p-multiaddr
-            libp2p-multiaddress->ocapn-node))
+            libp2p-multiaddress->ocapn-node
+            libp2p-netlayer-env))
 
 (define (libp2p-multiaddress->ocapn-node multiaddrs)
   (define peer-id
@@ -173,3 +174,7 @@
       sock))
   (^base-port-netlayer bcom our-location
                        incoming-accept outgoing-connect-location))
+
+(define libp2p-netlayer-env
+  (make-persistence-env
+   `((((goblins ocapn netlayer libp2p) ^libp2p-netlayer) ^libp2p-netlayer))))
