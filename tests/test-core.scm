@@ -875,4 +875,21 @@
 (test-assert "All serializable types can be serialized by aurie"
   (actormap-peek first-actormap types* bar*))
 
+(define namespaced-env
+  (make-namespace-env
+   (tests test-core)
+   ^type-serializer ^bar))
+
+(define-values (portraits slots)
+  (actormap-take-portrait first-actormap namespaced-env types bar))
+(define-values (types* bar*)
+  (actormap-restore! first-actormap namespaced-env portraits slots))
+(test-assert "Can serialize and rehydrate with env made by make-namespace-env"
+  (actormap-peek first-actormap types* bar*))
+
+(test-equal "Name of object is as expected when made with make-namespace-env"
+  '((tests test-core) ^type-serializer)
+  (match (hashq-ref portraits (car slots))
+    [(name debug-name portrait-version portrait-data) name]))
+
 (test-end "test-goblins-core")

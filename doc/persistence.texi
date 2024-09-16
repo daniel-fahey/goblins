@@ -800,6 +800,33 @@ This procedure returns a single value, a persistence environment.
 
 @end deffn
 
+@deffn {Procedure} extend-persistence-envs envs @dots{}
+
+Takes any number of persistence environments and makes a new persistence
+environment containing all of the given @var{envs}.
+
+@end deffn
+
+@deffn {Syntax} make-namespace-env nameaspace objects @dots{}
+
+Makes a new persistence environment with all of the objects provided in
+@var{objects} namespaced within @var{namespace}.
+
+The following are equivalent:
+@lisp
+(define cell-env
+  (make-persistence-env
+   `((((goblins actor-lib cell) ^cell) ,^cell)
+     (((goblins actor-lib cell) ^ro-cell) ,^ro-cell)
+     (((goblins actor-lib cell) ^wo-cell) ,^wo-cell))))
+
+(define cell-env
+  (make-namespace-env
+   (goblins actor-lib cell)
+   ^cell ^ro-cell ^wo-cell))
+@end lisp
+@end deffn
+
 @node Upgrading through persistence
 @section Upgrading through persistence
 
