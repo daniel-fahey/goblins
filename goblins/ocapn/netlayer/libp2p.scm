@@ -160,7 +160,7 @@
                           incoming-connection-sock
                           outgoing-connection-path)
   (define (incoming-accept)
-    (match (accept incoming-connection-sock SOCK_NONBLOCK)
+    (match (accept incoming-connection-sock O_NONBLOCK)
       ((client . addr)
        (setvbuf client 'block 1024)
        client)))
