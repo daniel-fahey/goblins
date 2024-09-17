@@ -115,7 +115,9 @@
             near-promise-resolved?
             near-resolved-promise-value
 
-            make-persistence-env)
+            make-persistence-env
+            persistence-env-compose
+            namespace-env)
 
   #:re-export (live-refr?
                local-refr?
@@ -2555,52 +2557,63 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (parameterize ([current-syscaller #f])
     (proc)))
 
-(define* (make-persistence-env #:optional [objects '()] #:key extends)
-  (define object-spec-list>object-spec
-     (case-lambda
-       [(name constructor)
-        (make-object-spec name constructor
-                          (lambda (version . args)
-                            (apply spawn constructor args)))]
-       [(name constructor rehydrator)
-        (make-object-spec name constructor rehydrator)]))
-
+(define (persistence-env-compose . envs)
+  "Composes a new persistence environment of the provided ENVS"
   (define constructor->object-spec
     (make-hash-table))
   (define name->object-spec
     (make-hash-table))
 
-  (define (add-object-spec! object-spec)
-    (hash-set! name->object-spec
-               (object-spec-name object-spec)
-               object-spec)
-    (hashq-set! constructor->object-spec
-                (object-spec-constructor object-spec)
-                object-spec))
+  (for-each
+   (lambda (env)
+     (hash-for-each
+      (lambda (constructor object-spec)
+        (let ((name (object-spec-name object-spec)))
+          (hash-set! name->object-spec name object-spec)
+          (hashq-set! constructor->object-spec constructor object-spec)))
+      (persistence-env-constructor->object-spec env)))
+   envs)
+
+  (_make-persistence-env constructor->object-spec name->object-spec))
+
+(define* (make-persistence-env* objects)
+  "Constructs a new persistence environment from OBJECTS"
+  (define constructor->object-spec
+    (make-hash-table))
+  (define name->object-spec
+    (make-hash-table))
+
+  (define* (add-object-to-env! name constructor #:optional rehydrator)
+    (define object-spec
+      (make-object-spec name constructor
+                        (or rehydrator
+                            (lambda (version . args)
+                              (apply spawn constructor args)))))
+    (hash-set! name->object-spec name object-spec)
+    (hashq-set! constructor->object-spec constructor object-spec))
 
   (for-each
-   (lambda (object-spec-list)
-     (add-object-spec!
-       (apply object-spec-list>object-spec object-spec-list)))
+   (match-lambda
+     [(name constructor)
+      (add-object-to-env! name constructor)]
+     [(name constructor rehydrator)
+      (add-object-to-env! name constructor rehydrator)])
    objects)
 
-  (define (merge-persistence-env! env)
-    (hash-for-each
-     (lambda (key value)
-       (add-object-spec! value))
-     (persistence-env-constructor->object-spec env)))
-  
-  (match extends
-    ;; Not extending form anything
-    [#f 'noop]
-    ;; Multiple persistence-envs given
-    [(? list? envs)
-     (for-each merge-persistence-env! envs)]
-    ;; Single persistent env given
-    [(? persistence-env? env) (merge-persistence-env! env)]
-    ;; wut.
-    [_ (error "Unknown value to extend persistence environment from" extends)])
-   (_make-persistence-env constructor->object-spec name->object-spec))
+  (_make-persistence-env constructor->object-spec name->object-spec))
+
+
+(define* (make-persistence-env #:optional [objects '()] #:key extends)
+  "Construct a new persistence environment containing all OBJECTS and all objects within EXTENDS"
+  (let ((this-env (make-persistence-env* objects)))
+    (match extends
+      [#f this-env]
+      [(? persistence-env?) (persistence-env-compose this-env extends)]
+      [(_ ...) (apply persistence-env-compose this-env extends)])))
+
+(define-syntax-rule (namespace-env namespace object ...)
+  (make-persistence-env
+   `(((namespace object) ,object) ...)))
 
 (define (make-actormap-read-portrait! persistence-env roots)
   "Creates a read-portrait function for a given graph to take single object portraits of the graph.
