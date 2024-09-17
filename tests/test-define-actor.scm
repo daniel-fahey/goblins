@@ -350,6 +350,25 @@
     (format #f "Hello ~a, my name is ~a (called: ~a)"
             your-name our-name ($ times-called))))
 
+;; Testing #:self argument
+(define-actor (^knows-self bcom)
+  #:self self
+  (lambda (someone)
+    (if (eq? someone self)
+        "that's me!"
+        "I dunno who that is")))
+
+(define ks (actormap-spawn! am ^knows-self))
+(define ks* (actormap-spawn! am ^knows-self))
+
+(test-equal "Actor who knows self through #:self can eq to their own refr"
+  (actormap-peek am ks ks)
+  "that's me!")
+
+(test-equal "Actor who knows self through #:self knows when it isn't themself"
+  (actormap-peek am ks ks*)
+  "I dunno who that is")
+
 ;; Check first upgrading from v1
 (define-values (am-v2 alice-v2)
   (persist-and-restore am-v1 test-upgrade-env alice-v1))
