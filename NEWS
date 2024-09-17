@@ -1,6 +1,75 @@
 #+TITLE: Guile Goblins NEWS – history of user-visible changes
 
 * Releases
+** v0.14
+*** Highlights
+- New Libp2p netlayer
+- Intra-vat persistence support
+- Persistence support in netlayers
+*** New features and improvements
+**** New Libp2p netlayer
+
+Libp2p is a peer-to-peer network stack which backs IPFS, Etherium and other peer
+to peer applications. You can now use Libp2p as a netlayer within Goblins, by
+spawning the =^libp2p-netlayer= actor from =(goblins ocapn netlayer libp2p)=.
+Since there isn't a libp2p library directly in Guile, the netlayer relies upon a
+daemon written in Go, you can find that here:
+
+https://gitlab.com/spritely/go-libp2p-daemon
+
+**** Intra-vat persistence support
+
+Many improvements have come to Aurie support in this release, perhaps the most
+significant is allowing persisting far references, this is references to objects
+which live on other local vats. This is done by a new actor, =^aurie-registry=
+which each vat registers with and coordinates the restoration of each vat
+asynchronously.
+
+Usually in its own vat (does not need to be persistence aware), you spawn a
+aurie registry, you then pass this into each persistent vat using the
+=#:aurie-registry= keyword. As vats can spawned at any time during the programs
+life time, the persistence system resolves far references to promises which may
+resolve when the coordination has completed.
+
+**** Persistence support in netlayers
+
+Netlayers now support the persistence system, allowing for much easier spawning
+and restoring and letting Goblins handle storing and providing the secrets and
+other information a netlayer might need to persist the connection. To enable
+this just spawn the netlayer within a persistent vat and provide a store and
+everything will be handled automatically, just like working with any other
+persistence aware actors.
+
+*** Bug fixes
+
+- Fixes issue where multiple connections would be made when enlivening two
+  sturdyrefs to the same node when no connection existed prior.
+- Vats with logging disabled no longer take a snapshot each churn.
+- The =all-of*= joiners will now resolve when given an empty list of
+  promises.
+- =on-sever= promises will be immediately broken if the CapTP connection has
+  already been severed.
+- Fix issue where IO actor procedures would assume optional init and cleanup
+  procedures where always provided.
+
+*** Known issues
+**** Prelay connections are unencrypted and unauthenticated
+
+Messages sent through the Prelay netlayer can be viewed by the relay server,
+modified and new messages inserted by the server or silently removed and thus
+not delivered by the Prelay netlayer.
+
+This means that you should only use the Prelay netlayers where you can place
+high trust in the relaying server.
+
+**** Lack of dialback within CapTP
+
+When a node connects to another node in Goblins it provides the location where
+it's accessable (i.e. the OCapN node address). One feature of OCapN is to ensure
+only one connection exists to any given node, since the address provided by a
+new incoming connection is never authenticated, this could lead to a denial of
+service by a malicious actor claiming to be a node it is not.
+
 ** v0.13
 *** Highlights
 - New persistence system
