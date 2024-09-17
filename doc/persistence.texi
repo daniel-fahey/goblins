@@ -800,10 +800,10 @@ This procedure returns a single value, a persistence environment.
 
 @end deffn
 
-@deffn {Procedure} extend-persistence-envs envs @dots{}
+@deffn {Procedure} persistence-env-compose envs @dots{}
 
-Takes any number of persistence environments and makes a new persistence
-environment containing all of the given @var{envs}.
+Composes a new persistence environment which contains all of the
+provided @var{envs}.
 
 @end deffn
 

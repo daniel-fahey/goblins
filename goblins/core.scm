@@ -116,7 +116,7 @@
             near-resolved-promise-value
 
             make-persistence-env
-            extend-persistence-envs
+            persistence-env-compose
             make-namespace-env)
 
   #:re-export (live-refr?
@@ -2557,8 +2557,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (parameterize ([current-syscaller #f])
     (proc)))
 
-(define (extend-persistence-envs . envs)
-  "Extends persistence environments passed in to produce one environment with all those objects"
+(define (persistence-env-compose . envs)
+  "Composes a new persistence environment of the provided ENVS"
   (define constructor->object-spec
     (make-hash-table))
   (define name->object-spec
@@ -2576,7 +2576,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
   (_make-persistence-env constructor->object-spec name->object-spec))
 
-(define* (make-persistence-env #:optional [objects '()] #:key extends)
+(define* (make-persistence-env* objects)
+  "Constructs a new persistence environment from OBJECTS"
   (define constructor->object-spec
     (make-hash-table))
   (define name->object-spec
@@ -2599,22 +2600,20 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       (add-object-to-env! name constructor rehydrator)])
    objects)
 
-  (define this-env
-    (_make-persistence-env constructor->object-spec name->object-spec))
+  (_make-persistence-env constructor->object-spec name->object-spec))
 
-  (match extends
-    ;; Not extending form anything
-    [#f this-env]
-    ;; Multiple persistence-envs given
-    [(? list? envs) (apply extend-persistence-envs this-env envs)]
-    ;; Single persistent env given
-    [(? persistence-env? env) (extend-persistence-envs this-env env)]
-    ;; wut.
-    [_ (error "Unknown value to extend persistence environment from" extends)]))
+
+(define* (make-persistence-env #:optional [objects '()] #:key extends)
+  "Construct a new persistence environment containing all OBJECTS and all objects within EXTENDS"
+  (let ((this-env (make-persistence-env* objects)))
+    (match extends
+      [#f this-env]
+      [(? persistence-env?) (persistence-env-compose this-env extends)]
+      [(? pair?) (apply persistence-env-compose this-env extends)])))
 
 (define-syntax-rule (make-namespace-env namespace object ...)
   (make-persistence-env
-   (list (list (list 'namespace 'object) object) ...)))
+   `(((namespace object) ,object) ...)))
 
 (define (make-actormap-read-portrait! persistence-env roots)
   "Creates a read-portrait function for a given graph to take single object portraits of the graph.
