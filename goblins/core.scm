@@ -117,7 +117,7 @@
 
             make-persistence-env
             persistence-env-compose
-            make-namespace-env)
+            namespace-env)
 
   #:re-export (live-refr?
                local-refr?
@@ -2609,9 +2609,9 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
     (match extends
       [#f this-env]
       [(? persistence-env?) (persistence-env-compose this-env extends)]
-      [(? pair?) (apply persistence-env-compose this-env extends)])))
+      [(_ ...) (apply persistence-env-compose this-env extends)])))
 
-(define-syntax-rule (make-namespace-env namespace object ...)
+(define-syntax-rule (namespace-env namespace object ...)
   (make-persistence-env
    `(((namespace object) ,object) ...)))
 
