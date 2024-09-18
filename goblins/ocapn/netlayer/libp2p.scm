@@ -46,7 +46,9 @@
           (match (string-split (substring addr index) #\/)
             [(""  _p2p peer-id) peer-id]
             [something-else (error "Couldn't parse peer-id" something-else)]))))
-  (map (lambda (addr) `(multiaddr ,addr)) multiaddrs))
+  (define hints
+    (map (lambda (addr) `(multiaddr ,addr)) multiaddrs))
+  (make-ocapn-node 'libp2p peer-id hints))
 
 (define (ocapn-node->libp2p-multiaddrs node)
   (unless (and (ocapn-node? node) (eq? (ocapn-node-transport node) 'libp2p))
