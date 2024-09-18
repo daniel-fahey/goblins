@@ -115,7 +115,7 @@
   
   (<-np control-sock 'write-line
         (if private-key
-            (format #f "~a private-key:~a" base-message private-key)
+            (format #f "~a private-key:~a " base-message private-key)
             base-message))
 
   (define (split-control-message message)
