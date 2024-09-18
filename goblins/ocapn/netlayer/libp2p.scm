@@ -126,17 +126,17 @@
 
   (define private-key-config
     (if private-key
-        (format #f " private-key:~a" private-key)
+        (format #f "private-key:~a" private-key)
         ""))
   (define multiaddr-config
     (if our-location
         (let* ((multiaddrs (ocapn-node->libp2p-multiaddrs our-location))
                (address-config (libp2p-multiaddrs->libp2p-config multiaddrs)))
-          (string-join address-config))
+          (string-join address-config " "))
         ""))
 
   (define config-message
-    (string-concatenate (list base-message private-key-config multiaddr-config)))
+    (string-join (list base-message private-key-config multiaddr-config) " "))
 
   (<-np control-sock 'write-line config-message)
 

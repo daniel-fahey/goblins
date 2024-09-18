@@ -124,10 +124,11 @@
     [("NEW"
       ("incoming" incoming-path) ("outgoing" outgoing-path)
       ("protocol" "ocapn") ("version" "1.0.0")
-      ("private-key" key))
+      ("private-key" key) ("address" addr))
      (and (string-prefix? libp2p-path incoming-path)
           (string-prefix? libp2p-path outgoing-path)
-          (string=? key provided-private-key))]
+          (string=? key provided-private-key)
+          (string-prefix? addr provided-location))]
     [something-else #f]))
 
 (test-end "test-libp2p-netlayer")
