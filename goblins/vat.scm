@@ -116,7 +116,7 @@
 
             define-vat-run
 
-            ^aurie-registry
+            ^persistence-registry
 
             ;; and here's a hack, but maybe someone wants
             ;; to start with it and tweak it
@@ -1304,7 +1304,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
   registry-fetch-vat?
   (vat-aurie-id registry-fetch-vat-vat-aurie-id))
 
-(define* (^aurie-registry bcom #:optional (vat-id->vat ghash-null))
+(define* (^persistence-registry bcom #:optional (vat-id->vat ghash-null))
   (match-lambda
     ((? register-request? reg-request)
      (define vat-aurie-id
@@ -1321,7 +1321,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
        (#f 'noop))
      ;; but regardless, become a new version of the registry with the
      ;; registered-vat being set
-     (bcom (^aurie-registry
+     (bcom (^persistence-registry
             bcom (ghash-set vat-id->vat vat-aurie-id vat-obj))))
     ((? registry-fetch-vat? reg-fetch-req)
      (define vat-aurie-id
@@ -1340,7 +1340,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
                                   vat-aurie-id
                                   (list 'waiting registered-vat-vow
                                         registered-vat-resolver))))
-          (bcom (^aurie-registry bcom new-vat-id->vat)
+          (bcom (^persistence-registry bcom new-vat-id->vat)
                 registered-vat-vow)))
        ;; otherwise, it must be the registered vat, so return that
        (vat vat)))))
@@ -1364,7 +1364,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
                                #:key (persist-on 'churn)
                                (vat-constructor spawn-fibrous-vat)
                                name log? (log-capacity default-log-capacity)
-                               aurie-registry
+                               persistence-registry
                                upgrade [version 0])
   "Create and return a reference to a new vat with persistence. All
 objects spawned on the vat that will persist must be persistence
@@ -1386,10 +1386,10 @@ If provided, NAME is the debug name of the vat. If LOG? is #t, log
 vat events, otherwise do not. If provided, LOG-CAPACITY is the number
 of events to retain in the log.
 
-If the AURIE-REGISTRY is provided, it will register this vat with the
+If the PERSISTENCE-REGISTRY is provided, it will register this vat with the
 registry to allow for both this vat and others who share the same registry
 to both persist and rehydrate local far refrs (i.e. refrs on other local vats).
-This value should be the refr of a spawned ^aurie-registry object.
+This value should be the refr of a spawned ^persistence-registry object.
 
 If UPGRADE is provided, upon resturation the vat will check the version of the
 graph roots read from the store, if that version does not match VERSION then the
@@ -1465,12 +1465,12 @@ using the migrations macro."
 
   ;; TODO: If there's no aurie registry should we break all the
   ;; promises requested immediately?
-  (when aurie-registry
+  (when persistence-registry
     ;; Register this vat.
     ;;
     ;; We wait to talk to the registry until after all our Aurie objects
     ;; are restored to avoid race conditions.
-    (<-np-extern aurie-registry
+    (<-np-extern persistence-registry
                  (make-register-request current-vat-aurie-id vat))
 
     ;; Go through all the far actors we're waiting for and try and fetch them.
@@ -1483,7 +1483,7 @@ using the migrations macro."
               ;; we want to retrieve
               ((vat-aurie-id actor-aurie-id)
                 (let ((aurie-id->refr
-                        (<- aurie-registry (make-registry-fetch-vat vat-aurie-id))))
+                        (<- persistence-registry (make-registry-fetch-vat vat-aurie-id))))
                   (on (<- aurie-id->refr actor-aurie-id)
                       (lambda (refr)
                         (<-np resolver 'fulfill refr))

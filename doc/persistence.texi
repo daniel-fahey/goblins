@@ -609,7 +609,8 @@ configured to persist on churns, just the objects which have changed
 
 @deffn {Procedure} spawn-persistent-vat persistent-env spawn-roots-thunk @
        store [#:persist-on] [#:vat-constructor] [#:name] [#:log?]
-       [#:log-capacity] [#:aurie-registry] [#:version] [#:upgrade]
+       [#:log-capacity] [#:persistence-registry] [#:version]
+       [#:upgrade]
 
 Create and return a reference to a new @emph{vat} configured with
 persistence.
@@ -647,8 +648,9 @@ bound to in the current namespace.
 Defaults to 256.
 
 @item
-@var{aurie-registry}: The refr to a shared ^aurie-registry object which, if
-provided, enables persisting and rehydrating objects from other local vats.
+@var{persistence-registry}: The refr to a shared ^persistence-registry
+object which, if provided, enables persisting and rehydrating objects
+from other local vats.
 
 @item
 @var{version}: Usually a number (but not limited to), to indicate the version
@@ -687,24 +689,25 @@ used for the upgrade procedure
    (make-memory-store)))
 @end lisp
 
-The @code{^aurie-registry} actor is designed to be spawned anew each time the
-program starts (i.e. is not part of the persistence graph) and is shared amongst
-several persistent vats which want to persist/rehydrate objects across vats.
+The @code{^persistence-registry} actor is designed to be spawned anew
+each time the program starts (i.e. is not part of the persistence
+graph) and is shared amongst several persistent vats which want to
+persist/rehydrate objects across vats.
 
 Unlike local near refrs which are promises during rehydration, but are swapped
 to local refrs after rehydration is complete, Far refrs remain promises and
 should resolve after both vats are setup and have registered themselves with
-the @code{^aurie-registry} object.
+the @code{^persistence-registry} object.
 
 Here's an example of two vats, the cell on @code{b-vat} holds a reference to
 an object on @code{a-vat}
 
 @lisp
-;; Spawn the aurie registry in its own vat without persistence enabled.
-(define aurie-vat (spawn-vat))
-(define aurie-registry
-  (with-vat aurie-vat
-    (spawn ^aurie-registry)))
+;; Spawn the persistence registry in its own vat without persistence enabled.
+(define persistence-vat (spawn-vat))
+(define persistence-registry
+  (with-vat persistence-vat
+    (spawn ^persistence-registry)))
 
 ;; Spawn the initial a-vat with an a-cell object
 (define a-vat-store (make-memory-store))
@@ -713,7 +716,7 @@ an object on @code{a-vat}
    cell-env
    (lambda () (spawn ^cell))
    a-vat-store
-   #:aurie-registry aurie-registry))
+   #:persistence-registry persistence-registry))
 
 ;; Spawn a b-vat with a b-cell object, that will reference the far refr a-cell
 (define b-vat-store (make-memory-store))
@@ -722,7 +725,7 @@ an object on @code{a-vat}
    cell-env
    (lambda () (spawn ^cell a-cell))
    b-vat-store
-   #:aurie-registry aurie-registry))
+   #:persistence-registry persistence-registry))
 @end lisp
 
 @end deffn
