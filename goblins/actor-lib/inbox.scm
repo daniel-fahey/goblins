@@ -15,19 +15,19 @@
 (define-module (goblins actor-lib inbox)
   #:use-module (goblins)
   #:use-module (goblins actor-lib ward)
-  #:use-module  (goblins actor-lib queue)
+  #:use-module (goblins actor-lib queue)
   #:use-module (srfi srfi-11)
   #:export (spawn-inbox inbox-env))
 
-(define-actor (^channel bcom read-warden write-warden stop-warden
-                        #:optional
-                        [messages (spawn ^queue)]
-                        [pending (spawn ^queue)]
-                        [stopped? #f])
+(define-actor (^inbox bcom read-warden write-warden stop-warden
+                      #:optional
+                      [messages (spawn ^queue)]
+                      [pending (spawn ^queue)]
+                      [stopped? #f])
   #:self-portrait (lambda () (list read-warden write-warden stop-warden messages stopped?))
   #:restore (lambda (read-warden write-warden stop-warden messages stopped?)
-              (spawn ^channel read-warden write-warden stop-warden messages (spawn ^queue)
-                     stopped?))
+              (spawn ^inbox read-warden write-warden stop-warden
+                     messages (spawn ^queue) stopped?))
 
   (define (read-beh)
     (if ($ messages 'empty?)
@@ -44,13 +44,13 @@
           ($ waiting-resolver 'fulfill message))))
 
   (define (defunct . _args)
-    (error "No longer in use"))
+    (error "Inbox is closed"))
 
   (define (stop-beh)
     (while (not ($ pending 'empty?))
       (let ((waiting-resolver ($ pending 'dequeue)))
         ($ waiting-resolver 'break 'inbox-closed)))
-    (bcom (^channel bcom read-warden write-warden stop-warden #f #f #t)))
+    (bcom (^inbox bcom read-warden write-warden stop-warden #f #f #t)))
 
   (if stopped?
       defunct
@@ -59,9 +59,9 @@
              (warded-write-stop-read (ward read-warden read-beh #:extends warded-write-stop)))
         warded-write-stop-read)))
 
-(define-actor (^channel-op _bcom incanter channel)
+(define-actor (^inbox-op _bcom incanter inbox)
   (lambda args
-    (apply $ incanter channel args)))
+    (apply $ incanter inbox args)))
 
 (define (spawn-inbox)
   (define-values (read-warden read-incanter)
@@ -71,13 +71,13 @@
   (define-values (stop-warden stop-incanter)
     (spawn-warding-pair))
 
-  (define channel (spawn ^channel read-warden write-warden stop-warden))
-  (values (spawn-named '^channel-reader ^channel-op read-incanter channel)
-          (spawn-named '^channel-writer ^channel-op write-incanter channel)
-          (spawn-named '^channel-stop! ^channel-op stop-incanter channel)))
+  (define inbox (spawn ^inbox read-warden write-warden stop-warden))
+  (values (spawn-named '^inbox-reader ^inbox-op read-incanter inbox)
+          (spawn-named '^inbox-writer ^inbox-op write-incanter inbox)
+          (spawn-named '^inbox-stop! ^inbox-op stop-incanter inbox)))
 
 (define inbox-env
   (make-persistence-env
-   `((((goblins actor-lib inbox) ^channel) ,^channel)
-     (((goblins actor-lib inbox) ^channel-op) ,^channel-op))
+   `((((goblins actor-lib inbox) ^inbox) ,^inbox)
+     (((goblins actor-lib inbox) ^inbox-op) ,^inbox-op))
    #:extends (list queue-env ward-env)))

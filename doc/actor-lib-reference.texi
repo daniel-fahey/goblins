@@ -233,8 +233,9 @@ arguments to their equivalents in the constructor.
 @section Inbox
 
 The @code{(goblins actor-lib inbox)} module provides an inbox actor
-which allows for writing messages to an inbox, reading them and
-stopping the inbox altogether.
+that serves as a message queue.  Messages can be written to and read
+from the inbox.  The inbox can be also be closed to prevent further
+messages from accumulating.
 
 When a message is read from the inbox it will return the next message
 if available. If no message is available it will return a promise. If
