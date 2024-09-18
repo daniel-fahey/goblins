@@ -78,6 +78,8 @@
                spawn-promise-values
 
                make-persistence-env
+               namespace-env
+               persistence-env-compose
                portraitize
                actormap-take-portrait
                actormap-replace-behavior
