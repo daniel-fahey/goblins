@@ -497,18 +497,24 @@ Return a freshly generated X.509 certificate for @var{key}.
 @defvr {Persistence Environment} tcp-tls-netlayer-env
 @end defvr
                                                 
-@node Libp2p
-@subsection Libp2p
+@node libp2p
+@subsection libp2p
 
-The Libp2p netlayer communicates over the Libp2p (@url{https://libp2p.io})
+The libp2p netlayer communicates over the @url{https://libp2p.io,libp2p}
 networking stack, which is designed to provide secure peer-to-peer
-connections over a many of network protocols. Goblins itself implement
-the libp2p, but relies on the Libp2p daemon. This can be setup by
-referring to that project's documentation. You can find the Libp2p
-daemon here: @url{https://gitlab.com/spritely/go-libp2p-daemon}
+connections over over a variety of networking protocols.
+Goblins relies upon an external server, the @url{https:/
+/gitlab.com/spritely/go-libp2p-daemon,Go libp2p daemon}, to access the
+libp2p network.  Refer to the daemon's documentation for setup
+instructions.
+
+@url{https://gitlab.com/spritely/go-libp2p-daemon}
 
 @deffn {Constructor} ^libp2p-netlayer [private-key] [our-location]
                                       [#:control-path] [#:path]
+
+Spawning this constructor will produce a new instance of the libp2p
+netlayer.
 
 When @var{private-key} and @var{our-location} are used to specify an
 existing private key and location that the netlayer should establish the
@@ -529,7 +535,7 @@ libp2p daemon to communicate over. It defaults to /tmp/goblins-libp2p
 @deffn {Procedure} ocapn-node->libp2p-multiaddr node
 
 When provided an ocapn node, it will convert this to a multiaddr string
-used by Libp2p.
+used by libp2p.
 
 @end deffn
 
