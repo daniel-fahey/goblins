@@ -77,7 +77,7 @@
           (spawn-named '^inbox-stop! ^inbox-op stop-incanter inbox)))
 
 (define inbox-env
-  (make-persistence-env
-   `((((goblins actor-lib inbox) ^inbox) ,^inbox)
-     (((goblins actor-lib inbox) ^inbox-op) ,^inbox-op))
-   #:extends (list queue-env ward-env)))
+  (persistence-env-compose
+   (namespace-env (goblins actor-lib inbox) ^inbox ^inbox-op)
+   queue-env
+   ward-env))
