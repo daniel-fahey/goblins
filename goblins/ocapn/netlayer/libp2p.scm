@@ -46,13 +46,7 @@
           (match (string-split (substring addr index) #\/)
             [(""  _p2p peer-id) peer-id]
             [something-else (error "Couldn't parse peer-id" something-else)]))))
-  (make-ocapn-node
-   'libp2p
-   peer-id
-   (map
-    (lambda (addr)
-      `(multiaddr ,addr))
-    multiaddrs)))
+  (map (lambda (addr) `(multiaddr ,addr)) multiaddrs))
 
 (define (ocapn-node->libp2p-multiaddr node)
   (unless (and (ocapn-node? node) (eq? (ocapn-node-transport node) 'libp2p))
@@ -64,24 +58,24 @@
        [('multiaddr multiaddr) multiaddr]))
    (ocapn-node-hints node)))
 
-(define (build-path . args)
+(define (build-filename . args)
   (string-join args file-name-separator-string))
 
 (define default-libp2p-control-path
-  (build-path "/tmp" "libp2p-control.sock"))
+  (build-filename "/tmp" "libp2p-control.sock"))
 
 (define default-libp2p-path
-  (build-path "/tmp" "goblins-libp2p"))
+  (build-filename "/tmp" "goblins-libp2p"))
 
-(define* (setup-ocapn-io control-path path
+(define* (setup-ocapn-io control-path socket-dir
                          #:optional private-key)
   ;; Set up the temporary directory and paths we'll be using for this
   ;; captp process
-  (unless (file-exists? path)
+  (unless (file-exists? socket-dir)
     ;; TODO: Make this recursive?
-    (mkdir path))
+    (mkdir socket-dir))
   (define incoming-connections-path
-    (random-tmp-filename path
+    (random-tmp-filename socket-dir
                          #:format-name
                          (lambda (name)
                            ;; store the uid in the ocapn sock directory so maybe
@@ -90,7 +84,7 @@
                            (format #f "ocapn-~a-~a.sock"
                                    (getuid) name))))
   (define outgoing-connections-path
-    (random-tmp-filename path
+    (random-tmp-filename socket-dir
                          #:format-name
                          (lambda (name)
                            ;; store the uid in the ocapn sock directory so maybe
@@ -122,9 +116,9 @@
     (let* ((trimmed-message (string-trim message #\space))
            (pairs (string-split trimmed-message #\space)))
       (map (lambda (pair)
-             (let ((seperator-index (string-index pair #\:)))
-               (list (substring pair 0 seperator-index)
-                     (substring pair (+ 1 seperator-index)))))
+             (let ((separator-index (string-index pair #\:)))
+               (list (substring pair 0 separator-index)
+                     (substring pair (+ 1 separator-index)))))
            pairs)))
   
   (define-values (private-key-vow private-key-resolver)
@@ -142,7 +136,7 @@
           [something
            ($ private-key-resolver 'break (format #f "Expected private key, got ~a" something))
            ($ our-location-resolver 'break (format #f "Expected our-location, got ~a" something))
-           (error "Got unknown:" something)])))
+           (error "Got unknown response from libp2p daemon:" something)])))
 
   (values our-location-vow private-key-vow
           control-sock
@@ -189,8 +183,8 @@
   (define (outgoing-connect-location location)
     (unless (eq? (ocapn-node-transport location) 'libp2p)
       (error "Wrong netlayer! Expected libp2p" location))
-    (let* ((designator (ocapn-node-designator location))
-           (sock (make-client-unix-domain-socket outgoing-connection-path)))
+    (let ((designator (ocapn-node-designator location))
+          (sock (make-client-unix-domain-socket outgoing-connection-path)))
       (setup-outgoing-sock sock location)
       sock))
   (^base-port-netlayer bcom our-location
