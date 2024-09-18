@@ -127,6 +127,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/ocapn/test-marshalling.scm \
         tests/ocapn/test-captp.scm \
         tests/ocapn/netlayer/test-fake.scm \
+        tests/ocapn/netlayer/test-libp2p.scm \
         tests/ocapn/netlayer/test-prelay.scm \
         tests/ocapn/netlayer/test-prelay-utils.scm \
         tests/persistence-store/test-syrup.scm \
