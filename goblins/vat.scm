@@ -1437,7 +1437,7 @@ using the migrations macro."
 
   (define (upgrade-roots)
     (define-values (new-version new-roots)
-      (with-vat vat (upgrade roots-version roots)))
+      (with-vat vat (apply upgrade roots-version roots)))
     (if (equal? new-version version)
         new-roots
         (error (format #f "Migration upgraded the roots from ~a to ~a, but expected upgrade to ~a"
