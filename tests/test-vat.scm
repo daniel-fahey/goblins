@@ -1122,9 +1122,9 @@
     ($ ($ foo))))
 
 (define aurie-vat (spawn-vat))
-(define aurie-registry
+(define persistence-registry
   (with-vat aurie-vat
-    (spawn ^aurie-registry)))
+    (spawn ^persistence-registry)))
 
 (define a-vat-store (make-memory-store))
 (define-values (a-vat a-cell)
@@ -1132,7 +1132,7 @@
    cell-env
    (lambda () (spawn ^cell))
    a-vat-store
-   #:aurie-registry aurie-registry))
+   #:persistence-registry persistence-registry))
 
 (define b-vat-store (make-memory-store))
 (define-values (b-vat b-cell)
@@ -1140,26 +1140,26 @@
    cell-env
    (lambda () (spawn ^cell a-cell))
    b-vat-store
-   #:aurie-registry aurie-registry))
+   #:persistence-registry persistence-registry))
 
 ;; Now restore from the same memory stores using an aurie registry
-(define aurie-registry*
+(define persistence-registry*
   (with-vat aurie-vat
-    (spawn ^aurie-registry)))
+    (spawn ^persistence-registry)))
 
 (define-values (a-vat* a-cell*)
   (spawn-persistent-vat
    cell-env
    (lambda () (error "Should be being restored from the memory"))
    a-vat-store
-   #:aurie-registry aurie-registry*))
+   #:persistence-registry persistence-registry*))
 
 (define-values (b-vat* b-cell*)
   (spawn-persistent-vat
    cell-env
    (lambda () (error "Should be being restored from the memory"))
    b-vat-store
-   #:aurie-registry aurie-registry*))
+   #:persistence-registry persistence-registry*))
 
 (test-assert "A far reference can be persisted and restored"
   (match (resolve-vow-and-return-result
