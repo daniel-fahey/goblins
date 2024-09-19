@@ -14,15 +14,9 @@
 
 (define-module (goblins ocapn netlayer libp2p)
   #:use-module (ice-9 match)
-  #:use-module (ice-9 regex)
-  #:use-module (ice-9 binary-ports)
-  #:use-module (rnrs bytevectors)
   #:use-module (rnrs io ports)
-  #:use-module (ice-9 iconv)
-  #:use-module (fibers channels)
   #:use-module (goblins)
   #:use-module (goblins vat)
-  #:use-module (goblins utils crypto)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib io)
   #:use-module (goblins actor-lib swappable)
@@ -30,7 +24,6 @@
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer utils)
   #:use-module (goblins ocapn netlayer base-port)
-  #:use-module (goblins contrib syrup)
   #:export (^libp2p-netlayer
             ocapn-node->libp2p-multiaddrs
             libp2p-multiaddress->ocapn-node
@@ -112,9 +105,7 @@
 
   (define incoming-connections-sock
     (spawn ^io (make-server-unix-domain-socket incoming-connections-path)
-           #:cleanup
-           (lambda (resource)
-             (close-port resource))))
+           #:cleanup close-port))
 
   (define base-message
     (format #f "NEW incoming:~a outgoing:~a protocol:ocapn version:1.0.0"
@@ -178,7 +169,7 @@
    sock)
   (flush-output-port sock))
 
-(define-actor (^libp2p-netlayer-SETUP bcom
+(define-actor (^libp2p-netlayer:setup bcom
                                       our-location private-key
                                       control-path path
                                       #:optional
@@ -218,7 +209,7 @@
   (^base-port-netlayer bcom our-location
                        incoming-accept outgoing-connect-location))
 
-(define-actor (^libp2p-netlayer-FRESH _bcom swap-to control-path path)
+(define-actor (^libp2p-netlayer:fresh _bcom swap-to control-path path)
   ;; We're not fully setup yet so setup a promise pair to forward messages
   ;; sent to us while we're setting ourselves up.
   (define-values (setup-netlayer-vow setup-netlayer-resolver)
@@ -232,7 +223,7 @@
 
   (let-on ((our-location our-location-vow)
            (private-key private-key-vow))
-          (let ((ready (spawn ^libp2p-netlayer-SETUP
+          (let ((ready (spawn ^libp2p-netlayer:setup
                               our-location private-key
                               control-path path
                               control-sock
@@ -256,9 +247,9 @@
 
   (define netlayer
     (if (and our-location private-key)
-        (spawn ^libp2p-netlayer-SETUP our-location private-key
+        (spawn ^libp2p-netlayer:setup our-location private-key
                control-path path)
-        (spawn ^libp2p-netlayer-FRESH swap-to-vow
+        (spawn ^libp2p-netlayer:fresh swap-to-vow
                control-path path)))
 
   (define-values (proxy swap-to)
@@ -267,7 +258,9 @@
   proxy)
 
 (define libp2p-netlayer-env
-  (make-persistence-env
-   `((((goblins ocapn netlayer libp2p) ^libp2p-netlyaer-FRESH) ,^libp2p-netlayer-FRESH)
-     (((goblins ocapn netlayer libp2p) ^libp2p-netlayer-SETUP) ,^libp2p-netlayer-SETUP))
-   #:extends swappable-env))
+  (persistence-env-compose
+   (namespace-env
+    (goblins ocapn netlayer libp2p)
+    ^libp2p-netlayer:fresh
+    ^libp2p-netlayer:setup)
+   swappable-env))

@@ -31,10 +31,9 @@
             #:promise? #t))))
 
 (define env
-  (make-persistence-env
-   `((((examples try-captp-onion) ^greeter) ,^greeter)
-     (((examples try-captp-onion) ^greeter-sref) ,^greeter-sref))
-   #:extends (list captp-env libp2p-netlayer-env)))
+  (persistence-env-compose
+   (namespace-env (examples try-captp-libp2p) ^greeter ^greeter-sref)
+   captp-env libp2p-netlayer-env))
 
 (define (libp2p-server)
   (define-values (vat libp2p-netlayer libp2p-mycapn alice-sref)
