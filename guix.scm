@@ -31,7 +31,7 @@
 
 (package
   (name "guile-goblins")
-  (version "0.13.0-git")
+  (version "0.14.0-git")
   (source (local-file (dirname (current-filename))
                       #:recursive? #t
                       #:select? keep-file?))
