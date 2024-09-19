@@ -19,17 +19,17 @@ https://gitlab.com/spritely/go-libp2p-daemon
 
 **** Intra-vat persistence support
 
-Many improvements have come to Aurie support in this release, perhaps the most
-significant is allowing persisting far references, this is references to objects
-which live on other local vats. This is done by a new actor, =^aurie-registry=
-which each vat registers with and coordinates the restoration of each vat
-asynchronously.
+Many improvements have come to the persistence system in this release, perhaps
+the most significant is allowing persisting far references, this is references
+to objects which live on other local vats. This is done by a new actor,
+=^persistence-registry= which each vat registers with and coordinates the
+restoration of each vat asynchronously.
 
 Usually in its own vat (does not need to be persistence aware), you spawn a
-aurie registry, you then pass this into each persistent vat using the
-=#:aurie-registry= keyword. Since vats can be spawned at any time during the
-program's lifetime, the persistence system resolves far references to promises
-which may resolve when the coordination has completed.
+persistence registry, you then pass this into each persistent vat using the
+=#:persistence-registry= keyword. Since vats can be spawned at any time during
+the program's lifetime, the persistence system resolves far references to
+promises which may resolve when the coordination has completed.
 
 **** Persistence support in netlayers
 
