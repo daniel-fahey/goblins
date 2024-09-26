@@ -68,15 +68,13 @@
   (actormap-peek am* bob* "Carol"))
 
 ;; Check upgrading from a version without aurie-vat-id and root version
-(define-record-type <v0-portrait-graph>
+(define-syrup-record <v0-portrait-graph>
   (make-v0-portrait-graph version portraits slots)
   portrait-graph?
+  '<portrait-graph> marshaller::v0-portrait-graph unmarshaller::v0-portrait-graph
   (version portrait-graph-version)
   (portraits portrait-graph-portraits)
   (slots portrait-graph-slots))
-
-(define-values (marshaller::v0-portrait-graph unmarshaller::v0-portrait-graph)
-  (make-marshallers <v0-portrait-graph> #:name '<portrait-graph>))
 
 (define v0-portrait-graph (make-v0-portrait-graph 0 portraits slots))
 (define filename (tmpnam))

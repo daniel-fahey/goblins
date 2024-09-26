@@ -13,8 +13,8 @@
 ;;; limitations under the License.
 
 (define-module (goblins ocapn ids)
-  #:use-module (goblins ocapn marshalling)
   #:use-module (goblins utils crypto)
+  #:use-module (goblins contrib syrup)
   #:use-module (web uri)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
@@ -55,15 +55,13 @@
 ;; . o O (Are hints really a good idea or needed anymore?)
 
 ;; EG: "ocapn://wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.onion?foo=bar"
-(define-record-type <ocapn-node>
+(define-syrup-record <ocapn-node>
   (make-ocapn-node transport designator hints)
   ocapn-node?
+  'ocapn-node marshall::ocapn-node unmarshall::ocapn-node
   (transport ocapn-node-transport)
   (designator ocapn-node-designator)
   (hints ocapn-node-hints))
-
-(define-values (marshall::ocapn-node unmarshall::ocapn-node)
-  (make-marshallers <ocapn-node> #:name 'ocapn-node))
 
 ;; ocapn nodes give the capability to access the node, these shouldn't be
 ;; leaked in tracebacks.
@@ -81,14 +79,12 @@
 ;;
 ;;   <ocapn-sturdyref <ocapn-node $transport $transport-designator $transport-hints>
 ;;                    $swiss-num>
-(define-record-type <ocapn-sturdyref>
+(define-syrup-record <ocapn-sturdyref>
   (make-ocapn-sturdyref node swiss-num)
   ocapn-sturdyref?
+  'ocapn-sturdyref marshall::ocapn-sturdyref unmarshall::ocapn-sturdyref
   (node ocapn-sturdyref-node)
   (swiss-num ocapn-sturdyref-swiss-num))
-
-(define-values (marshall::ocapn-sturdyref unmarshall::ocapn-sturdyref)
-  (make-marshallers <ocapn-sturdyref> #:name 'ocapn-sturdyref))
 
 ;; ocapn sturdyref give the capability to access the object, these shouldn't be
 ;; leaked in tracebacks.
@@ -110,8 +106,6 @@
 ;;   (node ocapn-cert-node)
 ;;   (certdata ocapn-cert-certdata))
 ;;
-;; (define-values (marshall::ocapn-cert unmarshall::ocapn-cert)
-;;   (make-marshallers <ocapn-cert> #:name 'ocapn-cert))
 
 ;; Ocapn bearer certificate union URI:
 ;;
@@ -129,9 +123,6 @@
 ;;   (cert ocapn-bearer-union-cert)
 ;;   (key-type ocapn-bearer-union-key-type)
 ;;   (private-key ocapn-bearer-union-private-key))
-;;
-;; (define-values (marshall::ocapn-bearer-union unmarshall::ocapn-bearer-union)
-;;   (make-marshallers <ocapn-bearer-union> #:name 'ocapn-bearer-union))
 
 (define (ocapn-id? obj)
   (or (ocapn-node? obj)
