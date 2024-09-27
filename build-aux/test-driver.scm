@@ -131,6 +131,10 @@ the source file plus the line number for test."
        `(testcase (@ (id ,(generate-test-case-id src-file src-line name))
                      (name ,(if name name ""))
                      (time ,(format #f "~f" runtime)))))
+      ((name 'skip src-file src-line failure-reason runtime src)
+       `(testcase (@ (id ,(generate-test-case-id src-file src-line name))
+                     (name ,(if name name "")))
+         (skipped)))
       ((name result-kind src-file src-line failure-reason runtime src)
        `(testcase (@ (id ,(generate-test-case-id src-file src-line name))
                      (name ,(if name name ""))
@@ -185,6 +189,9 @@ the source file plus the line number for test."
       (+ (test-runner-fail-count runner)
          (test-runner-xpass-count runner)))
 
+    (define number-of-skips
+      (test-runner-skip-count runner))
+
     (define total-runtime
       (calculate-total-test-time test-results))
 
@@ -192,10 +199,12 @@ the source file plus the line number for test."
                     (name ,(strftime "Test Run %Y%m%d_%H%M%S)" (gmtime (current-time))))
                     (tests ,number-of-tests)
                     (failures ,number-of-failures)
+                    (skipped ,number-of-skips)
                     (time ,(format #f "~f" total-runtime)))
       (testsuite (@ (id ,(generate-test-case-id "" "" test-name))
                     (name ,test-name)
                     (failures ,number-of-failures)
+                    (skipped ,number-of-skips)
                     (time ,(format #f "~f" total-runtime)))
                  ,@(map test-result->junit test-results))))
 
