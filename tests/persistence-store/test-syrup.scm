@@ -2,7 +2,6 @@
   #:use-module (goblins)
   #:use-module (goblins core-types)
   #:use-module (goblins persistence-store syrup)
-  #:use-module (goblins ocapn marshalling)
   #:use-module (goblins contrib syrup)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-64)
