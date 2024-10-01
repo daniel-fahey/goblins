@@ -141,7 +141,8 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/test-repl.scm \
         tests/utils/test-base32.scm \
         tests/utils/test-bytes-stuff.scm \
-        tests/utils/test-ring-buffer.scm
+        tests/utils/test-ring-buffer.scm \
+        tests/contrib/test-syrup.scm
 
 TEST_EXTENSIONS = .scm
 SCM_LOG_DRIVER =                                \
