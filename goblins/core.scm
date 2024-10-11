@@ -880,6 +880,7 @@ Type: Any -> Boolean"
   (and (local-refr? obj)
        (let ((sys (get-syscaller-or-die)))
          (syscaller-near-refr? sys obj))))
+
 (define (far-refr? obj)
   "Return #t if OBJ is an object or promise reference within a
 different vat, else #f.
