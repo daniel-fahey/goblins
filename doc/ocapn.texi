@@ -128,7 +128,7 @@ with your actual username):
 DataDirectory /home/<user>/.cache/goblins/tor/data/
 SocksPort unix:/home/<user>/.cache/goblins/tor/tor-socks-sock RelaxDirModeCheck
 ControlSocket unix:/home/<user>/.cache/goblins/tor/tor-control-sock RelaxDirModeCheck
-Log notice file /home/<user>/.cache/goblins/tor/tor-log.txt@}|
+Log notice file /home/<user>/.cache/goblins/tor/tor-log.txt
 @end example
 
 Write this configuration to @file{~/.config/goblins/tor-config.txt}.
