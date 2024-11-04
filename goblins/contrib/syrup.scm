@@ -116,13 +116,14 @@
   new-bv)
 
 (define* (netstring-encode bstr #:key [joiner colon-bv])
-  (define bstr-len
-    (bytevector-length bstr))
-  (define bstr-len-as-bytes
-    (string->bytes/latin-1 (number->string bstr-len)))
-  (bytes-append bstr-len-as-bytes
-                joiner
-                bstr))
+  (call-with-output-bytevector
+   (lambda (port)
+     (write-as-netstring! port bstr #:joiner joiner))))
+(define* (write-as-netstring! port bstr #:key [joiner colon-bv])
+  (let ((bstr-len (bytevector-length bstr)))
+    (put-bytevector port (string->bytes/latin-1 (number->string bstr-len)))
+    (put-bytevector port joiner)
+    (put-bytevector port bstr)))
 
 (define (string->bytes/latin-1 str)
   (string->bytevector str "ISO-8859-1"))
@@ -133,6 +134,9 @@
 
 ;; alias for simplicity
 (define bytes string->bytes/latin-1)
+
+(define zero-bv
+  (string->bytes/latin-1 "0+"))
 
 ;; Test: 
 #;(bytevector->string
@@ -214,58 +218,108 @@
      vhash-fold))
   (define encode-ghash
     (build-encode-hash ghash-ref ghash-fold))
-  (define (encode obj)
+  (define (output-list! port obj)
+    (put-bytevector port squarebrac-left-bv)
+    (for-each
+     (lambda (item)
+       (encode item #:port port))
+     obj)
+    (put-bytevector port squarebrac-right-bv))
+  (define (output-tagged! port obj)
+    (put-bytevector port anglebrac-left-bv)
+    (encode (tagged-label obj) #:port port)
+    (for-each
+     (lambda (arg)
+       (encode arg #:port port))
+     (tagged-data obj))
+    (put-bytevector port anglebrac-right-bv))
+  (define* (encode obj #:key [port #f])
     (match obj
       ;; Bytes are like <bytes-len>:<bytes>
       [(? bytevector?)
-       (netstring-encode obj)]
-      [0 (string->bytes/latin-1 "0+")]
+       (if port
+           (write-as-netstring! port obj)
+           (netstring-encode obj))]
+      [0
+       (if port
+           (put-bytevector port zero-bv)
+           zero-bv)]
       ;; Integers are like <integer>+ or <integer>-
       [(? integer?)
-       (if (positive? obj)
-           (bytes-append (string->bytes/latin-1 (number->string obj)) plus-bv)
-           (bytes-append (string->bytes/latin-1 (number->string (* obj -1))) minus-bv))]
+       (let* ((pos? (positive? obj))
+              (number-to-output (if pos? obj (* obj -1)))
+              (sign-char (if pos? plus-bv minus-bv))
+              (encoded-number (string->bytes/latin-1 (number->string number-to-output))))
+         (if port
+             (begin
+               (put-bytevector port encoded-number)
+               (put-bytevector port sign-char))
+             (bytes-append encoded-number sign-char)))]
       ;; Lists are like [<item1><item2><item3>]
       [(or (? pair?) '())
-       (bytes-append squarebrac-left-bv
-                     (apply bytes-append
-                            (map encode obj))
-                     squarebrac-right-bv)]
+       (if port
+           (output-list! port obj)
+           (call-with-output-bytevector
+            (lambda (port)
+              (output-list! port obj))))]
       ;; Dictionaries are like {<key1><val1><key2><val2>}
       ;; We sort by the key being fully encoded.
       [(? hash-table?)
-       (encode-hash obj)]
+       (let ((encoded-hash (encode-hash obj)))
+         (if port
+             (put-bytevector port encoded-hash)
+             encoded-hash))]
       [(? ghash?)
-       (encode-ghash obj)]
+       (let ((encoded-ghash (encode-ghash obj)))
+         (if port
+             (put-bytevector port encoded-ghash)
+             encoded-ghash))]
       ;; Strings are like <encoded-bytes-len>"<utf8-encoded>
       [(? string?)
-       (netstring-encode (string->bytes/utf-8 obj)
-                         #:joiner doublequote-bv)]
+       (let ((encoded-string (string->bytes/utf-8 obj)))
+         (if port
+             (write-as-netstring! port encoded-string #:joiner doublequote-bv)
+             (netstring-encode encoded-string #:joiner doublequote-bv)))]
       ;; Symbols are like <encoded-bytes-len>'<utf8-encoded>
       [(? symbol?)
-       (netstring-encode (string->bytes/utf-8
-                          (symbol->string obj))
-                         #:joiner singlequote-bv)]
+       (let ((encoded-symbol (string->bytes/utf-8 (symbol->string obj))))
+         (if port
+             (write-as-netstring! port encoded-symbol #:joiner singlequote-bv)
+             (netstring-encode encoded-symbol #:joiner singlequote-bv)))]
       ;; Single flonum floats are like F<big-endian-encoded-single-float>
       [(? pseudosingle?)
        (let ([bv (make-bytevector 4)])
          (bytevector-ieee-single-set! bv 0 obj (endianness big))
-         (bytes-append F-bv bv))]
+         (if port
+             (begin
+               (put-bytevector port F-bv)
+               (put-bytevector port bv))
+             (bytes-append F-bv bv)))]
       ;; Double flonum floats are like D<big-endian-encoded-double-float>
       [(and (? number?) (? inexact?))
        (let ([bv (make-bytevector 8)])
          (bytevector-ieee-double-set! bv 0 obj (endianness big))
-         (bytes-append D-bv bv))]
+         (if port
+             (begin
+               (put-bytevector port D-bv)
+               (put-bytevector port bv))
+             (bytes-append D-bv bv)))]
       ;; Records are like <<tag><arg1><arg2>> but with the outer <> for realsies
       [(? tagged?)
-       (bytes-append anglebrac-left-bv
-                     (encode (tagged-label obj))
-                     (apply bytes-append
-                            (map encode (tagged-data obj)))
-                     anglebrac-right-bv)]
+       (if port
+           (output-tagged! port obj)
+           (call-with-output-bytevector
+            (lambda (port)
+              (output-tagged! port obj))))]
       ;; #t is t, #f is f
-      [#t t-bv]
-      [#f f-bv]
+      [#t
+       (if port
+           (put-bytevector port t-bv)
+           t-bv)]
+      [#f
+       (if port
+           (put-bytevector port f-bv)
+           f-bv)]
       ;; Sets are like #<item1><item2><item3>$
       [(? gset?)
        (let* ([encoded-items
@@ -277,9 +331,18 @@
               [sorted-items
                (sort encoded-items
                      bytes<?)])
-         (bytes-append hash-bv
-                       (apply bytes-append sorted-items)
-                       dollar-bv))]
+         (if port
+             (begin
+               (put-bytevector port hash-bv)
+               (for-each
+                (lambda (sorted-item)
+                  (put-bytevector port sorted-item))
+                sorted-items)
+               (put-bytevector port dollar-bv))
+
+             (bytes-append hash-bv
+                           (apply bytes-append sorted-items)
+                           dollar-bv)))]
       [_
        (call/ec
         (lambda (return)
@@ -288,7 +351,7 @@
                        (when (handles-it? obj)
                          (let ((translated (translate obj)))
                            (if (record? translated)
-                               (return (encode translated))
+                               (return (encode translated #:port port))
                                (error 'syrup-marshaller-returned-unsupported-type))))))
                     marshallers)
           (error "Unsupported Syrup type:" obj)))]))
@@ -475,4 +538,3 @@
   (define bstr-port
     (open-bytevector-input-port bstr))
   (syrup-read bstr-port #:unmarshallers unmarshallers))
-
