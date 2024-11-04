@@ -108,13 +108,17 @@
   animal?
   (name animal-name)
   (noise animal-noise))
+(define (serialize-animal label animal)
+  (match animal
+    [($ <animal> name noise)
+     (make-tagged* label name noise)]))
 (define-values (marshall::animal unmarshall::animal)
-  (make-marshallers <animal> #:name 'animal))
+  (make-marshallers 'animal animal? make-animal serialize-animal))
 
-(define-syrup-record <fruit>
+(define-syrup-record-type <fruit>
   (make-fruit name color)
   fruit?
-  'fruit marshall::fruit unmarshall::fruit
+  fruit marshall::fruit unmarshall::fruit
   (name fruit-name)
   (color fruit-color))
 

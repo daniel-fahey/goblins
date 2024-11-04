@@ -55,10 +55,10 @@
 ;; . o O (Are hints really a good idea or needed anymore?)
 
 ;; EG: "ocapn://wy46gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.onion?foo=bar"
-(define-syrup-record <ocapn-node>
+(define-syrup-record-type <ocapn-node>
   (make-ocapn-node transport designator hints)
   ocapn-node?
-  'ocapn-node marshall::ocapn-node unmarshall::ocapn-node
+  ocapn-node marshall::ocapn-node unmarshall::ocapn-node
   (transport ocapn-node-transport)
   (designator ocapn-node-designator)
   (hints ocapn-node-hints))
@@ -79,10 +79,10 @@
 ;;
 ;;   <ocapn-sturdyref <ocapn-node $transport $transport-designator $transport-hints>
 ;;                    $swiss-num>
-(define-syrup-record <ocapn-sturdyref>
+(define-syrup-record-type <ocapn-sturdyref>
   (make-ocapn-sturdyref node swiss-num)
   ocapn-sturdyref?
-  'ocapn-sturdyref marshall::ocapn-sturdyref unmarshall::ocapn-sturdyref
+  ocapn-sturdyref marshall::ocapn-sturdyref unmarshall::ocapn-sturdyref
   (node ocapn-sturdyref-node)
   (swiss-num ocapn-sturdyref-swiss-num))
 

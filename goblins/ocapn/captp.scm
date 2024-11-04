@@ -86,10 +86,10 @@
 ;;; Messages
 
 ;; Queue a delivery of verb(args..) to recip, discarding the outcome.
-(define-syrup-record <op:deliver-only>
+(define-syrup-record-type <op:deliver-only>
   (op:deliver-only to-desc args)
   op:deliver-only?
-  'op:deliver-only marshall::op:deliver-only unmarshall::op:deliver-only
+  op:deliver-only marshall::op:deliver-only unmarshall::op:deliver-only
   ;; Position in the table for the target
   ;; (sender's imports, reciever's exports)
   (to-desc op:deliver-only-to-desc)
@@ -98,10 +98,10 @@
   (args op:deliver-only-args))
 
 ;; Queue a delivery of verb(args..) to recip, binding answer/rdr to the outcome.
-(define-syrup-record <op:deliver>
+(define-syrup-record-type <op:deliver>
   (op:deliver to-desc args answer-pos resolve-me-desc)
   op:deliver?
-  'op:deliver marshall::op:deliver unmarshall::op:deliver
+  op:deliver marshall::op:deliver unmarshall::op:deliver
 
   (to-desc op:deliver-to-desc)
   (args op:deliver-args)
@@ -109,44 +109,44 @@
   ;; a resolver, probably an import (though it could be a handoff)
   (resolve-me-desc op:deliver-resolve-me-desc))
 
-(define-syrup-record <op:abort>
+(define-syrup-record-type <op:abort>
   (op:abort reason)
   op:abort?
-  'op:abort marshall::op:abort unmarshall::op:abort
+  op:abort marshall::op:abort unmarshall::op:abort
   (reason op:abort-reason))
 
-(define-syrup-record <op:listen>
+(define-syrup-record-type <op:listen>
   (op:listen to-desc listener-desc wants-partial?)
   op:listen?
-  'op:listen marshall::op:listen unmarshall::op:listen
+  op:listen marshall::op:listen unmarshall::op:listen
 
   (to-desc op:listen-to-desc)
   (listener-desc op:listen-listener-desc)
   (wants-partial? op:listen-wants-partial?))
 
-(define-syrup-record <op:gc-export>
+(define-syrup-record-type <op:gc-export>
   (op:gc-export export-pos wire-delta)
   op:gc-export?
-  'op:gc-export marshall::op:gc-export unmarshall::op:gc-export
+  op:gc-export marshall::op:gc-export unmarshall::op:gc-export
   (export-pos op:gc-export-export-pos)
   (wire-delta op:gc-export-wire-delta))
 
-(define-syrup-record <op:gc-answer>
+(define-syrup-record-type <op:gc-answer>
   (op:gc-answer answer-pos)
   op:gc-answer?
-  'op:gc-answer marshall::op:gc-answer unmarshall::op:gc-answer
+  op:gc-answer marshall::op:gc-answer unmarshall::op:gc-answer
   (answer-pos op:gc-answer-answer-pos))
 
-(define-syrup-record <desc:import-object>
+(define-syrup-record-type <desc:import-object>
   (desc:import-object pos)
   desc:import-object?
-  'desc:import-object marshall::desc:import-object unmarshall::desc:import-object
+  desc:import-object marshall::desc:import-object unmarshall::desc:import-object
   (pos desc:import-object-pos))
 
-(define-syrup-record <desc:import-promise>
+(define-syrup-record-type <desc:import-promise>
   (desc:import-promise pos)
   desc:import-promise?
-  'desc:import-promise marshall::desc:import-promise unmarshall::desc:import-promise
+  desc:import-promise marshall::desc:import-promise unmarshall::desc:import-promise
   (pos desc:import-promise-pos))
 
 (define (desc:import-pos import-desc)
@@ -162,18 +162,18 @@
 
 ;; Whether it's an import or export doesn't really matter as much to
 ;; the entity exporting as it does to the entity importing
-(define-syrup-record <desc:export>
+(define-syrup-record-type <desc:export>
   (desc:export pos)
   desc:export?
-  'desc:export marshall::desc:export unmarshall::desc:export
+  desc:export marshall::desc:export unmarshall::desc:export
   (pos desc:export-pos))
 
 ;; Something to answer that we haven't seen before.
 ;; As such, we need to set up both the promise import and this resolver/redirector
-(define-syrup-record <desc:answer>
+(define-syrup-record-type <desc:answer>
   (desc:answer pos)
   desc:answer?
-  'desc:answer marshall::desc:answer unmarshall::desc:answer
+  desc:answer marshall::desc:answer unmarshall::desc:answer
   (pos desc:answer-pos))
 
 ;; This is a general sig-envelope, we might have some more specific
@@ -183,10 +183,10 @@
 ;;   https://sandstorm.io/news/2015-05-01-is-that-ascii-or-protobuf
 ;; Note that the key is not referred to; if it isn't obvious by the
 ;; payload and the protocol, then we aren't doing things right.
-(define-syrup-record <desc:sig-envelope>
+(define-syrup-record-type <desc:sig-envelope>
   (desc:sig-envelope signed signature)
   desc:sig-envelope?
-  'desc:sig-envelope marshall::desc:sig-envelope unmarshall::desc:sig-envelope
+  desc:sig-envelope marshall::desc:sig-envelope unmarshall::desc:sig-envelope
   (signed desc:sig-envelope-signed)
   (signature desc:sig-envelope-signature))
 
@@ -198,10 +198,10 @@
 ;;    eventually points to something else)
 
 ;; The handoff certificate from the gifter
-(define-syrup-record <desc:handoff-give>
+(define-syrup-record-type <desc:handoff-give>
   (desc:handoff-give recipient-key exporter-location session gifter-side gift-id)
   desc:handoff-give?
-  'desc:handoff-give marshall::desc:handoff-give unmarshall::desc:handoff-give
+  desc:handoff-give marshall::desc:handoff-give unmarshall::desc:handoff-give
    ;; handoff signing key this is being given to
    ;;   : handoff-key?
   (recipient-key desc:handoff-give-recipient-key)
@@ -221,19 +221,19 @@
   (gift-id desc:handoff-give-gift-id))
 
 ;; TODO: Maybe we only need the receiving-side, unsure
-(define-syrup-record <desc:handoff-receive>
+(define-syrup-record-type <desc:handoff-receive>
   (desc:handoff-receive receiving-session receiving-side handoff-count signed-give)
   desc:handoff-receive?
-  'desc:handoff-receive marshall::desc:handoff-receive unmarshall::desc:handoff-receive
+  desc:handoff-receive marshall::desc:handoff-receive unmarshall::desc:handoff-receive
   (receiving-session desc:handoff-receive-receiving-session)
   (receiving-side desc:handoff-receive-receiving-side)
   (handoff-count desc:handoff-receive-handoff-count)
   (signed-give desc:handoff-receive-signed-give))
 
-(define-syrup-record <op:start-session>
+(define-syrup-record-type <op:start-session>
   (op:start-session captp-version handoff-pubkey acceptable-location acceptable-location-sig)
   op:start-session?
-  'op:start-session marshall::op:start-session unmarshall::op:start-session
+  op:start-session marshall::op:start-session unmarshall::op:start-session
   (captp-version op:start-session-captp-version)
   (handoff-pubkey op:start-session-handoff-pubkey)
   ;; a sig-envelope signed by handoff-pubkey with a <my-location $location-data>

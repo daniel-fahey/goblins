@@ -32,7 +32,7 @@
             psuedosingle->float
 
             make-marshallers
-            define-syrup-record))
+            define-syrup-record-type))
 
 ;;; Data format
 ;;; ===========
@@ -551,7 +551,7 @@
                             (serialize label obj)))
           (cons unmarshall-predicate ctor)))
 
-(define-syntax-rule (define-syrup-record name (ctor arg ...) pred
+(define-syntax-rule (define-syrup-record-type name (ctor arg ...) pred
                       label marshall unmarshall
                       fields ...)
   (begin
@@ -564,4 +564,4 @@
                          (match obj
                            [($ name arg ...)
                             (make-tagged* obj-label arg ...)]))))
-        (make-marshallers label pred ctor serialize)))))
+        (make-marshallers 'label pred ctor serialize)))))
