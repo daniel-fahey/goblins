@@ -9,15 +9,19 @@ unit-tests:
   script:
     - sh ./bootstrap.sh
     - ./configure
-    - make distcheck
-    # Check we can build the HTML docs
-    - make html
-    # Finally run make check and generate the JUnit report for Gitlab.
-    - make check -j$(nproc)
-    - make combine-junit-xml-results
+    - make run-tests
   artifacts:
     reports:
       junit: 'test-results.xml'
+
+distcheck:
+  stage: build
+  script:
+    - sh ./bootstrap.sh
+    - ./configure
+    - make distcheck
+    # Check we can build the HTML docs
+    - make html
 
 perf-tests:
   stage: build

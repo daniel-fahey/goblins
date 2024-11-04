@@ -172,6 +172,11 @@ dvi: # Don't build dvi docs
 html-local:
 	$(GUILE) --no-auto-compile doc/build-html.scm
 
+run-tests:
+	$(top_builddir)/pre-inst-env \
+		$(GUILE) --no-auto-compile -L "$(top_srcdir)" \
+			build-aux/run-test-suite.scm $(TESTS)
+
 EXAMPLES = examples/cauldron.scm		\
            examples/try-captp-onion.scm		\
            examples/try-base-netlayer.scm	\
@@ -193,6 +198,7 @@ EXTRA_DIST += README.org \
               live-guile.sh \
               .gitlab-ci.yml \
               build-aux/test-driver.scm \
+              build-aux/run-test-suite.scm \
               doc/goblins.css \
               doc/build-html.scm \
               $(EXAMPLES) \
@@ -208,8 +214,3 @@ CLEANFILES =					\
   $(GOBJECTS)					\
   $(TESTS:tests/%.scm=%.log) \
   $(TESTS:%.scm=%.xml)
-
-combine-junit-xml-results:
-	$(GUILE) $(top_srcdir)/misc/combine-junit-xml.scm \
-	test-results.xml \
-        $(TESTS:%.scm=%.xml)
