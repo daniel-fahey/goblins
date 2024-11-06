@@ -76,7 +76,6 @@ SOURCES = goblins.scm \
           goblins/migrations.scm \
           goblins/ocapn/captp.scm \
           goblins/ocapn/ids.scm \
-          goblins/ocapn/marshalling.scm \
           goblins/ocapn/netlayer/base-port.scm \
           goblins/ocapn/netlayer/fake.scm \
           goblins/ocapn/netlayer/onion-socks.scm \
@@ -124,7 +123,6 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-ticker.scm \
         tests/actor-lib/test-ward.scm \
         tests/test-migrations.scm \
-        tests/ocapn/test-marshalling.scm \
         tests/ocapn/test-captp.scm \
         tests/ocapn/netlayer/test-fake.scm \
         tests/ocapn/netlayer/test-libp2p.scm \

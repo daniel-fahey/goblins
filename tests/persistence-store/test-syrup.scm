@@ -2,7 +2,6 @@
   #:use-module (goblins)
   #:use-module (goblins core-types)
   #:use-module (goblins persistence-store syrup)
-  #:use-module (goblins ocapn marshalling)
   #:use-module (goblins contrib syrup)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-64)
@@ -68,15 +67,13 @@
   (actormap-peek am* bob* "Carol"))
 
 ;; Check upgrading from a version without aurie-vat-id and root version
-(define-record-type <v0-portrait-graph>
+(define-syrup-record-type <v0-portrait-graph>
   (make-v0-portrait-graph version portraits slots)
   portrait-graph?
+  <portrait-graph> marshaller::v0-portrait-graph unmarshaller::v0-portrait-graph
   (version portrait-graph-version)
   (portraits portrait-graph-portraits)
   (slots portrait-graph-slots))
-
-(define-values (marshaller::v0-portrait-graph unmarshaller::v0-portrait-graph)
-  (make-marshallers <v0-portrait-graph> #:name '<portrait-graph>))
 
 (define v0-portrait-graph (make-v0-portrait-graph 0 portraits slots))
 (define filename (tmpnam))

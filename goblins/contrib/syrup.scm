@@ -29,7 +29,10 @@
 
             ;; pseudosingles (pretend to be a single precision float)
             make-pseudosingle pseudosingle?
-            psuedosingle->float))
+            psuedosingle->float
+
+            make-marshallers
+            define-syrup-record-type))
 
 ;;; Data format
 ;;; ===========
@@ -538,3 +541,27 @@
   (define bstr-port
     (open-bytevector-input-port bstr))
   (syrup-read bstr-port #:unmarshallers unmarshallers))
+
+(define (make-marshallers label predicate ctor serialize)
+  "Provides two values a marshaller and unmarshaller for a given record"
+  (define (unmarshall-predicate a-label)
+    (eq? label a-label))
+
+  (values (cons predicate (lambda (obj)
+                            (serialize label obj)))
+          (cons unmarshall-predicate ctor)))
+
+(define-syntax-rule (define-syrup-record-type name (ctor arg ...) pred
+                      label marshall unmarshall
+                      fields ...)
+  (begin
+    (define-record-type name
+      (ctor arg ...)
+      pred
+      fields ...)
+    (define-values (marshall unmarshall)
+      (let ((serialize (lambda (obj-label obj)
+                         (match obj
+                           [($ name arg ...)
+                            (make-tagged* obj-label arg ...)]))))
+        (make-marshallers 'label pred ctor serialize)))))

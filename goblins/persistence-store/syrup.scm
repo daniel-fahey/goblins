@@ -13,13 +13,11 @@
 ;;; limitations under the License.
 
 (define-module (goblins persistence-store syrup)
-  #:use-module (goblins)
   #:use-module (goblins core-types)
+  #:use-module (goblins abstract-types)
   #:use-module (goblins ghash)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins contrib syrup)
-  ;; Slightly strange these are in ocapn as they aren't specific to them.
-  #:use-module (goblins ocapn marshalling)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-9)
   #:use-module (gcrypt random)
@@ -70,9 +68,14 @@
   ;; In the future, use migrations macro and do the correct version check here.
   (portrait-graph-migrations args))
 
+(define (portrait-graph-serialize label pg)
+  (match pg
+    [($ <portrait-graph> version aurie-vat-id roots-version portraits slots)
+     (make-tagged* label version aurie-vat-id roots-version portraits slots)]))
+
 (define-values (marshaller::portrait-graph unmarshaller::portrait-graph)
-  (make-marshallers <portrait-graph>
-                    #:record-constructor portrait-graph-constructor))
+  (make-marshallers '<portrait-graph> portrait-graph? portrait-graph-constructor
+                    portrait-graph-serialize))
 
 (define marshallers
   (list marshaller::portrait-graph))
