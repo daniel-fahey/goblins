@@ -5,24 +5,18 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 hash-table)
   #:use-module (ice-9 binary-ports)
-  #:use-module (ice-9 iconv)
   #:use-module (srfi srfi-1)     ; lists
   #:use-module (srfi srfi-9)     ; records
-  #:use-module (srfi srfi-64))   ; tests
+  #:use-module (srfi srfi-64)    ; tests
+  #:use-module (rnrs bytevectors))
 
 (test-begin "test-syrup")
 
-;; Pull in a bunch of internals from Syrup to test
-(define-syntax-rule (snarf-syrup-internals id ...)
-  (begin
-    (define id (@@ (goblins contrib syrup) id)) ...))
-
-(snarf-syrup-internals bytes
-                       string->bytes/latin-1)
+(define bytes string->utf8)
 
 (test-equal "eof anywhere in a syrup-read is an eof"
   the-eof-object
-  (call-with-input-bytevector (string->bytes/latin-1 "[3:foo")
+  (call-with-input-bytevector (bytes "[3:foo")
                               syrup-read))
 
 (define (alist->ghash alist)
@@ -136,9 +130,8 @@
   `((cat-friend ,cat)
     (banana-friend ,banana)))
 (define marshalled-friends
-  (string->bytevector
-   "[[10'cat-friend<6'animal3\"Cat4'meow>][13'banana-friend<5'fruit6\"Banana6'yellow>]]"
-   "ISO-8859-1"))
+  (string->utf8
+   "[[10'cat-friend<6'animal3\"Cat4'meow>][13'banana-friend<5'fruit6\"Banana6'yellow>]]"))
 
 (test-assert
     "Check that the can-marshall function works on its record type"
