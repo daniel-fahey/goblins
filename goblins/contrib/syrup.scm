@@ -14,7 +14,6 @@
   #:use-module (ice-9 control)
   #:use-module (ice-9 match)
   #:use-module (ice-9 binary-ports)
-  #:use-module (ice-9 iconv)
   #:use-module (ice-9 vlist)
   #:use-module (goblins abstract-types)
   #:use-module (goblins ghash)
@@ -124,22 +123,15 @@
      (write-as-netstring! port bstr #:joiner joiner))))
 (define* (write-as-netstring! port bstr #:key [joiner colon-bv])
   (let ((bstr-len (bytevector-length bstr)))
-    (put-bytevector port (string->bytes/latin-1 (number->string bstr-len)))
+    (put-bytevector port (string->utf8 (number->string bstr-len)))
     (put-bytevector port joiner)
     (put-bytevector port bstr)))
 
-(define (string->bytes/latin-1 str)
-  (string->bytevector str "ISO-8859-1"))
-(define (string->bytes/utf-8 str)
-  (string->bytevector str "UTF-8"))
-(define (bytes->string/utf-8 bstr)
-  (bytevector->string bstr "UTF-8"))
-
 ;; alias for simplicity
-(define bytes string->bytes/latin-1)
+(define bytes string->utf8)
 
 (define zero-bv
-  (string->bytes/latin-1 "0+"))
+  (bytes "0+"))
 
 ;; Test: 
 #;(bytevector->string
@@ -252,7 +244,7 @@
        (let* ((pos? (positive? obj))
               (number-to-output (if pos? obj (* obj -1)))
               (sign-char (if pos? plus-bv minus-bv))
-              (encoded-number (string->bytes/latin-1 (number->string number-to-output))))
+              (encoded-number (string->utf8 (number->string number-to-output))))
          (if port
              (begin
                (put-bytevector port encoded-number)
@@ -279,13 +271,13 @@
              encoded-ghash))]
       ;; Strings are like <encoded-bytes-len>"<utf8-encoded>
       [(? string?)
-       (let ((encoded-string (string->bytes/utf-8 obj)))
+       (let ((encoded-string (string->utf8 obj)))
          (if port
              (write-as-netstring! port encoded-string #:joiner doublequote-bv)
              (netstring-encode encoded-string #:joiner doublequote-bv)))]
       ;; Symbols are like <encoded-bytes-len>'<utf8-encoded>
       [(? symbol?)
-       (let ((encoded-symbol (string->bytes/utf-8 (symbol->string obj))))
+       (let ((encoded-symbol (string->utf8 (symbol->string obj))))
          (if port
              (write-as-netstring! port encoded-symbol #:joiner singlequote-bv)
              (netstring-encode encoded-symbol #:joiner singlequote-bv)))]
@@ -451,9 +443,9 @@
                  ['bstr
                   bstr]
                  ['sym
-                  (string->symbol (bytes->string/utf-8 bstr))]
+                  (string->symbol (utf8->string bstr))]
                  ['str
-                  (bytes->string/utf-8 bstr)])]))]
+                  (utf8->string bstr)])]))]
          ;; it's a list
          [(or #\[ #\( #\l)
           (read-byte in-port)
