@@ -448,15 +448,14 @@ like this:
 ;; for easy querying in a variety of situations.
 (define-record-type <vat-log>
   (%make-vat-log events time-index message-index prev-index next-index
-                 error-index mutex)
+                 error-index)
   vat-log?
   (events vat-log-events)
   (time-index vat-log-time-index)
   (message-index vat-log-message-index)
   (prev-index vat-log-prev-index)
   (next-index vat-log-next-index)
-  (error-index vat-log-error-index)
-  (mutex vat-log-mutex))
+  (error-index vat-log-error-index))
 
 (define (print-vat-log log port)
   (format port
@@ -476,8 +475,7 @@ like this:
                  (make-hash-table)
                  (make-hash-table)
                  (make-hash-table)
-                 (make-hash-table)
-                 (make-mutex)))
+                 (make-hash-table)))
 
 (define (vat-log-delete-from-index! log event)
   (let ((time-index (vat-log-time-index log))
@@ -492,51 +490,47 @@ like this:
     (hashq-remove! error-index event)))
 
 (define (%vat-log-resize! log capacity)
-  (with-mutex (vat-log-mutex log)
-    ;; If the log size is shrinking, we need to delete indexed events
-    ;; for the items that no longer fit.
-    (let ((n (max (- (%vat-log-length log) capacity) 0)))
-      (let loop ((i 0))
-        (when (< i n)
-          (vat-log-delete-from-index! log (%vat-log-ref log i))))
-      (ring-buffer-resize! (vat-log-events log) capacity))))
+  ;; If the log size is shrinking, we need to delete indexed events
+  ;; for the items that no longer fit.
+  (let ((n (max (- (%vat-log-length log) capacity) 0)))
+    (let loop ((i 0))
+      (when (< i n)
+        (vat-log-delete-from-index! log (%vat-log-ref log i))))
+    (ring-buffer-resize! (vat-log-events log) capacity)))
 
 (define (%vat-log-clear! log)
-  (with-mutex (vat-log-mutex log)
-    (ring-buffer-clear! (vat-log-events log))
-    (hash-clear! (vat-log-time-index log))
-    (hash-clear! (vat-log-message-index log))
-    (hash-clear! (vat-log-prev-index log))
-    (hash-clear! (vat-log-next-index log))
-    (hash-clear! (vat-log-error-index log))))
+  (ring-buffer-clear! (vat-log-events log))
+  (hash-clear! (vat-log-time-index log))
+  (hash-clear! (vat-log-message-index log))
+  (hash-clear! (vat-log-prev-index log))
+  (hash-clear! (vat-log-next-index log))
+  (hash-clear! (vat-log-error-index log)))
 
 (define (%vat-log-append! log event prev)
-  (with-mutex (vat-log-mutex log)
-    (let ((events (vat-log-events log))
-          (time-index (vat-log-time-index log))
-          (message-index (vat-log-message-index log))
-          (prev-index (vat-log-prev-index log))
-          (next-index (vat-log-next-index log))
-          (error-index (vat-log-error-index log)))
-      ;; Remove indexed events as they are expired from the ring buffer.
-      (when (ring-buffer-full? events)
-        (vat-log-delete-from-index! log (ring-buffer-ref events 0)))
-      (ring-buffer-put! events event)
-      (hashv-set! time-index (vat-event-timestamp event) event)
-      (hashq-set! message-index (vat-event-message event) event)
-      ;; Only add to the prev/next indexes if there is a previous
-      ;; event.  This is particularly important for the next index,
-      ;; because otherwise every root event would be consed onto a
-      ;; list of events associated with the key #f.  This list would
-      ;; grow without bound, eventually exhausting all memory.
-      (when prev
-        (hashq-set! prev-index event prev)
-        (hashq-set! next-index prev
-                    (cons event (hashq-ref next-index prev '())))))))
+  (let ((events (vat-log-events log))
+        (time-index (vat-log-time-index log))
+        (message-index (vat-log-message-index log))
+        (prev-index (vat-log-prev-index log))
+        (next-index (vat-log-next-index log))
+        (error-index (vat-log-error-index log)))
+    ;; Remove indexed events as they are expired from the ring buffer.
+    (when (ring-buffer-full? events)
+      (vat-log-delete-from-index! log (ring-buffer-ref events 0)))
+    (ring-buffer-put! events event)
+    (hashv-set! time-index (vat-event-timestamp event) event)
+    (hashq-set! message-index (vat-event-message event) event)
+    ;; Only add to the prev/next indexes if there is a previous
+    ;; event.  This is particularly important for the next index,
+    ;; because otherwise every root event would be consed onto a
+    ;; list of events associated with the key #f.  This list would
+    ;; grow without bound, eventually exhausting all memory.
+    (when prev
+      (hashq-set! prev-index event prev)
+      (hashq-set! next-index prev
+                  (cons event (hashq-ref next-index prev '()))))))
 
 (define (%vat-log-error! log event exception)
-  (with-mutex (vat-log-mutex log)
-    (hashq-set! (vat-log-error-index log) event exception)))
+  (hashq-set! (vat-log-error-index log) event exception))
 
 (define (%vat-log-error-for-event log event)
   (hashq-ref (vat-log-error-index log) event))
@@ -972,20 +966,29 @@ logging."
   "Return the event caused by EVENT in VAT, if any."
   (%vat-log-ref-next (vat-log vat) event))
 
+;; These two are not part of the public API and are only called from
+;; within a vat's event loop fiber.
 (define (vat-log-append! vat event prev)
   (%vat-log-append! (vat-log vat) event prev))
-
 (define (vat-log-error! vat event exception)
   (when (vat-logging? vat)
     (%vat-log-error! (vat-log vat) event exception)))
 
+;; These two can be called by user code from any thread, so we queue
+;; them as a system op.  It's only safe to modify the vat log from the
+;; event loop fiber.
 (define (vat-log-resize! vat capacity)
   "Resize the event log of VAT to CAPACITY."
-  (%vat-log-resize! (vat-log vat) capacity))
-
+  (call-system-op-with-vat
+   vat
+   (lambda (vat)
+     (%vat-log-resize! (vat-log vat) capacity))))
 (define (vat-log-clear! vat)
   "Delete all logged events from VAT."
-  (%vat-log-clear! (vat-log vat)))
+  (call-system-op-with-vat
+   vat
+   (lambda (vat)
+     (%vat-log-clear! (vat-log vat)))))
 
 (define (vat-log-error-for-event vat event)
   "Return the error associated with EVENT in VAT, if any."
