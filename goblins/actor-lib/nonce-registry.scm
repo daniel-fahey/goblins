@@ -16,14 +16,13 @@
 
 (define-module (goblins actor-lib nonce-registry)
   #:use-module (gcrypt random)
-  #:use-module (gcrypt base64)
   #:use-module (gcrypt hash)
   #:use-module (goblins core)
   #:use-module (goblins define-actor)
   #:use-module (goblins ghash)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils assert-type)
-  #:use-module (goblins utils crypto)
+  #:use-module (goblins contrib base64)
   #:use-module (ice-9 match)
   #:use-module (scheme base) ;; bytevector-append
   #:export (spawn-nonce-registry-and-locator
@@ -66,7 +65,9 @@
          (unless (ghash-has-key? swiss-num->refr hashed-swiss-num)
            (throw 'no-such-key
                   (format #f "No object registered with swiss-num: ~a"
-                          (url-base64-encode swiss-num))))
+                          (base64-encode swiss-num
+                                         #:alphabet base64-url-alphabet
+                                         #:padding? #f))))
          (ghash-ref swiss-num->refr hashed-swiss-num))]
       [(swiss-num dflt)
        (let ((hashed-swiss-num (hash swiss-num)))

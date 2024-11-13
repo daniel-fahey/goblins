@@ -13,7 +13,7 @@
 ;;; limitations under the License.
 
 (define-module (goblins ocapn ids)
-  #:use-module (goblins utils crypto)
+  #:use-module (goblins contrib base64)
   #:use-module (goblins contrib syrup)
   #:use-module (web uri)
   #:use-module (srfi srfi-9)
@@ -174,7 +174,9 @@
     (let ((path (string-trim (uri-path uri) #\/)))
       (make-ocapn-sturdyref
        (uri->ocapn-node uri)
-       (url-base64-decode (substring path (+ 1 (string-index path #\/)))))))
+       (base64-decode (substring path (+ 1 (string-index path #\/)))
+                      #:alphabet base64-url-alphabet
+                      #:padding? #f))))
 
   (define (uri->ocapn-id uri)
     (let ((path (uri-path uri)))
@@ -216,7 +218,9 @@
      (build-uri
       'ocapn
       #:host (string-join (list designator (symbol->string transport)) ".")
-      #:path (string-append "/s/" (url-base64-encode swiss-num))
+      #:path (string-append "/s/" (base64-encode swiss-num
+                                                 #:alphabet base64-url-alphabet
+                                                 #:padding? #f))
       #:query (hints->query hints))]))
 
 (define (ocapn-id->string ocapn-id)

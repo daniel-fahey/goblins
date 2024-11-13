@@ -67,6 +67,7 @@ SOURCES = goblins.scm \
           goblins/base-io-ports.scm \
           goblins/config.scm \
           goblins/contrib/syrup.scm \
+          goblins/contrib/base64.scm \
           goblins/core.scm \
           goblins/core-types.scm \
           goblins/default-vat-scheduler.scm \
