@@ -46,7 +46,6 @@
   #:use-module (rnrs bytevectors)
   #:use-module (rnrs io ports)
   #:use-module (fibers channels)
-  #:use-module ((gcrypt pk-crypto) #:prefix gcrypt:pk-crypto:)
   #:export (spawn-mycapn captp-env))
 
 ;;; Some crap to make this work in the port from Racket->Guile
@@ -948,11 +947,8 @@
   (define handoff-pubkey
     (key-pair->public-key handoff-key-pair))
 
-  (define (get-handoff-pubkey)
-    (gcrypt:pk-crypto:canonical-sexp->sexp handoff-pubkey))
-
   (define our-side-name
-    (sha256d (syrup-encode (get-handoff-pubkey))))
+    (sha256d (syrup-encode handoff-pubkey)))
 
   ;; This has added some indirection and promises which are bit slower
   ;; than just handing around the raw value. We may want to consider
@@ -971,7 +967,7 @@
     (methods
      [(get-suite) 'prot0]
      [(get-our-side-name) our-side-name]
-     [get-handoff-pubkey get-handoff-pubkey]
+     [(get-handoff-pubkey) handoff-pubkey]
      ;; TODO: Horrible, we need to protect against this
      [(get-handoff-privkey) handoff-privkey]
      [(get-location-sig) our-location-sig-vow]))
@@ -1110,7 +1106,7 @@
                     (syrup-encode handoff-give
                                   #:marshallers marshallers))
                    (give-sig
-                    (gcrypt:pk-crypto:sexp->canonical-sexp
+                    (captp-signature->crypto-signature
                      give-sig-sexp)))
         (on (<- router 'self-location? give-exporter-location)
             (lambda (self-location?)
@@ -1145,10 +1141,10 @@
                     (desc:handoff-give-recipient-key
                      (desc:sig-envelope-signed signed-handoff-give)))
                    (give-recipient-key
-                    (gcrypt:pk-crypto:sexp->canonical-sexp
+                    (captp-public-key->crypto-public-key
                      give-recipient-encoded-key))
                    (receive-sig
-                    (gcrypt:pk-crypto:sexp->canonical-sexp
+                    (captp-signature->crypto-signature
                      receive-sig-sexp)))
 
         (define valid-handoff?
@@ -1456,7 +1452,7 @@
                           remote-captp-version)))
 
          (define remote-handoff-pubkey
-           (gcrypt:pk-crypto:sexp->canonical-sexp remote-encoded-pubkey))
+           (captp-public-key->crypto-public-key remote-encoded-pubkey))
          ;; TODO: I guess we didn't know by the time this was opened
          ;;   what the remote location was going to be... that's part of the reason
          ;;   for the start-session message...
@@ -1471,7 +1467,7 @@
             (make-tagged* 'my-location claimed-remote-location)
             #:marshallers marshallers))
          (define remote-location-sig
-           (gcrypt:pk-crypto:sexp->canonical-sexp encoded-remote-location-sig))
+           (captp-signature->crypto-signature encoded-remote-location-sig))
 
          (unless (verify remote-location-sig encoded-location remote-handoff-pubkey)
            (let ((reason "Invalid location signature"))
