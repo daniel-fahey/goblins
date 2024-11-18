@@ -16,7 +16,8 @@
 (define-module (goblins ocapn netlayer fake)
   #:use-module (fibers)
   #:use-module (fibers channels)
-  #:use-module ((goblins core) #:renamer (lambda (x) (if (eq? x '$) '$C x)))
+  #:use-module ((goblins core) #:hide ($))
+  #:use-module ((goblins core) #:select ($) #:prefix $)
   #:use-module (goblins vat)
   #:use-module (goblins inbox)
   #:use-module (goblins actor-lib common)
@@ -32,10 +33,10 @@
   (define routes (spawn ^ghash))
   (methods
    [(register name new-conn-ch)
-    ($C routes 'set name new-conn-ch)]
+    ($$ routes 'set name new-conn-ch)]
    [(connect-to name)
     (define connection-ch
-      ($C routes 'ref name))
+      ($$ routes 'ref name))
     (when (not (channel? connection-ch))
       (error (format #t "No connection found by name: ~a" name)))
     (define-values (me-enq-ch me-deq-ch me-stop?)

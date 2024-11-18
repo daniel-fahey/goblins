@@ -16,7 +16,8 @@
 (define-module (goblins actor-lib methods)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
-  #:use-module ((goblins core) #:renamer (lambda (x) (if (eq? x '$) '$C x)))
+  #:use-module ((goblins core) #:hide ($))
+  #:use-module ((goblins core) #:select ($) #:prefix $)
   #:export (methods extend-methods))
 
 (define-syntax expand-method-defn
@@ -58,7 +59,7 @@
 
 (define (extend-actor extends-actor)
   (lambda (method . args)
-    (apply $C extends-actor method args)))
+    (apply $$ extends-actor method args)))
 
 (define-syntax-rule (extend-methods extends method-defns ...)
   ;;; Extend EXTENDS with METHOD-DEFNS.
