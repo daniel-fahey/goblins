@@ -1,0 +1,67 @@
+// -*- js-indent-level: 4 -*-
+// Copyright 2024 Jessica Tallon
+// Copyright 2024 Juliana Sims <juli@incana.org>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitati måsteons under the License.
+
+let bindings = {
+    typedArray: {
+        makeUint8Array: (length) => new Uint8Array(length),
+        Uint8ArrayLength: (array) => array.length,
+        Uint8ArrayRef: (array, index) => array[index],
+        Uint8ArraySet: (array, index, value) => array[index] = value
+    },
+    crypto: {
+        digest: (algorithm, data) => globalThis.crypto.subtle
+            .digest(algorithm, data).then((arrBuf) => new Uint8Array(arrBuf)),
+        getRandomValues: (array) => globalThis.crypto.getRandomValues(array),
+        generateEd25519KeyPair: () => globalThis.crypto.subtle.generateKey(
+            { name: "Ed25519" },
+            true,
+            ["sign", "verify"]
+        ),
+        keyPairPrivateKey: (keyPair) => keyPair.privateKey,
+        keyPairPublicKey: (keyPair) => keyPair.publicKey,
+        exportKey: (key) => globalThis.crypto.subtle.exportKey("raw", key)
+            .then((arrBuf) => new Uint8Array(arrBuf)),
+        importPublicKey: (key) => globalThis.crypto.subtle.importKey(
+            "raw",
+            key,
+            { name: "Ed25519" },
+            true,
+            ["verify"]
+        ),
+        signEd25519: (data, privateKey) => globalThis.crypto.subtle.sign(
+            { name: "Ed25519" },
+            privateKey,
+            data
+        ).then((arrBuf) => new Uint8Array(arrBuf)),
+        verifyEd25519: (signature, data, publicKey) => globalThis.crypto.subtle
+            .verify(
+                { name: "Ed25519" },
+                publicKey,
+                signature,
+                data
+            )
+    }};
+
+if (typeof exports === 'undefined') {
+    window.addEventListener("load", async () => {
+        const [proc] = await Scheme.load_main("test.wasm", {
+            user_imports: bindings
+        });
+        proc.call_async();
+    });
+} else {
+    exports.user_imports = bindings;
+}
