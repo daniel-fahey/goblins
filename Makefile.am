@@ -141,6 +141,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/utils/test-base32.scm \
         tests/utils/test-bytes-stuff.scm \
         tests/utils/test-ring-buffer.scm \
+        tests/utils/test-crypto.scm \
         tests/contrib/test-syrup.scm
 
 TEST_EXTENSIONS = .scm
