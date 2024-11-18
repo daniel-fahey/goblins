@@ -211,7 +211,7 @@ Type: Bytevector CryptoKey -> List"
     (define (verify signature data public-key)
       "Verify @var{signature} of @var{data} using Ed25519 @var{public-key}
 
-Type: Uint8Array Bytevector CryptoKey -> Boolean"
+Type: CryptoSignature Bytevector CryptoKey -> Boolean"
       (cond-expand
        (guile
         (gcrypt:pk-crypto:verify signature (data->canonical-sexp data) public-key))
@@ -237,7 +237,7 @@ Type: S-Expression -> CryptoKey"
     (define (captp-signature->crypto-signature signature)
       "Convert @var{signature} from its CapTP wire format to its internal format
 
-Type: List -> Uint8Array"
+Type: List -> CryptSignature"
       (cond-expand
        (guile
         (gcrypt:pk-crypto:sexp->canonical-sexp signature))
