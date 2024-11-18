@@ -17,6 +17,7 @@
 ;; use-modules does not support cond-expand, so define-library must be used.
 (define-library (goblins utils crypto)
   (export sha256d
+          sha256
           strong-random-bytes
           generate-key-pair
           key-pair->public-key
