@@ -15,13 +15,12 @@
 ;;; limitations under the License.
 
 (define-module (goblins actor-lib nonce-registry)
-  #:use-module (gcrypt random)
-  #:use-module (gcrypt hash)
   #:use-module (goblins core)
   #:use-module (goblins define-actor)
   #:use-module (goblins ghash)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils assert-type)
+  #:use-module (goblins utils crypto)
   #:use-module (goblins contrib base64)
   #:use-module (ice-9 match)
   #:use-module (scheme base) ;; bytevector-append
@@ -29,7 +28,7 @@
             nonce-registry-env))
 
 (define (make-swiss-num)
-  (gen-random-bv 32 %gcry-strong-random))
+  (strong-random-bytes 32))
 
 (define-actor (^nonce-registry bcom
                                #:optional
