@@ -20,8 +20,6 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 q)
   #:use-module (goblins core)
-  ;; #:use-module (srfi srfi-9)
-  ;; #:use-module (ice-9 atomic)
   #:export (spawn-delivery-agent))
 
 (define* (spawn-delivery-agent #:key scheduler)
