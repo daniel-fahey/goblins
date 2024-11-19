@@ -34,7 +34,7 @@
   #:use-module (ice-9 control)
   #:use-module (ice-9 match)
   #:use-module (ice-9 q)
-  #:use-module (ice-9 threads)
+  #:use-module (ice-9 weak-vector)
   #:use-module (srfi srfi-1)      ; lists
   #:use-module (srfi srfi-9)      ; records
   #:use-module (srfi srfi-9 gnu)  ; record extensions
@@ -612,27 +612,32 @@ like this:
 (define (print-vat vat port)
   (format port "#<vat id: ~a name: ~a>"
           (vat-id vat) (vat-name vat)))
-
 (set-record-type-printer! <vat> print-vat)
 
-;; A global table of vats keyed by id.
-(define *vats* (make-weak-value-hash-table))
-
+;; A global list of vats.
+;;
+;; TODO: This isn't an ideal way to do things (too much O(n)), but
+;; it's thread-safe (necessary for Guile VM) and also works on Hoot.
+(define *vats* (make-atomic-box '()))
+(define weak-box weak-vector)
+(define (weak-box-ref box) (weak-vector-ref box 0))
 (define (all-vats)
-  (hash-map->list (lambda (k v) v) *vats*))
-
+  (filter-map weak-box-ref (atomic-box-ref *vats*)))
 (define (lookup-vat id)
-  (hashv-ref *vats* id))
-
-(define register-vat!
-  (let ((mutex (make-mutex)))
-    (lambda (vat)
-      (with-mutex mutex
-        (hashv-set! *vats* (vat-id vat) vat)))))
+  (and=> (find (lambda (box)
+                 (= (vat-id (weak-vector-ref box 0)) id))
+               (atomic-box-ref *vats*))
+         weak-box-ref))
+(define (register-vat! vat)
+  (let* ((prev (atomic-box-ref *vats*))
+         (new (cons (weak-box vat)
+                    ;; Compact the list to prune dead refs.
+                    (filter weak-box-ref prev))))
+    (unless (eq? (atomic-box-compare-and-swap! *vats* prev new) prev)
+      (register-vat! vat))))
 
 ;; A global id counter for vats.
 (define *vat-id-counter* (make-atomic-box 0))
-
 (define (next-vat-id)
   (let* ((id (atomic-box-ref *vat-id-counter*)))
     ;; If the atomic box was updated in another thread then the id
@@ -1520,4 +1525,3 @@ using the migrations macro."
             (<-np sleppy-sam 1)
             (<-np sleppy-sarah .5))))
  #:drain? #t)
-
