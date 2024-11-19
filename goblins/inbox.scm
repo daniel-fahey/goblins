@@ -20,8 +20,6 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 q)
   #:use-module (goblins core)
-  ;; #:use-module (srfi srfi-9)
-  ;; #:use-module (ice-9 atomic)
   #:export (spawn-delivery-agent))
 
 (define* (spawn-delivery-agent #:key scheduler)
@@ -61,7 +59,9 @@
   ;; boot it up!
   (syscaller-free
    (lambda ()
-     (spawn-fiber start-inbox-loop scheduler)))
+     (spawn-fiber start-inbox-loop
+                  (cond-expand
+                   (hoot)
+                   (guile scheduler)))))
   ;; return inbox enqueue/dequeue channels, as well as stop operation
   (values enq-ch deq-ch stop?))
-
