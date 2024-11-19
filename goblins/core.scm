@@ -143,7 +143,6 @@
   #:use-module (ice-9 control)
   #:use-module (ice-9 vlist)
   #:use-module (ice-9 q)
-  #:use-module (ice-9 suspendable-ports)
   #:use-module (rnrs bytevectors)
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
