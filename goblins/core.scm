@@ -147,7 +147,8 @@
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
   #:use-module (goblins ghash)
-  #:use-module (goblins ocapn ids))
+  #:use-module (goblins ocapn ids)
+  #:use-module (goblins utils error-handling))
 
 
 ;;; Utilities (which should be moved to their own modules)
@@ -2275,27 +2276,12 @@ Type: Actormap (-> Any) (Optioan (#:reckless? Boolean)) -> Any"
 (define while-handling-listen-header
   "While handling listen request")
 
-(define (display-backtrace* stack)
-  ;; When displaying a backtrace in fibers, it's possible that
-  ;; terminal-width in (system repl debug) will throw an error trying
-  ;; to call (string->number #f) because the COLUMNS environment
-  ;; variable isn't set.  We're not entirely sure why this happens,
-  ;; but to work around it we set COLUMNS to Guile's own default of 72
-  ;; if it hasn't been set already.
-  (unless (getenv "COLUMNS")
-    (setenv "COLUMNS" "72"))
-  ;; Specify stack frame range explicitly, otherwise display-backtrace
-  ;; will display additional frames in the current stack for some
-  ;; reason!
-  (display-backtrace stack (current-error-port) 0 (stack-length stack))
-  (newline (current-error-port)))
-
 (define (simple-display-error msg err stack)
   (newline (current-error-port))
   (display ";; === Caught error: ===\n" (current-error-port))
   (format (current-error-port) ";;  message: ~s\n" msg)
   (format (current-error-port) ";;  exception: ~s\n" err)
-  (display-backtrace* stack))
+  (display-backtrace* err stack))
 
 (define (make-no-op msg)
   (lambda _ *unspecified*))
@@ -2355,26 +2341,8 @@ Type: Actormap Message (Optional (#:error-handler (Exception -> Any)))
        ;; way we aren't exposing Goblins core stack frames, which
        ;; would be a security leak in a fully OCap secure system.
        (define stack
-         (make-stack #t            ; get the current stack
-                     ;; Trim inner frames up to and including this
-                     ;; error handling procedure.
-                     catch-stack-and-abort-to-prompt
-                     ;; Trim outer frames up to the prompt tag.  This
-                     ;; hides *most* of the core frames.
-                     handle-exn-tag
-                     ;; The frame trimming arguments go inner, outer,
-                     ;; inner, outer, etc. so we need to no-op here so
-                     ;; we can trim more outer frames.
-                     0
-                     ;; Trim 3 more outer frames that the tag doesn't
-                     ;; eliminate for us.
-                     ;;
-                     ;; The frames are:
-                     ;;
-                     ;; - with-exception-handler
-                     ;; - do-call
-                     ;; - _handle-message or _handle-listen
-                     3))
+         (capture-current-stack catch-stack-and-abort-to-prompt
+                                handle-exn-tag))
        (abort-to-prompt handle-exn-tag err stack))
      (define (do-call)
        (define result
