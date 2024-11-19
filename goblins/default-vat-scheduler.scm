@@ -16,6 +16,8 @@
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers conditions)
+  #:use-module ((fibers scheduler)
+                #:select (current-scheduler))
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 threads)
   #:export (default-vat-scheduler))
@@ -23,21 +25,6 @@
 ;;; The reason for this whole module is to try to prevent creating
 ;;; so many threads that epoll gets mad.  Having a shared scheduler
 ;;; mitigates this.
-
-;; Kludge to get around change of interface for accessing current
-;; fiber between Fibers 1.0.0 and 1.1.0
-(define %current-scheduler
-  (catch
-    #t
-    ;; Fibers 1.0.0
-    (lambda ()
-      (let ((current-fiber (@@ (fibers internal) current-fiber))
-            (fiber-scheduler (@@ (fibers internal) fiber-scheduler)))
-        (lambda ()
-          (fiber-scheduler (current-fiber)))))
-    ;; Fibers 1.1.0
-    (lambda _
-      (@@ (fibers scheduler) current-scheduler))))
 
 ;; A shared Fibers scheduler to default most vats connecting to.
 ;; We might prefer eventually to delay booting this up as long
@@ -56,7 +43,7 @@ appropriate"
               (lambda ()
                 ;; attempt to install this as the current scheduler
                 (define this-sched
-                  (%current-scheduler))
+                  (current-scheduler))
                 (define prev-sched
                   (atomic-box-compare-and-swap! %vat-sched #f this-sched))
                 (if prev-sched
