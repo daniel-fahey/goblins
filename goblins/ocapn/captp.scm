@@ -26,6 +26,7 @@
   #:use-module (goblins abstract-types)
   #:use-module (goblins define-actor)
   #:use-module (goblins ocapn captp-types)
+  #:use-module (goblins ocapn gc)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib common)
@@ -89,7 +90,7 @@
       ;; Install our question at this question id.
       (hashq-set! questions question-finder next-question-pos)
       ;; Add it to the gc guardian.
-      (guardian question-finder)
+      (captp-gc-register! captp-gc question-finder)
       ;; Increment the next-question id.
       (set! next-question-pos (1+ next-question-pos))
       question-finder))
@@ -224,15 +225,13 @@
 
   ;; A guardian to collect objects and question finders that are no
   ;; longer being referenced.
-  (define guardian (make-guardian))
+  (define captp-gc (make-captp-gc))
 
-  (define (gc:question question-finder)
-    (let ((question-pos (pos-unseal
-                         (question-finder-sealed-pos question-finder))))
-      (<-np-extern internal-handler (cmd-send-gc-answer question-pos))))
+  (define (gc:question sealed-pos)
+    (<-np-extern internal-handler (cmd-send-gc-answer (pos-unseal sealed-pos))))
 
-  (define (gc:import refr)
-    (let* ((import-pos (pos-unseal (remote-refr-sealed-pos refr)))
+  (define (gc:import sealed-pos)
+    (let* ((import-pos (pos-unseal sealed-pos))
            (spare-count (or (hashv-ref spare-import-counts import-pos) 0)))
       ;; We no longer need to keep track of the spare count.
       (hashv-remove! spare-import-counts import-pos)
@@ -241,24 +240,14 @@
                    ;; spares.
                    (cmd-send-gc-export import-pos (+ spare-count 1)))))
 
-  (define (captp-gc)
-    (match (guardian)
-      ;; Nothing in the guardian, so we're done.
-      (#f #f)
-      ;; Remote object or promise
-      ((? remote-refr? refr)
-       (gc:import refr)
-       (captp-gc))
-      ;; Question
-      ((? question-finder? question-finder)
-       (gc:question question-finder)
-       (captp-gc))))
-
-  ;; Spawn a fiber that periodically checks for garbage.
   (define (gc-loop)
-    (sleep 1)
     (when running?
-      (captp-gc)
+      (match (captp-gc-get captp-gc)
+        (('remote-refr sealed-pos)
+         (gc:import sealed-pos))
+        (('question-finder sealed-pos)
+         (gc:question sealed-pos))
+        (err (error "Unhandled GC value" err)))
       (gc-loop)))
   (spawn-fiber gc-loop)
 
@@ -327,7 +316,7 @@
       ;; Install it...
       (hashv-set! imports import-pos new-refr)
       ;; add to the guardian...
-      (guardian new-refr)
+      (captp-gc-register! captp-gc new-refr)
       ;; and return it.
       new-refr)
     (cond
@@ -485,6 +474,7 @@
     (set! questions #f)
     (set! answers #f)
     (set! running? #f)
+    (captp-gc-halt! captp-gc)
     (set! shutdown-reason (list shutdown-type reason))
     (for-each
      (lambda (interested)
