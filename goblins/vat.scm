@@ -23,9 +23,9 @@
   #:use-module (goblins inbox)
   #:use-module (goblins abstract-types)
   #:use-module (goblins default-vat-scheduler)
+  #:use-module (goblins utils crypto)
   #:use-module (goblins utils random-name)
   #:use-module (goblins utils ring-buffer)
-  #:use-module (gcrypt random)
   #:use-module (fibers)
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
@@ -1415,7 +1415,7 @@ using the migrations macro."
   (define current-vat-aurie-id
     (if vat-aurie-id
         vat-aurie-id
-        (gen-random-bv 32 %gcry-strong-random)))
+        (strong-random-bytes 32)))
 
   (define vat-persistence
     (make-vat-persistence current-vat-aurie-id persistence-env
