@@ -18,9 +18,9 @@
   #:use-module (goblins ghash)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins contrib syrup)
+  #:use-module (goblins utils crypto)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-9)
-  #:use-module (gcrypt random)
   #:export (make-syrup-store))
 
 (define current-data-version 1)
@@ -44,7 +44,7 @@
   (match-lambda
     ;; Version 0
     [(0 portraits slots)
-     (let ((new-aurie-vat-id (gen-random-bv 32 %gcry-strong-random))
+     (let ((new-aurie-vat-id (strong-random-bytes 32))
            (roots-version 0))
        (make-portrait-graph current-data-version new-aurie-vat-id
                             roots-version portraits slots))]
