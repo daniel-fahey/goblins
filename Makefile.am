@@ -77,6 +77,7 @@ SOURCES = goblins.scm \
           goblins/migrations.scm \
           goblins/ocapn/captp.scm \
           goblins/ocapn/captp-types.scm \
+          goblins/ocapn/gc.scm \
           goblins/ocapn/ids.scm \
           goblins/ocapn/netlayer/base-port.scm \
           goblins/ocapn/netlayer/fake.scm \
