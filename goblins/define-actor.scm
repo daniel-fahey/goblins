@@ -13,7 +13,8 @@
 ;;; limitations under the License.
 ;;;
 (define-module (goblins define-actor)
-  #:use-module ((goblins) #:select (spawn))
+  #:use-module ((goblins core) #:select (spawn))
+  #:use-module (srfi srfi-11)
   #:use-module ((goblins core-types)
                 #:select (portraitize
                           make-redefinable-object
@@ -23,21 +24,26 @@
                           versioned
                           versioned-data?
                           versioned-data-version))
-  #:use-module (srfi srfi-71)   ; extended let for multiple values
   #:export (define-actor define-hackable))
 
 
 (define-syntax-rule (define-redefinable-object-with-rehydrator name proc rehydrator)
   (define name
-    (if (and (defined? 'name) (redefinable-object? name))
-        ;; We've already defined this, just update the constructor refr
-        (begin
-          (set-redefinable-object-constructor! name proc)
-          (set-redefinable-object-rehydrator! name rehydrator)
-          name)
-        ;; First time (or currently not a redefinable object),
-        ;; lets define it.
-        (make-redefinable-object proc rehydrator))))
+    (cond-expand
+     (guile
+      (if (and (defined? 'name) (redefinable-object? name))
+          ;; We've already defined this, just update the constructor refr
+          (begin
+            (set-redefinable-object-constructor! name proc)
+            (set-redefinable-object-rehydrator! name rehydrator)
+            name)
+          ;; First time (or currently not a redefinable object),
+          ;; lets define it.
+          (make-redefinable-object proc rehydrator)))
+     ;; Hoot programs are currently static objects and so redefinable objects
+     ;; are not meaningful for hoot. Consider actors as frozen under hoot.
+     (hoot
+      (make-redefinable-object proc rehydrator)))))
 
 (define-syntax-rule (define-redefinable-object name proc)
   (define-redefinable-object-with-rehydrator name proc #f))
@@ -105,7 +111,7 @@
                              self)))))
     (syntax-case stx ()
       [(_ (constructor-id bcom arg ...) body ...)
-       (let ((kwless-body frozen? version portrait restore upgrade self
+       (let-values (((kwless-body frozen? version portrait restore upgrade self)
                           (extract-body-keywords #'(body ...))))
          (with-syntax (((arg-name ...) (args->arg-names #'(arg ...)))
                        ((kwless-body-extra ... kwless-body-final) kwless-body))
