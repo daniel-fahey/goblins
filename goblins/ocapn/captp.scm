@@ -49,17 +49,7 @@
   #:use-module (fibers channels)
   #:export (spawn-mycapn captp-env))
 
-;;; Some crap to make this work in the port from Racket->Guile
-
-(define local-promise? local-promise-refr?)
-(define local-object? local-object-refr?)
-(define add1 1+)
-
-(define _spawn-promise-values
-  (@@ (goblins core) _spawn-promise-values))
-
 (define captp-version "goblins-0.12")
-
 
 ;; This should be better documented, and will when it becomes more of
 ;; a "standardized protocol" as opposed to a "bespoke implementation".
@@ -369,7 +359,7 @@
       ;; Add it to the gc guardian.
       (guardian question-finder)
       ;; Increment the next-question id.
-      (set! next-question-pos (add1 next-question-pos))
+      (set! next-question-pos (1+ next-question-pos))
       question-finder))
 
   (define (_handle-message msg)
@@ -474,7 +464,7 @@
 
   (define (increment-spare-imports-count! import-pos)
     (hashv-set! spare-import-counts import-pos
-                (add1 (hashv-ref spare-import-counts import-pos 0))))
+                (1+ (hashv-ref spare-import-counts import-pos 0))))
   (define (decrement-exports-count-maybe-remove! export-pos delta)
     (assert-type export-pos integer?)
     (assert-type delta integer?)
@@ -558,14 +548,14 @@
            (error 'no-export-count-wtf
                   "No export count for ~a" export-pos)]
           [cur-count
-           (hashv-set! export-counts export-pos (add1 cur-count))])
+           (hashv-set! export-counts export-pos (1+ cur-count))])
         ;; now finally return the export position
         export-pos)]
      ;; Nope, let's export this
      [else
       (let ((export-pos next-export-pos))
         ;; get this export-pos and increment next-export-pos
-        (set! next-export-pos (add1 export-pos))
+        (set! next-export-pos (1+ export-pos))
         ;; install in both export tables
         (hashv-set! exports-pos2val export-pos
                     refr)
@@ -584,7 +574,7 @@
     (assert-type local-refr local-refr?)
     (let ((export-pos (maybe-install-export! local-refr)))
       (match local-refr
-        [(? local-object?)
+        [(? local-object-refr?)
          (desc:import-object export-pos)]
         [(? local-promise-refr?)
          (desc:import-promise export-pos)])))
@@ -649,9 +639,9 @@
           (gset-add this-set (outgoing-pre-marshall! item)))
         (make-gset)
         obj)]
-      [(? local-promise?)
+      [(? local-promise-refr?)
        (desc:import-promise (maybe-install-export! obj))]
-      [(? local-object?)
+      [(? local-object-refr?)
        (desc:import-object (maybe-install-export! obj))]
       [(? remote-refr?)
        (let ((refr-captp-connector (remote-refr-captp-connector obj)))
@@ -1086,7 +1076,7 @@
                      (signed-handoff-receive
                       (desc:sig-envelope handoff-receive
                                          handoff-receive-sig)))
-                ($$ our-handoff-count (add1 ($$ our-handoff-count)))
+                ($$ our-handoff-count (1+ ($$ our-handoff-count)))
                 (<- router 'send-handoff-receive signed-handoff-receive)))
             #:promise? #t)))
 
