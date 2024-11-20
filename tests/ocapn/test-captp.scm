@@ -1,5 +1,4 @@
 (define-module (tests ocapn test-captp)
-  #:use-module (goblins)
   #:use-module (goblins core)
   #:use-module (goblins core-types)
   #:use-module (goblins vat)
@@ -8,6 +7,7 @@
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn captp)
+  #:use-module (goblins ocapn captp-types)
   #:use-module (goblins ocapn netlayer fake)
   #:use-module (tests utils)
   #:use-module (fibers channels)
@@ -251,7 +251,6 @@
     result))
 
 ;; Test on-sever
-(define op:abort (@ (goblins ocapn captp) op:abort))
 (let ((result
        (resolve-vow-and-return-result
         a-vat
