@@ -59,9 +59,8 @@
   ;; boot it up!
   (syscaller-free
    (lambda ()
-     (spawn-fiber start-inbox-loop
-                  (cond-expand
-                   (hoot)
-                   (guile scheduler)))))
+     (cond-expand
+      (hoot (spawn-fiber start-inbox-loop))
+      (guile (spawn-fiber start-inbox-loop scheduler)))))
   ;; return inbox enqueue/dequeue channels, as well as stop operation
   (values enq-ch deq-ch stop?))
