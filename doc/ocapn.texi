@@ -219,7 +219,7 @@ following server script as @file{captp-bob.scm}:
 (define node-vat (spawn-vat))
 (define-values (onion-netlayer private-key service-id)
   (with-vat node-vat
-    (new-onion-netlayer)))
+    (spawn ^onion-netlayer)))
 (define mycapn
   (with-vat node-vat
     (spawn-mycapn onion-netlayer)))

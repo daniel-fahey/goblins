@@ -34,9 +34,7 @@
   #:use-module (goblins ocapn netlayer onion-socks)
   #:use-module (goblins ocapn netlayer base-port)
   #:use-module (goblins contrib syrup)
-  #:export (new-onion-netlayer
-            restore-onion-netlayer
-            ^onion-netlayer
+  #:export (^onion-netlayer
             onion-netlayer-env))
 
 (define (spawn-tor-control-connect-unix path)
