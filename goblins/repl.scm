@@ -37,10 +37,9 @@
 
 ;; Special exception type that REPL commands will catch in order to
 ;; print out friendly error messages.
-(define &goblins-repl-error
-  (make-exception-type '&goblins-repl-error &error '()))
-
-(define make-goblins-repl-error (record-constructor &goblins-repl-error))
+(define-exception-type &goblins-repl-error &error
+  make-goblins-repl-error
+  goblins-repl-error?)
 
 (define (repl-error message)
   (raise-exception
