@@ -31,6 +31,7 @@
   #:use-module (fibers operations)
   #:use-module (ice-9 atomic)
   #:use-module (ice-9 control)
+  #:use-module (ice-9 exceptions)
   #:use-module (ice-9 match)
   #:use-module (ice-9 q)
   #:use-module (ice-9 weak-vector)
@@ -563,14 +564,10 @@ like this:
 ;; Vats
 ;; ====
 
-(define &vat-turn-error
-  (make-exception-type '&vat-turn-error &error '(event)))
-
-(define make-vat-turn-error (record-constructor &vat-turn-error))
-
-(define vat-turn-error-event
-  (exception-accessor &vat-turn-error
-                      (record-accessor &vat-turn-error 'event)))
+(define-exception-type &vat-turn-error &error
+  make-vat-turn-error
+  vat-turn-error?
+  (event vat-turn-error-event))
 
 ;; Vat envelopes contain a message, are postmarked with a Lamport
 ;; timestamp to indicate when it was sent, and have a flag that
