@@ -24,7 +24,6 @@
   #:use-module (goblins abstract-types)
   #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins utils crypto)
-  #:use-module (goblins utils random-name)
   #:use-module (goblins utils ring-buffer)
   #:use-module (fibers)
   #:use-module (fibers conditions)
