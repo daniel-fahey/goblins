@@ -120,7 +120,7 @@ As you can see above, @code{bcom} is also a handy way to construct
 state machines, as @code{^drink} moves from drinkable to empty as it
 is consumed.
 
-@code{spawn} also has a few variants:
+@code{spawn} also has specialized variants:
 
 @deffn {Procedure} spawn-named name constructor args @dots{}
 
@@ -189,6 +189,8 @@ indicating the behavior/method to be invoked.
 @node Asynchronous calls
 @subsection Asynchronous calls
 
+@subheading Making asynchronous calls
+
 @deffn {Procedure} <- to-refr args @dots{}
 
 Like @code{$}, but @var{to-refr} may be @emph{near} or @emph{far}, and
@@ -222,7 +224,17 @@ Like @code{<-}, but return @code{void} instead of a promise.
 
 Like @code{<-np}, but only operate on @emph{far} objects.
 
+This procedure can be used outside of a vat.
+
 @end deffn
+
+@subheading Handling asynchronous values
+
+Goblins provides two primary tools for resolving and operating on
+promise values, @code{on} and @code{listen-to}.  Neither pauses
+program execution, so code following their invocation is conceptually
+concurrent with their various handlers.  These handlers therefore
+constitute the asynchronous logic of most Goblins programs.
 
 @deffn {Procedure} on vow [fulfilled-handler #f] @
        [#:catch #f] [#:finally #f] [#:promise? #f]
@@ -235,16 +247,17 @@ unless @var{promise?} is @code{#t}, in which case return a promise.
 @var{vow}: Promise to which to respond.
 
 @item
-@var{fulfilled-handler}: Procedure called with the result of @var{vow}
-if it is fulfilled.
+@var{fulfilled-handler}: Procedure called with one argument on
+success, the result of fulfilling @var{vow}.
 
 @item
-@var{catch}: Procedure invoked on an error; passed one argument, the
-exception object.
+@var{catch}: Procedure called with one argument on failure, the
+exception object explaining why @var{vow} broke.
 
 @item
-@var{finally}: Procedure invoked on success or failure after the
-appropriate handler.
+@var{finally}: Procedure unconditionally called last with one
+argument, the result of either the @var{fulfilled-handler} or the
+@var{catch} handler.
 
 @end itemize
 
@@ -256,14 +269,14 @@ will itself return a promise.  This promise is resolved as follows:
 If @code{vow} is fulfilled and @code{fulfilled-handler} is not
 provided, the promise returned will share @code{vow}'s resolution.
 @item
-If @code{vow} is broken and @code{catch} is not provided, the promise
-returned will share @code{vow}'s broken result.
-@item
 If @code{vow} is fulfilled and @code{fulfilled-handler} is provided,
 the resolution will be whatever is returned from
 @code{fulfilled-handler}, unless @code{fulfilled-handler} raises an
 error, in which case the promise will be broken with its error-value
 set to this exception.
+@item
+If @code{vow} is broken and @code{catch} is not provided, the promise
+returned will share @code{vow}'s broken result.
 @item
 If @code{vow} is broken and @code{catch} is provided, the resolution
 will be whatever is returned from @code{catch}, unless @code{catch}
@@ -291,14 +304,20 @@ exception).
 
 @end deffn
 
-You can also wait for the resolution of a promise without necessarily
-responding:
+Goblins also exposes a more primitive interface to listen for promise
+resolution, mostly useful if you don't need to know the value a
+resolved promise and just want to know that it has resolved:
 
 @deffn {Procedure} listen-to to-refr listener [#:wants-partial? #f]
 
-Wait for @var{to-refr} to resolve, then inform @var{listener}.  If
-@var{wants-partial?} is @code{#t}, return updates rather than waiting
-for full promise resolution.
+Wait for @var{to-refr}, a promise, to resolve, then call
+@var{listener} with its value.  If @var{wants-partial?} is @code{#t},
+return updates rather than waiting for full promise resolution.
+
+The value passed to @var{listener} is a list of the form
+@code{('fulfill val)} on success, where @var{val} is the result of
+resolving @var{to-refr}; or of the form @code{('break problem)} on
+failure, where @var{problem} is the cause of a failed computation.
 
 @end deffn
 
