@@ -417,3 +417,13 @@ a persisted version of an object spawned via CONSTRUCTOR."
   persistence-store?
   (read-proc persistence-store-read-proc)
   (save-proc persistence-store-save-proc))
+
+
+;; This can be used as a stand in for when an actor needs to refer to a
+;; object before it's been woken up... It's important we do *not* export
+;; the accessors to the vat-id or object-id.
+(define-record-type <persistable-object-identifier>
+  (make-persistable-object-identifier vat-id object-id)
+  persistable-object-identifier?
+  (vat-id persistable-object-identifier-vat-id)
+  (object-id persistable-object-identifier-object-id))

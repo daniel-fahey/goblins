@@ -117,7 +117,10 @@
 
             make-persistence-env
             persistence-env-compose
-            namespace-env)
+            namespace-env
+
+            local-refr->persistable-object-identifier
+            has-persistable-object-identifier?)
 
   #:re-export (live-refr?
                local-refr?
@@ -3123,3 +3126,18 @@ Returns the root objects of the graph."
      (procedure-name proc)]
     [(? redefinable-object? re-object)
      (actor-name (redefinable-object-constructor re-object))]))
+
+(define (local-refr->persistable-object-identifier local-refr)
+  (define vat-connector
+    (local-refr-vat-connector local-refr))
+  (unless vat-connector
+    (error "local-refr ~a has no vat connector" local-refr))
+  (make-persistable-object-identifier
+   (vat-connector 'aurie-vat-id)
+   (local-object-refr-aurie-id local-refr)))
+
+(define (has-persistable-object-identifier? local-refr)
+  (define vat-connector
+    (local-refr-vat-connector local-refr))
+  (and vat-connector
+       (vat-connector 'aurie-vat-id)))

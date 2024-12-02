@@ -30,10 +30,22 @@
 (define (make-swiss-num)
   (strong-random-bytes 32))
 
+(define (refr->storable-id local-refr)
+  "Convert a local-refr to a persistence object identifer."
+  ;; If the nonce registry stored and restored by the persistence system then
+  ;; local refrs would be woken up as promises for far local-refrs. This causes
+  ;; problems for looking them up in the future as the refr and promise won't be
+  ;; either equal or eq and we can't block all lookups until every promise is
+  ;; resolved. The solution, convert them to persistence object identifiers so
+  ;; that we can always compare them, even if the vat hasn't even woken up.
+  (if (has-persistable-object-identifier? local-refr)
+      (local-refr->persistable-object-identifier local-refr)
+      local-refr))
+
 (define-actor (^nonce-registry bcom
                                #:optional
                                [swiss-num->refr ghash-null]
-                               [refr->swiss-num ghash-null]
+                               [storable-id->swiss-num ghash-null]
                                [hash-algorithm 'sha256]
                                [salt (make-swiss-num)])
   #:frozen
@@ -43,15 +55,24 @@
   (define (hash value)
     (hash-func (bytevector-append value salt)))
   (define (register-refr-new refr provided-swiss-num)
-    (let* ((new-swiss-num (or provided-swiss-num (make-swiss-num)))
+    ;; If the refr is persistable, we want to store its persistable-id so that
+    ;; we are able to lookup a refr even before that vat has been restored.
+    ;; However if the refr is not on a persistable vat it cannot have a persistable
+    ;; identifier and so we must fall back to using the refr itself. The refr
+    ;; obviously won't have any persistability issues as it's not using the
+    ;; persistence system.
+    (let* ((storable-id (refr->storable-id refr))
+           (new-swiss-num (or provided-swiss-num (make-swiss-num)))
            (hashed-swiss-num (hash new-swiss-num))
            (new-swiss-num->refr (ghash-set swiss-num->refr hashed-swiss-num refr))
-           (new-refr->swiss-num (ghash-set refr->swiss-num refr new-swiss-num)))
-      (bcom (^nonce-registry bcom new-swiss-num->refr new-refr->swiss-num
+           (new-storable-id->swiss-num
+            (ghash-set storable-id->swiss-num storable-id new-swiss-num)))
+      (bcom (^nonce-registry bcom new-swiss-num->refr
+                             new-storable-id->swiss-num
                              hash-algorithm salt) new-swiss-num)))
   (define* (register refr #:optional provided-swiss-num)
     (assert-type refr live-refr?)
-    (match (ghash-ref refr->swiss-num refr #f)
+    (match (ghash-ref storable-id->swiss-num (refr->storable-id refr) #f)
       [#f (register-refr-new refr provided-swiss-num)]
       [swiss-num swiss-num]))
   (methods
