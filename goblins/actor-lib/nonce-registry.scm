@@ -33,7 +33,13 @@
   (gen-random-bv 32 %gcry-strong-random))
 
 (define (refr->storable-id local-refr)
-  ;; TODO: Explain
+  "Convert a local-refr to a persistence object identifer."
+  ;; If the nonce registry stored and restored by the persistence system then
+  ;; local refrs would be woken up as promises for far local-refrs. This causes
+  ;; problems for looking them up in the future as the refr and promise won't be
+  ;; either equal or eq and we can't block all lookups until every promise is
+  ;; resolved. The solution, convert them to persistence object identifiers so
+  ;; that we can always compare them, even if the vat hasn't even woken up.
   (if (has-persistable-object-identifier? local-refr)
       (local-refr->persistable-object-identifier local-refr)
       local-refr))
@@ -51,7 +57,7 @@
   (define (hash value)
     (hash-func (bytevector-append value salt)))
   (define (register-refr-new refr provided-swiss-num)
-    ;; If the refr is persistable, we want to store it's persistable-id so that
+    ;; If the refr is persistable, we want to store its persistable-id so that
     ;; we are able to lookup a refr even before that vat has been restored.
     ;; However if the refr is not on a persistable vat it cannot have a persistable
     ;; identifier and so we must fall back to using the refr itself. The refr
