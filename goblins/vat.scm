@@ -1038,7 +1038,11 @@ logging."
      (lambda ()
        (syscaller-free
         (lambda ()
-          (spawn-fiber loop scheduler))))))
+          (cond-expand
+           (guile
+            (spawn-fiber loop scheduler))
+           (hoot
+            (spawn-fiber loop))))))))
   (define (halt)
     (signal-condition! done?)
     *unspecified*)
