@@ -134,7 +134,9 @@
             <persistence-store>
             make-persistence-store
             persistence-store-read-proc
-            persistence-store-save-proc))
+            persistence-store-save-proc
+
+            make-persistable-object-identifier))
 
 ;; Actormaps, etc
 ;; ==============
