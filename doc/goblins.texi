@@ -768,7 +768,8 @@ light is constant and New York is not getting any closer to Tokyo.''
 
 @end quotation
 
-Promise pipelining provides two different features at once:
+@cindex promise pipelining
+@dfn{Promise pipelining} provides two different features at once:
 
 @itemize
 @item
