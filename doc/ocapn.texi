@@ -250,8 +250,8 @@ captp-alice.scm}:
 guile captp-alice.scm <STURDYREF-GOES-HERE>
 @end example
 
-Tor Onion Services can take awhile to establish, but after a short
-wait you should see:
+Tor Onion Services can take a while to establish, but eventually you
+should see:
 
 @example
 Alice heard back: Hello Alice, my name is Bob!

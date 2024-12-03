@@ -587,8 +587,8 @@ Here is the definition of a ``counting greeter'' called
             your-name our-name))))
 @end lisp
 
-As you can see near the top, @code{times-called} is instantiated as a
-@code{^cell} like the one we defined earlier.  The current value of
+As you can see near the top, @code{times-called} is instantiated as an
+@code{^mcell} like the one we defined earlier.  The current value of
 this cell is returned by @code{get-times-called} and is updated every
 time the @code{greet} method is called:
 
@@ -650,7 +650,7 @@ do not get back an immediate result; you get a promise:
 
 @lisp
 goblins[1]> (<- alice "Bob")
-; => #<promise>
+; => #<local-promise>
 @end lisp
 
 This promise must be listened to.  The procedure to listen to promises
@@ -747,12 +747,14 @@ goblins[1]> ($ horatio 'get-times-called)
 ; => 0
 @end lisp
 
-This is covered in greater detail later, but the core idea here is
-that synchronous operations run with @code{$} are all done together as
-one transaction.  If an unhandled error occurs, any state changes
-resulting from synchronous operations within that transaction will
-simply not be committed.  This is useful, because it means most
-otherwise difficult cleanup steps are handled automatically.
+Transactionality is covered in greater detail later, but the core idea
+here is that synchronous operations run with @code{$} are all done
+together as one transaction.  If an unhandled error occurs, any state
+changes resulting from synchronous operations within that transaction
+will simply not be committed.  @code{<-} also provides
+transactionality using different mechanisms.  This is useful because
+it means most otherwise-difficult cleanup steps are handled
+automatically.
 
 @node Promise pipelining
 @section Promise pipelining
