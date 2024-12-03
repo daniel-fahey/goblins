@@ -12,103 +12,109 @@
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
 
-(define-module (goblins)
-  #:use-module (goblins core)
-  #:use-module (goblins define-actor)
-  #:use-module (goblins migrations)
-  #:use-module (goblins repl)
-  #:use-module (goblins vat)
-  #:re-export (live-refr?
-               local-refr?
-               remote-refr?
-               promise-refr?
-               local-object-refr?
-               local-promise-refr?
-               remote-object-refr?
-               remote-promise-refr?
+(define-library (goblins)
+  (export spawn
+          live-refr?
+          local-refr?
+          remote-refr?
+          promise-refr?
+          local-object-refr?
+          local-promise-refr?
+          remote-object-refr?
+          remote-promise-refr?
 
-               near-refr?
-               far-refr?
+          near-refr?
+          far-refr?
 
-               make-actormap
-               make-transactormap
-               make-whactormap
+          make-actormap
+          make-transactormap
+          make-whactormap
 
-               actormap-spawn
-               actormap-spawn!
-               ;; actormap-spawn-mactor!
+          actormap-spawn
+          actormap-spawn!
+          ;; actormap-spawn-mactor!
 
-               actormap-turn*
-               actormap-turn
+          actormap-turn*
+          actormap-turn
 
-               actormap-turn-message
+          actormap-turn-message
 
-               actormap-peek
-               actormap-poke!
-               actormap-reckless-poke!
+          actormap-peek
+          actormap-poke!
+          actormap-reckless-poke!
 
-               actormap-run
-               actormap-run!
-               actormap-run*
+          actormap-run
+          actormap-run!
+          actormap-run*
 
-               actormap-churn
-               actormap-churn-run
-               actormap-churn-run!
+          actormap-churn
+          actormap-churn-run
+          actormap-churn-run!
 
-               dispatch-message
-               dispatch-messages
+          dispatch-message
+          dispatch-messages
 
-               whactormap?
-               transactormap-merge!
-               transactormap-buffer-merge!
+          whactormap?
+          transactormap-merge!
+          transactormap-buffer-merge!
 
-               spawn-named
-               $
-               <-np <-
-               on
-               on-sever
+          spawn-named
+          $
+          <-np <-
+          on
+          on-sever
 
-               <-np-extern
-               listen-to
+          <-np-extern
+          listen-to
 
-               await await*
-               <<-
+          await await*
+          <<-
 
-               spawn-promise-cons
-               spawn-promise-values
+          spawn-promise-cons
+          spawn-promise-values
 
-               make-persistence-env
-               namespace-env
-               persistence-env-compose
-               portraitize
-               actormap-take-portrait
-               actormap-replace-behavior
-               actormap-replace-behavior!
-               actormap-restore!
-               actormap-restore-from-store!
-               actormap-save-to-store!
+          make-persistence-env
+          namespace-env
+          persistence-env-compose
+          portraitize
+          actormap-take-portrait
+          actormap-replace-behavior
+          actormap-replace-behavior!
+          actormap-restore!
+          actormap-restore-from-store!
+          actormap-save-to-store!
 
-               versioned
+          versioned
 
-               make-vat
-               vat?
-               vat-name
-               vat-running?
-               vat-halt!
-               vat-start!
-               call-with-vat
-               with-vat
-               spawn-vat
-               spawn-persistent-vat
-               vat-replace-behavior!
-               define-vat-run
-               vat-take-portrait!
+          make-vat
+          vat?
+          vat-name
+          vat-running?
+          vat-halt!
+          vat-start!
+          call-with-vat
+          with-vat
+          spawn-vat
+          spawn-persistent-vat
+          vat-replace-behavior!
+          define-vat-run
+          vat-take-portrait!
 
-               define-actor
-               migrations)
-  #:replace (spawn))
+          define-actor
+          migrations)
+  (import (guile)
+          (goblins core)
+          (goblins vat)
+          (goblins define-actor)
+          (goblins migrations))
 
-;; In order to replace a core binding with #:replace in define-module,
-;; it can't be re-exported.  To get around this, we assign spawn to a
-;; local variable in this module.
-(define spawn (@ (goblins core) spawn))
+  ;; When under guile
+  (cond-expand
+   (guile
+    (import (goblins repl))
+    (begin
+      ;; In order to replace a core binding with #:replace in define-module,
+      ;; it can't be re-exported.  To get around this, we assign spawn to a
+      ;; local variable in this module.
+      (define spawn (@ (goblins core) spawn))))
+   (hoot)))
