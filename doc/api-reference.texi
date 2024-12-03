@@ -21,6 +21,7 @@ transactional operations.  Most users will just use vats.
 @menu
 * Object construction::
 * Synchronous calls::
+* Promises::
 * Asynchronous calls::
 * Object reference predicates::
 * define-actor::
@@ -120,33 +121,11 @@ As you can see above, @code{bcom} is also a handy way to construct
 state machines, as @code{^drink} moves from drinkable to empty as it
 is consumed.
 
-@code{spawn} also has a few variants:
+@code{spawn} also has specialized variants:
 
 @deffn {Procedure} spawn-named name constructor args @dots{}
 
 Like @code{spawn}, and set the object's debug name to @var{name}.
-
-@end deffn
-
-@deffn {Procedure} spawn-promise-values
-
-Return a promise and its associated resolver.
-
-@lisp
-(define-values a-promise a-resolver (spawn-promise-values))
-@end lisp
-
-@end deffn
-
-@deffn {Procedure} spawn-promise-cons
-
-Return a promise and its associated resolver as a @code{cons} pair.
-
-@lisp
-(define promise-pair (spawn-promise-cons))
-(define a-promise (car promise-pair))
-(define a-resolver (cdr promise-pair))
-@end lisp
 
 @end deffn
 
@@ -186,8 +165,127 @@ indicating the behavior/method to be invoked.
 
 @end deffn
 
+@node Promises
+@subsection Promises
+
+@cindex promise
+The central data type abstracting asynchronous computations in Goblins
+is a special object called a @dfn{promise}.  A promise is a
+representation of the result of an ongoing or future computation.
+Once a promised computation is completed, it can be either
+@emph{fulfilled}, indicating success and carrying the value resulting
+from the computation; or @emph{broken}, indicating that the
+computation failed and carrying an error (or other arbitrary value)
+conventionally explaining why.
+
+Goblins promises are conceptually similar to
+@url{https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise,JavaScript
+promises} which may be familiar from other contexts.  The most
+important difference is that Goblins promises support sending messages
+to the objects to which they will resolve, called ``promise
+pipelining''.  @xref{Promise pipelining} for more information.
+
+Goblins provides @code{(goblins actor-lib joiners)} and @code{(goblins
+actor-lib let-on)} to help flatten out code using
+promises.  @xref{Let-On}; @pxref{Joiners}.
+
+@subheading Making promises
+
+Typically, Goblins code will not need to manually create and fulfill
+promises unless it is interfacing with an outside system.  However,
+even if a user never needs to create and fulfill promises directly, it
+is important to understand the process and its mechanisms to
+understand promises and asynchronous programming.
+
+On a fundamental level, promises are created alongside their resolvers:
+
+@deffn {Procedure} spawn-promise-values
+
+Return a promise and its associated resolver in that order as a
+@code{values} object.
+
+@lisp
+(define-values (a-promise a-resolver) (spawn-promise-values))
+@end lisp
+
+@end deffn
+
+The promise portion of a promise pair is what should be returned when
+beginning an asynchronous computation.  It can be passed to @code{on}
+to access the result.  @code{$} can also return the value of a
+resolved promise, but it cannot listen asynchronously for resolution,
+limiting its usefulness for this case.
+
+The resolver should be kept private and is used to @emph{fulfill} or
+@emph{break} a promise.  It can respond to two messages using standard
+Goblins method syntax (@pxref{Methods}):
+
+@itemize
+@item
+@code{fulfill val}: Successfully fulfill the promise with @var{val}.
+@item
+@code{break problem}: Indicate promise failure because of
+@var{problem}, conventionally an exception object.
+@end itemize
+
+@subheading Using promises
+
+The best way to understand promises is to use them, so let's use them.
+A new store has just opened in town, and it wants to celebrate its
+100th customer.  We can model it like so:
+
+@lisp
+;; Imports we'll need
+(use-modules (goblins)
+             (goblins actor-lib cell)
+             (goblins actor-lib methods)
+             (goblins vat))
+
+(define (^store _bcom)
+  ;; Spawn a promise pair representing the wait for the 100th customer
+  (define-values (100th-promise 100th-resolver)
+    (spawn-promise-values))
+  ;; Keep track of the customer count in a cell
+  (define-cell customer-count 0)
+  (methods
+   ;; Hand out the promise for the 100th customer
+   ((listen) 100th-promise)
+   ;; When a customer shops, increment the customer counter.
+   ((shop)
+    (let ((new-count (1+ ($ customer-count))))
+      ($ customer-count new-count)
+      (when (= new-count 100)
+        ($ 100th-resolver 'fulfill "Woohoo! 100th customer!!"))))))
+@end lisp
+
+You can then listen to this actor's promise with @code{on}:
+
+@lisp
+;; Spawn a vat
+(define a-vat (spawn-vat))
+
+;; Spawn the store actor
+(define store (with-vat a-vat (spawn ^store)))
+
+;; Listen for the 100th customer
+(with-vat a-vat
+  (on ($ store 'listen)
+      ;; When the 100th customer enters, announce it
+      (lambda (message)
+        (display message)
+        (newline))))
+
+;; Quickly simulate 100 customers
+(with-vat a-vat
+  (for-each (lambda _ ($ store 'shop)) (iota 100)))
+
+;; => "Woohoo! 100th customer!!"
+@end lisp
+
 @node Asynchronous calls
 @subsection Asynchronous calls
+
+@subheading Making asynchronous calls
 
 @deffn {Procedure} <- to-refr args @dots{}
 
@@ -222,7 +320,17 @@ Like @code{<-}, but return @code{void} instead of a promise.
 
 Like @code{<-np}, but only operate on @emph{far} objects.
 
+This procedure can be used outside of a vat.
+
 @end deffn
+
+@subheading Handling asynchronous values
+
+Goblins provides two primary tools for resolving and operating on
+promise values, @code{on} and @code{listen-to}.  Neither pauses
+program execution, so code following their invocation is conceptually
+concurrent with their various handlers.  These handlers therefore
+constitute the asynchronous logic of most Goblins programs.
 
 @deffn {Procedure} on vow [fulfilled-handler #f] @
        [#:catch #f] [#:finally #f] [#:promise? #f]
@@ -235,16 +343,17 @@ unless @var{promise?} is @code{#t}, in which case return a promise.
 @var{vow}: Promise to which to respond.
 
 @item
-@var{fulfilled-handler}: Procedure called with the result of @var{vow}
-if it is fulfilled.
+@var{fulfilled-handler}: Procedure called with one argument on
+success, the result of fulfilling @var{vow}.
 
 @item
-@var{catch}: Procedure invoked on an error; passed one argument, the
-exception object.
+@var{catch}: Procedure called with one argument on failure, the
+exception object explaining why @var{vow} broke.
 
 @item
-@var{finally}: Procedure invoked on success or failure after the
-appropriate handler.
+@var{finally}: Procedure unconditionally called last with one
+argument, the result of either the @var{fulfilled-handler} or the
+@var{catch} handler.
 
 @end itemize
 
@@ -256,14 +365,14 @@ will itself return a promise.  This promise is resolved as follows:
 If @code{vow} is fulfilled and @code{fulfilled-handler} is not
 provided, the promise returned will share @code{vow}'s resolution.
 @item
-If @code{vow} is broken and @code{catch} is not provided, the promise
-returned will share @code{vow}'s broken result.
-@item
 If @code{vow} is fulfilled and @code{fulfilled-handler} is provided,
 the resolution will be whatever is returned from
 @code{fulfilled-handler}, unless @code{fulfilled-handler} raises an
 error, in which case the promise will be broken with its error-value
 set to this exception.
+@item
+If @code{vow} is broken and @code{catch} is not provided, the promise
+returned will share @code{vow}'s broken result.
 @item
 If @code{vow} is broken and @code{catch} is provided, the resolution
 will be whatever is returned from @code{catch}, unless @code{catch}
@@ -291,14 +400,20 @@ exception).
 
 @end deffn
 
-You can also wait for the resolution of a promise without necessarily
-responding:
+Goblins also exposes a more primitive interface to listen for promise
+resolution, mostly useful if you don't need to know the value a
+resolved promise and just want to know that it has resolved:
 
 @deffn {Procedure} listen-to to-refr listener [#:wants-partial? #f]
 
-Wait for @var{to-refr} to resolve, then inform @var{listener}.  If
-@var{wants-partial?} is @code{#t}, return updates rather than waiting
-for full promise resolution.
+Wait for @var{to-refr}, a promise, to resolve, then call
+@var{listener} with its value.  If @var{wants-partial?} is @code{#t},
+return updates rather than waiting for full promise resolution.
+
+The value passed to @var{listener} is a list of the form
+@code{('fulfill val)} on success, where @var{val} is the result of
+resolving @var{to-refr}; or of the form @code{('break problem)} on
+failure, where @var{problem} is the cause of a failed computation.
 
 @end deffn
 

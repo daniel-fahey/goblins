@@ -5,6 +5,7 @@
 @documentencoding UTF-8
 @documentlanguage en
 @syncodeindex pg cp
+@syncodeindex cp fn
 @c %**end of header
 
 @dircategory The Algorithmic Language Scheme
@@ -768,7 +769,8 @@ light is constant and New York is not getting any closer to Tokyo.''
 
 @end quotation
 
-Promise pipelining provides two different features at once:
+@cindex promise pipelining
+@dfn{Promise pipelining} provides two different features at once:
 
 @itemize
 @item
