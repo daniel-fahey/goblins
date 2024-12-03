@@ -5,6 +5,7 @@
 @documentencoding UTF-8
 @documentlanguage en
 @syncodeindex pg cp
+@syncodeindex cp fn
 @c %**end of header
 
 @dircategory The Algorithmic Language Scheme
