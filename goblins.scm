@@ -111,10 +111,5 @@
   ;; When under guile
   (cond-expand
    (guile
-    (import (goblins repl))
-    (begin
-      ;; In order to replace a core binding with #:replace in define-module,
-      ;; it can't be re-exported.  To get around this, we assign spawn to a
-      ;; local variable in this module.
-      (define spawn (@ (goblins core) spawn))))
+    (import (goblins repl)))
    (hoot)))
