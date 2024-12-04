@@ -26,7 +26,6 @@
   #:use-module (goblins ocapn ids)
   #:use-module (goblins contrib syrup)
   #:use-module (ice-9 match)
-  #:use-module (ice-9 popen)
   #:export (^fake-network ^fake-netlayer))
 
 (define (^fake-network _bcom)
