@@ -20,6 +20,7 @@
   #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins inbox)
   #:use-module (goblins actor-lib methods)
+  #:use-module (goblins utils error-handling)
   #:use-module (fibers)
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
@@ -71,12 +72,12 @@ Returns two values to its continuation:
               (define (handle-exn exn)
                 ;; Print exception
                 (define stack
-                  (make-stack #t handle-exn))
+                  (capture-current-stack handle-exn exn))
                 (format (current-error-port)
                         "Error in IO handling wrapped resource ~a:\n"
                         wrapped)
                 (format (current-error-port) "~a\n" exn)
-                ((@@ (goblins core) display-backtrace*) stack)
+                (display-backtrace* exn stack)
                 ;; Break promise
                 (<-np-extern resolver 'break exn))
               (with-exception-handler handle-exn
