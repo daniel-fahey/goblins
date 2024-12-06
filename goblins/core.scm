@@ -2058,7 +2058,7 @@ Type: Promise (Optional (Any -> Any))
 ;; We don't want to expose the keyword arguments of the parent
 ;; procedure to just everyone, hence this indirection
 (define (spawn-promise-and-resolver)
-  "Return a promise and its associated resolver as a values object.
+  "Return a promise and its associated resolver.
 
 Type: -> (Values Promise Resolver)"
   (_spawn-promise-and-resolver))
