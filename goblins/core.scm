@@ -2064,12 +2064,15 @@ Type: -> (Values Promise Resolver)"
   (_spawn-promise-and-resolver))
 
 ;; Deprecated
-(define spawn-promise-values
-  spawn-promise-and-resolver)
+(define (spawn-promise-values)
+  (issue-deprecation-warning
+   "Spawn-promise-values is deprecated in favor of spawn-promise-and-resolver")
+  (spawn-promise-and-resolver))
 (define (spawn-promise-cons)
   "This procedure is deprecated, use spawn-promise-and-resolver instead."
+  (issue-deprecation-warning
+   "Spawn-promise-cons is deprecated in favor of spawn-promise-and-resolver")
   (call-with-values spawn-promise-and-resolver cons))
-
 
 
 ;; Spawning
