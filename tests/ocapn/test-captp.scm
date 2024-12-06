@@ -256,7 +256,7 @@
         a-vat
         (lambda ()
           (define-values (sever-vow sever-resolver)
-            (spawn-promise-values))
+            (spawn-promise-and-resolver))
           (define bob-vow ($ a-mycapn 'enliven bob-sref))
           (on bob-vow
               (lambda (bob)
@@ -278,7 +278,7 @@
         c-vat
         (lambda ()
           (define-values (sever-vow sever-resolver)
-            (spawn-promise-values))
+            (spawn-promise-and-resolver))
           (define (^notifier _bcom)
             (lambda (shutdown-type reason)
               ($ sever-resolver 'fulfill `(severed ,shutdown-type ,reason))))
@@ -309,7 +309,7 @@
         a-vat
         (lambda ()
           (define-values (sever-vow sever-resolver)
-            (spawn-promise-values))
+            (spawn-promise-and-resolver))
 
           (define (^notifier-init _bcom refr)
             (lambda (_shutdown-type _reason)

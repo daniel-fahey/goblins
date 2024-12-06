@@ -244,10 +244,8 @@
   (define fulfilled-val #f)
   (define broken-val #f)
   (define finally-ran? #f)
-  (define a-promise-and-resolver
-    (call-with-vat a-vat spawn-promise-cons))
-  (define a-promise (car a-promise-and-resolver))
-  (define a-resolver (cdr a-promise-and-resolver))
+  (define-values (a-promise a-resolver)
+    (call-with-vat a-vat spawn-promise-and-resolver))
   (define done? (make-condition))
   (with-vat b-vat
     (on a-promise

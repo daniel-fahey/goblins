@@ -456,8 +456,8 @@
     (when (hashv-ref answers answer-pos)
       (error 'already-have-answer
              "~a" answer-pos))
-    (match-let (((answer-promise . answer-resolver)
-                 (spawn-promise-cons)))
+    (let-values (((answer-promise answer-resolver)
+                 (spawn-promise-and-resolver)))
       (hashv-set! answers answer-pos answer-promise)
       (listen-to answer-promise resolve-me)
       (values answer-promise answer-resolver)))
@@ -995,7 +995,7 @@
                 [(gift-promise _gift-resolver)
                  gift-promise])
               (let-values ([(gift-promise gift-resolver)
-                            (spawn-promise-values)])
+                            (spawn-promise-and-resolver)])
                 ($$ waiting-gifts 'set id (list gift-promise gift-resolver))
                 gift-promise))])]))
 
@@ -1014,7 +1014,7 @@
               #:promise? #t))
         ;; Guess we'll make a new one
         (let-values ([(netlayer) (get-netlayer-for-location remote-node-loc)]
-                     [(vow resolver) (spawn-promise-values)])
+                     [(vow resolver) (spawn-promise-and-resolver)])
           ;; To ensure future calls don't create more than one connection
           ;; setup a vow for the session name which will be fulfilled later.
           ;; Once the vow we're creating here is fulfilled we'll swap it out
@@ -1115,7 +1115,7 @@
       (<- coordinator 'get-location-sig))
 
     (define-values (remote-bootstrap-vow remote-bootstrap-resolver)
-      (spawn-promise-values))
+      (spawn-promise-and-resolver))
 
     ;; Complete the initialization step against the remote node.
     ;; Basically this allows the coordinator to know of what remote

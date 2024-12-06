@@ -199,13 +199,14 @@ understand promises and asynchronous programming.
 
 On a fundamental level, promises are created alongside their resolvers:
 
-@deffn {Procedure} spawn-promise-values
+@deffn {Procedure} spawn-promise-and-resolver
 
 Return a promise and its associated resolver in that order as a
 @code{values} object.
 
 @lisp
-(define-values (a-promise a-resolver) (spawn-promise-values))
+(define-values (a-promise a-resolver)
+  (spawn-promise-and-resolver))
 @end lisp
 
 @end deffn
@@ -244,7 +245,7 @@ A new store has just opened in town, and it wants to celebrate its
 (define (^store _bcom)
   ;; Spawn a promise pair representing the wait for the 100th customer
   (define-values (100th-promise 100th-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
   ;; Keep track of the customer count in a cell
   (define-cell customer-count 0)
   (methods

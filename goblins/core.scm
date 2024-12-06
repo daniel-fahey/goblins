@@ -67,8 +67,7 @@
             await await*
             <<-
 
-            spawn-promise-cons
-            spawn-promise-values
+            spawn-promise-and-resolver
 
             make-actormap-read-portrait!
             actormap-take-portrait-with-read-portrait
@@ -120,7 +119,11 @@
             namespace-env
 
             local-refr->persistable-object-identifier
-            has-persistable-object-identifier?)
+            has-persistable-object-identifier?
+
+            ;; Deprecated
+            spawn-promise-cons
+            spawn-promise-values)
 
   #:re-export (live-refr?
                local-refr?
@@ -1148,7 +1151,7 @@ Type: Any -> Boolean"
          (apply actor-behavior args))
        (define (_handle-await k fulfill-proc promise?)
          (define-values (waiting-promise waiting-resolver)
-           (_spawn-promise-values))
+           (_spawn-promise-and-resolver))
          ;; Let the fulfill-proc set up how we resolve this
          ;; (see the `await' procedure for an example)
          (fulfill-proc waiting-resolver)
@@ -1598,10 +1601,10 @@ Type: Any -> Boolean"
             (let*-values ([(followup-question-finder)
                            (captp-connector 'new-question-finder)]
                           [(followup-question-promise followup-question-resolver)
-                           (_spawn-promise-values #:question-finder
-                                                  followup-question-finder
-                                                  #:captp-connector
-                                                  captp-connector)])
+                           (_spawn-promise-and-resolver #:question-finder
+                                                        followup-question-finder
+                                                        #:captp-connector
+                                                        captp-connector)])
               (let ((new-msg
                      (make-forward-to-captp
                       (make-questioned (make-message vat-connector
@@ -1648,7 +1651,7 @@ Type: Any -> Boolean"
   (match to-refr
     [(? local-refr?)
      (let-values ([(promise resolver)
-                   (_spawn-promise-values)])
+                   (_spawn-promise-and-resolver)])
        (syscaller-send-message syscaller to-refr resolver args)
        promise)]
     [(? remote-refr?)
@@ -1657,10 +1660,10 @@ Type: Any -> Boolean"
                    ((question-finder)
                     (captp-connector 'new-question-finder))
                    ((promise resolver)
-                    (_spawn-promise-values #:question-finder
-                                           question-finder
-                                           #:captp-connector
-                                           captp-connector)))
+                    (_spawn-promise-and-resolver #:question-finder
+                                                 question-finder
+                                                 #:captp-connector
+                                                 captp-connector)))
        (syscaller-send-message syscaller to-refr resolver args
                                #:answer-this-question question-finder)
        promise)]
@@ -1730,7 +1733,7 @@ Type: Any -> Boolean"
                        broken-handler finally-handler promise?)
   (define-values (return-promise return-p-resolver)
     (if promise?
-        (spawn-promise-values)
+        (spawn-promise-and-resolver)
         (values #f #f)))
 
   ;; These two procedures are called once the fulfillment
@@ -1946,7 +1949,7 @@ Type: Promise (Optional (Any -> Any))
 (define (on-sever remote-object-refr sever-handler)
   "Register `sever-handler' when connection for `remote-object-refr' is severed"
   (define-values (sever-vow sever-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
   (define captp-connector
     (remote-refr-captp-connector remote-object-refr))
   (define connector-obj
@@ -2027,9 +2030,9 @@ Type: Promise (Optional (Any -> Any))
      (syscaller-break-promise sys promise (sealer problem))
      (bcom already-resolved)]))
 
-(define* (_spawn-promise-values #:key
-                                (question-finder #f)
-                                (captp-connector #f))
+(define* (_spawn-promise-and-resolver #:key
+                                      (question-finder #f)
+                                      (captp-connector #f))
   (define-values (sealer unsealer tm?)
     (make-sealer-triplet 'fulfill-promise))
   (define sys (get-syscaller-or-die))
@@ -2054,18 +2057,18 @@ Type: Promise (Optional (Any -> Any))
 
 ;; We don't want to expose the keyword arguments of the parent
 ;; procedure to just everyone, hence this indirection
-(define (spawn-promise-values)
+(define (spawn-promise-and-resolver)
   "Return a promise and its associated resolver as a values object.
 
 Type: -> (Values Promise Resolver)"
-  (_spawn-promise-values))
+  (_spawn-promise-and-resolver))
 
-;; Convenient, sometimes
+;; Deprecated
+(define spawn-promise-values
+  spawn-promise-and-resolver)
 (define (spawn-promise-cons)
-  "Return a promise and its associated resolver as a cons pair.
-
-Type: -> (Promise . Resolver)"
-  (call-with-values spawn-promise-values cons))
+  "This procedure is deprecated, use spawn-promise-and-resolver instead."
+  (call-with-values spawn-promise-and-resolver cons))
 
 
 
@@ -2980,7 +2983,7 @@ Type: Actormap PersistenceEnv -> Void"
   ;; at a vow and later change it to point directly at the refr.
   (hash-for-each
    (lambda (slot depiction)
-     (let*-values (((vow resolver) (actormap-run! am spawn-promise-values))
+     (let*-values (((vow resolver) (actormap-run! am spawn-promise-and-resolver))
                    ((vow-symlink) (make-mactor:local-link vow))
                    ((debug-name) (depiction->debug-name depiction))
                    ((vat-connector) (actormap-vat-connector am))
@@ -3032,17 +3035,17 @@ Type: Actormap PersistenceEnv -> Void"
                  (make-tagged label payload)])]
              ['near (hashq-ref slots->refrs (car data))]
              ['far
-              (let-values (((vow resolver) (spawn-promise-values)))
+              (let-values (((vow resolver) (spawn-promise-and-resolver)))
                 (hash-set! far-refr-resolvers data resolver)
                 vow)]
              ['encase
               ;; This is a promise which contains a value, re-encase
               ;; in a promise and return that.
-              (let-values (((vow resolver) (spawn-promise-values)))
+              (let-values (((vow resolver) (spawn-promise-and-resolver)))
                 ($ resolver 'fulfill (restore-one (car data)))
                 vow)]
              ['broken
-              (let-values (((vow resolver) (spawn-promise-values)))
+              (let-values (((vow resolver) (spawn-promise-and-resolver)))
                 ;; TODO: An actual error type?
                 ($ resolver 'break "Aurie broken promise")
                 vow)]

@@ -60,7 +60,7 @@
 (define (^promise-resolver _bcom)
   (lambda ()
     (define-values (vow resolver)
-      (spawn-promise-values))
+      (spawn-promise-and-resolver))
     (list vow resolver)))
 
 (define (^sturdyref-provider _bcom mycapn)

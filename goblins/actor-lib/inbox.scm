@@ -32,7 +32,7 @@
   (define (read-beh)
     (if ($ messages 'empty?)
         ;; We have no messages to give, give a promise to a message
-        (let-values (((vow resolver) (spawn-promise-values)))
+        (let-values (((vow resolver) (spawn-promise-and-resolver)))
           ($ pending 'enqueue resolver)
           vow)
         ($ messages 'dequeue)))

@@ -1,4 +1,4 @@
-;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2022-2024 Jessica Tallon
 ;;; Copyright 2023 Juliana Sims
 ;;; Copyright 2024 David Thompson <dave@spritely.institute>
 ;;;
@@ -31,7 +31,7 @@ Type: (Listof Promise) -> Promise"
     #f)
 
   (define-values (join-promise join-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
 
   (define (results->list results-alist)
     (map
@@ -74,7 +74,7 @@ settles.  If that promise is broken then so is the returned promise.
 
 Type: Promise ... -> Promise"
   (define-values (race-promise race-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
   (for-each (lambda (promise)
               (on promise
                   (lambda (result)

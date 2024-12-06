@@ -1094,7 +1094,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
 
 (define (spawn-fibrous-vow proc)
   (define-values (promise resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
   (syscaller-free-fiber
    (lambda ()
      (call/ec
@@ -1343,7 +1343,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
        ;; let's add a waiting request
        (#f
         (let*-values (((registered-vat-vow registered-vat-resolver)
-                       (spawn-promise-values))
+                       (spawn-promise-and-resolver))
                       ((new-vat-id->vat)
                        (ghash-set vat-id->vat
                                   vat-aurie-id

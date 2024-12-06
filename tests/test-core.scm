@@ -343,11 +343,8 @@
     #:unwind-for-type &actormap-turn-error))
 
 (define bob (actormap-spawn! am ^cell "Hi, I'm bob!"))
-(define bob-promise-and-resolver
-  (actormap-run! am spawn-promise-cons))
-
-(define bob-vow (car bob-promise-and-resolver))
-(define bob-resolver (cdr bob-promise-and-resolver))
+(define-values (bob-vow bob-resolver)
+  (actormap-run! am spawn-promise-and-resolver))
 
 (snarf mactor:local-link?)
 
@@ -381,13 +378,9 @@
   am (lambda ()
        (near-settled-promise-value bob-vow))))
 
-(define encase-vow-and-resolver
-  (actormap-run! am spawn-promise-cons))
+(define-values (encase-me-vow encase-me-resolver)
+  (actormap-run! am spawn-promise-and-resolver))
 
-(define encase-me-vow
-  (car encase-vow-and-resolver))
-(define encase-me-resolver
-  (cdr encase-vow-and-resolver))
 (actormap-poke! am encase-me-resolver 'fulfill 'encase-me)
 (test-eq "extracting encased value via actormap-peek"
  'encase-me
@@ -419,7 +412,7 @@
        (define broken-cell (spawn ^cell #f))
        (define finally-cell (spawn ^cell #f))
        (define-values (a-vow a-resolver)
-         (spawn-promise-values))
+         (spawn-promise-and-resolver))
        (on a-vow
            (lambda args
              ($ fulfilled-cell args))
@@ -554,9 +547,8 @@
     (actormap-churn-run!
      am
      (lambda ()
-       (define promise-and-resolver (spawn-promise-cons))
-       (define some-promise (car promise-and-resolver))
-       (define some-resolver (cdr promise-and-resolver))
+       (define-values (some-promise some-resolver)
+         (spawn-promise-and-resolver))
        (listen-to some-promise
                   (spawn
                    (lambda (bcom)
@@ -582,11 +574,11 @@
      am
      (lambda ()
        (define-values (listen-to-promise listen-to-resolver)
-         (spawn-promise-values))
+         (spawn-promise-and-resolver))
        (define-values (middle-promise middle-resolver)
-         (spawn-promise-values))
+         (spawn-promise-and-resolver))
        (define-values (gets-the-answer-promise gets-the-answer-resolver)
-         (spawn-promise-values))
+         (spawn-promise-and-resolver))
        (on listen-to-promise
            (lambda (val)
              (set! result `(got-val ,val)))
@@ -801,10 +793,10 @@
                            got-ocapn-node got-ocapn-sref)
   ;; Make the promises
   (define-values (refr-vow refr-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
   ($ refr-resolver 'fulfill supplied-refr)
   (define-values (encased-vow encased-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
   ($ encased-resolver 'fulfill 75)
 
   ;; Make the other values
