@@ -93,7 +93,7 @@ This sturdyref represents the underlying prelay endpoint."
   #:portrait (lambda () '())
   
   (define-values (initial-vow initial-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
 
   (define current-value
     (if initial-value
@@ -271,14 +271,14 @@ respectively."
     (<-np prelay-controller 'set-session-listener listener))
 
   (define-values (setup-netlayer-vow setup-netlayer-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
 
   (on our-location-vow
       (lambda (our-location)
         ($ setup-netlayer-resolver 'fulfill (spawn ^netlayer our-location))))
 
   (define-values (conn-establisher-vow conn-establisher-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
 
   (define (^netlayer _bcom our-location)
     (methods

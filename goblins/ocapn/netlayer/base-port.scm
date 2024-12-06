@@ -40,7 +40,7 @@
   (define our-netlayer-name
     (ocapn-node-transport our-location))
   (define-values (conn-establisher-vow conn-establisher-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
 
   (define (listen-and-handle-new-connection conn-establisher)
     (on (incoming-accept)

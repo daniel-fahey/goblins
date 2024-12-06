@@ -110,7 +110,7 @@ commands are processed.  When the fiber halts, CLEANUP is run."
     (match-lambda
       ((? procedure? proc)
        (define-values (io-vow io-resolver)
-         (spawn-promise-values))
+         (spawn-promise-and-resolver))
        (run-me proc io-resolver)
        io-vow)
       ('halt (stop-me!)

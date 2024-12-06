@@ -1,4 +1,4 @@
-;;; Copyright 2022 Jessica Tallon
+;;; Copyright 2022-2024 Jessica Tallon
 ;;; Copyright 2024 David Thompson <dave@spritely.institute>
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
@@ -68,9 +68,9 @@
    a-vat
    (lambda ()
      (define-values (a-vow a-resolver)
-       (spawn-promise-values))
+       (spawn-promise-and-resolver))
      (define-values (b-vow b-resolver)
-       (spawn-promise-values))
+       (spawn-promise-and-resolver))
      (let ((vow (race a-vow b-vow)))
        (<-np a-resolver 'fulfill 42)
        (<-np b-resolver 'break 'uh-oh)
@@ -82,9 +82,9 @@
    a-vat
    (lambda ()
      (define-values (a-vow a-resolver)
-       (spawn-promise-values))
+       (spawn-promise-and-resolver))
      (define-values (b-vow b-resolver)
-       (spawn-promise-values))
+       (spawn-promise-and-resolver))
      (let ((vow (race a-vow b-vow)))
        (<-np a-resolver 'break 'uh-oh)
        (<-np b-resolver 'fulfill 42)

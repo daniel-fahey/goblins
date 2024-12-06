@@ -141,9 +141,9 @@
            pairs)))
   
   (define-values (private-key-vow private-key-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
   (define-values (our-location-vow our-location-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
 
   (on (<- control-sock 'read-line)
       (lambda (message)
@@ -213,7 +213,7 @@
   ;; We're not fully setup yet so setup a promise pair to forward messages
   ;; sent to us while we're setting ourselves up.
   (define-values (setup-netlayer-vow setup-netlayer-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
 
   (define-values (our-location-vow private-key-vow
                                    control-sock
@@ -243,7 +243,7 @@
                            [control-path default-libp2p-control-path]
                            [path default-libp2p-path])
   (define-values (swap-to-vow swap-to-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
 
   (define netlayer
     (if (and our-location private-key)

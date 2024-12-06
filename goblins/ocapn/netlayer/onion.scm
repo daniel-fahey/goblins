@@ -156,7 +156,7 @@
     (setup-ocapn-io tor-control-path tor-ocapn-socks-dir))
 
   (define-values (private-key-vow private-key-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
   ($ private-key-resolver 'fulfill private-key)
 
   (<-np tor-control 'write-line
@@ -236,7 +236,7 @@
   ;; We're not fully setup yet, messages sent to us will go to this
   ;; vows and we'll resolve it when we're ready to handle them.
   (define-values (setup-netlayer-vow setup-netlayer-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
 
   (define-values (ocapn-sock-path ocapn-sock-listener service-id-vow private-key-vow)
     (new-tor-connection tor-control-path tor-ocapn-socks-dir))
@@ -272,7 +272,7 @@ provided with:
 If reconstructing the onion netlayer, both PRIVATE-KEY and SERVICE-ID
 must be provided."
   (define-values (swap-to-vow swap-to-resolver)
-    (spawn-promise-values))
+    (spawn-promise-and-resolver))
   
   (define netlayer
     (if (and private-key service-id)
