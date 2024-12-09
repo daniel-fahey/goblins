@@ -494,8 +494,7 @@ flavored cell.  Taking things out and putting them back in is
 easy:
 
 @lisp
-goblins[1]> (define chest
-              (spawn ^cell "sword"))
+goblins[1]> (define chest (spawn ^cell "sword"))
 goblins[1]> ($ chest)
 ; => "sword"
 goblins[1]> ($ chest "gold")
@@ -507,10 +506,11 @@ Now you can see what @code{bcom} is: a capability specific to this
 object instance which allows it to change its behavior!  (For this
 reason, @code{bcom} is pronounced ``become''!)
 
-@code{bcom} also has a optional second argument which is used when you
-wish to return a value. Lets take that cell actor from before, if we
-want to return the new value upon a set, you can do that by specifying
-in the @code{bcom}:
+@code{bcom} also has an optional second argument which is used when we
+wish to return a value. Let's take that cell actor from before. If we
+want to return the new value after setting it, we can do that by
+specifying the optional second argument to @code{bcom}:
+
 
 @lisp
 (define* (^cell bcom #:optional [val #f])
@@ -519,14 +519,14 @@ in the @code{bcom}:
      val)
     ((new-val)  ; set
      (bcom (^cell bcom new-val)
-           new-val)))) ;; Return new-val as the response
+           new-val)))) ; Return new-val as the response
 @end lisp
 
-Lets do the same invocation as before, this time when we set the gold, it should return that too:
+Let's do the same invocation as before. This time, when we put a value
+in the cell, we also see it returned:
 
 @lisp
-goblins[1]> (define chest
-              (spawn ^cell "sword"))
+goblins[1]> (define chest (spawn ^cell "sword"))
 goblins[1]> ($ chest)
 ; => "sword"
 goblins[1]> ($ chest "gold")
