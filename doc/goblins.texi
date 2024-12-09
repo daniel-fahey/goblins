@@ -507,6 +507,32 @@ Now you can see what @code{bcom} is: a capability specific to this
 object instance which allows it to change its behavior!  (For this
 reason, @code{bcom} is pronounced ``become''!)
 
+@code{bcom} also has a optional second argument which is used when you
+wish to return a value. Lets take that cell actor from before, if we
+want to return the new value upon a set, you can do that by specifying
+in the @code{bcom}:
+
+@lisp
+(define* (^cell bcom #:optional [val #f])
+  (case-lambda
+    (()         ; get
+     val)
+    ((new-val)  ; set
+     (bcom (^cell bcom new-val)
+           new-val)))) ;; Return new-val as the response
+@end lisp
+
+Lets do the same invocation as before, this time when we set the gold, it should return that too:
+
+@lisp
+goblins[1]> (define chest
+              (spawn ^cell "sword"))
+goblins[1]> ($ chest)
+; => "sword"
+goblins[1]> ($ chest "gold")
+; => "gold"
+@end lisp
+
 @node Methods aren't essential but they are useful
 @section Methods aren't essential, but they are useful
 
