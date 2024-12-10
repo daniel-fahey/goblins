@@ -494,8 +494,7 @@ flavored cell.  Taking things out and putting them back in is
 easy:
 
 @lisp
-goblins[1]> (define chest
-              (spawn ^cell "sword"))
+goblins[1]> (define chest (spawn ^cell "sword"))
 goblins[1]> ($ chest)
 ; => "sword"
 goblins[1]> ($ chest "gold")
@@ -506,6 +505,33 @@ goblins[1]> ($ chest)
 Now you can see what @code{bcom} is: a capability specific to this
 object instance which allows it to change its behavior!  (For this
 reason, @code{bcom} is pronounced ``become''!)
+
+@code{bcom} also has an optional second argument which is used when we
+wish to return a value. Let's take that cell actor from before. If we
+want to return the new value after setting it, we can do that by
+specifying the optional second argument to @code{bcom}:
+
+
+@lisp
+(define* (^cell bcom #:optional [val #f])
+  (case-lambda
+    (()         ; get
+     val)
+    ((new-val)  ; set
+     (bcom (^cell bcom new-val)
+           new-val)))) ; Return new-val as the response
+@end lisp
+
+Let's do the same invocation as before. This time, when we put a value
+in the cell, we also see it returned:
+
+@lisp
+goblins[1]> (define chest (spawn ^cell "sword"))
+goblins[1]> ($ chest)
+; => "sword"
+goblins[1]> ($ chest "gold")
+; => "gold"
+@end lisp
 
 @node Methods aren't essential but they are useful
 @section Methods aren't essential, but they are useful
