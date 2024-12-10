@@ -17,6 +17,8 @@
   #:export (selfish-spawn))
 
 (define (selfish-spawn constructor . args)
+  (issue-deprecation-warning
+   "Selfish-spawn is deprecated, use define-actor with the #:self keyword instead.")
   (define (^selfish bcom)
     (lambda (self)
       (bcom (apply constructor bcom self args))))
