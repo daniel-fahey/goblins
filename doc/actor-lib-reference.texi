@@ -17,7 +17,7 @@ actor model patterns.
 * Pushdown::
 * Queue::
 * Sealers::
-* Selfish-Spawn::
+* Selfish-Spawn (Deprecated)::
 * Simple Mint::
 * Swappable::
 * Ticker::
@@ -1032,8 +1032,13 @@ If a custom sealer triplet is provided to the returned
 @defvr {Persistence Environment} sealers-env
 @end defvr
 
-@node Selfish-Spawn
-@section Selfish-Spawn
+@node Selfish-Spawn (Deprecated)
+@section Selfish-Spawn (Deprecated)
+
+@strong{Deprecation Warning}: The selfish-spawn module is deprecated
+and will be removed in a future version. Please use
+@code{define-actor} along with the @code{#:self} keyword to have
+selfish actors. @xref{define-actor}.
 
 The @code{(goblins actor-lib selfish-spawn)} module provides a
 @code{spawn}-like procedure which spawns objects able to reference

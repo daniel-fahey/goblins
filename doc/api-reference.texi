@@ -591,6 +591,28 @@ NOTE: this actor could have kept the temperature in the cell, there's
 usually no reason to unpack values like this, it's just for example
 purposes.
 
+Sometimes it's useful to have an actor which can refer to itself. Take the example of a deck of playing cards using its own method within another method:
+
+@lisp
+(define-actor (^deck bcom #:optional crds)
+  #:self self
+  ;; define helpers etc. here...
+
+  (define-cell cards (or crds (init-deck)))
+  (methods
+   ...
+   ((top) (car ($ cards)))
+   ((draw)
+    (let ((top ($ self 'top)))
+      ($ cards (cdr ($ cards)))
+      top))
+   ...))
+@end lisp
+
+The identifier specified after the @code{#:self} becomes bound to the
+refr of the object. The self keyword is bound within the objects
+behavior but is not available when the object is constructed.
+
 @end deffn
 
 @node Vats
