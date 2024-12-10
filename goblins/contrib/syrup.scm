@@ -93,34 +93,6 @@
 (define (pseudosingle->float psing)
   (pseudosingle-float psing))
 
-;;; bytevector utils
-;;; ================
-
-(define (bytes-append . bvs)
-  (define new-bv-len
-    (fold
-     (lambda (x prev)
-       (+ (bytevector-length x) prev))
-     0 bvs))
-  (define new-bv
-    (make-bytevector new-bv-len))
-  (let lp ([cur-pos 0]
-           [bvs bvs])
-    (match bvs
-      [(this-bv . next-bvs)
-       (define this-bv-len
-         (bytevector-length this-bv))
-       (bytevector-copy! this-bv 0 new-bv cur-pos this-bv-len)
-       ;; move onto next bytevector
-       (lp (+ cur-pos this-bv-len)
-           next-bvs)]
-      ['() 'done]))
-  new-bv)
-
-(define* (netstring-encode bstr #:key [joiner colon-bv])
-  (call-with-output-bytevector
-   (lambda (port)
-     (write-as-netstring! port bstr #:joiner joiner))))
 (define* (write-as-netstring! port bstr #:key [joiner colon-bv])
   (let ((bstr-len (bytevector-length bstr)))
     (put-bytevector port (string->utf8 (number->string bstr-len)))
@@ -133,13 +105,6 @@
 (define zero-bv
   (bytes "0+"))
 
-;; Test: 
-#;(bytevector->string
- (netstring-encode
-  (string->bytevector "Hello world!" "ISO-8859-1"))
- "ISO-8859-1")
-;; => "12:Hello world!"
-
 (define (bytes<? bstr1 bstr2)
   (define bstr1-len
     (bytevector-length bstr1))
@@ -148,7 +113,7 @@
   (let lp ([pos 0])
     (cond
      ;; we've reached the end of both and they're the same bytestring
-     ;; but this isn't <=?
+     ;; but this isn't <?
      [(and (eqv? bstr1-len pos)
            (eqv? bstr2-len pos))
       #f]
@@ -171,16 +136,16 @@
 
 ;;; Encoding
 ;;; ========
-
-(define* (syrup-encode obj #:key [marshallers '()])
+(define* (syrup-write obj out-port #:key [marshallers '()])
+  (define (make-key-cons key)
+    (cons (syrup-encode key #:marshallers marshallers)
+          key))
   (define (build-encode-hash hash-ref hash-fold)
-    (lambda (obj)
+    (lambda (obj port)
       (let* ([keys-and-encoded
               (hash-fold
                (lambda (key _val prev)
-                 (cons (cons (encode key)
-                             key)
-                       prev))
+                 (cons (make-key-cons key) prev))
                '()
                obj)]
              [sorted-keys-and-encoded
@@ -188,38 +153,28 @@
                     (match-lambda*
                       [((encoded1 . _k1)
                         (encoded2 . _k2))
-                       (bytes<? encoded1 encoded2)]))]
-             [encoded-hash-pairs
-              (fold-right
-               (lambda (ke prev)
-                 (match ke
-                   [(enc-key . key)
-                    (let ([val (hash-ref obj key)])
-                      (cons (bytes-append enc-key (encode val))
-                            prev))]))
-               '()
-               sorted-keys-and-encoded)])
-        (bytes-append curly-left-bv
-                      (apply bytes-append encoded-hash-pairs)
-                      curly-right-bv))))
-  (define encode-hash
+                       (bytes<? encoded1 encoded2)]))])
+        (put-bytevector port curly-left-bv)
+        (for-each
+         (match-lambda
+           [(enc-key . key)
+            (let* ([val (hash-ref obj key)])
+              (put-bytevector port enc-key)
+              (syrup-write val port #:marshallers marshallers))])
+         sorted-keys-and-encoded)
+        (put-bytevector port curly-right-bv))))
+
+  (define write-hash!
     (build-encode-hash hash-ref hash-fold))
-  (define encode-vhash
+  (define write-vhash!
     (build-encode-hash
      ;; we shouldn't need a not-found case here
      (lambda (vh key)
        (match (vhash-assoc key vh)
          [(_ . val) val]))
      vhash-fold))
-  (define encode-ghash
+  (define write-ghash!
     (build-encode-hash ghash-ref ghash-fold))
-  (define (output-list! port obj)
-    (put-bytevector port squarebrac-left-bv)
-    (for-each
-     (lambda (item)
-       (encode item #:port port))
-     obj)
-    (put-bytevector port squarebrac-right-bv))
   (define (output-tagged! port obj)
     (put-bytevector port anglebrac-left-bv)
     (encode (tagged-label obj) #:port port)
@@ -232,112 +187,72 @@
     (match obj
       ;; Bytes are like <bytes-len>:<bytes>
       [(? bytevector?)
-       (if port
-           (write-as-netstring! port obj)
-           (netstring-encode obj))]
-      [0
-       (if port
-           (put-bytevector port zero-bv)
-           zero-bv)]
+       (write-as-netstring! port obj)]
+      [0 (put-bytevector port zero-bv)]
       ;; Integers are like <integer>+ or <integer>-
       [(? integer?)
        (let* ((pos? (positive? obj))
               (number-to-output (if pos? obj (* obj -1)))
               (sign-char (if pos? plus-bv minus-bv))
               (encoded-number (string->utf8 (number->string number-to-output))))
-         (if port
-             (begin
-               (put-bytevector port encoded-number)
-               (put-bytevector port sign-char))
-             (bytes-append encoded-number sign-char)))]
+         (put-bytevector port encoded-number)
+         (put-bytevector port sign-char))]
       ;; Lists are like [<item1><item2><item3>]
       [(or (? pair?) '())
-       (if port
-           (output-list! port obj)
-           (call-with-output-bytevector
-            (lambda (port)
-              (output-list! port obj))))]
+       (put-bytevector port squarebrac-left-bv)
+       (for-each
+        (lambda (item)
+          (encode item #:port port))
+        obj)
+       (put-bytevector port squarebrac-right-bv)]
       ;; Dictionaries are like {<key1><val1><key2><val2>}
       ;; We sort by the key being fully encoded.
       [(? hash-table?)
-       (let ((encoded-hash (encode-hash obj)))
-         (if port
-             (put-bytevector port encoded-hash)
-             encoded-hash))]
+       (write-hash! obj port)]
       [(? ghash?)
-       (let ((encoded-ghash (encode-ghash obj)))
-         (if port
-             (put-bytevector port encoded-ghash)
-             encoded-ghash))]
+       (write-ghash! obj port)]
       ;; Strings are like <encoded-bytes-len>"<utf8-encoded>
       [(? string?)
        (let ((encoded-string (string->utf8 obj)))
-         (if port
-             (write-as-netstring! port encoded-string #:joiner doublequote-bv)
-             (netstring-encode encoded-string #:joiner doublequote-bv)))]
+         (write-as-netstring! port encoded-string #:joiner doublequote-bv))]
       ;; Symbols are like <encoded-bytes-len>'<utf8-encoded>
       [(? symbol?)
        (let ((encoded-symbol (string->utf8 (symbol->string obj))))
-         (if port
-             (write-as-netstring! port encoded-symbol #:joiner singlequote-bv)
-             (netstring-encode encoded-symbol #:joiner singlequote-bv)))]
+         (write-as-netstring! port encoded-symbol #:joiner singlequote-bv))]
       ;; Single flonum floats are like F<big-endian-encoded-single-float>
       [(? pseudosingle?)
        (let ([bv (make-bytevector 4)])
          (bytevector-ieee-single-set! bv 0 obj (endianness big))
-         (if port
-             (begin
-               (put-bytevector port F-bv)
-               (put-bytevector port bv))
-             (bytes-append F-bv bv)))]
+         (put-bytevector port F-bv)
+         (put-bytevector port bv))]
       ;; Double flonum floats are like D<big-endian-encoded-double-float>
       [(and (? number?) (? inexact?))
        (let ([bv (make-bytevector 8)])
          (bytevector-ieee-double-set! bv 0 obj (endianness big))
-         (if port
-             (begin
-               (put-bytevector port D-bv)
-               (put-bytevector port bv))
-             (bytes-append D-bv bv)))]
+         (put-bytevector port D-bv)
+         (put-bytevector port bv))]
       ;; Records are like <<tag><arg1><arg2>> but with the outer <> for realsies
-      [(? tagged?)
-       (if port
-           (output-tagged! port obj)
-           (call-with-output-bytevector
-            (lambda (port)
-              (output-tagged! port obj))))]
+      [(? tagged?) (output-tagged! port obj) ]
       ;; #t is t, #f is f
-      [#t
-       (if port
-           (put-bytevector port t-bv)
-           t-bv)]
-      [#f
-       (if port
-           (put-bytevector port f-bv)
-           f-bv)]
+      [#t (put-bytevector port t-bv)]
+      [#f (put-bytevector port f-bv)]
       ;; Sets are like #<item1><item2><item3>$
       [(? gset?)
        (let* ([encoded-items
                (gset-fold
                 (lambda (item prev)
-                  (cons (encode item)
+                  (cons (syrup-encode item #:marshallers marshallers)
                         prev))
                 '() obj)]
               [sorted-items
                (sort encoded-items
                      bytes<?)])
-         (if port
-             (begin
-               (put-bytevector port hash-bv)
-               (for-each
-                (lambda (sorted-item)
-                  (put-bytevector port sorted-item))
-                sorted-items)
-               (put-bytevector port dollar-bv))
-
-             (bytes-append hash-bv
-                           (apply bytes-append sorted-items)
-                           dollar-bv)))]
+         (put-bytevector port hash-bv)
+         (for-each
+          (lambda (sorted-item)
+            (put-bytevector port sorted-item))
+          sorted-items)
+         (put-bytevector port dollar-bv))]
       [_
        (call/ec
         (lambda (return)
@@ -350,13 +265,12 @@
                                (error 'syrup-marshaller-returned-unsupported-type))))))
                     marshallers)
           (error "Unsupported Syrup type:" obj)))]))
-  (encode obj))
+  (encode obj #:port out-port))
 
-(define* (syrup-write obj out-port #:key (marshallers '()))
-  (put-bytevector out-port
-                  (syrup-encode obj #:marshallers marshallers))
-  (force-output out-port))
-
+(define* (syrup-encode obj #:key (marshallers '()))
+  (call-with-output-bytevector
+   (lambda (port)
+     (syrup-write obj port #:marshallers marshallers))))
 
 (define-syntax-rule (define-char-matcher proc-name char-set)
   (define (proc-name char)
