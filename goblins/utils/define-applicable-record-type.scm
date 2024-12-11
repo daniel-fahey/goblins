@@ -13,8 +13,8 @@
 ;;; limitations under the License.
 
 (define-library (goblins utils define-applicable-record-type)
+  (import (goblins utils assert-type))
   (export define-applicable-record-type
-          applicable-record?
           applicable-record-procedure
           set-applicable-record-procedure!)
   (cond-expand
@@ -46,23 +46,18 @@
       (define (applicable-record? maybe)
         (and (procedure? maybe) (struct? maybe)))
       (define (applicable-record-procedure obj)
-        (if (applicable-record? obj)
-            (struct-ref obj 0)
-            (error "Not an applicable record type")))
+        (assert-type obj applicable-record?)
+        (struct-ref obj 0))
       (define (set-applicable-record-procedure! obj new-procedure)
-        (if (applicable-record? obj)
-            (struct-set! obj 0 new-procedure)
-            (error "Not an applicable record type")))
-      (define-syntax-rule (assert predicate obj)
-        (unless (predicate obj)
-          (error "wrong type argument" obj)))
+        (assert-type obj applicable-record?)
+        (struct-set! obj 0 new-procedure))
       (define-syntax-rule (define-getter name rtd predicate index)
         (define (name obj)
-          (assert predicate obj)
+          (assert-type obj predicate)
           (struct-ref obj index)))
       (define-syntax-rule (define-setter name rtd predicate index)
         (define (name obj new)
-          (assert predicate obj)
+          (assert-type obj predicate)
           (struct-set! obj index new)))
       (define-syntax define-accessors
         (syntax-rules ()
