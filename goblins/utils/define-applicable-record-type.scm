@@ -14,9 +14,7 @@
 
 (define-library (goblins utils define-applicable-record-type)
   (import (goblins utils assert-type))
-  (export define-applicable-record-type
-          applicable-record-procedure
-          set-applicable-record-procedure!)
+  (export define-applicable-record-type)
   (cond-expand
    (guile
     (import (guile)
@@ -30,27 +28,27 @@
   (begin
     (cond-expand
      (hoot
-      (define applicable-record? hoot:applicable-record?)
-      (define applicable-record-procedure hoot:applicable-record-procedure)
-      (define (set-applicable-record-procedure! obj new-procedure)
-        (error "Setting the applicable record procedure is not supported under hoot."))
-      (define-syntax-rule (define-applicable-record-type name constructor predicate fields ...)
-        (hoot:define-record-type name
-          #:parent hoot:<applicable-record>
-          constructor
-          predicate
-          fields ...)))
+      (define-syntax define-procedure-accessors
+        (lambda (stx)
+          (syntax-case stx ()
+            ((_ (procedure procedure-getter))
+             #'(define procedure-getter hoot:applicable-record-procedure))
+            ((_ (procedure procedure-getter procedure-setter))
+             #'(begin
+                 (define procedure-getter hoot:applicable-record-procedure)
+                 (define procedure-setter hoot:set-applicable-record-procedure!))))))
+      (define-syntax define-applicable-record-type
+        (lambda (stx)
+          (syntax-case stx ()
+            ((_ name constructor predicate (procedure-accessors ...) fields  ...)
+             #'(begin
+               (define-procedure-accessors (procedure-accessors ...))
+               (hoot:define-record-type name
+                                        #:parent hoot:<applicable-record>
+                                        constructor
+                                        predicate
+                                        fields ...)))))))
      (guile
-      ;; These are normally defined by hoot, but when we're just on guile
-      ;; they don't exist so we need to define them here...
-      (define (applicable-record? maybe)
-        (and (procedure? maybe) (struct? maybe)))
-      (define (applicable-record-procedure obj)
-        (assert-type obj applicable-record?)
-        (struct-ref obj 0))
-      (define (set-applicable-record-procedure! obj new-procedure)
-        (assert-type obj applicable-record?)
-        (struct-set! obj 0 new-procedure))
       (define-syntax-rule (define-getter name rtd predicate index)
         (define (name obj)
           (assert-type obj predicate)
@@ -76,7 +74,7 @@
           (syntax-case stx ()
             ((_ name (constructor fields ...) predicate (field accessor ...) ...)
              (with-syntax ((layout (datum->syntax stx (make-layout #'(field ...))))
-                           ((index ...) (iota (length #'(field ...)) 1)))
+                           ((index ...) (iota (length #'(field ...)))))
                #'(begin
                    (define name
                      (make-struct/no-tail <applicable-struct-vtable> 'layout))

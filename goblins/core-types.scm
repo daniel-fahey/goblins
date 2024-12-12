@@ -379,6 +379,7 @@ Type: Any -> Boolean"
 (define-applicable-record-type <redefinable-object>
   (_make-redefinable-object procedure rehydrator)
   redefinable-object?
+  (procedure redefinable-object-constructor set-redefinable-object-constructor!)
   (rehydrator redefinable-object-rehydrator set-redefinable-object-rehydrator!))
 
 (define* (make-redefinable-object constructor #:optional rehydrator)
@@ -387,12 +388,6 @@ Type: Any -> Boolean"
 Optionally, REHYDRATOR may be provided, which is a procedure for restoring
 a persisted version of an object spawned via CONSTRUCTOR."
   (_make-redefinable-object constructor rehydrator))
-
-(define redefinable-object-constructor
-  applicable-record-procedure)
-
-(define set-redefinable-object-constructor!
-  set-applicable-record-procedure!)
 
 (set-record-type-printer! <redefinable-object>
                           (lambda (ro op)
