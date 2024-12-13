@@ -14,7 +14,6 @@
 ;;; limitations under the License.
 
 (define-module (goblins ocapn netlayer tcp-tls)
-  #:use-module (gcrypt base16)
   #:use-module ((gcrypt hash) #:prefix gcrypt:)
   #:use-module (gnutls)
   #:use-module (goblins)
@@ -23,6 +22,7 @@
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib io)
   #:use-module (goblins utils crypto)
+  #:use-module (goblins utils base32)
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 exceptions)
   #:use-module (ice-9 match)
@@ -203,8 +203,8 @@
     ;; Bail if the hash doesn't match what we expect.
     (unless (equal? trust-hash server-cert-hash)
       (throw 'tls-cert-hash-mismatch
-             (bytevector->base16-string trust-hash)
-             (bytevector->base16-string server-cert-hash)))
+             (base32-encode trust-hash)
+             (base32-encode server-cert-hash)))
     (set-certificate-credentials-x509-trust-data! creds server-cert
                                                   x509-certificate-format/pem)
     (set-session-credentials! tls-session creds)
@@ -258,7 +258,7 @@ from the file system."
     (spawn ^io server-socket))
   (define our-location
     (make-ocapn-node 'tcp-tls
-                     (bytevector->base16-string (sha256d cert))
+                     (base32-encode (sha256d cert))
                      `((host ,host)
                        (port ,(number->string server-port)))))
   (define (incoming-accept)
@@ -276,7 +276,7 @@ from the file system."
       (error "Wrong netlayer! Expected `tcp-tls'" location))
     (let* ((host (ocapn-node-hint:host location))
            (port (ocapn-node-hint:port location))
-           (server-cert-hash (base16-string->bytevector
+           (server-cert-hash (base32-decode
                               (ocapn-node-designator location)))
            (client-socket (make-client-socket host port)))
       (make-client-tls-port client-socket cert key server-cert-hash)))
