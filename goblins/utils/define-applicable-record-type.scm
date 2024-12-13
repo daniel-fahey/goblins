@@ -31,23 +31,24 @@
       (define-syntax define-procedure-accessors
         (lambda (stx)
           (syntax-case stx ()
-            ((_ (procedure procedure-getter))
-             #'(define procedure-getter hoot:applicable-record-procedure))
-            ((_ (procedure procedure-getter procedure-setter))
+            ((_ (getter setter))
+             #'(define getter hoot:applicable-record-procedure))
+            ((_ (getter setter))
              #'(begin
-                 (define procedure-getter hoot:applicable-record-procedure)
-                 (define procedure-setter hoot:set-applicable-record-procedure!))))))
+                 (define getter hoot:applicable-record-procedure)
+                 (define setter hoot:set-applicable-record-procedure!))))))
       (define-syntax define-applicable-record-type
         (lambda (stx)
           (syntax-case stx ()
-            ((_ name constructor predicate (procedure-accessors ...) fields  ...)
+            ((_ name constructor predicate (procedure . procedure-accessors) fields  ...)
+             (and (identifier? #'procedure) (eq? (syntax->datum #'procedure) 'procedure))
              #'(begin
-               (define-procedure-accessors (procedure-accessors ...))
-               (hoot:define-record-type name
-                                        #:parent hoot:<applicable-record>
-                                        constructor
-                                        predicate
-                                        fields ...)))))))
+                 (define-procedure-accessors procedure-accessors)
+                 (hoot:define-record-type name
+                                          #:parent hoot:<applicable-record>
+                                          constructor
+                                          predicate
+                                          fields ...)))))))
      (guile
       (define-syntax-rule (define-getter name rtd predicate index)
         (define (name obj)
