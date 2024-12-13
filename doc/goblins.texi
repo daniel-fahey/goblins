@@ -778,10 +778,8 @@ Transactionality is covered in greater detail later, but the core idea
 here is that synchronous operations run with @code{$} are all done
 together as one transaction.  If an unhandled error occurs, any state
 changes resulting from synchronous operations within that transaction
-will simply not be committed.  @code{<-} also provides
-transactionality using different mechanisms.  This is useful because
-it means most otherwise-difficult cleanup steps are handled
-automatically.
+will simply not be committed.  This is useful because it means most
+otherwise-difficult cleanup steps are handled automatically.
 
 @node Promise pipelining
 @section Promise pipelining
