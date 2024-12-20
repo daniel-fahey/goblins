@@ -62,7 +62,7 @@
                    (choice-operation
                     (wrap-operation (wait-operation stopped?)
                                     (lambda () #f))
-                    (wrap-operation (wait-operation (sleep 1))
+                    (wrap-operation (sleep-operation 1)
                                     (lambda () #t))))
               (let lp ()
                 (match (guardian)
