@@ -104,7 +104,7 @@ is not actually saved to any long-term storage:
 Hold on, did we just spawn our object alongside spawning the vat?
 
 Yes we did, we don't need to do it for all the objects in the graph,
-just the roots. When we call @code{spawn-persistence-vat} it checks in
+just the roots. When we call @code{spawn-persistent-vat} it checks in
 our store to see if there's already persistence data and if there is
 it doesn't invoke the thunk we provided, it instead restores the graph
 from that data and hands us back the objects. In our case though the
