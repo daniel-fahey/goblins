@@ -55,4 +55,10 @@
           (captp-public-key->crypto-public-key
            (key-pair->public-key keypair))))
 
+(test-assert "Check verify function returns false if the signature is invalid"
+  (not (verify test-bv ;; this is an invalid signature
+               test-bv
+               (captp-public-key->crypto-public-key
+                (key-pair->public-key keypair)))))
+
 (test-end "test-crypto")

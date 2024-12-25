@@ -52,7 +52,7 @@
      texinfo))
   (inputs (list guile-3.0))
   (propagated-inputs
-   (list guile-fibers guile-gcrypt guile-gnutls))
+   (list guile-fibers guile-gnutls))
   (synopsis "Transactional, distributed object programming environment")
   (description
    "Spritely Goblins is a transactional, distributed object programming

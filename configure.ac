@@ -24,7 +24,7 @@ fi
 
 dnl Hall auto-generated guile-module dependencies
 GUILE_MODULE_REQUIRED([fibers])
-GUILE_MODULE_REQUIRED([gcrypt hash])
+GUILE_MODULE_REQUIRED([gnutls])
 
 dnl Installation directories for .scm and .go files.
 guilemoduledir="${datarootdir}/guile/site/$GUILE_EFFECTIVE_VERSION"

@@ -28,21 +28,18 @@
           captp-public-key->crypto-public-key
           captp-signature->crypto-signature)
 
+  (import (guile)
+          (ice-9 match)
+          (except (rnrs bytevectors) bytevector-copy)
+          (only (scheme base) bytevector-append bytevector-copy))
+
   (cond-expand
    (hoot
-    (import (guile)
-            (hoot ffi)
-            (ice-9 match)
-            (fibers promises)
-            (except (rnrs bytevectors) bytevector-copy)
-            (only (scheme base) bytevector-append bytevector-copy)))
+    (import (hoot ffi)
+            (fibers promises)))
    (guile
-    (import (guile)
-            (ice-9 match)
-            (rnrs bytevectors)
-            (prefix (gcrypt pk-crypto) gcrypt:pk-crypto:)
-            (gcrypt hash)
-            (gcrypt random))))
+    (import (ice-9 receive)
+            (gnutls))))
 
   (begin
     (define (sha256d input)
@@ -54,16 +51,14 @@
 
     (define (strong-random-bytes byte-size)
       (cond-expand
-       (guile (gen-random-bv byte-size %gcry-strong-random))
+       (guile (gnutls-random random-level/key byte-size))
        (hoot (gen-random-bv byte-size))))
 
     ;; Some guile or hoot specific functions which need to be define.
     (cond-expand
      (guile
-      (define (data->canonical-sexp data)
-        (gcrypt:pk-crypto:sexp->canonical-sexp
-         `(data (flags eddsa) (hash-algo sha512)
-           (value ,data)))))
+      (define (sha256 input)
+        (hash-direct digest/sha256 input)))
      (hoot
       ;; Import FFI Stuff
       ;; ================
@@ -164,9 +159,7 @@ Type: CryptoKey -> ByteVector"
     (define (generate-key-pair)
       (cond-expand
        (guile
-        (gcrypt:pk-crypto:generate-key
-         (gcrypt:pk-crypto:sexp->canonical-sexp
-          '(genkey (eddsa (curve Ed25519) (flags eddsa))))))
+        (generate-private-key pk-algorithm/eddsa-ed25519 ecc-curve/ed25519))
        (hoot
         (await (generate-ed25519-key-pair)))))
 
@@ -176,38 +169,36 @@ Type: CryptoKey -> ByteVector"
 Type: CryptoKeyPair -> CryptoKey"
       (cond-expand
        (hoot (extract-private-key keypair))
-       (guile
-        (gcrypt:pk-crypto:find-sexp-token keypair 'private-key))))
+       (guile keypair)))
 
     (define (key-pair->public-key keypair)
       "Return the public key of the Ed25519 @var{key-pair}
 
 Type: CryptoKeyPair -> S-Expression"
-      (cond-expand
-       (guile
-        (gcrypt:pk-crypto:canonical-sexp->sexp
-         (gcrypt:pk-crypto:find-sexp-token keypair 'public-key)))
-       (hoot
-        `(public-key (ecc (curve Ed25519)
-                          (flags eddsa)
-                          (q ,(export-key
+      `(public-key (ecc (curve Ed25519)
+                        (flags eddsa)
+                        (q ,(cond-expand
+                             (guile
+                              (receive (_crv x _y _k)
+                                  (private-key-export-raw-ecc keypair)
+                                x))
+                             (hoot
+                              (export-key
                                (extract-public-key keypair))))))))
 
     (define (sign data private-key)
       "Sign @var{data} using Ed25519 @var{private-key}
 
 Type: Bytevector CryptoKey -> List"
-      (cond-expand
-       (guile
-        (gcrypt:pk-crypto:canonical-sexp->sexp
-         (gcrypt:pk-crypto:sign
-          (data->canonical-sexp data)
-          private-key)))
-       (hoot
-        (let ((sig-bv (uint8array->bytevector
-                       (await (sign-ed25519 (bytevector->uint8array data) private-key)))))
-          `(sig-val (eddsa (r ,(bytevector-copy sig-bv 0 32))
-                           (s ,(bytevector-copy sig-bv 32))))))))
+      (let ((sig-bv
+             (cond-expand
+              (guile
+               (private-key-sign-data private-key sign-algorithm/eddsa-ed25519 data '()))
+              (hoot
+               (uint8array->bytevector
+                (await (sign-ed25519 (bytevector->uint8array data) private-key)))))))
+        `(sig-val (eddsa (r ,(bytevector-copy sig-bv 0 32))
+                         (s ,(bytevector-copy sig-bv 32))))))
 
     (define (verify signature data public-key)
       "Verify @var{signature} of @var{data} using Ed25519 @var{public-key}
@@ -215,7 +206,14 @@ Type: Bytevector CryptoKey -> List"
 Type: CryptoSignature Bytevector CryptoKey -> Boolean"
       (cond-expand
        (guile
-        (gcrypt:pk-crypto:verify signature (data->canonical-sexp data) public-key))
+        (catch 'gnutls-error
+               (lambda ()
+                 (public-key-verify-data
+                  public-key
+                  sign-algorithm/eddsa-ed25519
+                  data
+                  signature))
+               (lambda _ #f)))
        (hoot
         (await (verify-ed25519 signature
                                (bytevector->uint8array data)
@@ -225,24 +223,26 @@ Type: CryptoSignature Bytevector CryptoKey -> Boolean"
       "Convert @var{key} from its CapTP wire format to its internal format
 
 Type: S-Expression -> CryptoKey"
-      (cond-expand
-       (guile
-        (gcrypt:pk-crypto:sexp->canonical-sexp key))
-       (hoot
-        (match key
-          (`(public-key (ecc (curve Ed25519)
-                             (flags eddsa)
-                             (q ,data)))
+      (match key
+        (`(public-key (ecc (curve Ed25519)
+                           (flags eddsa)
+                           (q ,data)))
+         (cond-expand
+          (guile
+           (import-raw-ecc-public-key ecc-curve/ed25519 data #vu8()))
+          (hoot
            (await (import-public-key (bytevector->uint8array data))))))))
 
     (define (captp-signature->crypto-signature signature)
       "Convert @var{signature} from its CapTP wire format to its internal format
 
 Type: List -> CryptSignature"
-      (cond-expand
-       (guile
-        (gcrypt:pk-crypto:sexp->canonical-sexp signature))
-       (hoot
-        (match signature
-          (`(sig-val (eddsa (r ,r) (s ,s)))
-           (bytevector->uint8array (bytevector-append r s)))))))))
+      (let ((bytes
+             (match signature
+               (`(sig-val (eddsa (r ,r) (s ,s)))
+                (bytevector-append r s)))))
+        (cond-expand
+         (guile
+          bytes)
+         (hoot
+          (bytevector->uint8array bytes)))))))
