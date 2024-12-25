@@ -14,7 +14,6 @@
 ;;; limitations under the License.
 
 (define-module (goblins ocapn netlayer tcp-tls)
-  #:use-module ((gcrypt hash) #:prefix gcrypt:)
   #:use-module (gnutls)
   #:use-module (goblins)
   #:use-module (goblins ocapn ids)

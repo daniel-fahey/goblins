@@ -42,9 +42,8 @@ then these build instructions are for you!
 Build requirements:
 
 - [[https://www.gnu.org/software/guile/][GNU Guile]] >= 3.0
-- [[https://notabug.org/cwebber/guile-gcrypt][guile-gcrypt]] >= 0.3.0
 - [[https://github.com/wingo/fibers][guile-fibers]] >= 1.0.0
-- [[https://gitlab.com/gnutls/guile][guile-gnutls]] >= 3.7.0
+- [[https://gitlab.com/gnutls/guile][guile-gnutls]] >= 3.7.14
 
 Additional runtime requirements:
 
