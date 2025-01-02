@@ -190,7 +190,7 @@
        (write-as-netstring! port obj)]
       [0 (put-bytevector port zero-bv)]
       ;; Integers are like <integer>+ or <integer>-
-      [(? integer?)
+      [(? exact-integer?)
        (let* ((pos? (positive? obj))
               (number-to-output (if pos? obj (* obj -1)))
               (sign-char (if pos? plus-bv minus-bv))
