@@ -36,7 +36,8 @@
             ((_ (getter setter))
              #'(begin
                  (define getter hoot:applicable-record-procedure)
-                 (define setter hoot:set-applicable-record-procedure!))))))
+                 (define (setter struct new-value)
+                   (error "Setting the procedure of an applicable record is not supported under hoot.")))))))
       (define-syntax define-applicable-record-type
         (lambda (stx)
           (syntax-case stx ()
