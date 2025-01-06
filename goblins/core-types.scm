@@ -25,6 +25,7 @@
   #:use-module (srfi srfi-9 gnu)
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
+  #:use-module (goblins utils define-applicable-record-type)
   #:export (<actormap>
             _make-actormap
             actormap?
@@ -375,38 +376,18 @@ Type: Any -> Boolean"
 ;; Used as a sort of "box" to restore objects to while keeping the actor
 ;; definition eq to itself when in persistence-envs
 ;; NOTE: this is an invocable/applicable struct so that we can call it.
-(define <redefinable-object>
-  (make-struct/no-tail <applicable-struct-vtable> 'pwpw))
-
-(define (redefinable-object? obj)
-  (and (struct? obj) (eq? (struct-vtable obj) <redefinable-object>)))
+(define-applicable-record-type <redefinable-object>
+  (_make-redefinable-object procedure rehydrator)
+  redefinable-object?
+  (procedure redefinable-object-constructor set-redefinable-object-constructor!)
+  (rehydrator redefinable-object-rehydrator set-redefinable-object-rehydrator!))
 
 (define* (make-redefinable-object constructor #:optional rehydrator)
   "Construct a redefinable object for CONSTRUCTOR
 
 Optionally, REHYDRATOR may be provided, which is a procedure for restoring
 a persisted version of an object spawned via CONSTRUCTOR."
-  (make-struct/no-tail <redefinable-object> constructor rehydrator))
-
-(define (redefinable-object-constructor obj)
-  (if (redefinable-object? obj)
-      (struct-ref obj 0)
-      (error "Not a redefinable object")))
-
-(define (set-redefinable-object-constructor! obj new-constructor)
-  (if (redefinable-object? obj)
-      (struct-set! obj 0 new-constructor)
-      (error "Not a redefinable object")))
-
-(define (redefinable-object-rehydrator obj)
-  (if (redefinable-object? obj)
-      (struct-ref obj 1)
-      (error "Not a redefinable object")))
-
-(define (set-redefinable-object-rehydrator! obj rehydrator)
-  (if (redefinable-object? obj)
-      (struct-set! obj 1 rehydrator)
-      (error "Not a redefinable object")))
+  (_make-redefinable-object constructor rehydrator))
 
 (set-record-type-printer! <redefinable-object>
                           (lambda (ro op)

@@ -1838,7 +1838,7 @@ CONSTRUCTOR, passing it ARGS.
 
 Type: Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
-  (syscaller-spawn sys constructor args (actor-name constructor)))
+  (syscaller-spawn sys constructor args (procedure-name constructor)))
 
 (define (spawn-named name constructor . args)
   "Construct and return a reference to an actor with the debug name
@@ -2084,7 +2084,7 @@ Type: -> (Values Promise Resolver)"
 (define* (actormap-spawn!* actormap maybe-constructor
                            args
                            #:optional
-                           [debug-name (actor-name maybe-constructor)])
+                           [debug-name (procedure-name maybe-constructor)])
   (define vat-connector
     (actormap-vat-connector actormap))
   (define-values (become become-unseal become?)
@@ -3125,13 +3125,6 @@ Returns the root objects of the graph."
   (define-values (portraits slots)
     (apply actormap-take-portrait am env roots))
   (save-proc 'save-graph #f 0 portraits slots))
-
-(define (actor-name constructor)
-  (match constructor
-    [(? procedure? proc)
-     (procedure-name proc)]
-    [(? redefinable-object? re-object)
-     (actor-name (redefinable-object-constructor re-object))]))
 
 (define (local-refr->persistable-object-identifier local-refr)
   (define vat-connector
