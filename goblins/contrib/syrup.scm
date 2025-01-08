@@ -10,7 +10,6 @@
   #:use-module (srfi srfi-1)          ; lists
   #:use-module (srfi srfi-9)          ; records
   #:use-module (srfi srfi-9 gnu)      ; record extensions
-  #:use-module (srfi srfi-64)         ; tests
   #:use-module (ice-9 control)
   #:use-module (ice-9 match)
   #:use-module (ice-9 binary-ports)
