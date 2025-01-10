@@ -72,7 +72,7 @@ Returns two values to its continuation:
               (define (handle-exn exn)
                 ;; Print exception
                 (define stack
-                  (capture-current-stack handle-exn exn))
+                  (capture-current-stack #t handle-exn))
                 (format (current-error-port)
                         "Error in IO handling wrapped resource ~a:\n"
                         wrapped)
