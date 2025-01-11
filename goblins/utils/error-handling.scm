@@ -62,30 +62,9 @@
               (print-backtrace stack origin file line column (current-error-port)))))))
       (newline (current-error-port)))
 
-    (define (capture-current-stack catch-stack-and-abort-to-prompt handle-exn-tag)
+    (define* (capture-current-stack . args)
       (cond-expand
-       (guile
-        (make-stack #t           ; get the current stack
-                    ;; Trim inner frames up to and including this
-                    ;; error handling procedure.
-                    catch-stack-and-abort-to-prompt
-                    ;; Trim outer frames up to the prompt tag.  This
-                    ;; hides *most* of the core frames.
-                    handle-exn-tag
-                    ;; The frame trimming arguments go inner, outer,
-                    ;; inner, outer, etc. so we need to no-op here so
-                    ;; we can trim more outer frames.
-                    0
-                    ;; Trim 3 more outer frames that the tag doesn't
-                    ;; eliminate for us.
-                    ;;
-                    ;; The frames are:
-                    ;;
-                    ;; - with-exception-handler
-                    ;; - do-call
-                    ;; - _handle-message or _handle-listen
-                    3))
-       (hoot
-        ;; TODO: Ideally we'd be trimming the stack to get rid
-        ;; of some core hoot and goblins machinary.
-        (capture-stack (stack-height)))))))
+       (guile (apply make-stack args))
+       ;; TODO: Ideally we'd be trimming the stack to get rid
+       ;; of some core hoot and goblins machinary.
+       (hoot (capture-stack (stack-height)))))))

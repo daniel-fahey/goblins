@@ -848,7 +848,7 @@ Type: Vat -> Void"
     (call/ec
      (lambda (abort)
        (define (handle-error exn)
-         (define stack (capture-current-stack handle-error #f))
+         (define stack (capture-current-stack #t handle-error))
          (display-backtrace* exn stack)
          (newline (current-error-port))
          (abort (handler exn)))
@@ -1101,7 +1101,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
       (lambda (abort)
         (define (handle-exn exn)
           (define stack
-            (capture-current-stack handle-exn #f))
+            (capture-current-stack #t handle-exn))
           (display "Error in spawn-fibrous-vow:\n" (current-error-port))
           (format (current-error-port) "~a\n" exn)
           (display-backtrace* exn stack)

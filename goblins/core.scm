@@ -2350,8 +2350,27 @@ Type: Actormap Message (Optional (#:error-handler (Exception -> Any)))
        ;; way we aren't exposing Goblins core stack frames, which
        ;; would be a security leak in a fully OCap secure system.
        (define stack
-         (capture-current-stack catch-stack-and-abort-to-prompt
-                                handle-exn-tag))
+         (capture-current-stack
+          #t ; get the current stack
+          ;; Trim inner frames up to and including this
+          ;; error handling procedure.
+          catch-stack-and-abort-to-prompt
+          ;; Trim outer frames up to the prompt tag.  This
+          ;; hides *most* of the core frames.
+          handle-exn-tag
+          ;; The frame trimming arguments go inner, outer,
+          ;; inner, outer, etc. so we need to no-op here so
+          ;; we can trim more outer frames.
+          0
+          ;; Trim 3 more outer frames that the tag doesn't
+          ;; eliminate for us.
+          ;;
+          ;; The frames are:
+          ;;
+          ;; - with-exception-handler
+          ;; - do-call
+          ;; - _handle-message or _handle-listen
+          3))
        (abort-to-prompt handle-exn-tag err stack))
      (define (do-call)
        (define result
