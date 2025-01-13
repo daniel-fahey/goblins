@@ -62,9 +62,9 @@ attempt to write to such a cell.
 
 @lisp
 > (define ro-chest (cell->read-only chest))
-> ($ chest)
+> ($ ro-chest)
 => 'sword
-> ($ chest 'wand)
+> ($ ro-chest 'wand)
 => error: ...
 @end lisp
 
@@ -77,8 +77,8 @@ attempt to read from such a cell.
 
 @lisp
 > (define wo-chest (cell->write-only chest))
-> ($ chest 'wand)
-> ($ chest)
+> ($ wo-chest 'wand)
+> ($ wo-chest)
 => error: ...
 @end lisp
 
