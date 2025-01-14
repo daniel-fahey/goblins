@@ -25,6 +25,7 @@
           sign
           verify
           signature-sexp?
+          bytevector->crypto-public-key
           captp-public-key->crypto-public-key
           captp-signature->crypto-signature
           private-key->data
@@ -215,6 +216,14 @@ Type: CryptoSignature Bytevector CryptoKey -> Boolean"
                                (bytevector->uint8-array data)
                                public-key)))))
 
+    (define (bytevector->crypto-public-key data)
+      "Convert @var{data}, a bytevector, to a public key object."
+      (cond-expand
+       (guile
+        (import-raw-ecc-public-key ecc-curve/ed25519 data #vu8()))
+       (hoot
+        (await (import-public-key (bytevector->uint8-array data))))))
+
     (define (captp-public-key->crypto-public-key key)
       "Convert @var{key} from its CapTP wire format to its internal format
 
@@ -223,11 +232,7 @@ Type: S-Expression -> CryptoKey"
         (`(public-key (ecc (curve Ed25519)
                            (flags eddsa)
                            (q ,data)))
-         (cond-expand
-          (guile
-           (import-raw-ecc-public-key ecc-curve/ed25519 data #vu8()))
-          (hoot
-           (await (import-public-key (bytevector->uint8-array data))))))))
+         (bytevector->crypto-public-key data))))
 
     (define (captp-signature->crypto-signature signature)
       "Convert @var{signature} from its CapTP wire format to its internal format
