@@ -209,7 +209,8 @@ Type: CryptoSignature Bytevector CryptoKey -> Boolean"
                   public-key
                   sign-algorithm/eddsa-ed25519
                   data
-                  signature))
+                  signature)
+                 #t)
                (lambda _ #f)))
        (hoot
         (await (verify-ed25519 signature
