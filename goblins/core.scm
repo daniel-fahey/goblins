@@ -2757,6 +2757,10 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                 (make-tagged* 'broken))))]
         [(? ocapn-id?)
          (make-tagged* 'ocapn-id (ocapn-id->string value))]
+        [(? persistable-object-identifier?)
+         (make-tagged* 'persistable-obj-id
+                       (persistable-object-identifier-vat-id value)
+                       (persistable-object-identifier-object-id value))]
         [_ (error "Unserializable value!" 'value: value 'obj this-obj)]))
     
     (define (process-portrait obj-spec portrait-data)
@@ -3072,6 +3076,10 @@ Type: Actormap PersistenceEnv -> Void"
                 ($ resolver 'break "Aurie broken promise")
                 vow)]
              ['ocapn-id (string->ocapn-id (car data))]
+             ['persistable-obj-id
+              (match data
+                [(vat-id object-id)
+                 (make-persistable-object-identifier vat-id object-id)])]
              [_ (error "Unknown depiction type" type)]))]
         [(? ghash?)
          (ghash-fold
