@@ -22,6 +22,7 @@ not rely on the protocol being stable at this time.
 * Example Two Goblins programs chatting over CapTP via Tor::
 * Using the CapTP API::
 * Netlayers::
+* Handling Disconnects::
 @end menu
 
 @node CapTP The Capability Transport Protocol
@@ -708,3 +709,31 @@ in with the @var{#:mycapn} argument.
 
 @defvr {Persistence Environment} prelay-utils-env
 @end defvr
+
+@node Handling Disconnects
+@section Handling Disconnects
+
+For remote references, it can be useful to know when the connection to
+be the remote peer has broken (intentionally or otherwise).  In
+Goblins, this is known as a @emph{sever} event.
+Severence can be detected using @code{on-sever} which is provided by
+the @code{(goblins)} module.
+
+@deffn {Procedure} on-sever remote-refr handler
+
+Register @var{handler} to be called when connection to
+@var{remote-refr} is severed.
+
+The @var{remote-refr} should be a reference to an object on a remote
+peer, if the connection between the remote peer that the object is
+located on, the @var{handler} is informed. The @var{handler} is either
+a procedure or Goblins object. @var{handler} is called with two
+arguments: the severance type (a symbol) and the reason (a string).
+
+@code{on-sever} returns to the caller a Goblins object which when
+invoked cancels the interest in severence.
+
+NOTE: If severance has already occured when calling @code{on-sever},
+the @code{handler} will be informed immediately.
+
+@end deffn
