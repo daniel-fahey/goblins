@@ -24,6 +24,7 @@
              (goblins ocapn captp)
              (goblins ocapn netlayer onion)
              (goblins ocapn netlayer tcp-tls)
+             (goblins ocapn netlayer websocket)
              (goblins ocapn netlayer prelay)
              (goblins ocapn netlayer prelay-utils)
              (goblins persistence-store syrup)
@@ -69,7 +70,15 @@
        [()
         (spawn ^tcp-tls-netlayer "localhost")]
        [something-else
-        (error "Expected arguments: tcp-tls <hostname> [<port>]")])]))
+        (error "Expected arguments: tcp-tls <hostname> [<port>]")])]
+    ["websocket"
+     (match options
+       [(host port) (spawn ^websocket-netlayer
+                           #:host host
+                           #:port (string->number port)
+                           #:verify-certificates? #f)]
+       [(host) (spawn ^websocket-netlayer #:host host #:verify-certificates? #f)]
+       [() (spawn ^websocket-netlayer #:encrypted? #f #:verify-certificates? #f)])]))
 
 ;; We need a condition to decide when we're able to quit (or rather stop
 ;; waiting), we shouldn't quit until we've finished doing what we need to which
@@ -159,7 +168,8 @@
 ~a list-accounts <relay-server-sturdyref>                     Lists all account names configured by this admin.
 
 Currently supported netlayers:
-- tcp-tls <hostname> [<port>]
+- tcp-tls [<hostname> <port>]
+- websocket [<hostname> <port>]
 - onion\n
 
 To have the server persist itself, specify the path to the syrup store using the
