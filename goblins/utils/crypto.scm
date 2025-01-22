@@ -26,7 +26,9 @@
           verify
           signature-sexp?
           captp-public-key->crypto-public-key
-          captp-signature->crypto-signature)
+          captp-signature->crypto-signature
+          private-key->data
+          data->private-key)
 
   (import (goblins utils js-data)
           (guile)
@@ -124,6 +126,29 @@ Type: (Optional UnsignedInteger) -> Bytevector"
 
 Type: CryptoKey -> ByteVector"
         (uint8-array->bytevector (await (%export-key key))))))
+
+    (define (private-key->data pk)
+      "Return exported private key data"
+      (cond-expand
+       (guile
+        (define-values (crv x y k)
+          (private-key-export-raw-ecc pk))
+        (define algorithm
+          (ecc-curve->pk-algorithm crv))
+        (list (pk-algorithm->string algorithm) x y k))
+       (hoot
+        (error "Not supported on hoot"))))
+
+    (define (data->private-key data)
+      (cond-expand
+       (guile
+        (match data
+          [("EdDSA (Ed25519)" x y k)
+           (import-raw-ecc-private-key ecc-curve/ed25519 x y k)]
+          [something-else
+           (error "Do not know how to import key" data)]))
+       (hoot
+        (error "Not supported on hoot"))))
 
     (define (generate-key-pair)
       (cond-expand
