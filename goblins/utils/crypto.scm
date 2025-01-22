@@ -28,7 +28,8 @@
           captp-public-key->crypto-public-key
           captp-signature->crypto-signature)
 
-  (import (guile)
+  (import (goblins utils js-data)
+          (guile)
           (ice-9 match)
           (except (rnrs bytevectors) bytevector-copy)
           (only (scheme base) bytevector-append bytevector-copy))
@@ -63,22 +64,10 @@
       ;; Import FFI Stuff
       ;; ================
 
-      ;; length -> Uint8Array
-      (define-foreign make-uint8array
-        "typedArray" "makeUint8Array" i32 -> (ref extern))
-      ;; Uint8Array -> length
-      (define-foreign uint8array-length
-        "typedArray" "Uint8ArrayLength" (ref extern) -> i32)
-      ;; Uint8Array, idx -> byte
-      (define-foreign uint8array-ref
-        "typedArray" "Uint8ArrayRef" (ref extern) i32 -> i32)
-      ;; Uint8Array, idx, byte -> ()
-      (define-foreign uint8array-set!
-        "typedArray" "Uint8ArraySet" (ref extern) i32 i32 -> none)
       ;; Uint8Array -> Uint8Array
-      (define-foreign get-random-values!
-        "crypto" "getRandomValues"
-        (ref extern) -> (ref extern))
+      (define-foreign random-values
+        "crypto" "randomValues"
+        i32 -> (ref extern))
       ;; String TypedArray -> (Promise Uint8Array)
       (define-foreign digest
         "crypto" "digest"
@@ -112,49 +101,29 @@
         "crypto" "signEd25519"
         (ref extern) (ref extern) -> (ref extern))
 
-      ;; Some helpers
-      ;; ============
-      (define-syntax-rule (convert-arrays val len-proc make-proc set-proc! ref-proc)
-        (let* ((len (len-proc val))
-               (new-val (make-proc len)))
-          (do ((i 0 (1+ i)))
-              ((>= i len) new-val)
-            (set-proc! new-val i (ref-proc val i)))))
-
-      (define (uint8array->bytevector u8a)
-        "Convert @var{u8a} to a Bytevector
-
-Type: Uint8Array -> Bytevector"
-        (convert-arrays u8a uint8array-length make-bytevector
-                        bytevector-u8-set! uint8array-ref))
-      (define (bytevector->uint8array bv)
-        "Convert @var{bv} to a Uint8Array
-
-Type: Bytevector -> Uint8Array"
-        (convert-arrays bv bytevector-length make-uint8array
-                        uint8array-set! bytevector-u8-ref))
-
       ;; Hashing
       ;; =======
       (define (sha256 input)
-        (uint8array->bytevector
+        (uint8-array->bytevector
          (await (digest "SHA-256"
                         (if (bytevector? input)
-                            (bytevector->uint8array input)
+                            (bytevector->uint8-array input)
                             input)))))
 
       ;; Gcrypt like functions
-      (define* (gen-random-bv #:optional (bv-length 50))
-        "Generate a random Bytevector of @var{bv-length}
+      (define* (gen-random-bv length)
+        "Return a bytevector of length @var{length} filled with random
+bytes.
 
 Type: (Optional UnsignedInteger) -> Bytevector"
-        (uint8array->bytevector (get-random-values! (make-uint8array bv-length))))
+        (uint8-array->bytevector
+         (random-values length)))
 
       (define (export-key key)
         "Export @var{key} to its raw binary format
 
 Type: CryptoKey -> ByteVector"
-        (uint8array->bytevector (await (%export-key key))))))
+        (uint8-array->bytevector (await (%export-key key))))))
 
     (define (generate-key-pair)
       (cond-expand
@@ -195,8 +164,10 @@ Type: Bytevector CryptoKey -> List"
               (guile
                (private-key-sign-data private-key sign-algorithm/eddsa-ed25519 data '()))
               (hoot
-               (uint8array->bytevector
-                (await (sign-ed25519 (bytevector->uint8array data) private-key)))))))
+               (uint8-array->bytevector
+                (await
+                 (sign-ed25519 (bytevector->uint8-array data)
+                               private-key)))))))
         `(sig-val (eddsa (r ,(bytevector-copy sig-bv 0 32))
                          (s ,(bytevector-copy sig-bv 32))))))
 
@@ -216,7 +187,7 @@ Type: CryptoSignature Bytevector CryptoKey -> Boolean"
                (lambda _ #f)))
        (hoot
         (await (verify-ed25519 signature
-                               (bytevector->uint8array data)
+                               (bytevector->uint8-array data)
                                public-key)))))
 
     (define (captp-public-key->crypto-public-key key)
@@ -231,7 +202,7 @@ Type: S-Expression -> CryptoKey"
           (guile
            (import-raw-ecc-public-key ecc-curve/ed25519 data #vu8()))
           (hoot
-           (await (import-public-key (bytevector->uint8array data))))))))
+           (await (import-public-key (bytevector->uint8-array data))))))))
 
     (define (captp-signature->crypto-signature signature)
       "Convert @var{signature} from its CapTP wire format to its internal format
@@ -242,7 +213,6 @@ Type: List -> CryptSignature"
                (`(sig-val (eddsa (r ,r) (s ,s)))
                 (bytevector-append r s)))))
         (cond-expand
-         (guile
-          bytes)
+         (guile bytes)
          (hoot
-          (bytevector->uint8array bytes)))))))
+          (bytevector->uint8-array bytes)))))))

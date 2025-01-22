@@ -15,16 +15,21 @@
 // limitati måsteons under the License.
 
 let bindings = {
-    typedArray: {
-        makeUint8Array: (length) => new Uint8Array(length),
-        Uint8ArrayLength: (array) => array.length,
-        Uint8ArrayRef: (array, index) => array[index],
-        Uint8ArraySet: (array, index, value) => array[index] = value
+    uint8Array: {
+        new: (length) => new Uint8Array(length),
+        fromArrayBuffer: (buffer) => new Uint8Array(buffer),
+        length: (array) => array.length,
+        ref: (array, index) => array[index],
+        set: (array, index, value) => array[index] = value
     },
     crypto: {
         digest: (algorithm, data) => globalThis.crypto.subtle
             .digest(algorithm, data).then((arrBuf) => new Uint8Array(arrBuf)),
-        getRandomValues: (array) => globalThis.crypto.getRandomValues(array),
+        randomValues(length) {
+            const array = new Uint8Array(length);
+            globalThis.crypto.getRandomValues(array);
+            return array;
+        },
         generateEd25519KeyPair: () => globalThis.crypto.subtle.generateKey(
             { name: "Ed25519" },
             true,
@@ -53,9 +58,11 @@ let bindings = {
                 signature,
                 data
             )
-    }};
+    }
+};
 
 if (typeof exports === 'undefined') {
+    // TODO: This shouldn't be here.
     window.addEventListener("load", async () => {
         const [proc] = await Scheme.load_main("test.wasm", {
             user_imports: bindings
