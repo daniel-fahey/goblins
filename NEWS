@@ -1,6 +1,96 @@
+#-*- org -*-
 #+TITLE: Guile Goblins NEWS – history of user-visible changes
+#+startup: show2levels
 
 * Releases
+** v0.15
+*** Highlights
+**** Goblins on the web
+
+Goblins has come to the browser!  You can now use Goblins in your
+Guile project and compile it to WebAssembly using Hoot.  All of the
+goodies you're used to such as vats, OCapN and almost all of actor-lib
+(=selfish-spawn=, which is now deprecated, does not work) can be used
+when compiling with Hoot.  The Webassembly binaries produced by Hoot
+can be used in Firefox, Chromium, and Webkit based browsers.  Hoot
+also includes a JavaScript FFI, meaning you can access additional
+browser APIs as needed.
+
+**** WebSocket netlayer
+
+The WebSocket netlayer is as the name suggests, a netlayer which works
+by communicating via [[https://datatracker.ietf.org/doc/html/rfc6455][WebSockets]].  WebSocket are, of course, available
+on the web but also in the Guile VM via guile-websocket.  This is the
+first netlayer which can be used in both Hoot and Guile.  It's
+important to note that that due to limitations within web browser
+environments, this netlayer works only as a client (outbound
+connections only) on Hoot and requires secure WebSocket servers with
+valid TLS certificates in most situations.  Thus this netlayer should
+be considered a "bootstrap" netlayer that is used to connect to an
+instance of the Prelay netlayer and reach a peer-to-peer Goblins
+network.
+
+*** Deprecations
+
+The following should not be used in new projects and existing
+codebases should move away from using them as they will be removed in
+future releases:
+
+- =(goblins actor-lib selfish-spawn)= is deprecated in favour of using
+  the =#:self= keyword in =define-actor=.
+- =(spawn-promise-values)= has been replaced with
+  =(spawn-promise-and-resolver)=
+- =(spawn-promise-cons)= has been deprecated.  It's advised to use
+  =(spawn-promise-and-resolver)= instead.  However, if a single value
+  within a cons cell is required, you can replace it with
+  =(call-with-values spawn-promise-and-resolver cons)=.
+
+*** Bug Fixes
+- Persistable object identifiers are now persistable using Goblins'
+  persistence system.
+
+*** Known issues
+**** Persisted objects are not cleaned up when orphaned
+
+Issue: [[https://gitlab.com/spritely/guile-goblins/-/issues/227][#227]]
+
+When using Goblins' persistence system, the objects within a graph are
+stored within the persistence store used.  When an object stops
+appearing in the graph of objects, it's expected that the object would
+be cleaned up and removed.  Goblins currently will continue to store
+the object data and upon restoration the object will be respawned.
+
+**** Actors using define-actor along with its #:self keyword cannot persist
+
+Issue: [[https://gitlab.com/spritely/guile-goblins/-/issues/256][#256]]
+
+Objects that are defined with =define-actor= and use the =#:self=
+keyword should be persisted properly, but this currently is not the
+case.  Instead, an error occurs.
+
+**** Prelay connections are unencrypted and unauthenticated
+
+Issue: [[https://gitlab.com/spritely/guile-goblins/-/issues/144][#144]]
+
+Messages sent through the Prelay netlayer can be viewed by the relay
+server, modified and new messages inserted by the server or silently
+removed and thus not delivered by the Prelay netlayer.
+
+This means that, for the time being, you should only use the Prelay
+netlayers where you can place high trust in the relaying server.  An
+end-to-end encrypted relay is planned for a future release.
+
+**** Lack of dialback within CapTP
+
+Issue: [[https://gitlab.com/spritely/guile-goblins/-/issues/50][#50]]
+
+When a node connects to another node in Goblins it provides the
+location from where it's accessible (i.e. the OCapN node address). One
+feature of OCapN is to ensure only one connection exists to any given
+node, since the address provided by a new incoming connection is never
+authenticated, this could lead to a denial of service by a malicious
+actor claiming to be a node it is not.
+
 ** v0.14
 *** Highlights
 - New libp2p netlayer
@@ -63,7 +153,7 @@ high trust in the relaying server.
 **** Lack of dialback within CapTP
 
 When a node connects to another node in Goblins it provides the location where
-it's accessable (i.e. the OCapN node address). One feature of OCapN is to ensure
+it's accessible (i.e. the OCapN node address). One feature of OCapN is to ensure
 only one connection exists to any given node, since the address provided by a
 new incoming connection is never authenticated, this could lead to a denial of
 service by a malicious actor claiming to be a node it is not.
@@ -192,7 +282,7 @@ high trust in the relaying server.
 **** Lack of dialback within CapTP
 
 When a node connects to another node in Goblins it provides the location where
-it's accessable (i.e. the OCapN node address). One feature of OCapN is to ensure
+it's accessible (i.e. the OCapN node address). One feature of OCapN is to ensure
 only one connection exists to any given node, since the address provided by a
 new incoming connection is never authenticated, this could lead to a denial of
 service by a malicious actor claiming to be a node it is not.
