@@ -510,7 +510,7 @@ libp2p network.  Refer to the
 @url{https://gitlab.com/spritely/go-libp2p-daemon,daemon's documentation}
 for setup instructions.
 
-@deffn {Constructor} ^libp2p-netlayer [private-key] [our-location]
+@deffn {Constructor} ^libp2p-netlayer [private-key] [our-location] @
                                       [#:control-path] [#:path]
 
 Spawning this constructor will produce a new instance of the libp2p

@@ -498,15 +498,15 @@ Return @code{#t} if @var{obj} is a @emph{far} object or promise, else
 @node define-actor
 @subsection define-actor
 
-@deffn {Syntax} define-actor (object-name var @dots{}
-                             [#:optional vardef @dots{}]
-                             [#:key vardef @dots{}])
-                             [#:restore procedure]
-                             [#:portrait thunk]
-                             [#:version version]
-                             [#:frozen]
-                             [#:upgrade migrator]
-                             [#:self name]
+@deffn {Syntax} define-actor (object-name var @dots{} @
+                             [#:optional vardef @dots{}] @
+                             [#:key vardef @dots{}]) @
+                             [#:restore procedure] @
+                             [#:portrait thunk] @
+                             [#:version version] @
+                             [#:frozen] @
+                             [#:upgrade migrator] @
+                             [#:self name] @
                              body @dots{}
 
 Defines a goblins object with @var{object-name}. The argument syntax
@@ -695,8 +695,7 @@ At a high level, users generally will spawn a @emph{vat}, bind it to a
 name in the local namespace, and use it for various operations. This
 will usually use @code{spawn-vat}:
 
-@deffn {Procedure} spawn-vat [#:name] [#:log?] @
-       [log-capacity]
+@deffn {Procedure} spawn-vat [#:name] [#:log?] [log-capacity]
 
 Create and return a reference to a new @emph{vat}.
 
@@ -726,7 +725,7 @@ a GUI toolkit or game engine).  In such cases, @code{make-vat} comes
 into play:
 
 @deffn {Procedure} make-vat [#:name] [#:start] [#:halt] [#:send] @
-       [#:log?] [log-capacity]
+                            [#:log?] [log-capacity]
 
 Return a new vat named @var{name}.  Vat behavior is determined by
 three event hooks, and logging is controlled by the remaining
@@ -1230,14 +1229,14 @@ Commit the changes in @var{transactormap} to its parent.
 @section Misc
 
 @deffn {Syntax} migrations ((version data @dots{}) expr) @dots{}
-                           
+
 Syntax to describe a collection of migrations to be used to be applied in order
 to upgrade some data to a newer version. This is designed to be used with the
 persistence system e.g. to upgrade actor portrait data or graph roots. However,
 it is generic enough to be used elsewhere.
 
 The @code{migrations} syntax will generate a procedure with the signature
-@code{(lambda (prev-version data ...) ...)} and will return two values, the 
+@code{(lambda (prev-version data ...) ...)} and will return two values, the
 version its migrated to and the new data.
 
 @lisp

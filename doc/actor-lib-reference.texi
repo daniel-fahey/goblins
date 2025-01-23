@@ -260,8 +260,8 @@ More specific IO interfaces for files, general ports, etc will be
 provided in the future, but the mechanism provided by this library
 is general enough to fit most use cases.
 
-@deffn {Constructor} ^io _bcom wrapped
-       [#:init #f] [#:cleanup #f]
+@deffn {Constructor} ^io _bcom wrapped @
+                         [#:init #f] [#:cleanup #f]
 
 Spawns an object which itself spawns a Fibers fiber which wraps
 @var{wrapped}.  If @var{init} is provided with a procedure, fiber
@@ -308,8 +308,8 @@ Got: o
 
 @end deffn
 
-@deffn {Constructor} ^read-write-io _bcom wrapped
-       [#:init #f] [#:cleanup #f]
+@deffn {Constructor} ^read-write-io _bcom wrapped @
+                                    [#:init #f] [#:cleanup #f]
 
 Spawn a read and write interface for running commands over WRAPPED
 
@@ -990,7 +990,7 @@ rival service:
 
 @end deffn
 
-@deffn {Procedure} make-spawn-sealer-triplet namespace known-sealers
+@deffn {Procedure} make-spawn-sealer-triplet namespace known-sealers @
                                              [default-make-sealer-triplet]
 
 Returns two values, the first is a @code{spawn-sealer-triplet}
