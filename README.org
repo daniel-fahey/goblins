@@ -44,6 +44,7 @@ Build requirements:
 - [[https://www.gnu.org/software/guile/][GNU Guile]] >= 3.0
 - [[https://github.com/wingo/fibers][guile-fibers]] >= 1.0.0
 - [[https://gitlab.com/gnutls/guile][guile-gnutls]] >= 3.7.14
+- [[https://dthompson.us/posts/guile-websocket-0-2-0-released.html][guile-websocket]] >= 0.2.0
 
 Additional runtime requirements:
 
@@ -223,7 +224,7 @@ find those implementations within the
 [[file:examples/ocapn-test-suite.scm][examples/ocapn-test-suite.scm]]. To run this you should run:
 
 #+BEGIN_SRC sh
-  $ ./pre-inst-env guile examples/ocapn-test-suite.scm 
+  $ ./pre-inst-env guile examples/ocapn-test-suite.scm
 Connect test suite to: <sturdyref>
 #+END_SRC
 
