@@ -81,6 +81,7 @@ SOURCES = goblins.scm \
           goblins/ocapn/ids.scm \
           goblins/ocapn/netlayer/base-port.scm \
           goblins/ocapn/netlayer/fake.scm \
+          goblins/ocapn/netlayer/websocket.scm \
           goblins/ocapn/netlayer/onion-socks.scm \
           goblins/ocapn/netlayer/onion.scm \
           goblins/ocapn/netlayer/libp2p.scm \
@@ -94,6 +95,7 @@ SOURCES = goblins.scm \
           goblins/utils/assert-type.scm \
           goblins/utils/base32.scm \
           goblins/utils/bytes-stuff.scm \
+          goblins/utils/js-data.scm \
           goblins/utils/crypto.scm \
           goblins/utils/define-applicable-record-type.scm \
           goblins/utils/error-handling.scm \
@@ -130,6 +132,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/test-migrations.scm \
         tests/ocapn/test-captp.scm \
         tests/ocapn/netlayer/test-fake.scm \
+        tests/ocapn/netlayer/test-websocket.scm \
         tests/ocapn/netlayer/test-libp2p.scm \
         tests/ocapn/netlayer/test-prelay.scm \
         tests/ocapn/netlayer/test-prelay-utils.scm \
@@ -205,6 +208,8 @@ EXTRA_DIST += README.org \
               build-aux/run-test-suite.scm \
               doc/goblins.css \
               doc/build-html.scm \
+              hoot-ffi/imports.js \
+              hoot-ffi/imports.scm \
               $(EXAMPLES) \
               $(TESTS)
 

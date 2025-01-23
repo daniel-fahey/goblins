@@ -17,7 +17,6 @@
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 textual-ports)
   #:use-module (ice-9 match)
-  #:use-module (rnrs arithmetic fixnums)
   #:use-module (rnrs bytevectors)
   #:export (base32-encode
             base32-decode))

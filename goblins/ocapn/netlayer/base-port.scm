@@ -19,7 +19,6 @@
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 iconv)
   #:use-module (rnrs bytevectors)
-  #:use-module (rnrs io ports)
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers conditions)
