@@ -22,9 +22,9 @@ if test "x$GUILD" = "x"; then
    AC_MSG_ERROR(['guild' binary not found; please check your guile-2.x installation.])
 fi
 
-dnl Hall auto-generated guile-module dependencies
 GUILE_MODULE_REQUIRED([fibers])
 GUILE_MODULE_REQUIRED([gnutls])
+GUILE_MODULE_REQUIRED([web socket server])
 
 dnl Installation directories for .scm and .go files.
 guilemoduledir="${datarootdir}/guile/site/$GUILE_EFFECTIVE_VERSION"
