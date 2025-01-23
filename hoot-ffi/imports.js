@@ -15,6 +15,30 @@
 // limitati måsteons under the License.
 
 let bindings = {
+    webSocket: {
+        close: (ws) => ws.close(),
+        new(url) {
+            ws = new WebSocket(url);
+            ws.binaryType = "arraybuffer";
+            return ws;
+        },
+        send: (ws, data) => ws.send(data),
+        setOnOpen(ws, f) {
+            ws.onopen = (e) => {
+                f();
+            };
+        },
+        setOnMessage(ws, f) {
+            ws.onmessage = (e) => {
+                f(e.data);
+            };
+        },
+        setOnClose(ws, f) {
+            ws.onclose = (e) => {
+                f(e.code, e.reason);
+            };
+        }
+    },
     uint8Array: {
         new: (length) => new Uint8Array(length),
         fromArrayBuffer: (buffer) => new Uint8Array(buffer),
@@ -62,13 +86,7 @@ let bindings = {
 };
 
 if (typeof exports === 'undefined') {
-    // TODO: This shouldn't be here.
-    window.addEventListener("load", async () => {
-        const [proc] = await Scheme.load_main("test.wasm", {
-            user_imports: bindings
-        });
-        proc.call_async();
-    });
+    // TODO: Add code for non-NodeJS runtimes.
 } else {
     exports.user_imports = bindings;
 }

@@ -497,7 +497,7 @@ Return a freshly generated X.509 certificate for @var{key}.
 
 @defvr {Persistence Environment} tcp-tls-netlayer-env
 @end defvr
-                                                
+
 @node libp2p
 @subsection libp2p
 
@@ -547,6 +547,97 @@ When given a string of multiaddrs, it will convert it into an OCapN node.
 @end deffn
 
 @defvr {Persistence Environment} libp2p-netlayer-env
+@end defvr
+
+@node WebSocket
+@subsection WebSocket
+
+The @code{(goblins ocapn netlayer websocket)} module provides a
+netlayer that is built on top of, as the name would suggest, the
+@url{https://datatracker.ietf.org/doc/html/rfc6455,WebSocket
+protocol}.  Since WebSockets are available in web browsers via the
+@code{WebSocket} JavaScript API, and the Guile VM via the
+guile-websocket library, this netlayer is notable in that it can be
+used in Goblins programs compiled using either Hoot or Guile.
+
+This netlayer has a notable source of centralization: TLS certificate
+authorities.  Web browsers rely upon certificate authorities to verify
+server connections made in a secure context.  Furthermore, a web
+browser client cannot host a WebSocket server; peer-to-peer
+connections are not possible.  This is all to say that we cannot
+opt-out of this security model and that the WebSocket netlayer alone
+cannot provide the full OCapN experience.  Thus the WebSocket netlayer
+should be thought of as a ``bootstrap'' netlayer; one which is used to
+escape the client-server model and reach a peer-to-peer network.  Use
+this netlayer together with the @ref{Prelay} netlayer to achieve this
+goal.
+
+@deffn {Constructor} ^websocket-netlayer [#:host "127.0.0.1"] @
+                                         [#:port 0] @
+                                         [#:url] @
+                                         [#:max-peers 32] @
+                                         [#:verify-certificates? #t] @
+                                         [#:encrypted? #t] @
+                                         [#:tls-private-key] @
+                                         [#:tls-certificate] @
+                                         [#:designator-key] @
+
+Spawning this constructor will produce a new instance of the WebSocket
+netlayer.  The server component of the netlayer is bound to @var{host}
+and @var{port}.  If @var{port} is not specified, an available port is
+chosen automatically.
+
+The @var{url} argument allows for specifying a custom URL for use as a
+hint when generating OCapN sturdyrefs.  By default, the URL looks like
+@code{ws(s)://$host:$port}. Custom URLs are often necessary, such as
+in the case of a relay that uses @url{https://nginx.org/,nginx} as the
+publicly accesible web server with a reverse proxy to the netlayer
+bound on the loopback device.  @var{url} is also necessary when the
+server is bound to a @var{host} address of @code{0.0.0.0} to produce a
+usable address for the sturdyref hint.
+
+The @var{max-peers} argument determines how many peers can be
+simultaneously connected to the netlayer; 32 by default.
+
+The @var{encrypted?} flag determines if TLS encryption is used for
+inbound connections (i.e. @code{wss://}).  Encryption is enabled by
+default and a warning is emitted when it is disabled.
+
+The @var{verify-certificates?} flag determines if the TLS certificates
+of outbound peers should be verified upon connection.  Certification
+verification is enabled by default and a warning is emitted when it is
+disabled.
+
+The @var{tls-private-key} and @var{tls-certificate} arguments specify
+the X.509 private key and certificate to use for encrypting inbound
+connections with TLS.  If one or both are unspecified, they will be
+automatically generated (provided that the version of Guile-GnuTLS in
+use is new enough to do so.)  To import PEM encoded private keys and
+certificates from the file system, use @code{load-tls-private-key} and
+@code{load-tls-certificate}, respectively.  While self-signed
+certificates can be used, it is recommended to use certificates signed
+by a certificate authority such as @url{https://letsencrypt.org/,Let's
+Encrypt} as web browsers will reject certificates that cannot be
+verified.
+
+The @var{designator-key} is the private key used to authenticate the
+designator used within the peer location, as created by the
+@code{generate-key-pair} procedure in @code{(goblins utils crypto)}.
+This key controls the identity of the netlayer.  By default, no
+pre-existing key is provided and a fresh key will generated
+automatically.
+
+When compiling with Hoot, all arguments other than
+@var{verify-certificates?} are ignored because it is not possible to
+host a WebSocket server from a web browser client.
+@var{verify-certificates?} @emph{must} be @code{#t} as web browsers
+enforce strict TLS certificate verification when in a secure context.
+Unencrypted (@code{ws://}) WebSocket connections are only allowed in
+specific insecure contexts such as when using a local development
+server.
+@end deffn
+
+@defvr {Persistence Environment} websocket-netlayer-env
 @end defvr
 
 @node Prelay
