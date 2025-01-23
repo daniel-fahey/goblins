@@ -63,18 +63,14 @@
      #:make-flags
      ,#~(list "GUILE_AUTO_COMPILE=0")))
   (native-inputs
-   (list
-     autoconf
-     automake
-     pkg-config
-     texinfo))
+   (list autoconf automake pkg-config texinfo))
   (inputs (list guile-3.0))
   (propagated-inputs
    (list guile-fibers guile-gnutls guile-websocket-next))
   (synopsis "Transactional, distributed object programming environment")
   (description
    "Spritely Goblins is a transactional, distributed object programming
-environment following object capability principles.  This is the guile version
-of the library!")
-  (home-page "https://spritelyproject.org/")
+environment following object capability principles.  This is the guile
+version of the library!")
+  (home-page "https://spritely.institute/goblins")
   (license license:asl2.0))
