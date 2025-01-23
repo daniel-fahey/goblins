@@ -25,23 +25,6 @@
   (gnu packages tls)
   (srfi srfi-1))
 
-(define guile-websocket-next
-  (let ((commit "6adfc6605b39072c3631f9d080b1a1da446f09a5")
-        (revision "3"))
-    (package
-      (inherit guile-websocket)
-      (version (string-append (package-version guile-websocket)
-                              "-" revision "." (string-take commit 7)))
-      (source (origin
-                (method git-fetch)
-                (uri (git-reference
-                      (url "https://git.dthompson.us/guile-websocket.git")
-                      (commit commit)))
-                (sha256
-                 (base32
-                  "0qssn6jycpd6d2cnikbwj2rvzdmckm2lyy4wx9g2mjks6g181b3n"))))
-      (inputs (list guile-3.0 guile-gnutls)))))
-
 (define (keep-file? file stat)
   (not (any (lambda (my-string)
               (string-contains file my-string))
@@ -66,7 +49,7 @@
    (list autoconf automake pkg-config texinfo))
   (inputs (list guile-3.0))
   (propagated-inputs
-   (list guile-fibers guile-gnutls guile-websocket-next))
+   (list guile-fibers guile-gnutls guile-websocket))
   (synopsis "Transactional, distributed object programming environment")
   (description
    "Spritely Goblins is a transactional, distributed object programming
