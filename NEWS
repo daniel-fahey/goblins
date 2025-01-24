@@ -30,6 +30,15 @@ be considered a "bootstrap" netlayer that is used to connect to an
 instance of the Prelay netlayer and reach a peer-to-peer Goblins
 network.
 
+**** Performance improvements
+
+This release of Goblins has a major speedup: 1.2-2x performance
+improvements for all Goblins-using code!  Now your Goblins programs
+run faster than ever!
+
+Even more performance improvements are planned for upcoming releases,
+this is just the beginning!
+
 *** Deprecations
 
 The following should not be used in new projects and existing
