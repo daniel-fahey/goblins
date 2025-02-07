@@ -1,4 +1,4 @@
-;;; Copyright 2022-2024 Jessica Tallon
+;;; Copyright 2022-2025 Jessica Tallon
 ;;; Copyright 2023 Juliana Sims
 ;;; Copyright 2024 David Thompson <dave@spritely.institute>
 ;;;
@@ -17,7 +17,7 @@
 (define-module (goblins actor-lib joiners)
   #:use-module (goblins)
   #:use-module (goblins actor-lib cell)
-  #:export (all-of all-of* race))
+  #:export (all-of all-of* race race*))
 
 (define (all-of* promises)
   "Return a promise which resolves on resolution of all PROMISES.
@@ -73,6 +73,13 @@ Type: Promise ... -> Promise"
 settles.  If that promise is broken then so is the returned promise.
 
 Type: Promise ... -> Promise"
+  (race* promises))
+
+(define (race* promises)
+  "Return a promise which resolves when the first promise in @var{promises}
+settles.  If that promise is broken then so is the returned promise.
+
+Type: (ListOf Promise) -> Promise"
   (define-values (race-promise race-resolver)
     (spawn-promise-and-resolver))
   (for-each (lambda (promise)
