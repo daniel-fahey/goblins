@@ -1,4 +1,4 @@
-;;; Copyright 2022-2024 Jessica Tallon
+;;; Copyright 2022-2025 Jessica Tallon
 ;;; Copyright 2024 David Thompson <dave@spritely.institute>
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
@@ -88,6 +88,20 @@
      (let ((vow (race a-vow b-vow)))
        (<-np a-resolver 'break 'uh-oh)
        (<-np b-resolver 'fulfill 42)
+       vow))))
+
+(test-equal "race* fulfills its own promise if an arg promise is fulfilled first"
+  #(ok 42)
+  (resolve-vow-and-return-result
+   a-vat
+   (lambda ()
+     (define-values (a-vow a-resolver)
+       (spawn-promise-and-resolver))
+     (define-values (b-vow b-resolver)
+       (spawn-promise-and-resolver))
+     (let ((vow (race* (list a-vow b-vow))))
+       (<-np a-resolver 'fulfill 42)
+       (<-np b-resolver 'break 'uh-oh)
        vow))))
 
 (test-end "test-joiners")
