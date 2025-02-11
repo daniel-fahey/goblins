@@ -1,6 +1,6 @@
 ;;; Copyright 2019-2021 Christine Lemmer-Webber
 ;;; Copyright 2023 David Thompson
-;;; Copyright 2024 Jessica Tallon
+;;; Copyright 2024-2025 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -341,8 +341,13 @@
   ;; TODO: need to handle lists/dotted-lists/vectors
   (define (outgoing-pre-marshall! obj)
     (match obj
-      [(obj ...)
-       (map outgoing-pre-marshall! obj)]
+      [() '()]
+      [(_ ...) (map outgoing-pre-marshall! obj)]
+      ;; Dotted lists/cons cells are not serializable by syrup, tag them.
+      [(head . tail)
+       (make-tagged* 'pair
+                     (outgoing-pre-marshall! head)
+                     (outgoing-pre-marshall! tail))]
       [(? hash-table?)
        ;; TODO: let's use "ghashes", which hash on eq? for live-refs
        ;; and on equal? for everything else
@@ -388,6 +393,8 @@
     (match obj
       [(obj ...)
        (map incoming-post-unmarshall! obj)]
+      [($ <tagged> 'pair (head tail))
+       (cons head tail)]
       [(? hash-table?)
        (hash-fold
         (lambda (key val prev)

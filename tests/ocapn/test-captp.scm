@@ -1,5 +1,5 @@
 ;;; Copyright 2023 Christine Lemmer-Webber
-;;; Copyright 2024 Jessica Tallon
+;;; Copyright 2024-2025 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -375,6 +375,22 @@
                                (remote-object-refr-captp-connector cell-2-resolved)))
                         #:promise? #t))
                   #:promise? #t)))))
+;; Test that we can send certain data types across a CapTP boundary
+;; we should really be able to send any common guile types...
+(define (^echo _bcom)
+  (lambda (something)
+    something))
 
+(define echo-sref
+  (with-vat a-vat
+    ($ a-mycapn 'register (spawn ^echo) 'fake)))
+
+(test-equal "Test we're able to send cons cells across CapTP"
+  #(ok (a . b))
+  (resolve-vow-and-return-result
+   b-vat
+   (lambda ()
+     (let ((echo-vow (<- b-mycapn 'enliven echo-sref)))
+       (on (<- echo-vow '(a . b)) #:promise? #t)))))
 
 (test-end "test-captp")
