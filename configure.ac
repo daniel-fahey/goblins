@@ -22,9 +22,35 @@ if test "x$GUILD" = "x"; then
    AC_MSG_ERROR(['guild' binary not found; please check your guile-2.x installation.])
 fi
 
+dnl Get directory for Guile's .scm files for use with Hoot.
+AC_MSG_CHECKING(for Guile module source directory)
+GUILE_SCM_DIR="`$PKG_CONFIG --print-errors --variable=pkgdatadir guile-$GUILE_EFFECTIVE_VERSION`/$GUILE_EFFECTIVE_VERSION"
+AC_MSG_RESULT($GUILE_SCM_DIR)
+if test "$GUILE_SCM_DIR" = ""; then
+AC_MSG_FAILURE(source directory not found)
+fi
+AC_SUBST(GUILE_SCM_DIR)
+
 GUILE_MODULE_REQUIRED([fibers])
 GUILE_MODULE_REQUIRED([gnutls])
 GUILE_MODULE_REQUIRED([web socket server])
+
+dnl Find Hoot's reflect.js/reflect.wasm directories.
+AC_MSG_CHECKING(for Hoot reflect.js directory)
+HOOT_REFLECT_JS_DIR=`$GUILE -c '(display (or (false-if-exception (@ (hoot config) %reflect-js-dir)) ""))'`
+AC_MSG_RESULT($HOOT_REFLECT_JS_DIR)
+if test "$HOOT_REFLECT_JS_DIR" = ""; then
+AC_MSG_WARN(Hoot reflect.js directory not found)
+fi
+AC_SUBST(HOOT_REFLECT_JS_DIR)
+
+AC_MSG_CHECKING(for Hoot reflect.wasm directory)
+HOOT_REFLECT_WASM_DIR=`$GUILE -c '(display (or (false-if-exception (@ (hoot config) %reflect-wasm-dir)) ""))'`
+AC_MSG_RESULT($HOOT_REFLECT_WASM_DIR)
+if test "$HOOT_REFLECT_WASM_DIR" = ""; then
+AC_MSG_WARN(Hoot reflect.wasm directory not found)
+fi
+AC_SUBST(HOOT_REFLECT_WASM_DIR)
 
 dnl Installation directories for .scm and .go files.
 guilemoduledir="${datarootdir}/guile/site/$GUILE_EFFECTIVE_VERSION"

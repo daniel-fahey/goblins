@@ -184,6 +184,17 @@ run-tests:
 		$(GUILE) --no-auto-compile -L "$(top_srcdir)" \
 			build-aux/run-test-suite.scm $(TESTS)
 
+# Optional goblins.js build:
+js/reflect.js:
+	cp $(HOOT_REFLECT_JS_DIR)/reflect.js "$@"
+js/reflect.wasm:
+	cp $(HOOT_REFLECT_WASM_DIR)/reflect.wasm "$@"
+js/wtf8.wasm:
+	cp $(HOOT_REFLECT_WASM_DIR)/wtf8.wasm "$@"
+js/goblins.wasm: js/goblins.scm
+	$(GUILE_TOOLS) compile-wasm -L "$(GUILE_SCM_DIR)" -L "$(abs_top_srcdir)" -o "$@" "$<"
+js: js/goblins.wasm js/reflect.js js/reflect.wasm js/wtf8.wasm
+
 EXAMPLES = examples/cauldron.scm		\
            examples/try-captp-onion.scm		\
            examples/try-base-netlayer.scm	\
@@ -210,6 +221,10 @@ EXTRA_DIST += README.org \
               doc/build-html.scm \
               hoot-ffi/imports.js \
               hoot-ffi/imports.scm \
+              js/goblins.js \
+              js/goblins.scm \
+              js/index.html \
+              js/test.js \
               $(EXAMPLES) \
               $(TESTS)
 
