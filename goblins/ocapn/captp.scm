@@ -358,6 +358,14 @@
                       prev))
         vlist-null
         obj)]
+      [(? ghash?)
+       (ghash-fold
+        (lambda (key value prev)
+          (ghash-set prev
+                     (outgoing-pre-marshall! key)
+                     (outgoing-pre-marshall! value)))
+        (make-ghash)
+        obj)]
       [(? gset?)
        (gset-fold
         (lambda (item this-set)
@@ -402,6 +410,14 @@
                       (incoming-post-unmarshall! val)
                       prev))
         vlist-null
+        obj)]
+      [(? ghash?)
+       (ghash-fold
+        (lambda (key value prev)
+          (ghash-set prev
+                     (incoming-post-unmarshall! key)
+                     (incoming-post-unmarshall! value)))
+        (make-ghash)
         obj)]
       [(? gset?)
        (gset-fold
