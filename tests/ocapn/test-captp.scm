@@ -17,6 +17,7 @@
   #:use-module (goblins core)
   #:use-module (goblins core-types)
   #:use-module (goblins vat)
+  #:use-module (goblins ghash)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib joiners)
   #:use-module (goblins actor-lib methods)
@@ -392,5 +393,19 @@
    (lambda ()
      (let ((echo-vow (<- b-mycapn 'enliven echo-sref)))
        (on (<- echo-vow '(a . b)) #:promise? #t)))))
+
+;; Test we can serialize ghashes with objects inside.
+(define echo-on-b
+  (with-vat b-vat
+    (spawn ^echo)))
+(define ghash-to-send
+  (ghash-set (make-ghash) 'echo echo-on-b))
+(test-equal "Test we're able to send ghashes with refrs inside"
+  (list->vector `(ok ,ghash-to-send))
+  (resolve-vow-and-return-result
+   b-vat
+   (lambda ()
+     (let ((echo-vow (<- b-mycapn 'enliven echo-sref)))
+       (<- echo-vow ghash-to-send)))))
 
 (test-end "test-captp")
