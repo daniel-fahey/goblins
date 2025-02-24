@@ -1,6 +1,7 @@
 *.go
 *.log
 *.xml
+*.wasm
 /Makefile.in
 /aclocal.m4
 /autom4te.cache/
@@ -20,3 +21,4 @@ doc/*.info
 /INSTALL
 /doc/goblins.html/
 /goblins/config.scm
+/js/reflect.js
