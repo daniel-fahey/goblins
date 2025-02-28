@@ -218,7 +218,7 @@ following server script as @file{captp-bob.scm}:
 
 ;; Create a CapTP router using Tor Onion Services.
 (define node-vat (spawn-vat))
-(define-values (onion-netlayer private-key service-id)
+(define onion-netlayer
   (with-vat node-vat
     (spawn ^onion-netlayer)))
 (define mycapn
@@ -226,11 +226,11 @@ following server script as @file{captp-bob.scm}:
     (spawn-mycapn onion-netlayer)))
 
 ;; Create a sturdyref for Bob and print it.
-(define bob-sref
-  (with-vat node-vat
-    ($ mycapn 'register bob 'onion)))
-(format #t "Bob's sturdyref: ~a"
-        (ocapn-id->string bob-sref))
+(with-vat node-vat
+  (on (<- mycapn 'register bob 'onion)
+      (lambda (bob-sref)
+        (format #t "Bob's sturdyref: ~a"
+                (ocapn-id->string bob-sref)))))
 
 ;; Hold the process open indefinitely.
 (perform-operation (wait-operation (make-condition)))
