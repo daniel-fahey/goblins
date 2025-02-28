@@ -99,6 +99,7 @@
           vat-replace-behavior!
           define-vat-run
           vat-take-portrait!
+          ^persistence-registry
 
           define-actor
           migrations
