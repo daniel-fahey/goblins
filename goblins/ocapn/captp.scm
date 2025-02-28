@@ -348,6 +348,8 @@
        (make-tagged* 'pair
                      (outgoing-pre-marshall! head)
                      (outgoing-pre-marshall! tail))]
+      [(? vector?)
+       (make-tagged 'vec (map outgoing-pre-marshall! (vector->list obj)))]
       [(? hash-table?)
        ;; TODO: let's use "ghashes", which hash on eq? for live-refs
        ;; and on equal? for everything else
@@ -403,6 +405,8 @@
        (map incoming-post-unmarshall! obj)]
       [($ <tagged> 'pair (head tail))
        (cons head tail)]
+      [($ <tagged> 'vec vec)
+       (list->vector (map incoming-post-unmarshall! vec))]
       [(? hash-table?)
        (hash-fold
         (lambda (key val prev)

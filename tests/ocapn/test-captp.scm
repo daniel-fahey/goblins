@@ -408,4 +408,12 @@
      (let ((echo-vow (<- b-mycapn 'enliven echo-sref)))
        (<- echo-vow ghash-to-send)))))
 
+(test-equal "Test able to send vectors across CapTP"
+  `#(ok #(a-vector ,echo-on-b))
+  (resolve-vow-and-return-result
+   b-vat
+   (lambda ()
+     (let ((echo-vow (<- b-mycapn 'enliven echo-sref)))
+       (<- echo-vow `#(a-vector ,echo-on-b))))))
+
 (test-end "test-captp")
