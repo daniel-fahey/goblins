@@ -1,6 +1,6 @@
 ;;; Copyright 2019-2023 Christine Lemmer-Webber
 ;;; Copyright 2023 David Thompson
-;;; Copyright 2022-2024 Jessica Tallon
+;;; Copyright 2022-2025 Jessica Tallon
 ;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
@@ -2979,11 +2979,19 @@ Type: Actormap PersistenceEnv -> Void"
   ;; There are lots of places around the code base which does
   ;; something similar to this "churn" mechanism. There's actormap
   ;; churn code, vat churn stuff, update behavior and this.
-  (define msg-queue (make-q))
+  (define near-msg-queue (make-q))
+  (define far-msg-queue (make-q))
   (define (enq-msgs! msgs)
+    (define (am-near-refr? refr)
+      (actormap-run am (lambda () (near-refr? refr))))
+    (define (near-msg? msg)
+      (define to-refr (message-or-request-to msg))
+      (am-near-refr? to-refr))
     (for-each
      (lambda (msg)
-       (enq! msg-queue msg))
+       (if (near-msg? msg)
+           (enq! near-msg-queue msg)
+           (enq! far-msg-queue msg)))
      msgs))
 
   (define (depiction->debug-name depiction)
@@ -3119,11 +3127,16 @@ Type: Actormap PersistenceEnv -> Void"
 
   ;; When an actor is spawned it might send messages
   ;; so keep track of those so we can dispatch them after.
-  (while (not (q-empty? msg-queue))
+  (while (not (q-empty? near-msg-queue))
     (let-values (((result new-am new-msgs)
-                  (actormap-turn-message am (deq! msg-queue))))
+                  (actormap-turn-message am (deq! near-msg-queue))))
       (transactormap-merge! new-am)
       (enq-msgs! new-msgs)))
+
+  ;; Dispatch the far messages.
+  (while (not (q-empty? far-msg-queue))
+         (let ((msg (deq! far-msg-queue)))
+           (dispatch-message msg)))
 
   (match roots
     [(? list? root-slots)
