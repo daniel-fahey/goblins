@@ -58,23 +58,17 @@
       junit-xml)))
 
   ;; Now work on outputting all of these in a single file.
-  (define combined-xml
-    `(testsuites (@ (id ,(strftime "%Y%m%d_%H%M%S" (gmtime (current-time))))
-                    (name ,(strftime "Test Run %Y%m%d_%H%M%S)" (gmtime (current-time))))
-                    (tests ,total-tests)
-                    (failures ,total-failures)
-                    (time ,(format #f "~f" total-time)))
-      ,@(map
-         (lambda (sxml-document)
-           ;; Skip by the *TOP* and testsuites sections to extract the testsuite property
-           (match sxml-document
-             ((*TOP* xml-head (testsuites _p1 testsuite ...)) testsuite)))
-         junit-xml)))
-
-  (call-with-output-file junit-output-filename
-    (lambda (port)
-      (format port "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
-      (sxml->xml combined-xml port))))
+  `(testsuites (@ (id ,(strftime "%Y%m%d_%H%M%S" (gmtime (current-time))))
+                  (name ,(strftime "Test Run %Y%m%d_%H%M%S)" (gmtime (current-time))))
+                  (tests ,total-tests)
+                  (failures ,total-failures)
+                  (time ,(format #f "~f" total-time)))
+    ,@(map
+       (lambda (sxml-document)
+         ;; Skip by the *TOP* and testsuites sections to extract the testsuite property
+         (match sxml-document
+           ((*TOP* xml-head (testsuites _p1 testsuite ...)) testsuite)))
+       junit-xml)))
 
 (match (command-line)
   [(_ tests ...)
@@ -92,13 +86,13 @@
                  "guile"
                  "-L" "."
                  test-name)))
-      tests)
+    tests)
 
    ;; Now build the combined junit file.
    (let* ((xml-files (map (lambda (filename) (replace-file-extension filename ".xml")) tests))
-          (combined-xml (combine-junit-xml-files xml-files)))
+          (combined-sxml (combine-junit-xml-files xml-files)))
      (call-with-output-file junit-output-filename
        (lambda (port)
          (format port "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
-         (sxml->xml combined-xml port))))]
+         (sxml->xml combined-sxml port))))]
   [something-else (error "Unknown usage" something-else)])
