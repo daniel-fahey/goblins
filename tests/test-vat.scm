@@ -1202,5 +1202,46 @@
     (test-equal "Got upgraded two cells as values"
       (list new-root-one new-root-two)
       (list a-cell b-cell)))
+;; Test sending messages to a far refr in the constructor when we have
+;; persistence enabled with the registry. Then check we can restore.
+(define far-vat (spawn-vat))
+(define far-refr
+  (with-vat far-vat
+    (spawn ^cell 'yay)))
 
-  (test-end "test-vat")
+(define-actor (^send-far-refr _bcom)
+  (define cell-value-vow (<- far-refr))
+  (lambda () cell-value-vow))
+
+(define aurie-far-refr-env
+  (namespace-env (tests goblins vat aurie-far-refr) ^send-far-refr))
+
+(define far-refr-memory (make-memory-store))
+(define-values (aurie-vat send-far-refr)
+  (spawn-persistent-vat
+   aurie-far-refr-env
+   (lambda ()
+     (spawn ^send-far-refr))
+   far-refr-memory
+   ;; It's not important what the registry is, we just want to go through the code
+   ;; path which handles restoring vats with far refrs.
+   #:persistence-registry persistence-registry))
+
+(vat-halt! aurie-vat)
+
+(define-values (aurie-vat* send-far-refr*)
+  (spawn-persistent-vat
+   aurie-far-refr-env
+   (lambda ()
+     (spawn ^send-far-refr))
+   far-refr-memory
+   ;; See comment above.
+   #:persistence-registry persistence-registry))
+
+(test-equal "Restoring refr which sends message to far refr on construction in vat with aurie registry"
+  #(ok yay)
+  (resolve-vow-and-return-result
+   aurie-vat*
+   (lambda () (<- send-far-refr*))))
+
+(test-end "test-vat")
