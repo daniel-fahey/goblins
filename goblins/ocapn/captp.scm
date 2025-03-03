@@ -349,7 +349,13 @@
                      (outgoing-pre-marshall! head)
                      (outgoing-pre-marshall! tail))]
       [(? vector?)
-       (make-tagged 'vec (map outgoing-pre-marshall! (vector->list obj)))]
+       (make-tagged
+        'vec
+        (let lp ((i 0))
+          (if (= i (vector-length obj))
+              '()
+               (cons (outgoing-pre-marshall! (vector-ref obj i))
+                     (lp (1+ i))))))]
       [(? hash-table?)
        ;; TODO: let's use "ghashes", which hash on eq? for live-refs
        ;; and on equal? for everything else
@@ -405,8 +411,15 @@
        (map incoming-post-unmarshall! obj)]
       [($ <tagged> 'pair (head tail))
        (cons head tail)]
-      [($ <tagged> 'vec vec)
-       (list->vector (map incoming-post-unmarshall! vec))]
+      [($ <tagged> 'vec vec-data)
+       (define vec (make-vector (length vec-data)))
+       (let lp ((index 0)
+                (lst vec-data))
+         (match lst
+           (() vec)
+           ((head . tail)
+            (vector-set! vec index (incoming-post-unmarshall! head))
+            (lp (+ 1 index) tail))))]
       [(? hash-table?)
        (hash-fold
         (lambda (key val prev)

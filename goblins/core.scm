@@ -1,6 +1,6 @@
 ;;; Copyright 2019-2023 Christine Lemmer-Webber
 ;;; Copyright 2023 David Thompson
-;;; Copyright 2022-2024 Jessica Tallon
+;;; Copyright 2022-2025 Jessica Tallon
 ;;; Copyright 2023 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
@@ -2704,8 +2704,14 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                (lp (cons (process-one last) processed-list) '()))]))]
         [(? char?)
          (make-tagged* 'char (char->integer value))]
-        [(? vector? vector)
-         (make-tagged 'vec (map process-one (vector->list vector)))]
+        [(? vector? vec)
+         (make-tagged
+          'vec
+          (let lp ((i 0))
+            (if (= i (vector-length vec))
+                '()
+                (cons (process-one (vector-ref vec i))
+                      (lp (1+ i))))))]
         [(? ghash?)
          (ghash-fold
           (lambda (k v prev)
@@ -3048,10 +3054,17 @@ Type: Actormap PersistenceEnv -> Void"
                   [(last) (restore-one last)]
                   [(head . rest)
                    (cons (restore-one head) (lp rest))]))]
-             ['vec (list->vector (map restore-one data))]
+             ['vec
+              (let ((vec (make-vector (length data))))
+                (let lp ((index 0)
+                         (lst data))
+                  (match lst
+                    (() vec)
+                    ((head . tail)
+                     (vector-set! vec index (restore-one head))
+                     (lp (+ 1 index) tail)))))]
              ['char (integer->char (car data))]
              ['list (map restore-one data)]
-             ['vector (list->vector (map restore-one data))]
              ['kw (symbol->keyword (car data))]
              ['zilch zilch]
              ['void *unspecified*]
