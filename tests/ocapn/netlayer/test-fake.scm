@@ -83,8 +83,6 @@
   (with-vat b-vat
     ($ b-mycapn 'register bob 'fake)))
 
-
-
 (let ((result
        (resolve-vow-and-return-result
         a-vat
@@ -103,6 +101,29 @@
           (<- alice-vow "Ben")))))
   (test-equal "Able to enliven a far sturdyref and using it form b->a"
     #(ok "Hello Ben, my name is Alice!")
+    result))
+
+;; Test on-sever works in the fake netlayer
+(let ((result
+       (resolve-vow-and-return-result
+        b-vat
+        (lambda ()
+          (define-values (vow resolver)
+            (spawn-promise-and-resolver))
+          (define alice-vow
+            (<- b-mycapn 'enliven alice-locator-sref))
+          (on alice-vow
+              (lambda (alice)
+                ;; Do the on-sever
+                (on-sever
+                 alice
+                 (lambda (type reason)
+                   (<-np resolver 'fulfill (list type reason))))
+                ;; Then halt the netlayer
+                (<-np a-netlayer 'halt)))
+          vow))))
+  (test-equal "Can halt the fake netlayer and get on-sever callback"
+    #(ok (disconnect "Remote disconnected"))
     result))
 
 (test-end "test-fake-netlayer")
