@@ -123,4 +123,83 @@
     (#(ok "Hello Alice, my name is Bob!") #t)
     (_ #f)))
 
+;; Test federation between two relays
+(define-values (relay1-vat relay1-loc relay1-netlayer relay1-mycapn)
+  (spawn-vat-in-fakenl "relay1"))
+(define-values (relay2-vat relay2-loc relay2-netlayer relay2-mycapn)
+  (spawn-vat-in-fakenl "relay2"))
+
+(define-values (r1c-endpoint r1c-controller)
+  (with-vat relay1-vat
+    (spawn-prelay-pair (spawn ^facet relay1-mycapn 'enliven))))
+
+(define-values (r1c-endpoint-sref r1c-controller-sref)
+  (with-vat relay-vat
+    (values ($ relay-mycapn 'register r1c-endpoint 'fake)
+            ($ relay-mycapn 'register r1c-controller 'fake))))
+
+(define-values (r2d-endpoint r2d-controller)
+  (with-vat relay2-vat
+    (spawn-prelay-pair (spawn ^facet relay2-mycapn 'enliven))))
+
+(define-values (r2d-endpoint-sref r2d-controller-sref)
+  (with-vat relay-vat
+    (values ($ relay-mycapn 'register r2d-endpoint 'fake)
+            ($ relay-mycapn 'register r2d-controller 'fake))))
+
+;; Register the prelay with each side
+(define-values (c-vat c-loc c-netlayer c-mycapn)
+  (spawn-vat-in-fakenl "carol-m"))
+(define-values (d-vat d-loc d-netlayer d-mycapn)
+  (spawn-vat-in-fakenl "debra-m"))
+(define c-prelay-netlayer
+  (with-vat c-vat
+    (spawn ^prelay-netlayer
+           (spawn ^facet c-mycapn 'enliven)
+           r1c-endpoint-sref
+           r1c-controller-sref)))
+
+(with-vat c-vat
+  ($ c-mycapn 'install-netlayer c-prelay-netlayer))
+
+(define d-prelay-netlayer
+  (with-vat d-vat
+    (spawn ^prelay-netlayer
+           (spawn ^facet d-mycapn 'enliven)
+           r2d-endpoint-sref
+           r2d-controller-sref)))
+
+(with-vat d-vat
+  ($ d-mycapn 'install-netlayer d-prelay-netlayer))
+
+(define c-greeter
+  (with-vat c-vat
+    (spawn ^greeter "Carol")))
+
+(define c-greeter-sref-vow
+  (with-vat c-vat
+    ($ c-mycapn 'register c-greeter 'prelay)))
+
+(define d-greeter-vow
+  (with-vat d-vat
+    (<- d-mycapn 'enliven c-greeter-sref-vow)))
+
+(test-assert "Federated Prelay netlayer sturdyref resolves to a remote reference"
+  (match (resolve-vow-and-return-result
+          d-vat
+          (lambda ()
+            ($ d-mycapn 'enliven c-greeter-sref-vow)))
+    (#(ok (? remote-object-refr?)) #t)
+    (_ #f)))
+
+(test-assert "Simple messaging over the federated prelay netlayer works"
+  (match (resolve-vow-and-return-result
+          d-vat
+          (lambda ()
+            (<- ($ d-mycapn 'enliven c-greeter-sref-vow) "Debra")))
+    (#(ok "Hello Debra, my name is Carol!") #t)
+    (_ #f)))
+
+
+
 (test-end "test-prelay")
