@@ -1,5 +1,5 @@
 ;;; Copyright 2021-2022 Christine Lemmer-Webber
-;;; Copyright 2022-2024 Jessica Tallon
+;;; Copyright 2022-2025 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 (define-module (goblins ocapn netlayer fake)
   #:use-module (fibers)
   #:use-module (fibers channels)
+  #:use-module (fibers conditions)
+  #:use-module (fibers operations)
   #:use-module ((goblins core) #:hide ($))
   #:use-module ((goblins core) #:select ($) #:prefix $)
   #:use-module (goblins vat)
@@ -47,33 +49,66 @@
        (put-message connection-ch (list '*incoming-new-conn* me-enq-ch them-deq-ch))))
     (list '*outgoing-new-conn* me-deq-ch them-enq-ch)]))
 
-(define (^message-io _bcom incoming-ch outgoing-ch)
+(define (^message-io bcom incoming-ch outgoing-ch)
   (define incoming-io (spawn ^io incoming-ch))
   (define outgoing-io (spawn ^io outgoing-ch))
-  
-  (methods
-   [(read-message unmarshallers)
-    (<- incoming-io
-        (lambda (ch)
-          (define msg (get-message ch))
-          (syrup-decode msg #:unmarshallers unmarshallers)))]
-   [(write-message msg marshallers)
-    (<-np outgoing-io
-        (lambda (ch)
-          (put-message ch
-                       (syrup-encode msg #:marshallers marshallers))
-          *unspecified*))]))
+  (define halt? (make-condition))
+
+  (define (read-message ch)
+    (perform-operation
+     (choice-operation
+      (get-operation ch)
+      (wrap-operation (wait-operation halt?)
+                      (lambda () the-eof-object)))))
+
+  (define halted-beh
+    (methods
+     [(read-message unmarshallers) the-eof-object]
+     [(write-message msg marshallers) *unspecified*]
+     [(halt) *unspecified*]))
+  (define main-beh
+    (methods
+     [(halt)
+      ;; Propagate the halt to the otherside...
+      (<-np outgoing-io
+            (lambda (ch)
+              (put-message ch the-eof-object)
+              *unspecified*))
+      ;; Signal the condition to halt and tell the io actors to stop.
+      (signal-condition! halt?)
+      (<-np incoming-io 'halt)
+      (<-np outgoing-io 'halt)
+      ;; Become some defunct behavior.
+      (bcom halted-beh)]
+     [(read-message unmarshallers)
+      (<- incoming-io
+          (lambda (ch)
+            (match (read-message ch)
+              ((? eof-object? eof) eof)
+              (msg (syrup-decode msg #:unmarshallers unmarshallers)))))]
+     [(write-message msg marshallers)
+      (<-np outgoing-io
+            (lambda (ch)
+              (put-message ch (syrup-encode msg #:marshallers marshallers))
+              *unspecified*))]))
+  main-beh)
+
 
 (define (^fake-netlayer _bcom our-name network new-conn-ch)
   (define our-location (make-ocapn-node 'fake our-name #f))
+  (define-values (halted-vow halted-resolver)
+    (spawn-promise-and-resolver))
   (define new-connection-io (spawn ^io new-conn-ch))
   (define (start-listening conn-establisher)
     (on (<- new-connection-io get-message)
         (match-lambda
           (('*incoming-new-conn* them-enq-ch me-deq-ch)
-           (<-np-extern conn-establisher
-                        (spawn ^message-io me-deq-ch them-enq-ch)
-                        #f)))
+           (define message-io
+             (spawn ^message-io me-deq-ch them-enq-ch))
+           (on halted-vow
+               (lambda _
+                 (<-np message-io 'halt)))
+           (<-np-extern conn-establisher message-io #f)))
         #:finally
         (lambda ()
           (start-listening conn-establisher))))
@@ -87,14 +122,18 @@
      [(setup conn-establisher)
       (start-listening conn-establisher)
       (bcom (^netlayer bcom conn-establisher))]
+     [(halt) ($$ halted-resolver 'fulfill #t)]
      [(connect-to remote-node)
       (match remote-node
         (($ <ocapn-node> 'fake name #f)
          (on (<- network 'connect-to name)
              (match-lambda
                (('*outgoing-new-conn* me-deq-ch them-enq-ch)
-                (<- conn-establisher
-                    (spawn ^message-io me-deq-ch them-enq-ch)
-                    remote-node)))
+                (define message-io
+                  (spawn ^message-io me-deq-ch them-enq-ch))
+                (on halted-vow
+                    (lambda _
+                      (<-np message-io 'halt)))
+                (<- conn-establisher message-io remote-node)))
              #:promise? #t)))]))
   (spawn ^netlayer))
