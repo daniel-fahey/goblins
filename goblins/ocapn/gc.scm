@@ -42,10 +42,10 @@
        (hoot (set-captp-gc-stopped?! gc #t))
        (guile (signal-condition! (captp-gc-stopped? gc)))))
     (define (captp-gc-get gc) (get-message (captp-gc-ch gc)))
-    (define (make-captp-gc)
+    (define (make-captp-gc ch)
       (cond-expand
        (hoot
-        (let ((gc (%make-captp-gc #f (make-channel) #f)))
+        (let ((gc (%make-captp-gc #f ch #f)))
           (set-captp-gc-wrapped!
            gc
            (make-finalization-registry
@@ -55,7 +55,6 @@
           gc))
        (guile
         (let ((guardian (make-guardian))
-              (ch (make-channel))
               (stopped? (make-condition)))
           (define (check-guardian)
             (when (perform-operation
@@ -70,12 +69,12 @@
                   (#f (check-guardian))
                   ;; gc a question
                   ((? question-finder? question)
-                   (put-message ch `(question-finder
+                   (put-message ch `(gc-question
                                      ,(question-finder-sealed-pos question)))
                    (lp))
                   ;; gc an import
                   ((? remote-refr? import)
-                   (put-message ch `(remote-refr
+                   (put-message ch `(gc-remote-refr
                                      ,(remote-refr-sealed-pos import)))
                    (lp))))))
           (spawn-fiber check-guardian)

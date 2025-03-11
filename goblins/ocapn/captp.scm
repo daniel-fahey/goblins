@@ -182,11 +182,17 @@
   (define running? #t)
   (define shutdown-reason #f)
 
+  ;; A guardian to collect objects and question finders that are no
+  ;; longer being referenced.
+  (define captp-gc-ch (make-channel))
+  (define captp-gc (make-captp-gc captp-gc-ch))
+
   ;; These are imports that we've processed when we already had allocated
   ;; a reference.  We batch send GC messages about these as appropriate.
   ;; Note that we say "spare" because there's one more count that's
   ;; associated with the reference itself.
   ;; Mapping of slot position -> count
+  ;; IMPORTANT: Do not mutate this outside of the gc loop.
   (define spare-import-counts
     (make-hash-table))  ; (eqv)
   ;; The inverse: tracking how many export numbers we've given so we can
@@ -195,8 +201,9 @@
     (make-hash-table))  ; (eqv)
 
   (define (increment-spare-imports-count! import-pos)
-    (hashv-set! spare-import-counts import-pos
-                (1+ (hashv-ref spare-import-counts import-pos 0))))
+    (syscaller-free-fiber
+     (lambda ()
+       (put-message captp-gc-ch `(increment ,import-pos)))))
   (define (decrement-exports-count-maybe-remove! export-pos delta)
     (assert-type export-pos integer?)
     (assert-type delta integer?)
@@ -222,10 +229,6 @@
               "Tried to decrement the exports count for position ~a but its value was ~a"
               export-pos other-val)]))
 
-  ;; A guardian to collect objects and question finders that are no
-  ;; longer being referenced.
-  (define captp-gc (make-captp-gc))
-
   (define (gc:question sealed-pos)
     (<-np-extern internal-handler (cmd-send-gc-answer (pos-unseal sealed-pos))))
 
@@ -242,10 +245,15 @@
   (define (gc-loop)
     (when running?
       (match (captp-gc-get captp-gc)
-        (('remote-refr sealed-pos)
+        (('gc-remote-refr sealed-pos)
          (gc:import sealed-pos))
-        (('question-finder sealed-pos)
+        (('gc-question sealed-pos)
          (gc:question sealed-pos))
+        (('increment import-pos)
+         ;; Not strictly a GC operation, but we are the only fiber allowed to
+         ;; modify the spare-import-counts hashmap.
+         (hashv-set! spare-import-counts import-pos
+                     (1+ (hashv-ref spare-import-counts import-pos 0))))
         (err (error "Unhandled GC value" err)))
       (gc-loop)))
   (spawn-fiber gc-loop)
