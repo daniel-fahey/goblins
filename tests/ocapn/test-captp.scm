@@ -416,4 +416,34 @@
      (let ((echo-vow (<- b-mycapn 'enliven echo-sref)))
        (<- echo-vow `#(a-vector ,echo-on-b))))))
 
+;; We're wanting to test reconneciton after severence but to do that, we
+;; need to sever. Thankfully we have the 'halt method on a fake netlayer to
+;; ensure the connection is severed, unfortunately that doesn't allow you to
+;; restart the connection. To do that, we need to spawn a new fake netlayer
+;; at the same *address* and re-install an echo actor at the *same* sturdyref.
+(with-vat a-vat
+  ($ a-netlayer 'halt))
+
+(with-vat a-vat
+  (define new-conn-ch (make-channel))
+  (<-np test-network 'register "a" new-conn-ch)
+  (let ((netlayer (spawn ^fake-netlayer "a" test-network new-conn-ch)))
+    (set! a-netlayer netlayer)
+    (set! a-mycapn (spawn-mycapn netlayer)))
+  ;; Now re-install the echo actor into the swiss-num we had before
+  (on echo-sref
+      (lambda (echo-sturdyref)
+        (let ((echo-swiss-num (ocapn-sturdyref-swiss-num echo-sturdyref))
+              (nonce-registry ($ a-mycapn 'get-registry))
+              (echo (spawn ^echo)))
+          ($ nonce-registry 'register echo echo-swiss-num)))))
+
+(test-equal "Can re-enliven echo-sref and use it after connection breakage"
+  #(ok reconnected)
+  (resolve-vow-and-return-result
+   b-vat
+   (lambda ()
+     (let ((echo-vow (<- b-mycapn 'enliven echo-sref)))
+       (<- echo-vow 'reconnected)))))
+
 (test-end "test-captp")
