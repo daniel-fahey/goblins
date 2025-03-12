@@ -1243,14 +1243,12 @@
                   (their-side-name ($$ coordinator 'get-remote-side-name))
                   (outgoing? (ocapn-node? remote-connect-location))
                   (must-abort? (and chm (not outgoing?) ($$ chm their-side-name))))
-             ;; Clean up the crossed hellos resolver actor, we won't need it after this.
-             (unless (null? chm)
-               ($$ locations->crossed-hellos-mitigator 'remove remote-location))
              ;; Send internal shutdown if needed.
              (when must-abort?
+               ($$ locations->crossed-hellos-mitigator 'remove remote-location)
                (<-np incoming-forwarder (internal-shutdown 'abort "Crossed hellos mitigation")))
              (not must-abort?)))
- 
+
          (define (make-local-bootstrap-obj)
            (spawn ^bootstrap coordinator))
 
@@ -1283,6 +1281,8 @@
              ;; sessions, so that in the future we could setup a new connection again.
              (on sever-vow
                  (lambda _
+                   (when ($$ locations->crossed-hellos-mitigator 'ref remote-location #f)
+                     ($$ locations->crossed-hellos-mitigator 'remove remote-location))
                    ($$ locations->open-session-names 'remove remote-location)
                    ($$ open-session-names->sessionmeta 'remove session-name)))))
          *unspecified*]
