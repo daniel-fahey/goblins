@@ -74,7 +74,8 @@
                           ;; handoffs, etc.
                           coordinator
                           bootstrap-obj
-                          intra-node-warden intra-node-incanter)
+                          intra-node-warden intra-node-incanter
+                          sever-resolver)
   ;; position sealers, so we know this really is from our imports/exports
   ;; @@: Not great protection, subject to a reuse attack, but really
   ;;   this is just an extra step... in general we shouldn't be exposing
@@ -515,6 +516,7 @@
     (spawn ^seteq))
 
   (define (tear-it-down shutdown-type reason)
+    (<-np sever-resolver 'fulfill (list shutdown-type reason))
     (set! exports-val2pos #f)
     (set! exports-pos2val #f)
     (set! imports #f)
@@ -1255,10 +1257,12 @@
          (when can-continue?
            (let*-values (((session-name) ($$ coordinator 'get-session-name))
                          ((local-bootstrap-obj) (make-local-bootstrap-obj))
+                         ((sever-vow sever-resolver) (spawn-promise-and-resolver))
                          ((captp-incoming-handler remote-bootstrap-obj)
                           (setup-captp-conn send-to-remote coordinator
                                             local-bootstrap-obj
-                                            intra-node-warden intra-node-incanter)))
+                                            intra-node-warden intra-node-incanter
+                                            sever-resolver)))
              ($$ remote-bootstrap-resolver 'fulfill remote-bootstrap-obj)
 
              ;; And set things up so that the incoming-forwarder now goes
@@ -1274,7 +1278,13 @@
                  session-name
                  (make-sessionmeta remote-location
                                    local-bootstrap-obj remote-bootstrap-obj
-                                   coordinator session-name))))
+                                   coordinator session-name))
+             ;; When the connection has severed remove it from the hash of
+             ;; sessions, so that in the future we could setup a new connection again.
+             (on sever-vow
+                 (lambda _
+                   ($$ locations->open-session-names 'remove remote-location)
+                   ($$ open-session-names->sessionmeta 'remove session-name)))))
          *unspecified*]
         [($ <op:abort> reason)
          (bcom (lambda _ *unspecified*))]
