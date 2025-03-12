@@ -20,6 +20,7 @@
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer fake)
   #:use-module (goblins ocapn netlayer prelay)
+  #:use-module (goblins actor-lib joiners)
   #:use-module (goblins actor-lib facet)
   #:use-module (tests utils)
   #:use-module (fibers)
@@ -123,54 +124,35 @@
     (#(ok "Hello Alice, my name is Bob!") #t)
     (_ #f)))
 
-;; Test federation between two relays
-(define-values (relay1-vat relay1-loc relay1-netlayer relay1-mycapn)
-  (spawn-vat-in-fakenl "relay1"))
-(define-values (relay2-vat relay2-loc relay2-netlayer relay2-mycapn)
-  (spawn-vat-in-fakenl "relay2"))
+(define (setup-prelay name)
+  "Sets up both own prelay server and prelay client"
+  (define-values (vat loc netlayer mycapn)
+    (spawn-vat-in-fakenl (string-append "relay-" name)))
+  (define-values (endpoint controller)
+    (with-vat vat
+      (spawn-prelay-pair (spawn ^facet mycapn 'enliven))))
+  (define-values (endpoint-sref controller-sref)
+    (with-vat vat
+      (values ($ mycapn 'register endpoint 'fake)
+              ($ mycapn 'register controller 'fake))))
+  (define-values (client-vat client-loc client-netlayer client-mycapn)
+    (spawn-vat-in-fakenl (string-append "client-" name)))
+  (define prelay-netlayer
+    (with-vat client-vat
+      (spawn ^prelay-netlayer
+             (spawn ^facet client-mycapn 'enliven)
+             endpoint-sref
+             controller-sref)))
+  (with-vat client-vat
+    ($ client-mycapn 'install-netlayer prelay-netlayer))
+  (values client-vat client-mycapn client-netlayer netlayer))
 
-(define-values (r1c-endpoint r1c-controller)
-  (with-vat relay1-vat
-    (spawn-prelay-pair (spawn ^facet relay1-mycapn 'enliven))))
-
-(define-values (r1c-endpoint-sref r1c-controller-sref)
-  (with-vat relay-vat
-    (values ($ relay-mycapn 'register r1c-endpoint 'fake)
-            ($ relay-mycapn 'register r1c-controller 'fake))))
-
-(define-values (r2d-endpoint r2d-controller)
-  (with-vat relay2-vat
-    (spawn-prelay-pair (spawn ^facet relay2-mycapn 'enliven))))
-
-(define-values (r2d-endpoint-sref r2d-controller-sref)
-  (with-vat relay-vat
-    (values ($ relay-mycapn 'register r2d-endpoint 'fake)
-            ($ relay-mycapn 'register r2d-controller 'fake))))
 
 ;; Register the prelay with each side
-(define-values (c-vat c-loc c-netlayer c-mycapn)
-  (spawn-vat-in-fakenl "carol-m"))
-(define-values (d-vat d-loc d-netlayer d-mycapn)
-  (spawn-vat-in-fakenl "debra-m"))
-(define c-prelay-netlayer
-  (with-vat c-vat
-    (spawn ^prelay-netlayer
-           (spawn ^facet c-mycapn 'enliven)
-           r1c-endpoint-sref
-           r1c-controller-sref)))
-
-(with-vat c-vat
-  ($ c-mycapn 'install-netlayer c-prelay-netlayer))
-
-(define d-prelay-netlayer
-  (with-vat d-vat
-    (spawn ^prelay-netlayer
-           (spawn ^facet d-mycapn 'enliven)
-           r2d-endpoint-sref
-           r2d-controller-sref)))
-
-(with-vat d-vat
-  ($ d-mycapn 'install-netlayer d-prelay-netlayer))
+(define-values (c-vat c-mycapn _cc-netlayer _cs-netlayer)
+  (setup-prelay "carol"))
+(define-values (d-vat d-mycapn _dd-netlayer _ds-netlayer)
+  (setup-prelay "debra"))
 
 (define c-greeter
   (with-vat c-vat
@@ -200,6 +182,85 @@
     (#(ok "Hello Debra, my name is Carol!") #t)
     (_ #f)))
 
+;; Test on-sever
+;; The first case we're going to test is when alice on A is connected to her
+;; prelay and bob on b is connected on his relay, if alice severs her connection
+;; to her prelay, her refrs and bob's refrs should trigger on-sever using the
+;; prelay.
 
+(define-values (e-vat e-mycapn ec-netlayer es-netlayer)
+  (setup-prelay "elsa"))
+
+(define-values (f-vat f-mycapn fc-netlayer fs-netlayer)
+  (setup-prelay "frank"))
+
+(define elsa-greeter
+  (with-vat e-vat
+    (spawn ^greeter "Elsa")))
+(define elsa-greeter-sref
+  (with-vat e-vat
+    (<- e-mycapn 'register elsa-greeter 'prelay)))
+
+(define frank-greeter
+  (with-vat f-vat
+    (spawn ^greeter "Frank")))
+(define frank-greeter-sref
+  (with-vat f-vat
+    (<- f-mycapn 'register frank-greeter 'prelay)))
+
+;; Due to https://codeberg.org/spritely/goblins/issues/659
+;; we should enliven ensure we don't end up in a crossed hellos situation, in
+;; order to avoid it, we'll enliven one, then enliven the other.
+(define-values (e-done-enlivening-vow e-done-enlivening-resolver)
+  (with-vat e-vat
+    (spawn-promise-and-resolver)))
+(define frank-on-e-vow
+  (with-vat e-vat
+    (on (<- e-mycapn 'enliven frank-greeter-sref)
+        (lambda (frank-greeter)
+          ($ e-done-enlivening-resolver 'fulfill #t)
+          frank-greeter)
+        #:promise? #t)))
+(define elsa-on-f-vow
+  (with-vat f-vat
+    (on e-done-enlivening-vow
+        (lambda _
+          (<- f-mycapn 'enliven elsa-greeter-sref))
+        #:promise? #t)))
+
+;; Break e's netlayer to her prelay
+(define test-vat (spawn-vat))
+(define-values (frank-on-e-severed-vow frank-on-e-resolver)
+  (with-vat test-vat
+    (spawn-promise-and-resolver)))
+(define-values (elsa-on-f-severed-vow elsa-on-f-resolver)
+  (with-vat test-vat
+    (spawn-promise-and-resolver)))
+
+(with-vat test-vat
+  (on (all-of frank-on-e-vow elsa-on-f-vow)
+      (match-lambda
+        ((frank-on-e elsa-on-f)
+         (on-sever elsa-on-f
+                   (lambda (type reason)
+                     ($ elsa-on-f-resolver 'fulfill (list type reason))))
+         (on-sever frank-on-e
+                   (lambda (type reason)
+                     ($ frank-on-e-resolver 'fulfill (list type reason))))
+         (<-np ec-netlayer 'halt)))))
+
+(test-equal "When prelay client netlayer halts, serverence works for clients refrs"
+  #(ok (disconnect "Remote disconnected"))
+  (resolve-vow-and-return-result
+   test-vat
+   (lambda ()
+     frank-on-e-severed-vow)))
+
+(test-equal "When otherside prelay client netlayer disconnects, serverence works for our clients refrs"
+  #(ok (disconnect "Remote disconnected"))
+  (resolve-vow-and-return-result
+   test-vat
+   (lambda ()
+     elsa-on-f-severed-vow)))
 
 (test-end "test-prelay")

@@ -156,6 +156,22 @@ be fulfilled more than once"
     (define their-prelay-in-vow
       (<- to-endpoint-vow our-prelay-in))
 
+    ;; If our connection to our client severs, we need to propagate that to the
+    ;; other relay.
+    (when (remote-refr? deliver-in)
+      (on-sever deliver-in
+                (lambda (type reason)
+                  (<-np their-prelay-in-vow 'abort))))
+
+    ;; If we loose connection to their prelay, we want to send a sever to the
+    ;; client.
+    (on their-prelay-in-vow
+        (lambda (their-prelay-in)
+          (when (remote-refr? their-prelay-in)
+            (on-sever their-prelay-in
+                      (lambda (type reason)
+                        (<-np deliver-in 'abort))))))
+
     ;; [Note from cwebber, 2023-07-28:]
     ;; I'm more confident about doing this particular `on' for message
     ;; ordering semantics, though it may have been fine to hand the
@@ -263,6 +279,13 @@ respectively."
           (setup-delivery-agent-and-actor))
         (define message-io
           (spawn-message-io incoming-deq-ch session-prelay-outgoing))
+
+        ;; If our connection to the prelay server (i.e. session-prelay-outgoing)
+        ;; severs, we need to inform our Captp that.
+        (on-sever session-prelay-outgoing
+                  (lambda (type reason)
+                    (<-np client-deliver-in 'abort)))
+
         (<-np conn-establisher message-io #f)
         ;; Now we need to return the client-deliver-in
         client-deliver-in)))
@@ -310,6 +333,13 @@ respectively."
           (lambda (session-prelay-outgoing)
             (define message-io
               (spawn-message-io incoming-deq-ch session-prelay-outgoing))
+
+            ;; If our connection to the prelay server (i.e. session-prelay-outgoing)
+            ;; severs, we need to inform our CapTP of that.
+            (on-sever session-prelay-outgoing
+                      (lambda (type reason)
+                        (<-np deliver-in 'abort)))
+
             (<- conn-establisher-vow message-io remote-node))
           #:promise? #t))))
   (lambda args
@@ -375,7 +405,9 @@ Takes three arguments at spawn time:
      [(read-message unmarshallers)
       ($ incoming
          (lambda (ch)
-           (syrup-decode (get-message ch) #:unmarshallers unmarshallers)))]
+           (match (get-message ch)
+             [(? eof-object? eof) eof]
+             [msg (syrup-decode msg #:unmarshallers unmarshallers)])))]
      [(write-message msg marshallers)
       (define encoded-msg (syrup-encode msg #:marshallers marshallers))
       (<-np session-prelay-outgoing 'deliver encoded-msg)]))
