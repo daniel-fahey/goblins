@@ -263,4 +263,71 @@
    (lambda ()
      elsa-on-f-severed-vow)))
 
+;; Test when the two prelays disconnect
+(define-values (g-vat g-mycapn gc-netlayer gs-netlayer)
+  (setup-prelay "gary"))
+
+(define-values (h-vat h-mycapn hc-netlayer hs-netlayer)
+  (setup-prelay "hannah"))
+
+(define gary-greeter
+  (with-vat g-vat
+    (spawn ^greeter "Gary")))
+(define gary-greeter-sref
+  (with-vat g-vat
+    (<- g-mycapn 'register gary-greeter 'prelay)))
+
+(define hannah-greeter
+  (with-vat h-vat
+    (spawn ^greeter "Hannah")))
+(define hannah-greeter-sref
+  (with-vat h-vat
+    (<- h-mycapn 'register hannah-greeter 'prelay)))
+
+;; Like above, avoid crossed hellos for now.
+(define-values (h-done-enlivening-vow h-done-enlivening-resolver)
+  (with-vat h-vat
+    (spawn-promise-and-resolver)))
+(define hannah-on-g-vow
+  (with-vat g-vat
+    (on (<- g-mycapn 'enliven hannah-greeter-sref)
+        (lambda (hannah-greeter)
+          ($ h-done-enlivening-resolver 'fulfill #t)
+          hannah-greeter)
+        #:promise? #t)))
+(define gary-on-h-vow
+  (with-vat h-vat
+    (on h-done-enlivening-vow
+        (lambda _
+          (<- h-mycapn 'enliven gary-greeter-sref))
+        #:promise? #t)))
+
+(define-values (hannah-on-g-severed-vow hannah-on-g-resolver)
+  (with-vat test-vat
+    (spawn-promise-and-resolver)))
+(define-values (gary-on-h-severed-vow gary-on-h-resolver)
+  (with-vat test-vat
+    (spawn-promise-and-resolver)))
+
+(with-vat test-vat
+  (on (all-of hannah-on-g-vow gary-on-h-vow)
+      (match-lambda
+        ((hannah-on-g gary-on-h)
+         (on-sever hannah-on-g
+                   (lambda (type reason)
+                     ($ hannah-on-g-resolver 'fulfill (list type reason))))
+         (on-sever gary-on-h
+                   (lambda (type reason)
+                     ($ gary-on-h-resolver 'fulfill (list type reason))))
+         ;; Halt the netlayer gary's relay is using, this should break the connections
+         ;; between the prelays
+         (<-np gs-netlayer 'halt)))))
+
+(test-equal "When sever happens between two federating prelay servers, on-sever should reach clients"
+  #(ok ((disconnect "Remote disconnected") (disconnect "Remote disconnected")))
+  (resolve-vow-and-return-result
+   test-vat
+   (lambda ()
+     (all-of elsa-on-f-severed-vow frank-on-e-severed-vow))))
+
 (test-end "test-prelay")
