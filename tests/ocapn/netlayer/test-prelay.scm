@@ -330,4 +330,85 @@
    (lambda ()
      (all-of elsa-on-f-severed-vow frank-on-e-severed-vow))))
 
+;; We want to verify that a netlayer client (^prelay-netlayer) will automatically
+;; attempt to reconnect if a severence happens, since we can't restart the fake
+;; netlayer, we'll have the severence happen at the server side and reconstruct
+;; the prelay server.
+(define-values (reconnect-server-vat reconnect-server-loc
+                                     reconnect-server-netlayer
+                                     reconnect-server-mycapn)
+  (spawn-vat-in-fakenl "reconnect-prelay"))
+(define-values (reconnect-endpoint reconnect-controller)
+  (with-vat reconnect-server-vat
+    (spawn-prelay-pair (spawn ^facet reconnect-server-mycapn 'enliven))))
+(define-values (reconnect-endpoint-sref reconnect-controller-sref)
+  (with-vat reconnect-server-vat
+    (values ($ reconnect-server-mycapn 'register reconnect-endpoint 'fake)
+            ($ reconnect-server-mycapn 'register reconnect-controller 'fake))))
+(define-values (reconnect-client-vat reconnect-client-loc
+                                     reconnect-client-netlayer
+                                     reconnect-client-mycapn)
+  (spawn-vat-in-fakenl "reconnect-netlayer"))
+(define prelay-netlayer
+  (with-vat reconnect-client-vat
+    (spawn ^prelay-netlayer
+           (spawn ^facet reconnect-client-mycapn 'enliven)
+           reconnect-endpoint-sref
+           reconnect-controller-sref)))
+(with-vat reconnect-client-vat
+  ($ reconnect-client-mycapn 'install-netlayer prelay-netlayer))
+
+;; Make an object that we will be able to connect to.
+(define reconnect-greeter
+  (with-vat reconnect-client-vat
+    (spawn ^greeter "Reconnect")))
+
+(define reconnect-greeter-sref
+  (with-vat reconnect-client-vat
+    ($ reconnect-client-mycapn 'register reconnect-greeter 'prelay)))
+
+;; maybe we want to enliven the sturdyref to check we're connected but
+;; it makes this test even more complex, 1 second should always be enough
+;; for the fake netlayer to connect and hopefully not too time consuming
+;; to cause any issues.
+(sleep 1)
+(with-vat reconnect-server-vat
+  ($ reconnect-server-netlayer 'halt))
+
+;; As we cannot restart the netlayer, we need to make a new one and install
+;; the endpoint and controller at the same place we had them before.
+(define-values (reconnect-server-vat* reconnect-server-loc*
+                                      reconnect-server-netlayer*
+                                      reconnect-server-mycapn*)
+  (spawn-vat-in-fakenl "reconnect-prelay"))
+
+(define-values (reconnect-endpoint* reconnect-controller*)
+  (with-vat reconnect-server-vat*
+    (spawn-prelay-pair (spawn ^facet reconnect-server-mycapn* 'enliven))))
+
+(with-vat reconnect-server-vat*
+  (define reconnect-server-registry
+    ($ reconnect-server-mycapn* 'get-registry))
+  (on (all-of reconnect-endpoint-sref reconnect-controller-sref)
+      (match-lambda
+        ((endpoint-sref controller-sref)
+         (define endpoint-swiss-num
+           (ocapn-sturdyref-swiss-num endpoint-sref))
+         (define controller-swiss-num
+           (ocapn-sturdyref-swiss-num controller-sref))
+         ($ reconnect-server-registry 'register reconnect-endpoint* endpoint-swiss-num)
+         ($ reconnect-server-registry 'register reconnect-controller* controller-swiss-num)))))
+
+;; Now whats left to do is try and connect
+(test-equal "Test prelay reconnects and remains reachable after connection breakage"
+  #(ok "Hello testing, my name is Reconnect!")
+  (resolve-vow-and-return-result
+   test-vat
+   (lambda ()
+     (define-values (vat mycapn client-netlayer server-netlayer)
+       (setup-prelay "testing"))
+     (define reconnected-greeter
+       (<- mycapn 'enliven reconnect-greeter-sref))
+     (<- reconnected-greeter "testing"))))
+
 (test-end "test-prelay")

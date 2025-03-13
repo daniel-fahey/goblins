@@ -75,17 +75,20 @@ This sturdyref represents the underlying prelay endpoint."
 ;;; Other utilities
 ;;; ===============
 
-;; This works like a cell like the name where by you can get the value
-;; with no arguments, and set a new value with a value. It differs in
-;; that when spawned with no initial value (how it's used), it'll
-;; create a promise which it'll give out, when the value is set, it'll
-;; then fulfill that promise with that value.
+;; This works as a promise you can fulfill (but not break) multiple times. It's
+;; implemented somewhere inbetween a promsie, swappable and a ^cell. The initial
+;; behavior when no initial value is provided is to have a promise as it's
+;; default value. When it's fulfilled with a value, that promise is then
+;; fulfilled with that given value and then its "swapped" to the given value.
+;; It can also be reset back to the initial behavior. The actor can have it's
+;; current value (including the initial vow) retrieved by the "current-value"
+;; method.
 ;;
 ;; It's used below as a sort of promise which can be resolved multiple
 ;; times.
-(define-actor (^promise-cell bcom #:optional initial-value)
+(define-actor (^promise bcom #:optional initial-value)
   ;; There are two main reasons we don't want aurie to persist the
-  ;; value of this cell:
+  ;; value of this resolver:
   ;; 1. It'll almost always either be an unresolved promise or
   ;;    remote-refr, neither of which are actually depictable (yet).
   ;; 2. This is used in the prelay netlayer and should be setup anew
@@ -100,18 +103,19 @@ This sturdyref represents the underlying prelay endpoint."
         initial-value
         initial-vow))
 
-  (case-lambda
-    (() current-value)
-    ((new-value)
-     (if (eq? current-value initial-vow)
+  (methods
+   ((current-value) current-value)
+   ((reset) (bcom (^promise bcom)))
+   ((fulfill new-value)
+    (if (eq? current-value initial-vow)
          (begin
            ($ initial-resolver 'fulfill new-value)
-           (bcom (^promise-cell bcom new-value)))
-         (bcom (^promise-cell bcom new-value))))))
+           (bcom (^promise bcom new-value)))
+         (bcom (^promise bcom new-value))))))
 
 (define-actor (^swappable-forwarder bcom send-to)
   (lambda args
-    (apply <- ($ send-to) args)))
+    (apply <- ($ send-to 'current-value) args)))
 
 ;; A little utility that maybe, possibly, could be useful for other
 ;; things and might be worth moving out.  Might be worth supporting
@@ -120,7 +124,7 @@ This sturdyref represents the underlying prelay endpoint."
   "Spawn a forwarder, which mostly works like a promise, and a resolver,
 which is like a promise resolver which can only be fulfilled, but can
 be fulfilled more than once"
-  (define send-to (spawn-named 'send-to ^promise-cell))
+  (define send-to (spawn-named 'send-to ^promise))
   (values (spawn ^swappable-forwarder send-to) send-to))
 
 
@@ -161,6 +165,7 @@ be fulfilled more than once"
     (when (remote-refr? deliver-in)
       (on-sever deliver-in
                 (lambda (type reason)
+                  ($ client-session-listener-resolver 'reset)
                   (<-np their-prelay-in-vow 'abort))))
 
     ;; If we loose connection to their prelay, we want to send a sever to the
@@ -187,7 +192,7 @@ be fulfilled more than once"
     ;; once everything is correctly configured
     our-prelay-out-vow)
    ((set-session-listener session-listener)
-    ($ client-session-listener-resolver session-listener))))
+    ($ client-session-listener-resolver 'fulfill session-listener))))
 
 (define (spawn-prelay-pair enliven)
   "Spawn a pair of prelay objects: the endpoint (public) and controller (private)
@@ -267,10 +272,46 @@ respectively."
           (prelay-sturdyref->prelay-node prelay-endpoint-sref))
         #:promise? #t))
 
-  (define prelay-controller
-    (<- enliven 'enliven prelay-controller-sref-vow))
+  (define-values (conn-establisher-vow conn-establisher-resolver)
+    (spawn-promise-and-resolver))
 
-  (define (start-listener conn-establisher)
+  (define-values (prelay-controller-vow prelay-controller-resolver)
+    (spawn-swappable-promise-pair))
+
+  ;; We want the prelay netlayer to reconnect is a sever occurs with it and its
+  ;; server. Do this by attempting a reconnect and backing off if it fails.
+  (define* (install-new-prelay-controller! #:optional wait-time-sec)
+    (define controller-vow
+      (if wait-time-sec
+          (on (spawn-fibrous-vow (lambda () (sleep wait-time-sec) #t))
+              (lambda _
+                (<- enliven 'enliven prelay-controller-sref-vow))
+              #:promise? #t)
+          (<- enliven 'enliven prelay-controller-sref-vow)))
+    (on controller-vow
+        (lambda (prelay-controller)
+          ;; Setup the on-sever to detect when we need to reconnect.
+          (on-sever prelay-controller
+                    (lambda (type reason)
+                      ($ prelay-controller-resolver 'reset)
+                      (install-new-prelay-controller!)))
+          ;; Need to restart listening so we re-register with
+          ;; the server since it's a new session.
+          (start-listener)
+          ($ prelay-controller-resolver 'fulfill prelay-controller))
+        #:catch
+        (lambda (err)
+          ;; increase the wait time more and more each time.
+          (define new-wait-time-sec
+            (if wait-time-sec
+                (* wait-time-sec 2)
+                1))
+          ($ prelay-controller-resolver 'reset)
+          (install-new-prelay-controller! new-wait-time-sec))))
+
+  (install-new-prelay-controller!)
+
+  (define (start-listener)
     (define (^session-listener _bcom)
       ;; This is where an incoming session comes in...
       (methods
@@ -286,12 +327,12 @@ respectively."
                   (lambda (type reason)
                     (<-np client-deliver-in 'abort)))
 
-        (<-np conn-establisher message-io #f)
+        (<-np conn-establisher-vow message-io #f)
         ;; Now we need to return the client-deliver-in
         client-deliver-in)))
     (define listener (spawn ^session-listener))
     ;; Tell the remote endpoint that we're looking for incoming connections
-    (<-np prelay-controller 'set-session-listener listener))
+    (<-np prelay-controller-vow 'set-session-listener listener))
 
   (define-values (setup-netlayer-vow setup-netlayer-resolver)
     (spawn-promise-and-resolver))
@@ -300,9 +341,6 @@ respectively."
       (lambda (our-location)
         ($ setup-netlayer-resolver 'fulfill (spawn ^netlayer our-location))))
 
-  (define-values (conn-establisher-vow conn-establisher-resolver)
-    (spawn-promise-and-resolver))
-
   (define (^netlayer _bcom our-location)
     (methods
      ((netlayer-name) 'prelay)
@@ -310,7 +348,6 @@ respectively."
      ((self-location? loc)
       (same-node-location? our-location loc))
      ((setup conn-establisher)
-      (start-listener conn-establisher)
       ;; Now that we're set up, transition to the main behavior
       (<-np conn-establisher-resolver 'fulfill conn-establisher))
      ((connect-to remote-node)
@@ -329,7 +366,7 @@ respectively."
 
       ;; TODO: Should we be giving just the sturdyref to the endpoint
       ;;   or the remote-node?  I'm not sure.
-      (on (<- prelay-controller 'connect remote-node deliver-in)
+      (on (<- prelay-controller-vow 'connect remote-node deliver-in)
           (lambda (session-prelay-outgoing)
             (define message-io
               (spawn-message-io incoming-deq-ch session-prelay-outgoing))
@@ -416,7 +453,9 @@ Takes three arguments at spawn time:
 (define prelay-env
   (make-persistence-env
    `((((goblins ocapn netlayer prelay) ^swappable-forwarder) ,^swappable-forwarder)
-     (((goblins ocapn netlayer prelay) ^promise-cell) ,^promise-cell)
+     ;; It used to be called ^promise-cell, to keep migrations working that's
+     ;; what it'll continue to be known as in aurie.
+     (((goblins ocapn netlayer prelay) ^promise-cell) ,^promise)
      (((goblins ocapn netlayer prelay) ^prelay-endpoint) ,^prelay-endpoint)
      (((goblins ocapn netlayer prelay) ^prelay-controller) ,^prelay-controller)
      (((goblins ocapn netlayer prelay) ^prelay-netlayer) ,^prelay-netlayer*))
