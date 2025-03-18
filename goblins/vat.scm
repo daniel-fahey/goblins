@@ -911,13 +911,24 @@ Type: Vat -> Void"
 (define (call-with-vat vat thunk)
   "Run THUNK in the context of VAT and return the resulting values.
 
+If called within a vat, this will return a promise to the resulting
+values rather than the resulting values themselves.
+
 Type: Vat (-> Any) -> Any"
-  (if (vat-running? vat)
-      (match (vat-send vat (make-vat-envelope thunk 0 #t))
-        (#('ok '*awaited*) '*awaited*)
-        (#('ok vals) (apply values vals))
-        (#('fail err) (raise-exception err)))
-      (error "vat is not running" vat)))
+  (unless (vat-running? vat)
+    (error "vat is not running" vat))
+
+  (define (run-thunk)
+    (match (vat-send vat (make-vat-envelope thunk 0 #t))
+      (#('ok '*awaited*) '*awaited*)
+      (#('ok vals) (apply values vals))
+      (#('fail err) (raise-exception err))))
+
+  ;; If we're already in a vat, this would have blocked the vat.
+  ;; In that case just return a promise.
+  (if (has-syscaller?)
+      (spawn-fibrous-vow run-thunk)
+      (run-thunk)))
 
 (define (call-system-op-with-vat vat system-op-proc)
   (define envelope

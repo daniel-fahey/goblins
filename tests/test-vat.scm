@@ -1244,4 +1244,12 @@
    aurie-vat*
    (lambda () (<- send-far-refr*))))
 
+;; Check with-vat doesn't lockup the vat if called within a vat
+(test-assert "Check nested with-vat returns promise, and doesn't lockup the vat"
+  (let ((vat (spawn-vat)))
+    (promise-refr?
+     (with-vat vat
+       (with-vat vat
+         'hello)))))
+
 (test-end "test-vat")
