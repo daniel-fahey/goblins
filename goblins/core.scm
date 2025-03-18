@@ -107,6 +107,7 @@
             message-who-wants-response
 
             syscaller-free
+            has-syscaller?
 
             near-promise-broken?
             near-promise-settled?
@@ -1825,6 +1826,9 @@ Type: Any -> Boolean"
   (unless sys
     (error "No current syscaller"))
   sys)
+
+(define (has-syscaller?)
+  (syscaller? (current-syscaller)))
 
 
 
