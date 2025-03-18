@@ -36,10 +36,13 @@
 (define %random-state (make-parameter #f))
 
 (define (get-or-make-random-state)
-  (or (%random-state)
-      (let ((new-state (random-state-from-platform)))
-        (%random-state new-state)
-        new-state)))
+  (cond-expand
+   (guile
+    (or (%random-state)
+        (let ((new-state (random-state-from-platform)))
+          (%random-state new-state)
+          new-state)))
+   (hoot (error "unimplemented"))))
 
 (define* (random-name len
                       #:key (random-state
@@ -51,10 +54,13 @@ from (random-state-from-platform).
 
 This procedure can be used for names which avoid collision but
 don't have serious security considerations."
-  (do ((n 0 (1+ n))             ; iterate to len
-       (chars '()               ; set of characters
-              (cons (random-char
-                     (random random-name-chars-len random-state))
-                    chars)))
-      ((= n len)                ; end on meeting length
-       (list->string chars))))  ; return string of random characters
+  (cond-expand
+   (guile
+    (do ((n 0 (1+ n))                   ; iterate to len
+         (chars '()                     ; set of characters
+                (cons (random-char
+                       (random random-name-chars-len random-state))
+                      chars)))
+        ((= n len)                      ; end on meeting length
+         (list->string chars))))
+   (hoot (error "unimplemented"))))

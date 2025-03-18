@@ -15,10 +15,6 @@
 
 (define-module (goblins ocapn netlayer base-port)
   #:use-module (ice-9 match)
-  #:use-module (ice-9 regex)
-  #:use-module (ice-9 binary-ports)
-  #:use-module (ice-9 iconv)
-  #:use-module (rnrs bytevectors)
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (fibers conditions)

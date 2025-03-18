@@ -14,9 +14,9 @@
 
 (define-module (goblins ocapn netlayer utils)
   #:use-module (rnrs bytevectors)
-  #:use-module (rnrs io ports)
   #:use-module (ice-9 match)
   #:use-module (ice-9 binary-ports)
+  #:use-module (ice-9 textual-ports)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
   #:use-module (goblins)
@@ -43,7 +43,7 @@
            #:cleanup
            (lambda (resource)
              (close-port resource))))
-  
+
   (methods
    [(read-message unmarshallers)
     (<- io 'read
@@ -53,7 +53,7 @@
     (<-np io 'write
           (lambda (op)
             (syrup-write msg op #:marshallers marshallers)
-            (flush-output-port op)))]))
+            (force-output op)))]))
 
 (define* (random-tmp-filename base-directory
                               #:key
@@ -67,33 +67,42 @@ including the BASE-DIRECTORY
 Will detect if a collision exists, but doesn't take action to
 create or claim the file.  Extremely unlikely race conditions could
 exist between this time, but they are really extremely unlikely."
-  (let lp ()
-    (define new-filename
-      (string-append base-directory file-name-separator-string
-                     (format-name (random-name random-len))))
-    (if (file-exists? new-filename)
-        (lp)             ; try again
-        new-filename)))
+  (cond-expand
+   (guile
+    (let lp ()
+      (define new-filename
+        (string-append base-directory file-name-separator-string
+                       (format-name (random-name random-len))))
+      (if (file-exists? new-filename)
+          (lp)                          ; try again
+          new-filename)))
+   (hoot (error "unimplemented"))))
 
 (define* (make-server-unix-domain-socket path #:optional (listen-backlog 1024))
-  (let ((sock (socket PF_UNIX SOCK_STREAM 0)))   ; open unix domain socket
-    (setsockopt sock SOL_SOCKET SO_REUSEADDR 1)  ; allow socket reuse
-    (fcntl sock F_SETFD FD_CLOEXEC)
-    (bind sock AF_UNIX path)
-    (fcntl sock F_SETFL
-           (logior O_NONBLOCK
-                   (fcntl sock F_GETFL)))
-    (sigaction SIGPIPE SIG_IGN)
-    (listen sock listen-backlog)
-    sock))
+  (cond-expand
+   (guile
+    (let ((sock (socket PF_UNIX SOCK_STREAM 0))) ; open unix domain socket
+      (setsockopt sock SOL_SOCKET SO_REUSEADDR 1) ; allow socket reuse
+      (fcntl sock F_SETFD FD_CLOEXEC)
+      (bind sock AF_UNIX path)
+      (fcntl sock F_SETFL
+             (logior O_NONBLOCK
+                     (fcntl sock F_GETFL)))
+      (sigaction SIGPIPE SIG_IGN)
+      (listen sock listen-backlog)
+      sock))
+   (hoot (error "unix domain sockets unavailable"))))
 
 (define (make-client-unix-domain-socket path)
-  (let ((sock (socket PF_UNIX SOCK_STREAM 0)))   ; open unix domain socket
-    (connect sock AF_UNIX path)
-    (fcntl sock F_SETFL
-           (logior O_NONBLOCK
-                   (fcntl sock F_GETFL)))
-    sock))
+  (cond-expand
+   (guile
+    (let ((sock (socket PF_UNIX SOCK_STREAM 0))) ; open unix domain socket
+      (connect sock AF_UNIX path)
+      (fcntl sock F_SETFL
+             (logior O_NONBLOCK
+                     (fcntl sock F_GETFL)))
+      sock))
+   (hoot (error "unix domain sockets unavailable"))))
 
 
 (define (^line-delimited-port _bcom port)
@@ -130,62 +139,9 @@ exist between this time, but they are really extremely unlikely."
               [(? string? msg)
                (display msg op)
                (display "\r\n" op)
-               (flush-output-port op)]
+               (force-output op)]
               [(? bytevector? msg)
                (put-bytevector op msg)
                (display "\r\n" op)
-               (flush-output-port op)])))]
+               (force-output op)])))]
    [(halt) ($ port-io 'halt)]))
-
-;; (define* (line-delimited-port->channel-pair sock)
-;;   (define keep-going? #t)
-;;   (define stop (make-condition))
-
-;;   (define-values (send-enq-ch send-deq-ch send-stop)
-;;     (spawn-delivery-agent))
-;;   (define-values (recieve-enq-ch recieve-deq-ch recieve-stop)
-;;     (spawn-delivery-agent))
-
-;;   (define (stop-me)
-;;     (signal-condition! stop))
-
-;;   (define (close-socket-op)
-;;     (wrap-operation
-;;      (wait-operation stop)
-;;      (lambda _
-;;        (set! keep-going? #f)
-;;        (shutdown sock 0)
-;;        (send-stop)
-;;        (recieve-stop))))
-
-;;   (define (write-to-socket-op)
-;;     (define (write-msg msg)
-;;       (cond ((null? msg) #f)
-;;             ((integer? msg) (put-u8 sock (pk 'out msg)))
-;;             ((bytevector? msg) (put-bytevector sock (pk 'out msg)))
-;;             ((string? msg) (write-msg (string->utf8 (string-append msg "\r\n"))))
-;;             ((list? msg)  (write-msg (car msg)) (write-msg (cdr msg)))
-;;             ((char? msg) (write-msg (char->integer msg)))))
-
-;;     (wrap-operation
-;;      (get-operation send-deq-ch)
-;;      write-msg))
-
-;;   (define (read-from-socket-op)
-;;     (define* (read-message #:optional (buffer '()))
-;;       (match (integer->char (get-u8 sock))
-;;         (#\return (list->string (reverse buffer)))
-;;         (#\newline #f)
-;;         (other-char (read-message (cons other-char buffer)))))
-
-;;     (put-operation recieve-enq-ch (pk 'in  (read-message))))
-
-;;   (spawn-fiber
-;;    (lambda ()
-;;      (while keep-going?
-;;        (perform-operation
-;;         (choice-operation (write-to-socket-op)
-;;                           (read-from-socket-op)
-;;                           (close-socket-op))))))
-
-;;   (values recieve-deq-ch send-enq-ch stop-me))
