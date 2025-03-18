@@ -26,6 +26,7 @@
   #:use-module (fibers)
   #:use-module (fibers channels)
   #:use-module (ice-9 match)
+  #:use-module (srfi srfi-11)
   #:use-module (srfi srfi-64))
 
 (test-begin "test-prelay")
@@ -292,7 +293,7 @@
   (with-vat g-vat
     (on (<- g-mycapn 'enliven hannah-greeter-sref)
         (lambda (hannah-greeter)
-          ($ h-done-enlivening-resolver 'fulfill #t)
+          (<-np h-done-enlivening-resolver 'fulfill #t)
           hannah-greeter)
         #:promise? #t)))
 (define gary-on-h-vow
@@ -367,37 +368,65 @@
   (with-vat reconnect-client-vat
     ($ reconnect-client-mycapn 'register reconnect-greeter 'prelay)))
 
-;; maybe we want to enliven the sturdyref to check we're connected but
-;; it makes this test even more complex, 1 second should always be enough
-;; for the fake netlayer to connect and hopefully not too time consuming
-;; to cause any issues.
-(sleep 1)
-(with-vat reconnect-server-vat
-  ($ reconnect-server-netlayer 'halt))
+;; To properly test we've reconnected later on, we of course need to connect
+;; first to ensure there actually is a connection between
+;; client <-> prelay server
+;; Once there is we should then halt the server's prelay netlayer and make a
+;, new one as explained below. Make a throw away client to get the sturdyref
+;; then check we've halted the prelay server netlayer.
+(define halted-server-netlayer?
+  (let-values (((vat mycapn client-netlayer server-netlayer)
+                (setup-prelay "throwaway")))
+    (with-vat vat
+      (on (<- mycapn 'enliven reconnect-greeter-sref)
+          (lambda (greeter)
+            ;; We now know the client and server are connected, as we have the refr.
+            ;; now just wait until we've halted
+            (<- reconnect-server-netlayer 'halt))
+          #:promise? #t))))
 
-;; As we cannot restart the netlayer, we need to make a new one and install
-;; the endpoint and controller at the same place we had them before.
-(define-values (reconnect-server-vat* reconnect-server-loc*
-                                      reconnect-server-netlayer*
-                                      reconnect-server-mycapn*)
-  (spawn-vat-in-fakenl "reconnect-prelay"))
+;; We need to do this manually, not using spawn-vat-in-fakenl because if we setup
+;; and install ourselves before the above happens, we clobber them causing
+;; problems.
+(define reconnect-server-vat*
+  (spawn-vat #:name "reconnect-prelay*"))
+(define reconnect-server-new-conn-ch
+  (make-channel))
+(define-values (reconnect-server-netlayer* reconnect-server-mycapn*)
+  (let ((loc "ocapn://reconnect-prelay.fake")
+        (netlayer (with-vat reconnect-server-vat*
+                    (spawn ^fake-netlayer "reconnect-prelay" fakenl-network
+                          reconnect-server-new-conn-ch))))
+    (with-vat reconnect-server-vat*
+      (values netlayer
+              (spawn-mycapn netlayer)))))
 
-(define-values (reconnect-endpoint* reconnect-controller*)
+(define reconnect-ready?
   (with-vat reconnect-server-vat*
-    (spawn-prelay-pair (spawn ^facet reconnect-server-mycapn* 'enliven))))
+    (on halted-server-netlayer?
+        (lambda _
+          ;; We're ready to clobber, install ourselves in the network as "reconnect-prelay"
+          (<-np fakenl-network 'register "reconnect-prelay" reconnect-server-new-conn-ch)
 
-(with-vat reconnect-server-vat*
-  (define reconnect-server-registry
-    ($ reconnect-server-mycapn* 'get-registry))
-  (on (all-of reconnect-endpoint-sref reconnect-controller-sref)
-      (match-lambda
-        ((endpoint-sref controller-sref)
-         (define endpoint-swiss-num
-           (ocapn-sturdyref-swiss-num endpoint-sref))
-         (define controller-swiss-num
-           (ocapn-sturdyref-swiss-num controller-sref))
-         ($ reconnect-server-registry 'register reconnect-endpoint* endpoint-swiss-num)
-         ($ reconnect-server-registry 'register reconnect-controller* controller-swiss-num)))))
+          ;; As we cannot restart the netlayer, we need to make a new one and install
+          ;; the endpoint and controller at the same place we had them before.
+          (define-values (reconnect-endpoint* reconnect-controller*)
+            (spawn-prelay-pair (spawn ^facet reconnect-server-mycapn* 'enliven)))
+
+          (define reconnect-server-registry
+            ($ reconnect-server-mycapn* 'get-registry))
+          (on (all-of reconnect-endpoint-sref reconnect-controller-sref)
+              (match-lambda
+                ((endpoint-sref controller-sref)
+                 (define endpoint-swiss-num
+                   (ocapn-sturdyref-swiss-num endpoint-sref))
+                 (define controller-swiss-num
+                   (ocapn-sturdyref-swiss-num controller-sref))
+                 ($ reconnect-server-registry 'register reconnect-endpoint* endpoint-swiss-num)
+                 ($ reconnect-server-registry 'register reconnect-controller* controller-swiss-num)
+                 #t))
+              #:promise? #t))
+        #:promise? #t)))
 
 ;; Now whats left to do is try and connect
 (test-equal "Test prelay reconnects and remains reachable after connection breakage"
@@ -407,8 +436,12 @@
    (lambda ()
      (define-values (vat mycapn client-netlayer server-netlayer)
        (setup-prelay "testing"))
-     (define reconnected-greeter
-       (<- mycapn 'enliven reconnect-greeter-sref))
-     (<- reconnected-greeter "testing"))))
+     ;; Have to make sure we've waited until it's halted before we reconnect.
+     (define reconnected-greeter-vow
+       (on reconnect-ready?
+           (lambda _
+             (<- mycapn 'enliven reconnect-greeter-sref))
+           #:promise? #t))
+     (<- reconnected-greeter-vow "testing"))))
 
 (test-end "test-prelay")

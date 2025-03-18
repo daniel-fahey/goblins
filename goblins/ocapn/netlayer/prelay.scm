@@ -76,17 +76,17 @@ This sturdyref represents the underlying prelay endpoint."
 ;;; ===============
 
 ;; This works as a promise you can fulfill (but not break) multiple times. It's
-;; implemented somewhere inbetween a promsie, swappable and a ^cell. The initial
-;; behavior when no initial value is provided is to have a promise as it's
+;; implemented somewhere inbetween a promise, swappable and a ^cell. The initial
+;; behavior when no initial value is provided is to have a promise as its
 ;; default value. When it's fulfilled with a value, that promise is then
-;; fulfilled with that given value and then its "swapped" to the given value.
-;; It can also be reset back to the initial behavior. The actor can have it's
+;; fulfilled with that given value and then it's "swapped" to the given value.
+;; It can also be reset back to the initial behavior. The actor can have its
 ;; current value (including the initial vow) retrieved by the "current-value"
 ;; method.
 ;;
 ;; It's used below as a sort of promise which can be resolved multiple
 ;; times.
-(define-actor (^promise bcom #:optional initial-value)
+(define-actor (^swappable-promise bcom #:optional initial-value)
   ;; There are two main reasons we don't want aurie to persist the
   ;; value of this resolver:
   ;; 1. It'll almost always either be an unresolved promise or
@@ -105,13 +105,13 @@ This sturdyref represents the underlying prelay endpoint."
 
   (methods
    ((current-value) current-value)
-   ((reset) (bcom (^promise bcom)))
+   ((reset) (bcom (^swappable-promise bcom)))
    ((fulfill new-value)
     (if (eq? current-value initial-vow)
          (begin
            ($ initial-resolver 'fulfill new-value)
-           (bcom (^promise bcom new-value)))
-         (bcom (^promise bcom new-value))))))
+           (bcom (^swappable-promise bcom new-value)))
+         (bcom (^swappable-promise bcom new-value))))))
 
 (define-actor (^swappable-forwarder bcom send-to)
   (lambda args
@@ -120,11 +120,11 @@ This sturdyref represents the underlying prelay endpoint."
 ;; A little utility that maybe, possibly, could be useful for other
 ;; things and might be worth moving out.  Might be worth supporting
 ;; both "fulfilled" and "broken" resolutions in that case.
-(define (spawn-swappable-promise-pair)
+(define (spawn-swappable-promise-and-resolver)
   "Spawn a forwarder, which mostly works like a promise, and a resolver,
 which is like a promise resolver which can only be fulfilled, but can
 be fulfilled more than once"
-  (define send-to (spawn-named 'send-to ^promise))
+  (define send-to (spawn-named 'send-to ^swappable-promise))
   (values (spawn ^swappable-forwarder send-to) send-to))
 
 
@@ -205,7 +205,7 @@ Returns two values to its continuation, the ENDPOINT and CONTROLLER
 respectively."
   (define-values (client-session-listener
                   client-session-listener-resolver)
-    (spawn-swappable-promise-pair))
+    (spawn-swappable-promise-and-resolver))
 
   (values (spawn ^prelay-endpoint client-session-listener)
           (spawn ^prelay-controller enliven client-session-listener-resolver)))
@@ -276,9 +276,9 @@ respectively."
     (spawn-promise-and-resolver))
 
   (define-values (prelay-controller-vow prelay-controller-resolver)
-    (spawn-swappable-promise-pair))
+    (spawn-swappable-promise-and-resolver))
 
-  ;; We want the prelay netlayer to reconnect is a sever occurs with it and its
+  ;; We want the prelay netlayer to reconnect if a sever occurs with it and its
   ;; server. Do this by attempting a reconnect and backing off if it fails.
   (define* (install-new-prelay-controller! #:optional wait-time-sec)
     (define controller-vow
@@ -453,9 +453,7 @@ Takes three arguments at spawn time:
 (define prelay-env
   (make-persistence-env
    `((((goblins ocapn netlayer prelay) ^swappable-forwarder) ,^swappable-forwarder)
-     ;; It used to be called ^promise-cell, to keep migrations working that's
-     ;; what it'll continue to be known as in aurie.
-     (((goblins ocapn netlayer prelay) ^promise-cell) ,^promise)
+     (((goblins ocapn netlayer prelay) ^swappable-promise) ,^swappable-promise)
      (((goblins ocapn netlayer prelay) ^prelay-endpoint) ,^prelay-endpoint)
      (((goblins ocapn netlayer prelay) ^prelay-controller) ,^prelay-controller)
      (((goblins ocapn netlayer prelay) ^prelay-netlayer) ,^prelay-netlayer*))
