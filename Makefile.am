@@ -214,7 +214,6 @@ EXTRA_DIST += README.org \
               coverage.scm \
               manifest.scm \
               live-guile.sh \
-              .gitlab-ci.yml \
               build-aux/test-driver.scm \
               build-aux/run-test-suite.scm \
               doc/goblins.css \

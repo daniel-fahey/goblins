@@ -1,0 +1,37 @@
+on: [push]
+jobs:
+  no-tabs-please:
+    runs-on: guix
+    steps:
+      - run: git clone --depth=1 --branch=$GITHUB_REF_NAME https://codeberg.org/$GITHUB_REPOSITORY src
+      - run: |
+          set -e
+          FOUND_TABS=0
+          find . -name \*.scm | xargs grep $'\t' && FOUND_TABS=1
+          exit $FOUND_TABS
+        shell: guix-ci -Df guix.scm -- {0}
+        working-directory: src
+  unit-tests:
+    runs-on: guix
+    steps:
+      - run: git clone --depth=1 --branch=$GITHUB_REF_NAME https://codeberg.org/$GITHUB_REPOSITORY src
+      - run: |
+          set -e
+          ./bootstrap.sh
+          ./configure
+          make -j${nproc}
+          make run-tests
+        shell: guix-ci -Df guix.scm -- {0}
+        working-directory: src
+  distcheck:
+    runs-on: guix
+    steps:
+      - run: git clone --depth=1 --branch=$GITHUB_REF_NAME https://codeberg.org/$GITHUB_REPOSITORY src
+      - run: |
+          set -e
+          ./bootstrap.sh
+          ./configure
+          make -j${nproc}
+          make distcheck -j${nproc}
+        shell: guix-ci -Df guix.scm -- {0}
+        working-directory: src
