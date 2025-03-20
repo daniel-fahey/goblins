@@ -63,6 +63,7 @@ SOURCES = goblins.scm \
           goblins/actor-lib/simple-mint.scm \
           goblins/actor-lib/swappable.scm \
           goblins/actor-lib/ticker.scm \
+          goblins/actor-lib/timers.scm \
           goblins/actor-lib/ward.scm \
           goblins/base-io-ports.scm \
           goblins/config.scm \
@@ -128,6 +129,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-simple-mint.scm \
         tests/actor-lib/test-swappable.scm \
         tests/actor-lib/test-ticker.scm \
+        tests/actor-lib/test-timers.scm \
         tests/actor-lib/test-ward.scm \
         tests/test-migrations.scm \
         tests/ocapn/test-captp.scm \

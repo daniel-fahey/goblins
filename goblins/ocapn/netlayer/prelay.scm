@@ -23,6 +23,7 @@
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib facet)
   #:use-module (goblins actor-lib io)
+  #:use-module (goblins actor-lib timers)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins utils base32)
   #:use-module (goblins contrib syrup)
@@ -283,7 +284,7 @@ respectively."
   (define* (install-new-prelay-controller! #:optional wait-time-sec)
     (define controller-vow
       (if wait-time-sec
-          (on (spawn-fibrous-vow (lambda () (sleep wait-time-sec) #t))
+          (on (timeout wait-time-sec)
               (lambda _
                 (<- enliven 'enliven prelay-controller-sref-vow))
               #:promise? #t)

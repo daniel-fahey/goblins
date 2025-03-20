@@ -11,16 +11,23 @@
 ;;; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ;;; See the License for the specific language governing permissions and
 ;;; limitations under the License.
-(define-module (goblins actor-lib timers)
+
+(define-module (tests actor-lib test-timers)
+  #:use-module (goblins core)
   #:use-module (goblins vat)
-  #:use-module (fibers timers)
-  #:export (timeout))
+  #:use-module (goblins actor-lib timers)
+  #:use-module (tests utils)
+  #:use-module (srfi srfi-64))
 
-(define* (timeout seconds #:optional [result #t])
-  "Make a promise which will be fulfilled after @var{seconds}.
+(test-begin "test-timers")
 
-The returned promise will be fulfilled with @var{result}."
-  ;; Note: This is assuming fibers based vats which might not be a great
-  ;; assumption to be made for a general utility like a sleep prcoedure.
-  ;; Maybe in the future we'd want to make this more general.
-  (spawn-fibrous-vow (lambda () (sleep seconds) result)))
+(define vat (spawn-vat))
+
+(test-equal "After rehydration read-only cell can still be read"
+  #(ok hello)
+  (resolve-vow-and-return-result
+   vat
+   (lambda ()
+     (timeout 1 'hello))))
+
+(test-end "test-timers")
