@@ -504,10 +504,10 @@ Return a freshly generated X.509 certificate for @var{key}.
 The libp2p netlayer communicates over the @url{https://libp2p.io,libp2p}
 networking stack, which is designed to provide secure peer-to-peer
 connections over a variety of networking protocols.
-Goblins relies upon an external server, the @url{https:/
-/gitlab.com/spritely/go-libp2p-daemon,Go libp2p daemon}, to access the
-libp2p network.  Refer to the
-@url{https://gitlab.com/spritely/go-libp2p-daemon,daemon's documentation}
+Goblins relies upon an external server, the
+@url{https://codeberg.org/spritely/go-libp2p-daemon,Go libp2p daemon},
+to access the libp2p network.  Refer to the
+@url{https://codeberg.org/spritely/go-libp2p-daemon,daemon's documentation}
 for setup instructions.
 
 @deffn {Constructor} ^libp2p-netlayer [private-key] [our-location] @

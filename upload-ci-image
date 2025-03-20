@@ -1,8 +1,0 @@
-#!/bin/sh
-
-dest="docker://registry.gitlab.com/spritely/guile-goblins:latest"
-archive=$(guix pack -m ci-manifest.scm -f docker -S /bin=bin | tail -1)
-# Don't be alarmed by --insecure-policy, we're just skipping the
-# annoyance of having to put a policy file somewhere in /etc which
-# hinders automation.
-skopeo copy --insecure-policy docker-archive:$archive $dest

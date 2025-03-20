@@ -1,7 +1,5 @@
-#+TITLE: Spritely Goblins: Guile edition
+#+TITLE: Spritely Goblins
 
-This is a port of [[https://gitlab.com/spritely/goblins][Spritely Goblins]] to [[https://www.gnu.org/software/guile/][Guile]].
-Goblins is a distributed object programming environment.
 It is both Spritely's core distributed networked technology, and
 general enough to be used broadly.
 
@@ -74,8 +72,8 @@ First check out Goblins:
 
 #+BEGIN_SRC sh
   cd /my/projects/dir/
-  git clone https://gitlab.com/spritely/guile-goblins.git
-  cd guile-goblins
+  git clone https://codeberg.org/spritely/goblins.git
+  cd goblins
 #+END_SRC
 
 Now we can use =guix shell= to make a useful environment for us to

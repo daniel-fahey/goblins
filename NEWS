@@ -61,7 +61,7 @@ future releases:
 *** Known issues
 **** Persisted objects are not cleaned up when orphaned
 
-Issue: [[https://gitlab.com/spritely/guile-goblins/-/issues/227][#227]]
+Issue: [[https://codeberg.org/spritely/goblins/issues/227][#227]]
 
 When using Goblins' persistence system, the objects within a graph are
 stored within the persistence store used.  When an object stops
@@ -71,7 +71,7 @@ the object data and upon restoration the object will be respawned.
 
 **** Actors using define-actor along with its #:self keyword cannot persist
 
-Issue: [[https://gitlab.com/spritely/guile-goblins/-/issues/256][#256]]
+Issue: [[https://codeberg.org/spritely/goblins/issues/256][#256]]
 
 Objects that are defined with =define-actor= and use the =#:self=
 keyword should be persisted properly, but this currently is not the
@@ -79,7 +79,7 @@ case.  Instead, an error occurs.
 
 **** Prelay connections are unencrypted and unauthenticated
 
-Issue: [[https://gitlab.com/spritely/guile-goblins/-/issues/144][#144]]
+Issue: [[https://codeberg.org/spritely/goblins/issues/144][#144]]
 
 Messages sent through the Prelay netlayer can be viewed by the relay
 server, modified and new messages inserted by the server or silently
@@ -91,7 +91,7 @@ end-to-end encrypted relay is planned for a future release.
 
 **** Lack of dialback within CapTP
 
-Issue: [[https://gitlab.com/spritely/guile-goblins/-/issues/50][#50]]
+Issue: [[https://codeberg.org/spritely/goblins/issues/50][#50]]
 
 When a node connects to another node in Goblins it provides the
 location from where it's accessible (i.e. the OCapN node address). One
@@ -114,7 +114,7 @@ by spawning the =^libp2p-netlayer= actor from =(goblins ocapn netlayer libp2p)=.
 Since there isn't a libp2p library directly in Guile, the netlayer relies upon a
 daemon written in Go, you can find that here:
 
-https://gitlab.com/spritely/go-libp2p-daemon
+https://codeberg.org/spritely/go-libp2p-daemon
 
 **** Intra-vat persistence support
 
@@ -215,7 +215,7 @@ and receive promises like you'd expect from Goblins' actors.
 - When supplying custom sealers to =(goblins actor-lib sealers)= they
   must be defined in a known sealers alist.
 *** Known issues
-- [[https://gitlab.com/spritely/guile-goblins/-/issues/191][#191]] Objects defined with =define-actor= do not retain their docstrings
+- [[https://codeberg.org/spritely/goblins/issues/191][#191]] Objects defined with =define-actor= do not retain their docstrings
 - selfish-spawn does not work with new persistence system
 ** v0.12
 *** Highlights

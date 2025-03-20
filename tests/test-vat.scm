@@ -406,7 +406,7 @@
            (every vat-event? next)
            (equal? next (vat-log-ref-next a-vat event))))))
 
-;; Test for https://gitlab.com/spritely/guile-goblins/-/issues/101
+;; Test for https://codeberg.org/spritely/goblins/issues/101
 (test-equal "Root events are not added to the 'next' index"
   '()
   (begin
