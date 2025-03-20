@@ -243,6 +243,32 @@ the inbox is stopped it'll break all pending unfulfilled promises.
 
 @deffn {Procedure} spawn-inbox
 Spawns a new inbox, returning three actors: read, write, and stop actor.
+
+@lisp
+(use-modules (goblins)
+             (goblins actor-lib inbox))
+
+(define-values (inbox outbox stop)
+  (spawn-inbox))
+
+(define vow-to-first
+  ($ inbox))
+
+($ outbox 'first)
+($ outbox 'second)
+
+(on vow-to-first pk)
+;;; (first)
+
+(pk ($ inbox))
+;;; (second)
+
+(define vow-to-third (<- inbox))
+($ stop)
+(on vow-to-third #:catch (lambda (err) (pk 'err err)))
+;;; (err inbox-closed)
+@end lisp
+
 @end deffn
 
 @defvr {Persistence Environment} inbox-env
