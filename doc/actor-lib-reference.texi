@@ -21,6 +21,7 @@ actor model patterns.
 * Simple Mint::
 * Swappable::
 * Ticker::
+* Timers::
 * Ward::
 @end menu
 
@@ -1241,6 +1242,39 @@ of @code{tick}.
 
 @defvr {Persistence Environment} ticker-env
 @end defvr
+
+@node Timers
+@section Timers
+
+The @code{(goblins actor-lib timers)} module provides a mechanism to
+wait or sleep for a set amount of time. If the @code{sleep} procedure
+that comes with Guile/Fibers is used, this will cause the entire vat
+to stop and sleep, resulting in the vat being ``blocked''. This is
+almost always is not what we want, which is where this module comes
+in, providing a mechanism to create Goblins promises which will
+resolve after a specified amount of time.
+
+Since this is built upon Goblins promises, promise resolutions will be
+queued on the relevent vat queue, like all other messages, at the end
+of the vat's message queue. This means that it could take longer to
+resolve than the time specified to sleep, how much time depends on the
+vat message queue at the moment.
+
+@deffn {Procedure} timeout seconds [result #t]
+
+Make a promise which will be fulfilled after @var{seconds}. The value
+the promise will be fulfilled with is the optional @var{result}.
+
+@lisp
+(use-modules (goblins)
+             (goblins actor-lib timer))
+
+(on (timeout 1 'hello) pk)
+;; After 1 second, we should see:
+;;; (hello)
+@end lisp
+
+@end deffn
 
 @node Ward
 @section Ward
