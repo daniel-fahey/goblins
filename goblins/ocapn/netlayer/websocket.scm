@@ -235,6 +235,7 @@
         (define (on-open)
           (signal-condition! opened?))
         (define (on-close code reason)
+          (put-message enq-ch the-eof-object)
           (signal-condition! stopped?))
         (define (on-message data)
           (put-message enq-ch (array-buffer->bytevector data)))
