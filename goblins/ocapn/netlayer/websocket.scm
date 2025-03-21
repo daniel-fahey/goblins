@@ -19,7 +19,7 @@
           generate-tls-certificate
           ^websocket-netlayer
           websocket-netlayer-env)
-  (import (guile)
+  (import (except (guile) spawn)
           (fibers)
           (fibers conditions)
           (fibers operations)
