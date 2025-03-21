@@ -508,11 +508,13 @@ track of the number of types its been called:
               their-name our-name times))))
 
 (define* (^greeter bcom our-name #:optional [number-of-times 0])
-  (^greeter bcom our-name (spawn ^cell number-of-times)))
+  (spawn ^greeter* our-name (spawn ^cell number-of-times)))
 @end lisp
 
 This example uses @code{define-actor} with a separate constructor which
 ``cellifies` the number-of-times and has a default argument. The
+@code{greeter} constructor is the one used to spawn the object, it
+itself spawns another object returning the refr rather than behavior.
 @code{define-actor} will include both the name (a string, like before)
 and a local reference to the cell object containing the number of times
 called. This could have also been written a different way using the
@@ -737,49 +739,61 @@ All persistence aware objects need be defined in what's known as an
 persistence environment. These environments specify a set of information
 which must exist to be able to take portrait and/or rehydrate objects.
 This is a unique name for the object, the constructor, and if different
-from the constructor, a function to rehydrate the object upon
-rehydration.
+from the constructor, a procedure to rehydrate the object.
 
 When taking portraits of objects or rehydrating them every single object
 must be present in the given persistence env, this would obviously be
 quite tedious as object graphs get larger and contain lots of different
 objects. This is made easier by the persistence environments being able
 to extend from (or inherit from) other persistence environments. Lets
-take the idea of our greeter:
+take the idea of our greeter from earlier:
 
 @lisp
-
 (use-modules (goblins)
              (goblins actor-lib cell))
 
-(define* (^greeter _bcom our-name #:optional (init-number-of-times #f))
-  (define number-of-times
-    (or init-number-of-times (spawn ^cell 0)))
+(define-actor (^greeter* _bcom our-name number-of-times)
   (lambda (their-name)
-    ($ number-of-times (+ ($ number-of-times) 1))
-    (format #f "Hello ~a, my name is ~a (called: ~a)"
-            their-name our-name ($ number-of-times))))
+    (let ((times ($ number-of-times)))
+      ($ number-of-times (+ 1 times))
+      (format #f "Hello ~a, my name is ~a (called ~a)"
+              their-name our-name times))))
+
+(define* (^greeter bcom our-name #:optional [number-of-times 0])
+  (spawn ^greeter* our-name (spawn ^cell number-of-times)))
 @end lisp
 
 The persistence environment here would need to specify two objects, the
-@code{^greeter} object and the @code{^cell} object. This is made a
+@code{^greeter*} object and the @code{^cell} object. This is made a
 little more complicated by the fact that we didn't define @code{^cell},
 we're using that from a library, Goblins' actor-lib library.
 
 This is where persistence environment inheritance helps, we can specify
-the objects we've defined (i.e. @code{^greeter}) and specify the
+the objects we've defined (i.e. @code{^greeter*}) and specify the
 persistence environment that actor-lib's cell module provides for us:
 
 @lisp
 (define greeter-env
-  (make-persistence-env
-   (list (list '((greeter) ^greeter) ^greeter))
-   #:extends cell-env))
+  (persistence-env-compose
+   (namespace-env (greeter)
+     ^greeter*)
+
+   ;; Specify the cell environment from (goblins actor-lib cell)
+   cell-env))
 @end lisp
 
 If we later wanted to define another persistence environment which uses
 our greeter, we could define a new persistence environment which
 extends from @var{greeter-env}.
+
+The reason we're including @code{^greeter*}, rather than
+@code{^greeter} in the persistence environment, is that when a
+constructor returns a refr, rather than a procedure. Goblins throws
+away the outer object and just uses the returned refr. As
+@code{greeter} is acting as a helper and returning a refr to
+@code{greeter*}, it is that object which you're getting when you spawn
+@code{^greeter} and thus tha  object you need to put in the
+persistence environment.
 
 @deffn {Procedure} make-persistence-env bindings #:extends
 
