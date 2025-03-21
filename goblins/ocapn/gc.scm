@@ -86,10 +86,10 @@
          (unwrap-captp-gc gc) obj
          (match obj
            ((? question-finder? question)
-            `(question-finder
+            `(gc-question
               ,(question-finder-sealed-pos question)))
            ((? remote-refr? import)
-            `(remote-refr
+            `(gc-remote-refr
               ,(remote-refr-sealed-pos import))))))
        (guile
         ((unwrap-captp-gc gc) obj))))))
