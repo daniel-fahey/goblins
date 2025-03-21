@@ -23,7 +23,7 @@
           (fibers)
           (fibers conditions)
           (fibers operations)
-          (fibers timers)
+          (only (fibers timers) sleep-operation)
           (except (goblins core) $)
           (prefix (goblins core) $)
           (goblins vat)
