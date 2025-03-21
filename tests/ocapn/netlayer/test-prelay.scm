@@ -429,19 +429,19 @@
         #:promise? #t)))
 
 ;; Now whats left to do is try and connect
-(test-equal "Test prelay reconnects and remains reachable after connection breakage"
-  #(ok "Hello testing, my name is Reconnect!")
-  (resolve-vow-and-return-result
-   test-vat
-   (lambda ()
-     (define-values (vat mycapn client-netlayer server-netlayer)
-       (setup-prelay "testing"))
-     ;; Have to make sure we've waited until it's halted before we reconnect.
-     (define reconnected-greeter-vow
-       (on reconnect-ready?
-           (lambda _
-             (<- mycapn 'enliven reconnect-greeter-sref))
-           #:promise? #t))
-     (<- reconnected-greeter-vow "testing"))))
+(let-values (((vat mycapn client-netlayer server-netlayer)
+              (setup-prelay "testing")))
+  (test-equal "Test prelay reconnects and remains reachable after connection breakage"
+    #(ok "Hello testing, my name is Reconnect!")
+    (resolve-vow-and-return-result
+     test-vat
+     (lambda ()
+       ;; Have to make sure we've waited until it's halted before we reconnect.
+       (define reconnected-greeter-vow
+         (on reconnect-ready?
+             (lambda _
+               (<- mycapn 'enliven reconnect-greeter-sref))
+             #:promise? #t))
+       (<- reconnected-greeter-vow "testing")))))
 
 (test-end "test-prelay")
