@@ -421,7 +421,7 @@ Goblins' persistence system. Here's an example of this:
 @lisp
 (define-values (ocapn-vat tcp-tls-netlayer tcp-tls-mycapn)
   (spawn-persistent-vat
-   (make-persistence-env #:extends (list tcp-tls-netlayer-env))
+   (persistence-env-compose captp-env tcp-tls-netlayer-env)
    (lambda ()
      (define netlayer
        (spawn ^tcp-tls-netlayer "example.com"))
