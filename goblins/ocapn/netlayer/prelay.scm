@@ -292,10 +292,11 @@ respectively."
     (on controller-vow
         (lambda (prelay-controller)
           ;; Setup the on-sever to detect when we need to reconnect.
-          (on-sever prelay-controller
-                    (lambda (type reason)
-                      ($ prelay-controller-resolver 'reset)
-                      (install-new-prelay-controller!)))
+          (when (remote-refr? prelay-controller)
+            (on-sever prelay-controller
+                      (lambda (type reason)
+                        ($ prelay-controller-resolver 'reset)
+                        (install-new-prelay-controller!))))
           ;; Need to restart listening so we re-register with
           ;; the server since it's a new session.
           (start-listener)
@@ -324,9 +325,10 @@ respectively."
 
         ;; If our connection to the prelay server (i.e. session-prelay-outgoing)
         ;; severs, we need to inform our Captp that.
-        (on-sever session-prelay-outgoing
-                  (lambda (type reason)
-                    (<-np client-deliver-in 'abort)))
+        (when (remote-refr? session-prelay-outgoing)
+          (on-sever session-prelay-outgoing
+                    (lambda (type reason)
+                      (<-np client-deliver-in 'abort))))
 
         (<-np conn-establisher-vow message-io #f)
         ;; Now we need to return the client-deliver-in
@@ -374,9 +376,10 @@ respectively."
 
             ;; If our connection to the prelay server (i.e. session-prelay-outgoing)
             ;; severs, we need to inform our CapTP of that.
-            (on-sever session-prelay-outgoing
-                      (lambda (type reason)
-                        (<-np deliver-in 'abort)))
+            (when (remote-refr? session-prelay-outgoing)
+              (on-sever session-prelay-outgoing
+                        (lambda (type reason)
+                          (<-np deliver-in 'abort))))
 
             (<- conn-establisher-vow message-io remote-node))
           #:promise? #t))))
