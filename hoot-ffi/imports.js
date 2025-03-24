@@ -37,6 +37,9 @@ let bindings = {
             ws.onclose = (e) => {
                 f(e.code, e.reason);
             };
+        },
+        setOnError(ws, f) {
+            ws.onerror = (e) => f();
         }
     },
     uint8Array: {

@@ -208,6 +208,9 @@
       (define-foreign %set-websocket-on-open!
         "webSocket" "setOnOpen"
         (ref extern) (ref extern) -> none)
+      (define-foreign %set-websocket-on-error!
+        "webSocket" "setOnError"
+        (ref extern) (ref extern) -> none)
       (define-foreign %set-websocket-on-message!
         "webSocket" "setOnMessage"
         (ref extern) (ref extern) -> none)
@@ -229,20 +232,25 @@
             ((? string? url) url)
             ((? uri? uri) (uri->string uri))))
         (define extern (%open-websocket url))
-        (define opened? (make-condition))
+        (define event-ch (make-channel))
         (define-values (enq-ch deq-ch stopped?)
           (spawn-delivery-agent))
         (define (on-open)
-          (signal-condition! opened?))
+          (put-message event-ch 'opened))
+        (define (on-error)
+          (put-message event-ch 'error))
         (define (on-close code reason)
           (put-message enq-ch the-eof-object)
           (signal-condition! stopped?))
         (define (on-message data)
           (put-message enq-ch (array-buffer->bytevector data)))
+        (%set-websocket-on-error! extern (procedure->external on-error))
         (%set-websocket-on-open! extern (procedure->external on-open))
         (%set-websocket-on-close! extern (procedure->external on-close))
         (%set-websocket-on-message! extern (procedure->external on-message))
-        (wait opened?)
+        (match (get-message event-ch)
+          ['opened 'noop]
+          ['error (error (format #f "Failed to open new connection to ~a" uri-or-string))])
         (wrap-websocket extern deq-ch))
       (define (close-websocket ws)
         (%close-websocket (unwrap-websocket ws)))
