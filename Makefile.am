@@ -108,9 +108,7 @@ SOURCES = goblins.scm \
           goblins/utils/ring-buffer.scm \
           goblins/vat.scm \
           goblins/vrun.scm \
-          goblins/repl.scm \
-          tests/repl-driver.scm \
-          tests/utils.scm
+          goblins/repl.scm
 
 TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-common.scm \
@@ -227,7 +225,9 @@ EXTRA_DIST += README.org \
               js/index.html \
               js/test.js \
               $(EXAMPLES) \
-              $(TESTS)
+              $(TESTS) \
+              tests/repl-driver.scm \
+              tests/utils.scm
 
 ACLOCAL_AMFLAGS = -I m4
 
