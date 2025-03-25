@@ -74,8 +74,7 @@
                           ;; handoffs, etc.
                           coordinator
                           bootstrap-obj
-                          intra-node-warden intra-node-incanter
-                          sever-resolver)
+                          intra-node-warden intra-node-incanter)
   ;; position sealers, so we know this really is from our imports/exports
   ;; @@: Not great protection, subject to a reuse attack, but really
   ;;   this is just an extra step... in general we shouldn't be exposing
@@ -516,7 +515,6 @@
     (spawn ^seteq))
 
   (define (tear-it-down shutdown-type reason)
-    (<-np sever-resolver 'fulfill (list shutdown-type reason))
     (set! exports-val2pos #f)
     (set! exports-pos2val #f)
     (set! imports #f)
@@ -1064,15 +1062,25 @@
               #:promise? #t))
         ;; Guess we'll make a new one
         (let-values ([(netlayer) (get-netlayer-for-location remote-node-loc)]
-                     [(vow resolver) (spawn-promise-and-resolver)])
+                     [(session-name-vow session-name-resolver) (spawn-promise-and-resolver)]
+                     [(bootstrap-vow bootstrap-resolver) (spawn-promise-and-resolver)])
           ;; To ensure future calls don't create more than one connection
           ;; setup a vow for the session name which will be fulfilled later.
           ;; Once the vow we're creating here is fulfilled we'll swap it out
           ;; for the real value so GC can happen & for minor speed improvements.
-          ($$ locations->session-name-resolvers 'set remote-node-loc resolver)
-          ($$ locations->open-session-names 'set remote-node-loc vow)
+          ($$ locations->session-name-resolvers 'set remote-node-loc session-name-resolver)
+          ($$ locations->open-session-names 'set remote-node-loc session-name-vow)
           ;; Connect to the node
-          ($$ netlayer 'connect-to remote-node-loc))))
+          (on (<- netlayer 'connect-to remote-node-loc)
+              (lambda (session)
+                ($$ bootstrap-resolver 'fulfill session))
+              #:catch
+              (lambda (err)
+                ($$ session-name-resolver 'break err)
+                ($$ locations->session-name-resolvers 'remove remote-node-loc)
+                ($$ locations->open-session-names 'remove remote-node-loc)
+                ($$ bootstrap-resolver 'break err)))
+          bootstrap-vow)))
 
   (define (get-netlayer-for-location loc)
     (define transport-tag (ocapn-node-transport loc))
@@ -1255,12 +1263,10 @@
          (when can-continue?
            (let*-values (((session-name) ($$ coordinator 'get-session-name))
                          ((local-bootstrap-obj) (make-local-bootstrap-obj))
-                         ((sever-vow sever-resolver) (spawn-promise-and-resolver))
                          ((captp-incoming-handler remote-bootstrap-obj)
                           (setup-captp-conn send-to-remote coordinator
                                             local-bootstrap-obj
-                                            intra-node-warden intra-node-incanter
-                                            sever-resolver)))
+                                            intra-node-warden intra-node-incanter)))
              ($$ remote-bootstrap-resolver 'fulfill remote-bootstrap-obj)
 
              ;; And set things up so that the incoming-forwarder now goes
@@ -1279,7 +1285,7 @@
                                    coordinator session-name))
              ;; When the connection has severed remove it from the hash of
              ;; sessions, so that in the future we could setup a new connection again.
-             (on sever-vow
+             (on-sever remote-bootstrap-obj
                  (lambda _
                    (when ($$ locations->crossed-hellos-mitigator 'ref remote-location #f)
                      ($$ locations->crossed-hellos-mitigator 'remove remote-location))

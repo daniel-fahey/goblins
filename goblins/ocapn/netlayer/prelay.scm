@@ -106,7 +106,10 @@ This sturdyref represents the underlying prelay endpoint."
 
   (methods
    ((current-value) current-value)
-   ((reset) (bcom (^swappable-promise bcom)))
+   ((reset)
+    ;; Only reset if we're not already pointing at initial-vow
+    (unless (eq? current-value initial-vow)
+      (bcom (^swappable-promise bcom))))
    ((fulfill new-value)
     (if (eq? current-value initial-vow)
          (begin
