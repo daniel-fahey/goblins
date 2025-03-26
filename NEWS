@@ -3,6 +3,111 @@
 #+startup: show2levels
 
 * Releases
+** v0.15.1
+*** New features and improvements
+**** Added additional explanation of cooperative multitasking to manual
+
+This includes explaining what an event loop is and common vat
+pitfalls.  Added in response to user feedback and experience reports.
+
+**** Added example of passing an actor reference over OCapN to manual
+
+This was missing in our existing OCapN example, which created some
+confusion around how to pass actor references between machines.
+
+**** Added =race*= variant of =race= joiner
+
+New =race*= procedure in the =(goblins actor-lib joiners)= module to
+complement the existing =all-of*=.
+
+**** Vectors and pairs are now serializable over CapTP.
+
+Proper lists (a series of pairs terminated by the empty list) were
+already serializable, but non-list usage of pairs (such as key/value
+pairs within association lists) and vectors were not
+supported... until now!
+
+**** Exported =^persistence-registry= from =(goblins)= module
+
+This just makes it more convenient to access this constructor without
+importing additional modules.
+
+**** The fake netlayer can now be halted
+
+This is useful for automated testing.
+
+**** Added =on-sever= support to the prelay netlayer
+
+This meta-netlayer now propagates connection severance in the
+netlayers it manages.
+
+**** Added new =timeout= procecurse
+
+The =timeout= procedure is for creating promises that resolve after a
+certain amount of time has passed.  =timeout= can be found in the new
+=(goblins actor-lib timers)= module.
+
+**** Suppressed "overrides core binding" warning when importing =(goblins)=
+
+Guile's default environment has a =spawn= procedure, a POSIX wrapper.
+Importing =(goblins)= replaces that with its own =spawn= for
+instantiating actors.  This caused lots of noise in the form of
+warnings.  This warning has now been silenced.
+
+*** Bug fixes
+
+**** Fixed sending ghashes over CapTP
+
+Ghashes that keys/values containing complex objects, such as actor
+references, were not being serialized properly.
+
+**** Fixed sending messages to far references in persistent vats
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/272][#272]]
+
+**** Fixed thread-safety issues in CapTP garbage collection
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/243][#243]]
+
+**** Fixed issue where severed connections to peers couldn’t be re-enlivened
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/657][#657]]
+
+**** Fixed CapTP crossed hellos mitigation
+
+**** Fixed =call-with-vat= blocking the current vat’s event loop
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/664][#664]]
+
+It now returns a promise when called in this context.
+
+**** Fixed prelay netlayer not reconnecting after severance
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/281][#281]]
+
+**** Fixed prelay severance breaking local references
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/657][#657]]
+
+**** Fixed =on-sever= for WebSocket netlayer on Hoot
+
+**** Fixed WebSocket error handling on Hoot
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/680][#680]]
+
+**** Fixed =(goblins ocapn netlayer base-port)= not compiling with Hoot
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/665][#665]]
+
+This includes fixing issues lower in the module dependency graph.
+
+**** Fixed installing testing utility libraries
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/282][#282]]
+
+=make install= will no longer install modules that are only for the
+test suite.
+
 ** v0.15
 *** Highlights
 **** Goblins on the web
