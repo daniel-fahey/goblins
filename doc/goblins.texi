@@ -301,6 +301,7 @@ a mapping of @strong{References} to @strong{Object Behavior}.
 
 @menu
 * The ``vat model'' of computation::
+* Cooporative multitasking within vats::
 @end menu
 
 @node The ``vat model'' of computation
@@ -310,6 +311,11 @@ As said, Goblins follows what is called the @emph{vat model} of
 computation.  A @emph{vat} is an event loop that manages a set of
 objects which are @emph{near} to each other (and similarly, objects
 outside of a vat are @emph{far} from each other).
+
+An event loop is simply a loop which wait on a queue of events, in
+the vat's case a queue of messages sent to objects within the vat.
+The event loop will process each message within the queue one by one
+dispatching the message to the vat.
 
 Objects which are @emph{near} can perform synchronous call-return
 invocations in a manner familiar to most sequential programming
@@ -362,6 +368,131 @@ reappeared in systems such as @uref{https://agoric.com/, Agoric's}
 SwingSet} kernel), Goblins brings some novel contributions to the
 table in terms of transactionality and time-travel debugging,
 enhancing an already powerful distributed programming paradigm.
+
+@node Cooporative multitasking within vats
+@section Cooporative multitasking within vats
+
+An individual vat is not parallel, i.e. only one object within a vat
+can be working at any given time, however vats can work with one
+another cooperatively to multitask.  This is done by asynchronously
+messages to objects on other vats, possibly waiting for their reply
+and then continuing work.
+
+In this way it's important to not block a vat (e.g. by calling sleep
+or reading/writing to a port, etc.) as that will block the event loop
+and prevent the vat doing work.  Instead we should be using Goblins'
+promise system in places where we'd block.
+
+Lets take the following example which has two actors @code{^sleeper},
+which sleeps for 10 seconds then returns @code{'awake}, and
+@code{^hello} which just returns the symbol @code{'hello}. Both actors
+are spawned within the same vat, we then use another vat to invoke
+both of them at the same time ascynhronously:
+
+@lisp
+(use-modules (goblins)
+             (fibers))
+
+(define-actor (^sleeper _bcom)
+  (lambda ()
+    (sleep 10)
+    'awake))
+
+(define-actor (^hello _bcom)
+  (lambda ()
+    'hello))
+
+(define a-vat (spawn-vat))
+(define sleeper
+  (with-vat a-vat
+    (spawn ^sleeper)))
+(define hello
+  (with-vat a-vat
+    (spawn ^hello)))
+
+(define b-vat (spawn-vat))
+(with-vat b-vat
+  (on (<- sleeper)
+      (lambda (response)
+        (pk 'sleeper-said response)))
+  (on (<- hello)
+      (lambda (response)
+        (pk 'hello-said response))))
+@end lisp
+
+When we run this, the first thing we might notice is nothing happens
+for 10 seconds, then this is printed:
+@example
+;;; (sleeper-said awake)
+
+;;; (hello-said hello)
+@end example
+
+During those initial 10 seconds, the entire @code{a-vat} is blocked
+because of the @code{(sleep 10)} call, this stops other objects like
+our @code{^hello} object from doing anything.  Instead, we should rely
+on promises.  The following code fixes the blocking issue:
+
+@lisp
+(use-modules (goblins)
+             (goblins vat)
+             (fibers))
+
+(define-actor (^sleeper _bcom)
+  (lambda ()
+    (define sleep-vow
+      (spawn-fibrous-vow (lambda () (sleep 10) #t)))
+    (on sleep-vow
+        (lambda _
+          'awake)
+        #:promise? #t)))
+
+(define-actor (^hello _bcom)
+  (lambda ()
+    'hello))
+
+(define a-vat (spawn-vat))
+(define sleeper
+  (with-vat a-vat
+    (spawn ^sleeper)))
+(define hello
+  (with-vat a-vat
+    (spawn ^hello)))
+
+(define b-vat (spawn-vat))
+(with-vat b-vat
+  (on (<- sleeper)
+      (lambda (response)
+        (pk 'sleeper-said response)))
+  (on (<- hello)
+      (lambda (response)
+        (pk 'hello-said response))))
+@end lisp
+
+This time we get:
+@example
+;;; (hello-said hello)
+
+;;; (sleeper-said awake)
+@end example
+
+The initial response from @code{^hello} occurs immediately when we run
+the code, then 10 seconds later we see @code{^sleeper}'s response.
+This is because the vat is not blocked, we're instead using
+@code{spawn-fibrous-vow}.  Vats are built on top of the
+@url{https://github.com/wingo/fibers,Fibers} concurrency library.
+This procedure calls a thunk (a procedure of zero arguments) in a new
+fiber. By spawning a new fiber, the vat's event loop fiber is not
+suspended when @code{sleep} is called. @code{spawn-fibrous-vow}
+returns a promise that will eventually resolve with the value returned
+by the thunk.
+
+This sleep example could be made even easier by using Goblins' built
+in @code{timeout} procedure provided by @ref{Timers} module.  Other
+tasks likely to block (e.g. reading or writing from ports or working
+with other blocking resources) could be written with @ref{IO} module,
+which wraps the resource in a Goblins actor that ensures the vat is
+never blocked.
 
 @node Tutorial
 @chapter Tutorial
