@@ -19,7 +19,8 @@ not rely on the protocol being stable at this time.
 @menu
 * CapTP The Capability Transport Protocol::
 * Launching a Tor daemon for Goblins::
-* Example Two Goblins programs chatting over CapTP via Tor::
+* Example Greeters over CapTP via Tor::
+* Example Simple chat via TCP-TLS::
 * Using the CapTP API::
 * Netlayers::
 * Handling Disconnects::
@@ -146,8 +147,8 @@ Now launch the Tor daemon:
 tor -f ~/.config/goblins/tor-config.txt
 @end example
 
-@node Example Two Goblins programs chatting over CapTP via Tor
-@section Example: Two Goblins programs chatting over CapTP via Tor
+@node Example Greeters over CapTP via Tor
+@section Example Greeters over CapTP via Tor
 
 Before diving into API details, let's take a look at a couple of small
 example programs to demonstrate that this stuff works.
@@ -259,7 +260,159 @@ Alice heard back: Hello Alice, my name is Bob!
 @end example
 
 If you see the same output then your connection succeeded!  Yay! The
-next sections will get into the details of how to use the CapTP API@.
+sturdyref is a reference to the object that can be shared out of band.
+Once a connection has been established, references to objects both
+local and remote can be shared. The next section will share a very
+simple chatroom showing references being shared.
+
+@node Example Simple chat via TCP-TLS
+@section Example Simple chat via TCP-TLS
+
+In this example we'll have an extremely simple chat setup where many
+users can join and send messages among one another. This will show
+bootstrapping with a sturdyref, like the previous example, but also
+show sharing references over CapTP just like we're used to locally.
+
+We don't need to concern ourselves with if the other side already has
+a connection to another machine/peer, sending any reference we have
+from any CapTP session is handled automatically by Goblins.
+
+The example is split up into two parts, the first is the chatroom and
+the second is implementing the users which join the chatroom. The
+chatroom is below, to be saved in @file{simple-chat-chatroom.scm}:
+
+@lisp
+
+(use-modules (goblins)
+             (goblins ocapn ids)
+             (goblins ocapn captp)
+             (goblins ocapn netlayer tcp-tls)
+             (goblins actor-lib methods)
+             (fibers)
+             (fibers conditions))
+
+(define vat (spawn-vat))
+(define tcp-tls-netlayer
+  (with-vat vat
+    (spawn ^tcp-tls-netlayer "localhost")))
+(define mycapn
+  (with-vat vat
+    (spawn-mycapn tcp-tls-netlayer)))
+
+(define-actor (^chatroom bcom #:optional [users '()])
+  (methods
+   [(join user)
+    (bcom (^chatroom bcom (cons user users)))]
+   [(send from message)
+    (for-each
+     (lambda (user)
+       (<-np user 'new-message from message))
+     users)]))
+
+(define chatroom
+  (with-vat vat
+    (spawn ^chatroom)))
+
+(with-vat vat
+  (on (<- mycapn 'register chatroom 'tcp-tls)
+      (lambda (chatroom-sref)
+        (format #t "Chatroom: ~a\n" (ocapn-id->string chatroom-sref)))))
+
+;; This will wait forever.
+(define done? (make-condition))
+(wait done?)
+@end lisp
+
+When you run this, it'll display a sturdyref which you can then
+provide to the users, saved in @file{simple-chat-user.scm}:
+
+@lisp
+(use-modules (goblins)
+             (goblins ocapn ids)
+             (goblins ocapn captp)
+             (goblins ocapn netlayer tcp-tls)
+             (goblins actor-lib methods)
+             (goblins actor-lib timers)
+             (fibers)
+             (fibers conditions)
+             (ice-9 match)
+             (ice-9 textual-ports))
+
+(define ocapn-vat (spawn-vat))
+(define tcp-tls-netlayer
+  (with-vat ocapn-vat
+    (spawn ^tcp-tls-netlayer "localhost")))
+(define mycapn
+  (with-vat ocapn-vat
+    (spawn-mycapn tcp-tls-netlayer)))
+
+(define vat (spawn-vat))
+(define (^user bcom self-proposed-name)
+  (methods
+   [(get-name) self-proposed-name]
+   [(new-message from new-message)
+    (on (<- from 'get-name)
+        (lambda (their-name)
+          ;; Print new messages we get
+          (pk 'from their-name 'message new-message)))]))
+
+(define-values (chatroom-sref our-name)
+  (match (command-line)
+    [(_prog-name chatroom-sturdyref name)
+     (values (string->ocapn-id chatroom-sturdyref) name)]
+    [something-else
+     (error "Usage: <chatroom-sturdyref> <my-username>")]))
+
+(define user
+  (with-vat vat
+    (spawn ^user our-name)))
+
+(define chatroom-vow
+  (with-vat vat
+    (<- mycapn 'enliven chatroom-sref)))
+
+(define greetings '("hello" "hi!" "ohai there" "salutations"))
+(with-vat vat
+  (<-np chatroom-vow 'join user)
+
+  ;; Not too important, just gives random numbers
+  (set! *random-state* (random-state-from-platform))
+
+  ;; After waiting random number of seconds, send a greeting.
+  (on (timeout (random 10))
+      (lambda _
+        ;; Select a greeting at random
+        (define greeting
+          (list-ref greetings (random (length greetings))))
+        (<-np chatroom-vow 'send user greeting))))
+
+
+;; This will wait forever.
+(define done? (make-condition))
+(wait done?)
+@end lisp
+
+This can be run supplying the sturdyref from the chatroom and a name
+for the user, you can even connect several users by running this
+several times and see each user's greeting come in. This is done by
+each time a new message comes in, the chatroom sends each connected
+user a message with the author (living on another machine or peer) and
+the message sent. Each user then messages the remote user the user who
+sent the message for its name and displays that.
+
+You can see in the example we don't need to worry about what
+connections each peer has, Goblins and OCapN handle all of that for
+you. We just needed to initially bootstrap the connection, then
+references to other objects, including those from other sessions can
+be passed around in messages.
+
+This chat system has no authentication or security, it's just meant to
+be a demonstration of passing references around over CapTP, including
+using Third Party Handoffs for sending references from other OCapN
+sessions.
+
+The next sections will get into the details of how to use the CapTP
+API@.
 
 @node Using the CapTP API
 @section Using the CapTP API
