@@ -18,6 +18,7 @@
   #:use-module (srfi srfi-1)
   #:use-module ((goblins core) #:hide ($))
   #:use-module ((goblins core) #:select ($) #:prefix $)
+  #:use-module (goblins actor-lib opportunistic)
   #:export (methods extend-methods))
 
 (define-syntax expand-method-defn
@@ -59,7 +60,9 @@
 
 (define (extend-actor extends-actor)
   (lambda (method . args)
-    (apply $$ extends-actor method args)))
+    (define $/<-
+      (select-$/<- extends-actor))
+    (apply $/<- extends-actor method args)))
 
 (define-syntax-rule (extend-methods extends method-defns ...)
   ;;; Extend EXTENDS with METHOD-DEFNS.
