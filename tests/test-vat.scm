@@ -1136,7 +1136,7 @@
 (define-values (b-vat b-cell)
   (spawn-persistent-vat
    cell-env
-   (lambda () (spawn ^cell a-cell))
+   (lambda () (spawn ^cell (list a-cell a-cell)))
    b-vat-store
    #:persistence-registry persistence-registry))
 
@@ -1162,10 +1162,14 @@
 (test-assert "A far reference can be persisted and restored"
   (match (resolve-vow-and-return-result
           b-vat*
-          (lambda () (<- b-cell*)))
-    [#(ok hopefully-far-refr)
-     (and (with-vat b-vat* (far-refr? hopefully-far-refr))
-          (eq? hopefully-far-refr a-cell*))]))
+          (lambda ()
+            (on (<- b-cell*)
+                all-of*
+                #:promise? #t)))
+    [#(ok (hopefully-far-refr1 hopefully-far-refr2))
+     (and (with-vat b-vat* (far-refr? hopefully-far-refr1))
+          (eq? hopefully-far-refr1 a-cell*)
+          (eq? hopefully-far-refr1 hopefully-far-refr2))]))
 
 ;; Test upgrading the roots of a vat
 (define memory (make-memory-store))

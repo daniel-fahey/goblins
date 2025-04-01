@@ -2984,6 +2984,8 @@ Type: Actormap PersistenceEnv -> Void"
   ;; Handle restoring far refrs
   (define far-refr-resolvers
     (make-hash-table))
+  (define far-refr-vows
+    (make-hash-table))
 
   ;; TODO: Make a more generalized approach to "churn" code.
   ;; There are lots of places around the code base which does
@@ -3086,9 +3088,14 @@ Type: Actormap PersistenceEnv -> Void"
                  (make-tagged label payload)])]
              ['near (hashq-ref slots->refrs (car data))]
              ['far
-              (let-values (((vow resolver) (spawn-promise-and-resolver)))
-                (hash-set! far-refr-resolvers data resolver)
-                vow)]
+              ;; Cache the vow since we may have several refrences to the same obj
+              (match (hash-ref far-refr-vows data #f)
+                (#f
+                 (let-values (((vow resolver) (spawn-promise-and-resolver)))
+                   (hash-set! far-refr-resolvers data resolver)
+                   (hash-set! far-refr-vows data vow)
+                   vow))
+                (vow vow))]
              ['encase
               ;; This is a promise which contains a value, re-encase
               ;; in a promise and return that.
