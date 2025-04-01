@@ -1474,14 +1474,19 @@ using the migrations macro."
 
   (call-system-op-with-vat
    vat (lambda (vat)
+         (define vat-am (vat-actormap vat))
          ;; Setup the persistent environment
          (set-vat-persistence-read-portrait! vat-persistence read-portrait!)
          (set-vat-persistence-val->ref! vat-persistence val->slot-ref)
          (set-vat-persistence-roots! vat-persistence upgraded-roots)
 
-         ;; Finally, lets take the first vat portrait
-         (when (or spawned-new? (not (equal? roots-version version)))
-           (vat-take-portrait!* vat))))
+         ;; Finally if it's new, we'll take a full portrait and save it, otherwise
+         ;; we need to just read the portrait (without saving as nothing has changed)
+         ;; of each object, so that we have them all in slot->val.
+         (if (or spawned-new? (not (equal? roots-version version)))
+             (vat-take-portrait!* vat)
+             (actormap-take-portrait-with-read-portrait vat-am read-portrait!
+                                                        val->slot-ref upgraded-roots))))
 
   ;; TODO: If there's no aurie registry should we break all the
   ;; promises requested immediately?

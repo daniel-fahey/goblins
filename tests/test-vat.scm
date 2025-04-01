@@ -1244,6 +1244,42 @@
    aurie-vat*
    (lambda () (<- send-far-refr*))))
 
+;; Test that objects not in roots persist after resturation
+(define memory (make-memory-store))
+(define-values (aurie-vat0 cell0)
+  (spawn-persistent-vat
+   cell-env
+   (lambda ()
+     (spawn ^cell (spawn ^cell 0)))
+   memory))
+
+(vat-halt! aurie-vat0)
+(define-values (aurie-vat1 cell1)
+  (spawn-persistent-vat
+   cell-env
+   (lambda ()
+     (error "Should be from memory"))
+   memory))
+
+(with-vat aurie-vat1
+  (define inner-cell ($ cell1))
+  ($ inner-cell 1))
+
+(vat-halt! aurie-vat1)
+
+(define-values (aurie-vat2 cell2)
+  (spawn-persistent-vat
+   cell-env
+   (lambda ()
+     (error "Should be from memory"))
+   memory))
+
+(test-equal "Restored non-root objects are persisted when modified"
+  #(ok 1)
+  (resolve-vow-and-return-result
+   aurie-vat2
+   (lambda () (<- (<- cell2)))))
+
 ;; Check with-vat doesn't lockup the vat if called within a vat
 (test-assert "Check nested with-vat returns promise, and doesn't lockup the vat"
   (let ((vat (spawn-vat)))
