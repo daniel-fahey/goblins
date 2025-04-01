@@ -2756,14 +2756,14 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
          (actormap-run
           am
           (lambda ()
-            (if (near-promise-settled? vow)
-                (let ((inner (near-settled-promise-value vow)))
-                  (if (local-refr? inner)
-                      (let-values (((slot created?) (maybe-create-obj-slot! inner)))
-                        (when created?
-                          (hashq-set! new-child-objs inner #t))
-                        (make-tagged* 'near slot))
-                      (make-tagged* 'encase (process-one inner))))
+            (if (near-promise-settled? vow #:broken-ok? #f)
+                (let* ((inner (near-settled-promise-value vow))
+                       (processed-inner (process-one inner)))
+                  (if (and (tagged? processed-inner)
+                           (or (eq? (tagged-label processed-inner) 'near)
+                               (eq? (tagged-label processed-inner) 'far)))
+                      processed-inner
+                      (make-tagged* 'encase processed-inner)))
                 (make-tagged* 'broken))))]
         [(? ocapn-id?)
          (make-tagged* 'ocapn-id (ocapn-id->string value))]
