@@ -186,8 +186,8 @@ to the objects to which they will resolve, called ``promise
 pipelining''.  @xref{Promise pipelining} for more information.
 
 Goblins provides @code{(goblins actor-lib joiners)} and @code{(goblins
-actor-lib let-on)} to help flatten out code using
-promises.  @xref{Let-On}; @pxref{Joiners}.
+actor-lib on)} to help flatten out code using
+promises.  @xref{On}; @pxref{Joiners}.
 
 @subheading Making promises
 

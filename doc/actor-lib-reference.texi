@@ -9,7 +9,7 @@ actor model patterns.
 * Inbox::
 * IO::
 * Joiners::
-* Let-On::
+* On::
 * Methods::
 * Nonce Registry::
 * Opportunistic::
@@ -576,11 +576,11 @@ up after awhile and move on:
 
 @end deffn
 
-@node Let-On
-@section Let-On
+@node On
+@section On
 
-The @code{(goblins actor-lib let-on)} module provides convenient
-syntax to facilitate promise pipelining.
+The @code{(goblins actor-lib on)} module provides convenient syntax to
+facilitate promise pipelining.
 
 @deffn {Syntax} let-on ((var exp) @dots{}) body
 
@@ -648,6 +648,78 @@ So this use of @code{let*-on}@dots{}
             (+ four eight))
           #:promise? #t))
     #:promise? #t)
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} on-each proc vow
+
+This procedure is equivalent to an @code{on} with @var{vow}, where
+@var{vow} resolves to a list, then doing a @code{for-each} with
+@var{proc} and the resolved value. It does not return any values to
+the caller.
+
+@lisp
+(define my-cell (spawn ^cell (list 1 2 3)))
+(on-each pk (<- my-cell))
+;;; (1)
+;;; (2)
+;;; (3)
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} on-map proc vow
+
+This procedure is equivalent to an @code{on} with @var{vow}, where
+@var{vow} resolves to a list, then doing a @code{map}. @var{proc} will
+be invoked with each value in the list. The procedure will return a
+promise which will resolve to the return value of @code{map}.
+
+@lisp
+(define my-cell (spawn ^cell (list 1 2 3)))
+(define (double n) (* n 2))
+(define doubled-numbers-vow
+  (on-map double (<- my-cell)))
+(on doubled-numbers-vow pk)
+;;; ((2 4 8))
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} on-filter pred vow
+
+This procedure is equivalent to an @code{on} with @var{vow}, where
+@var{vow} resolves to a list, then doing a @code{filter}. @var{pred}
+will be applied with each value in the list to determine if they will
+appear in the result. The procedure will return a promise which will
+resolve to the return value of the @code{filter}.
+
+@lisp
+(define my-cell (spawn ^cell (list 1 2 3 4)))
+(define even-numbers-vow
+  (on-filter even? (<- my-cell)))
+(on even-numbers-vow pk)
+;;; ((2 4))
+@end lisp
+
+@end deffn
+
+@deffn {Syntax} on-match vow match-clause @dots{}
+
+This is syntax sugar around @code{on}, @code{match-lambda} to allow
+for easier matching on the result of promise values. It's equivalent
+to doing an @code{on} with @var{vow} where the on handler is a
+@code{match-lambda} with @var{match-clause}s.
+
+@lisp
+(define my-cell (spawn ^cell (list 'result 42)))
+(define my-result-vow
+  (on-match (<- my-cell)
+    (('result some-result) some-result)
+    (('no-result) (error "Got no result"))))
+(on my-result-vow pk)
+;;; (42)
 @end lisp
 
 @end deffn

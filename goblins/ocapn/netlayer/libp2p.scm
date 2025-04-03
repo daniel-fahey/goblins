@@ -20,7 +20,7 @@
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib io)
   #:use-module (goblins actor-lib swappable)
-  #:use-module (goblins actor-lib let-on)
+  #:use-module (goblins actor-lib on)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer utils)
   #:use-module (goblins ocapn netlayer base-port)

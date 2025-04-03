@@ -30,7 +30,7 @@
           (goblins define-actor)
           (goblins actor-lib cell)
           (goblins actor-lib io)
-          (goblins actor-lib let-on)
+          (goblins actor-lib on)
           (goblins actor-lib methods)
           (goblins actor-lib swappable)
           (goblins contrib syrup)

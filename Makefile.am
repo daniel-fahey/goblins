@@ -52,6 +52,7 @@ SOURCES = goblins.scm \
           goblins/actor-lib/inbox.scm \
           goblins/actor-lib/joiners.scm \
           goblins/actor-lib/let-on.scm \
+          goblins/actor-lib/on.scm \
           goblins/actor-lib/methods.scm \
           goblins/actor-lib/nonce-registry.scm \
           goblins/actor-lib/opportunistic.scm \
@@ -116,7 +117,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/actor-lib/test-io.scm \
         tests/actor-lib/test-inbox.scm \
         tests/actor-lib/test-joiners.scm \
-        tests/actor-lib/test-let-on.scm \
+        tests/actor-lib/test-on.scm \
         tests/actor-lib/test-nonce-registry.scm \
         tests/actor-lib/test-opportunistic.scm \
         tests/actor-lib/test-pubsub.scm \

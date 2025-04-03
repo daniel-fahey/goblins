@@ -27,7 +27,7 @@ modules that we need:
 @lisp
 scheme@@(guile-user)> ,use (goblins)
 scheme@@(guile-user)> ,use (goblins actor-lib cell)
-scheme@@(guile-user)> ,use (goblins actor-lib let-on)
+scheme@@(guile-user)> ,use (goblins actor-lib on)
 scheme@@(guile-user)> ,use (goblins actor-lib methods)
 @end lisp
 
