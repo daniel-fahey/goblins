@@ -107,6 +107,7 @@ SOURCES = goblins.scm \
           goblins/utils/simple-sealers.scm \
           goblins/utils/weak-box.scm \
           goblins/utils/ring-buffer.scm \
+          goblins/utils/hashmap.scm \
           goblins/vat.scm \
           goblins/vrun.scm \
           goblins/repl.scm
@@ -150,6 +151,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/utils/test-bytes-stuff.scm \
         tests/utils/test-ring-buffer.scm \
         tests/utils/test-crypto.scm \
+        tests/utils/test-hashmap.scm \
         tests/contrib/test-syrup.scm
 
 TEST_EXTENSIONS = .scm
