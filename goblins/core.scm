@@ -155,7 +155,8 @@
   #:use-module (goblins abstract-types)
   #:use-module (goblins utils ghash)
   #:use-module (goblins ocapn ids)
-  #:use-module (goblins utils error-handling))
+  #:use-module (goblins utils error-handling)
+  #:use-module (goblins utils simple-sealers))
 
 
 ;;; Utilities (which should be moved to their own modules)
@@ -170,25 +171,6 @@
   (vhash-consq item #t vseteq))
 (define (vseteq-member? vseteq item)
   (vhash-assq item vseteq))
-
-;; (TODO: Use from (goblins simple-sealers) when we break
-;; into modules.  For now we want to demonstrate stages as quasi-self-contained.)
-
-(define* (make-sealer-triplet #:optional name)
-  (define-record-type <seal>
-    (seal val)
-    sealed?
-    (val unseal))
-  (set-record-type-printer!
-   <seal>
-   (lambda (record port)
-     (if name
-         (begin
-           (display "<sealed: " port)
-           (display name port)
-           (display ">" port))
-         (display "<sealed>" port))))
-  (values seal unseal sealed?))
 
 (define (persistence-env-ref env name)
   "Finds the object specification within a given persistence environment tree by the provided name"
@@ -609,18 +591,28 @@ Type: Actormap -> TransActormap"
 ;; "Become" sealer/unsealers
 ;; =========================
 
+(define-record-type <bcom-sealed>
+  (make-bcom-sealed secret new-behavior return-val)
+  _bcom-sealed?
+  (secret bcom-sealed-secret)
+  (new-behavior bcom-sealed-new-behavior)
+  (return-val bcom-sealed-return-val))
+
 (define (make-become-sealer-triplet)
-  (define-record-type <become-seal>
-    (make-become-seal new-behavior return-val)
-    become-sealed?
-    (new-behavior unseal-behavior)
-    (return-val unseal-return-val))
-  (define* (become new-behavior #:optional [return-val *unspecified*])
-    (make-become-seal new-behavior return-val))
-  (define (unseal sealed)
-    (values (unseal-behavior sealed)
-            (unseal-return-val sealed)))
-  (values become unseal become-sealed?))
+  (define secret (cons '*secret* '*id*))
+  (define* (bcom new-behavior #:optional [return-val *unspecified*])
+    (make-bcom-sealed secret new-behavior return-val))
+  (define (bcom-sealed? maybe-sealed)
+    (and (_bcom-sealed? maybe-sealed)
+         (eq? (bcom-sealed-secret maybe-sealed) secret)))
+  (define (bcom-unseal obj)
+    (unless (bcom-sealed? obj)
+      (if (_bcom-sealed? obj)
+          (error "Wrong bcom-unsealer for object:" obj)
+          (error "Not a bcom-sealed object:" obj)))
+    (values (bcom-sealed-new-behavior obj)
+            (bcom-sealed-return-val obj)))
+  (values bcom bcom-unseal bcom-sealed?))
 
 
 

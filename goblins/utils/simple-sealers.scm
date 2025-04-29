@@ -17,9 +17,47 @@
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu))
 
-;; Design inspired by Rees's W7
+;; Simple sealers, speedy "secret cookie" version
+
+(define-record-type <sealed>
+  (make-sealed secret content name)
+  _sealed?
+  (secret sealed-secret)
+  (content sealed-content)
+  (name sealed-name))
+
+(define (print-sealed sealed port)
+  (define name (sealed-name sealed))
+  (if name
+      (begin
+        (display "<sealed: " port)
+        (display name port)
+        (display ">" port))
+      (display "<sealed>" port)))
+
+(set-record-type-printer! <sealed> print-sealed)
 
 (define* (make-sealer-triplet #:optional name)
+  (define secret (cons '*secret* '*id*))
+  (define (seal obj)
+    (make-sealed secret obj name))
+  (define (sealed? maybe-sealed)
+    (and (_sealed? maybe-sealed)
+         (eq? (sealed-secret maybe-sealed) secret)))
+  (define (unseal obj)
+    (unless (sealed? obj)
+      (if (_sealed? obj)
+          (error "Wrong unsealer for object:" obj)
+          (error "Not a sealed object:" obj)))
+    (sealed-content obj))
+  (values seal unseal sealed?))
+
+
+;;; Here's the original, simple, "using srfi-9 records direcly"
+;;; version, inspired by Rees's W7. However, the above "secret cookie"
+;;; version is 20x faster.
+
+#;(define* (make-sealer-triplet #:optional name)
   (define-record-type <seal>
     (seal val)
     sealed?
@@ -34,3 +72,4 @@
            (display ">" port))
          (display "<sealed>" port))))
   (values seal unseal sealed?))
+
