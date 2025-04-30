@@ -1324,7 +1324,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
   registry-fetch-vat?
   (vat-aurie-id registry-fetch-vat-vat-aurie-id))
 
-(define* (^persistence-registry bcom #:optional (vat-id->vat ghash-null))
+(define* (^persistence-registry bcom #:optional (vat-id->vat (make-ghash)))
   (match-lambda
     ((? register-request? reg-request)
      (define vat-aurie-id

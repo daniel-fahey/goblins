@@ -1383,7 +1383,7 @@
             (lambda (netlayer netmap)
               (ghash-set netmap ($$ netlayer 'netlayer-name)
                          netlayer))
-            ghash-null
+            (make-ghash)
             netlayers)))
 
   ;; For sturdyrefs

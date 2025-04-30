@@ -1,5 +1,6 @@
 ;;; Copyright 2021-2024 Christine Lemmer-Webber
 ;;; Copyright 2024 Jessica Tallon
+;;; Copyright 2025 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -15,33 +16,28 @@
 
 ;; An immutable hashtable with specific set/ref conventions.  Refrs
 ;; are hashed by eq?, everything else is hashed by equal?.
-;;
-;; TODO: Really presently built on top of vhashes.  Might be built on
-;; top of something else, like fashes, in the future.  Especially since
-;; vhashes are not thread safe...
 
 
 (define-module (goblins ghash)
   ;; NOTE: Do not depend on core because it depends on us.
   #:use-module (goblins core-types)
+  #:use-module (goblins utils hashmap)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)        ; records
   #:use-module (srfi srfi-9 gnu)    ; record extensions
-  #:use-module (ice-9 vlist)
   #:use-module (ice-9 hash-table)
   #:use-module (ice-9 match)
   #:export (make-ghash
             ghash?
+            ghash
 
             ghash-set
             ghash-ref
             ghash-remove
-            ghash-null
             ghash-length
             ghash-has-key?
 
             ghash-fold
-            ghash-fold-right
             ghash-for-each
 
             hash-table->ghash
@@ -53,182 +49,141 @@
             gset-length
             gset->list
             gset-member?
-            
+
             gset-fold
             gset-for-each))
 
+(define (hashmap-length hashmap)
+  (hashmap-fold (lambda (_k _v count) (1+ count))
+                0 hashmap))
 
-(define-record-type <ghash>
-  (_make-ghash vhash)
-  ghash?
-  (vhash ghash-vhash))
+(define (ghash? obj)
+  (issue-deprecation-warning
+   "`ghash?' is deprecated.  Use `hashmap?' instead.")
+  (hashmap? obj))
 
-(define (vhash-length vhash)
-  (vhash-fold (lambda (_k _v count) (1+ count))
-              0 vhash))
+(define (hashg key size)
+  (if (live-refr? key)
+      (hashq key size)
+      (hash key size)))
 
-(define (print-ghash vhash port)
-  (format port "#<ghash (~a)>"
-          (vhash-length (ghash-vhash vhash))))
+(define (equalg? a b)
+  (if (or (live-refr? a)
+          (live-refr? b))
+      (eq? a b)
+      (equal? a b)))
 
-(set-record-type-printer! <ghash> print-ghash)
+(define (make-ghash)
+  (make-hashmap hashg equalg?))
 
-(define ghash-null (_make-ghash vlist-null))
-
-(define (make-ghash . key-vals)
-  (_make-ghash
-   (let lp ((key-vals key-vals)
-            (vh vlist-null))
-     (match key-vals
-       [() vh]
-       [(key val rest ...)
-        (lp rest
-            (_vh-set vh key val))]))))
-
-(define (_vh-set vh key val)
-  (define conser
-    (if (or (live-refr? key) (symbol? key))
-        vhash-consq
-        vhash-cons))
-  (conser key val vh))
+(define-syntax ghash
+  (syntax-rules ()
+    ((_) (make-ghash))
+    ((_ key val . key-vals)
+     (ghash-set (ghash . key-vals)
+                key val))))
 
 (define (ghash-set ghash key val)
-  (define vh (ghash-vhash ghash))
-  (_make-ghash (_vh-set vh key val)))
+  (issue-deprecation-warning
+   "`ghash-set' is deprecated.  Use `hashmap-set' instead.")
+  (hashmap-set ghash key val))
 
 (define* (ghash-ref ghash key #:optional [dflt #f])
-  (define vh (ghash-vhash ghash))
-  (define assoc
-    (if (or (live-refr? key) (symbol? key))
-        vhash-assq
-        vhash-assoc))
-  (match (assoc key vh)
-    ((_k . val) val)
-    (#f dflt)))
+  (issue-deprecation-warning
+   "`ghash-ref' is deprecated.  Use `hashmap-ref' instead.")
+  (hashmap-ref ghash key dflt))
 
-(define (ghash-has-key? ghash key)
-  (define vh (ghash-vhash ghash))
-  (define assoc
-    (if (or (live-refr? key) (symbol? key))
-        vhash-assq
-        vhash-assoc))
-  (match (assoc key vh)
-    ((_k . val) #t)
-    (#f #f)))
+(define ghash-has-key?
+  (let ((none (cons 'no 'value)))
+    (lambda (ghash key)
+      (issue-deprecation-warning
+       "`ghash-has-key?' is deprecated.  \
+Use `hashmap-ref' with a sentinel default value instead.")
+      (not (eq? (hashmap-ref ghash key none)
+                none)))))
 
 (define (ghash-remove ghash key)
-  (define vh (ghash-vhash ghash))
-  (define del
-    (if (or (live-refr? key) (symbol? key))
-        vhash-delq
-        vhash-delete))
-  (_make-ghash (del key vh)))
+  (issue-deprecation-warning
+   "`ghash-remove' is deprecated.  Use `hashmap-remove' instead.")
+  (hashmap-remove ghash key))
 
 (define (ghash-length ghash)
-  (vlist-length (ghash-vhash ghash)))
+  (issue-deprecation-warning
+   "`ghash-length' is deprecated.  Use `hashmap-fold' and a counter instead.")
+  (hashmap-length ghash))
 
 (define (ghash-fold proc init ghash)
-  (vhash-fold proc init (ghash-vhash ghash)))
-(define (ghash-fold-right proc init ghash)
-  (vhash-fold-right proc init (ghash-vhash ghash)))
+  (issue-deprecation-warning
+   "`ghash-fold' is deprecated.  Use `hashmap-fold' instead.")
+  (hashmap-fold proc init ghash))
 
 (define (ghash-for-each proc ghash)
-  (vhash-fold
-   (lambda (k v _p)
-     (proc k v))
-   #f
-   (ghash-vhash ghash)))
+  (issue-deprecation-warning
+   "`ghash-for-each' is deprecated.  Use `hashmap-for-each' instead.")
+  (hashmap-for-each proc ghash))
 
 (define (hash-table->ghash table)
-  (_make-ghash
-   (hash-fold
-    (lambda (key val vh)
-      (_vh-set vh key val))
-    vlist-null
-    table)))
+  (issue-deprecation-warning
+   "`hash-table->ghash' is deprecated.  \
+Use `hash-fold' initialized to `make-ghash' and populated using `hashmap-set' \
+instead.")
+  (hash-fold
+   (lambda (key val hm)
+     (hashmap-set hm key val))
+   (make-ghash) table))
 
 ;;; Sets
 (define-record-type <gset>
-  (_make-gset ht)
+  (%make-gset hashmap)
   gset?
-  (ht _set-ht))
+  (hashmap gset-hashmap))
 
-(define (print-set set port)
-  (define items
-    (vhash-fold
-     (lambda (k _v prev)
-       (cons k prev))
-     '()
-     (_set-ht set)))
-  (format port "#<gset ~a>" items))
+(define (print-gset gset port)
+  (format port "#<gset ~a>" (gset->list gset)))
 
-(set-record-type-printer! <gset> print-set)
+(set-record-type-printer! <gset> print-gset)
 
 (define (make-gset . items)
-  (define vh
-    (fold
-     (lambda (item vh)
-       (define-values (add assoc)
-         (if (or (live-refr? item) (symbol? item))
-             (values vhash-consq vhash-assoc)
-             (values vhash-cons vhash-assq)))
-       ;; Ensure it's unique to the set
-       (if (assoc item vh)
-           vh
-           (add item #t vh)))
-     vlist-null items))
-  (_make-gset vh))
+  (%make-gset
+   (fold
+    (lambda (item hm)
+      (hashmap-set hm item #t))
+    (make-ghash) items)))
 
 (define (gset-add set item)
-  (define add
-    (if (or (live-refr? item) (symbol? item))
-        vhash-consq
-        vhash-cons))
-  (if (gset-member? set item)
-      set
-      (_make-gset (add item #t (_set-ht set)))))
+  (let* ((hm (gset-hashmap set))
+         (maybe-new-hm (hashmap-set hm item #t)))
+    (if (eq? maybe-new-hm hm)
+        set
+        (%make-gset maybe-new-hm))))
 
 (define (gset-remove set item)
-  (define del
-    (if (or (live-refr? item) (symbol? item))
-        vhash-delq
-        vhash-delete))
-  (_make-gset (del item (_set-ht set))))
+  (let* ((hm (gset-hashmap set))
+         (maybe-new-hm (hashmap-remove hm item)))
+    (if (eq? maybe-new-hm hm)
+        set
+        (%make-gset maybe-new-hm))))
 
 (define (gset-fold proc init set)
-  (vhash-fold
-   (lambda (key _val prev)
+  (hashmap-fold
+   (lambda (key _ prev)
      (proc key prev))
-   init
-   (_set-ht set)))
+   init (gset-hashmap set)))
 
 (define (gset-length set)
-  (vhash-fold
-   (lambda (_k _v count)
-     (1+ count))
-   0
-   (_set-ht set)))
+  (hashmap-length (gset-hashmap set)))
 
 (define (gset->list set)
-  (vhash-fold
-   (lambda (key _val prev)
+  (hashmap-fold
+   (lambda (key _ prev)
      (cons key prev))
-   '()
-   (_set-ht set)))
+   '() (gset-hashmap set)))
 
 (define (gset-member? set key)
-  (define assoc
-    (if (or (live-refr? key) symbol? key)
-        vhash-assq
-        vhash-assoc))
-  
-  (match (assoc key (_set-ht set))
-    [(_val . #t) #t]
-    [#f #f]))
+  (hashmap-ref (gset-hashmap set) key))
 
 (define (gset-for-each proc set)
-  (vhash-fold
-   (lambda (k v _p)
-     (proc k v))
-   #f
-   (_set-ht set)))
+  (hashmap-for-each
+   (lambda (k _)
+     (proc k))
+   (gset-hashmap set)))

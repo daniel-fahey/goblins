@@ -44,8 +44,8 @@
 
 (define-actor (^nonce-registry bcom
                                #:optional
-                               [swiss-num->refr ghash-null]
-                               [storable-id->swiss-num ghash-null]
+                               [swiss-num->refr (make-ghash)]
+                               [storable-id->swiss-num (make-ghash)]
                                [hash-algorithm 'sha256]
                                [salt (make-swiss-num)])
   #:frozen

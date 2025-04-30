@@ -58,7 +58,7 @@ Methods:
           initial))
   (seteq vh))
 
-(define-actor (^ghash bcom #:optional [ht ghash-null])
+(define-actor (^ghash bcom #:optional [ht (make-ghash)])
   "Construct an actor providing a transactional interface to (goblins ghash),
 a hashmap using `eq?' for refrs and `equal?' for everything else.
 
