@@ -15,7 +15,7 @@
 (define-module (goblins persistence-store syrup)
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
-  #:use-module (goblins ghash)
+  #:use-module (goblins utils ghash)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins contrib syrup)
   #:use-module (goblins utils crypto)

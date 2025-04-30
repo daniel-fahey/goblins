@@ -18,7 +18,7 @@
   #:use-module (ice-9 vlist)
   #:use-module (goblins core)
   #:use-module (goblins define-actor)
-  #:use-module (goblins ghash)
+  #:use-module (goblins utils ghash)
   #:use-module (goblins actor-lib methods)
   #:export (^seteq
             ^ghash
@@ -59,8 +59,9 @@ Methods:
   (seteq vh))
 
 (define-actor (^ghash bcom #:optional [ht (make-ghash)])
-  "Construct an actor providing a transactional interface to (goblins ghash),
-a hashmap using `eq?' for refrs and `equal?' for everything else.
+  "Construct an actor providing a transactional interface to
+(goblins utils ghash), a hashmap using `eq?' for refrs and `equal?' for
+everything else.
 
 Methods:
 `ref key [dflt]': Return the value associated with KEY or DFLT if it is not found.

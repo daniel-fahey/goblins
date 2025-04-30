@@ -19,7 +19,7 @@
              (goblins actor-lib methods)
              (goblins actor-lib ward)
              (goblins actor-lib joiners)
-             (goblins ghash)
+             (goblins utils ghash)
              (goblins ocapn ids)
              (goblins ocapn captp)
              (goblins ocapn netlayer onion)

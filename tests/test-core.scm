@@ -18,7 +18,7 @@
   #:use-module (goblins core)
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
-  #:use-module (goblins ghash)
+  #:use-module (goblins utils ghash)
   #:use-module (goblins ocapn ids)
   #:use-module (ice-9 match)
   #:use-module (rnrs bytevectors)

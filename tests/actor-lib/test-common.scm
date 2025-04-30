@@ -14,7 +14,7 @@
 
 (define-module (tests actor-lib test-common)
   #:use-module (goblins core)
-  #:use-module (goblins ghash)
+  #:use-module (goblins utils ghash)
   #:use-module (goblins actor-lib common)
   #:use-module (tests utils)
   #:use-module (srfi srfi-64))

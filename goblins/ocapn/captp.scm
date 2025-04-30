@@ -21,7 +21,7 @@
   #:use-module ((goblins core) #:select ($) #:prefix $)
   #:use-module (goblins core-types)
   #:use-module (goblins vat)
-  #:use-module (goblins ghash)
+  #:use-module (goblins utils ghash)
   #:use-module (goblins inbox)
   #:use-module (goblins abstract-types)
   #:use-module (goblins define-actor)

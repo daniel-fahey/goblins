@@ -15,7 +15,7 @@
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 vlist)
   #:use-module (goblins abstract-types)
-  #:use-module (goblins ghash)
+  #:use-module (goblins utils ghash)
   #:use-module (rnrs bytevectors)
 
   #:export (;;; The main procedures

@@ -18,7 +18,7 @@
 ;; are hashed by eq?, everything else is hashed by equal?.
 
 
-(define-module (goblins ghash)
+(define-module (goblins utils ghash)
   ;; NOTE: Do not depend on core because it depends on us.
   #:use-module (goblins core-types)
   #:use-module (goblins utils hashmap)

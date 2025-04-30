@@ -1,7 +1,7 @@
 (define-module (tests contrib test-syrup)
   #:use-module (goblins contrib syrup)
   #:use-module (goblins abstract-types)
-  #:use-module (goblins ghash)
+  #:use-module (goblins utils ghash)
   #:use-module (ice-9 match)
   #:use-module (ice-9 hash-table)
   #:use-module (ice-9 binary-ports)

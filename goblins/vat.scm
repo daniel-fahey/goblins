@@ -19,7 +19,7 @@
   #:use-module (goblins base-io-ports)
   #:use-module (goblins core)
   #:use-module (goblins core-types)
-  #:use-module (goblins ghash)
+  #:use-module (goblins utils ghash)
   #:use-module (goblins inbox)
   #:use-module (goblins abstract-types)
   #:use-module (goblins default-vat-scheduler)

@@ -153,7 +153,7 @@
   #:use-module (rnrs bytevectors)
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
-  #:use-module (goblins ghash)
+  #:use-module (goblins utils ghash)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins utils error-handling))
 

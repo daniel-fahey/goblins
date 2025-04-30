@@ -17,7 +17,7 @@
   #:use-module (goblins core)
   #:use-module (goblins core-types)
   #:use-module (goblins vat)
-  #:use-module (goblins ghash)
+  #:use-module (goblins utils ghash)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib joiners)
   #:use-module (goblins actor-lib methods)

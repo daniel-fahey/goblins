@@ -74,7 +74,6 @@ SOURCES = goblins.scm \
           goblins/core-types.scm \
           goblins/default-vat-scheduler.scm \
           goblins/define-actor.scm \
-          goblins/ghash.scm \
           goblins/inbox.scm \
           goblins/migrations.scm \
           goblins/ocapn/captp.scm \
@@ -97,6 +96,7 @@ SOURCES = goblins.scm \
           goblins/utils/assert-type.scm \
           goblins/utils/base32.scm \
           goblins/utils/bytes-stuff.scm \
+          goblins/utils/ghash.scm \
           goblins/utils/js-data.scm \
           goblins/utils/crypto.scm \
           goblins/utils/define-applicable-record-type.scm \
@@ -143,12 +143,12 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/test-await.scm \
         tests/test-core.scm \
         tests/test-define-actor.scm \
-        tests/test-ghash.scm \
         tests/test-inbox.scm \
         tests/test-vat.scm \
         tests/test-repl.scm \
         tests/utils/test-base32.scm \
         tests/utils/test-bytes-stuff.scm \
+        tests/utils/test-ghash.scm \
         tests/utils/test-ring-buffer.scm \
         tests/utils/test-crypto.scm \
         tests/utils/test-hashmap.scm \

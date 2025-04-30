@@ -19,8 +19,8 @@
 ;; of something else, like fashes, in the future.
 
 
-(define-module (tests test-ghash)
-  #:use-module (goblins ghash)
+(define-module (tests utils test-ghash)
+  #:use-module (goblins utils ghash)
   #:use-module (goblins core)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-64)

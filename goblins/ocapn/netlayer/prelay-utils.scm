@@ -19,7 +19,7 @@
 
   (import (guile)
           (goblins)
-          (goblins ghash)
+          (goblins utils ghash)
           (goblins ocapn captp)
           (goblins ocapn ids)
           (goblins ocapn netlayer prelay)
