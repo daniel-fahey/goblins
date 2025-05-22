@@ -197,12 +197,16 @@ the test suite still passes. The test suite and how to run it is located [[https
 The test suite requires implementing certain objects and exporting
 them at specific sturdyrefs. This has been done for you and you can
 find those implementations within the
-[[file:examples/ocapn-test-suite.scm][examples/ocapn-test-suite.scm]]. To run this you should run:
+[[file:examples/ocapn-test-suite.scm][misc/ocapn-test-suite.scm]]. To run this you should run:
 
 #+BEGIN_SRC sh
-  $ ./pre-inst-env guile examples/ocapn-test-suite.scm
+  $ ./pre-inst-env guile misc/ocapn-test-suite.scm
 Connect test suite to: <sturdyref>
 #+END_SRC
+
+This optionally allows you to specify the name of a netlayer to run on, so far
+the two names supported are =tcp-testing-only= and =onion=. The default when
+neither is specified is =tcp-testing-only=.
 
 Copy the sturdyref it gives you and then in the OCapN test suite you
 can run it with this command:

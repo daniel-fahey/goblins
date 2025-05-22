@@ -35,3 +35,21 @@ jobs:
           make distcheck -j${nproc}
         shell: guix-ci -Df guix.scm -- {0}
         working-directory: src
+  ocapn-test-suite:
+    runs-on: guix
+    steps:
+      - run: git clone --depth=1 --branch=$GITHUB_REF_NAME https://codeberg.org/$GITHUB_REPOSITORY goblins
+      - run: git clone --depth=1 https://github.com/ocapn/ocapn-test-suite.git
+      - run: |
+          set -e
+          ./bootstrap.sh
+          ./configure
+          make -j${nproc}
+          ./pre-inst-env guile tests/ocapn-test-suite.scm &> /dev/null &
+          TEST_SUITE_PID=$!
+          trap "kill $TEST_SUITE_PID" EXIT INT TERM
+          cd ../ocapn-test-suite
+          timeout 60 bash -c "until nc -z 127.0.0.1 24680; do sleep 1; done" || { echo "Goblins didn't start netlayer"; exit 1; }
+          python3 ./test_runner.py --captp-version=goblins-0.12 "ocapn://guile-goblins.tcp-testing-only?host=127.0.0.1&port=24680"
+        shell: guix shell -m manifest.scm python python-cryptography python-stem netcat -- {0}
+        working-directory: goblins

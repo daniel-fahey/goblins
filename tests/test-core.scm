@@ -19,6 +19,7 @@
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
   #:use-module (goblins utils ghash)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins ocapn ids)
   #:use-module (ice-9 match)
   #:use-module (rnrs bytevectors)
@@ -811,13 +812,13 @@
   (define tagged (make-tagged 'foo supplied-refr))
   (define bool #t)
   (define gset (make-gset 1 2 3 'foo 'bar 'baz "Hello"))
-  (define ghash (ghash-set (make-ghash) 'banana 'yellow))
+  (define gh (ghash ('banana 'yellow)))
   (define dotted '(1 2 3 4 . zilch))
   (define ocapn-node
     (make-ocapn-node
      'fake
      "4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"
-     '((name "test 1"))))
+     (hashmap ("name" "test 1"))))
   (define ocapn-sref
     (make-ocapn-sturdyref
      ocapn-node
@@ -838,7 +839,7 @@
          (equal? my-vector got-vector)
          (eq? restored-refr got-near-refr)
          (equal? gset got-gset)
-         (equal? ghash got-ghash)
+         (equal? gh got-ghash)
          (equal? dotted got-dotted)
          (live-refr? got-promise-to-refr)
          (eq? ($ encased-vow) ($ got-promise-to-value))
@@ -849,7 +850,7 @@
     (list #f
           number symbol my-list keyword zilch
           tagged string char bv bool
-          *unspecified* my-vector gset ghash dotted
+          *unspecified* my-vector gset gh dotted
           supplied-refr refr-vow encased-vow
           ocapn-node ocapn-sref))
   (portraitize main-beh self-portrait))

@@ -13,9 +13,11 @@
 ;;; limitations under the License.
 
 (define-module (goblins ocapn ids)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins contrib base64)
   #:use-module (goblins contrib syrup)
   #:use-module (web uri)
+  #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
   #:use-module (ice-9 match)
@@ -152,15 +154,12 @@
          ;; The URI query string is *not* pre-parsed into key/value
          ;; pairs, as the 'foo=1&bar=2' notation is just a convention.
          ;; So, we need to parse it ourselves.
-         (map (lambda (hint)
-                (match (string-split hint #\=)
-                  ((key value)
-                   ;; Hints are lists of 2 elements, *not pairs*,
-                   ;; because Syrup can serialize proper lists but not
-                   ;; pairs.
-                   (list (string->symbol (uri-decode key))
-                         (uri-decode value)))))
-              (string-split query #\&))))
+         (fold
+          (lambda (hint prev)
+            (match (string-split hint #\=)
+              ((key value) (hashmap-set prev key (uri-decode value)))))
+          (make-hashmap)
+          (string-split query #\&))))
 
   (define (uri->ocapn-node uri)
     (let* ((host (uri-host uri))
@@ -194,14 +193,16 @@
 
 (define (ocapn-id->uri ocapn-id)
   (define (hints->query hints)
-    (and hints
-         (string-join (map (match-lambda
-                             (((? symbol? key) (? string? value))
-                              (string-append (uri-encode (symbol->string key))
-                                             "="
-                                             (uri-encode value))))
-                           hints)
-                      "&")))
+    (match hints
+      [(? hashmap?)
+       (let ((parts
+              (hashmap-fold
+               (lambda (key value prev)
+                 (cons (format #f "~a=~a" key (uri-encode value)) prev))
+               '()
+                hints)))
+         (string-join parts "&"))]
+      [#f #f]))
 
   (unless (ocapn-id? ocapn-id)
     (error "Not a OCapN ID" ocapn-id))

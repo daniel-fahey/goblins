@@ -20,6 +20,7 @@
   #:use-module (goblins ocapn netlayer base-port)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib io)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins utils crypto)
   #:use-module (goblins utils base32)
   #:use-module (ice-9 binary-ports)
@@ -214,16 +215,10 @@
     tls-port))
 
 (define (ocapn-node-hint:host node)
-  (match (assq-ref (ocapn-node-hints node) 'host)
-    (() #f)
-    ((host) host)))
+  (hashmap-ref (ocapn-node-hints node) "host"))
 
 (define (ocapn-node-hint:port node)
-  (or (match (assq-ref (ocapn-node-hints node) 'port)
-        (() #f)
-        ((port)
-         (string->number port)))
-      8088))
+  (hashmap-ref (ocapn-node-hints node) "port" 8088))
 
 (define-actor (^tcp-tls-netlayer* bcom host port max-connections key cert)
     "Spawn and return a new TCP + TLS netlayer.  HOST specifies the
@@ -258,8 +253,8 @@ from the file system."
   (define our-location
     (make-ocapn-node 'tcp-tls
                      (base32-encode (sha256d cert))
-                     `((host ,host)
-                       (port ,(number->string server-port)))))
+                     (hashmap ("host" host)
+                              ("port" (number->string server-port)))))
   (define (incoming-accept)
     (on (<- server-socket-io
             (lambda (resource)

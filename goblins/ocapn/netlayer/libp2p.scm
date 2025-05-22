@@ -24,6 +24,9 @@
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer utils)
   #:use-module (goblins ocapn netlayer base-port)
+  #:use-module (goblins utils base32)
+  #:use-module (goblins utils hashmap)
+  #:use-module (goblins contrib syrup)
   #:export (^libp2p-netlayer
             ocapn-node->libp2p-multiaddrs
             libp2p-multiaddress->ocapn-node
@@ -40,18 +43,15 @@
             [(""  _p2p peer-id) peer-id]
             [something-else (error "Couldn't parse peer-id" something-else)]))))
   (define hints
-    (map (lambda (addr) `(multiaddr ,addr)) multiaddrs))
+    (hashmap ("multiaddrs" (base32-encode (syrup-encode multiaddrs)))))
   (make-ocapn-node 'libp2p peer-id hints))
 
 (define (ocapn-node->libp2p-multiaddrs node)
   (unless (and (ocapn-node? node) (eq? (ocapn-node-transport node) 'libp2p))
     (error "Can only convert libp2p OCapN node to libp2p mutliaddrs"
            node))
-  (map
-   (lambda (addr)
-     (match addr
-       [('multiaddr multiaddr) multiaddr]))
-   (ocapn-node-hints node)))
+  (let ((hints (ocapn-node-hints node)))
+    (syrup-decode (base32-decode (hashmap-ref hints "multiaddrs")))))
 
 (define (libp2p-multiaddrs->libp2p-config multiaddrs)
   "Take a list of libp2p multi-addresses and remove the peer ID (i.e. /p2p/<peer-id>) from them"
@@ -139,7 +139,7 @@
                (list (substring pair 0 separator-index)
                      (substring pair (+ 1 separator-index)))))
            pairs)))
-  
+
   (define-values (private-key-vow private-key-resolver)
     (spawn-promise-and-resolver))
   (define-values (our-location-vow our-location-resolver)

@@ -84,7 +84,7 @@
                 provided-location provided-private-key)))
 
 (test-equal "Check libp2p location is correct"
-  #(ok "ocapn://node-id-is-here.libp2p?multiaddr=%2Fip4%2F1.2.3.4%2Fudp%2F6000%2Fp2p%2Fnode-id-is-here")
+  #(ok "ocapn://node-id-is-here.libp2p?multiaddrs=lm2dcirpnfydilzrfyzc4mzogqxxkzdqf43dambqf5yde4bpnzxwizjnnfsc22ltfvugk4tflu")
   (resolve-vow-and-return-result
    libp2p-vat
    (lambda ()
