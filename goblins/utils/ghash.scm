@@ -79,8 +79,8 @@
 (define-syntax ghash
   (syntax-rules ()
     ((_) (make-ghash))
-    ((_ key val . key-vals)
-     (ghash-set (ghash . key-vals)
+    ((_ (key val) . rest)
+     (ghash-set (ghash . rest)
                 key val))))
 
 (define (ghash-set ghash key val)

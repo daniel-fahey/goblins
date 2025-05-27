@@ -28,7 +28,7 @@
 
 (test-begin "test-ghash")
 
-(define gh1 (ghash 'key1 'val1 'key2 'val2))
+(define gh1 (ghash ('key1 'val1) ('key2 'val2)))
 
 (test-equal 'val1 (ghash-ref gh1 'key1))
 (test-equal 'val2 (ghash-ref gh1 'key2))
@@ -46,7 +46,7 @@
           (string<? (car c1) (car c2)))))
 
 (define gh2
-  (ghash 'zelle 'pronk 'beep 'boop 'meep 'moop))
+  (ghash ('zelle 'pronk) ('beep 'boop) ('meep 'moop)))
 (test-equal 'moop (ghash-ref gh2 'meep))
 (test-equal 'boop (ghash-ref gh2 'beep))
 (test-equal 'pronk (ghash-ref gh2 'zelle))
@@ -65,7 +65,7 @@
 (define (^friendo bcom) (lambda () "I'm a friend"))
 (define alice (actormap-spawn! am ^friendo))
 (define bob (actormap-spawn! am ^friendo))
-(define gh4 (ghash alice "alice" bob "bob"))
+(define gh4 (ghash (alice "alice") (bob "bob")))
 ;; make sure refrs hash with eq?
 (test-equal "alice" (ghash-ref gh4 alice))
 (test-equal "bob" (ghash-ref gh4 bob))
