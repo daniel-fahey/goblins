@@ -118,8 +118,9 @@
                ;; Read a message from the client which should be a
                ;; bytevector.  Send it back signed for the client
                ;; to verify.
-               (let ((bv (websocket-receive ws)))
+               (let ((bv (websocket-receive ws #:wait-for-port wait-for-port)))
                  (unless (and (bytevector? bv) (= (bytevector-length bv) 64))
+                   (close-websocket ws)
                    (error "invalid client verification message"))
                  (let ((sig (sign bv (key-pair->private-key designator-key))))
                    (websocket-send ws (syrup-encode sig) #:mask? #f))
@@ -144,6 +145,18 @@
             (values sock (vector-ref (getsockname sock) 2))))
         (define (handle-client ws)
           (<-np-extern listener ws))
+        (define (accept* server-sock)
+          ;; Accept might throw errors, e.g. file handle exhaustion, catch those
+          ;; and return #t so we can loop again instead of throwing and taking
+          ;; down the whole netlayer.
+          (with-exception-handler
+           (lambda (exn)
+             ;; Short delay to back off before retrying the accept loop.
+             (sleep 1)
+             #t)
+           (lambda ()
+             (accept server-sock (logior O_CLOEXEC O_NONBLOCK)))
+           #:unwind? #t))
         (define (accept-client server-sock)
           (perform-operation
            (choice-operation
@@ -158,11 +171,11 @@
                               ;; operations, the accept call shouldn't
                               ;; return #f, but if it does we will
                               ;; throw a match error.
-                              (match (accept server-sock
-                                             (logior O_CLOEXEC O_NONBLOCK))
+                              (match (accept* server-sock)
                                 ((ws . _)
                                  (use-nonblocking-i/o ws)
-                                 ws))))
+                                 ws)
+                                (#t #t))))
             (wrap-operation (wait-operation stopped?) (lambda () #f)))))
         (unless (and tls-private-key tls-certificate)
           (warn "WebSocket server traffic is unencrypted"))
@@ -270,11 +283,15 @@
            ;; designator.
            (let ((bv (strong-random-bytes 64)))
              (websocket-send ws bv)
-             (let ((sig (syrup-decode (websocket-receive ws))))
-               (unless (verify (captp-signature->crypto-signature sig)
-                               bv
-                               (bytevector->crypto-public-key
-                                (base32-decode designator)))
+             (let ((sig
+                    (match (websocket-receive ws #:wait-for-port wait-for-port)
+                      ((? bytevector? bv) (syrup-decode bv))
+                      (_ #f))))
+               (unless (and sig
+                            (verify (captp-signature->crypto-signature sig)
+                                    bv
+                                    (bytevector->crypto-public-key
+                                     (base32-decode designator))))
                  (close-websocket ws)
                  (error "WebSocket designator verification failed")))))
          (let ((ws (open-websocket-for-uri uri
@@ -291,7 +308,7 @@
               (lambda (ws)
                 (match (websocket-receive ws
                                           #:wait-for-port wait-for-port
-                                          #:max-attempts 10
+                                          #:max-attempts 3
                                           #:echo-close? server-side?)
                   ((? bytevector? bv)
                    (syrup-decode bv #:unmarshallers unmarshallers))
