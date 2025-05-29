@@ -37,6 +37,7 @@
           (goblins ocapn ids)
           (goblins utils base32)
           (goblins utils crypto)
+          (goblins utils hashmap)
           (goblins utils js-data)
           (ice-9 match)
           (except (rnrs bytevectors) bytevector-copy)
@@ -323,9 +324,7 @@
                     #t)))))))
 
     (define* (hint-ref node key #:optional default)
-      (match (assq-ref (ocapn-node-hints node) key)
-        (() default)
-        ((val) val)))
+      (hashmap-ref (ocapn-node-hints node) key default))
 
     (cond-expand
      (guile
@@ -379,7 +378,7 @@
                                                  (flags eddsa)
                                                  (q ,bv)))
                                bv)))
-                           `((url ,external-url))))
+                           (hashmap ("url" external-url))))
         (unless verify-certificates?
           (warn "TLS certificate verification is disabled"))
         (methods
@@ -391,7 +390,7 @@
          ((connect-to remote-node)
           (match remote-node
             (($ <ocapn-node> 'websocket designator _)
-             (let ((uri (string->uri (hint-ref remote-node 'url))))
+             (let ((uri (string->uri (hint-ref remote-node "url"))))
                ;; If the server is encrypted, then clients must be
                ;; encrypted, too.
                (when (and tls-private-key (not (eq? (uri-scheme uri) 'wss)))
@@ -492,7 +491,7 @@
       (define-actor (^websocket-netlayer/client-only bcom)
         (define-values (conn-establisher-vow conn-establisher-resolver)
           (spawn-promise-and-resolver))
-        (define our-location (make-ocapn-node 'websocket "unreachable" '()))
+        (define our-location (make-ocapn-node 'websocket "unreachable" (hashmap)))
         (methods
          ((netlayer-name) 'websocket)
          ((self-location? other) (same-node-location? our-location other))
@@ -502,7 +501,7 @@
          ((connect-to remote-node)
           (match remote-node
             (($ <ocapn-node> 'websocket designator _)
-             (let ((url (hint-ref remote-node 'url)))
+             (let ((url (hint-ref remote-node "url")))
                (let-on ((ws (open-websocket designator url)))
                  (<- conn-establisher-vow
                      (spawn ^websocket-captp-io ws #f)
