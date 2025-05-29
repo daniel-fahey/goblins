@@ -773,7 +773,7 @@
         (remote-refr-captp-connector exported-remote-refr))
       (define exported-connector-obj
         (exported-captp-connector 'connector-obj))
-      (define recipient-key remote-encoded-key)
+      (define receiver-key remote-encoded-key)
       (define exporter-location
         ($$ intra-node-incanter
             exported-connector-obj 'get-remote-location))
@@ -786,7 +786,7 @@
       (define gift-id (strong-random-bytes 32))
 
       (define handoff-give
-        (desc:handoff-give recipient-key
+        (desc:handoff-give receiver-key
                            exporter-location gifter-and-exporter-session
                            gifter-side
                            gift-id))
@@ -897,12 +897,12 @@
                    (encoded-handoff-receive
                     (syrup-encode handoff-receive
                                   #:marshallers marshallers))
-                   (give-recipient-encoded-key
-                    (desc:handoff-give-recipient-key
+                   (give-receiver-encoded-key
+                    (desc:handoff-give-receiver-key
                      (desc:sig-envelope-signed signed-handoff-give)))
-                   (give-recipient-key
+                   (give-receiver-key
                     (captp-public-key->crypto-public-key
-                     give-recipient-encoded-key))
+                     give-receiver-encoded-key))
                    (receive-sig
                     (captp-signature->crypto-signature
                      receive-sig-sexp)))
@@ -912,7 +912,7 @@
               (lambda (handoff-give-legit?)
                 (and handoff-give-legit?
                      (>= this-handoff-count ($$ remote-handoff-count))
-                     (verify receive-sig encoded-handoff-receive give-recipient-key)))
+                     (verify receive-sig encoded-handoff-receive give-receiver-key)))
               #:promise? #t))
 
         ;; If it is in fact a valid handoff, let's increment the count so
@@ -993,18 +993,18 @@
                    (handoff-give
                     (desc:sig-envelope-signed
                      (desc:handoff-receive-signed-give handoff-receive)))
-                   (session-id
-                    (desc:handoff-give-session handoff-give))
+                   (gifter-exporter-session-id
+                    (desc:handoff-give-gifter-exporter-session handoff-give))
                    (($ <sessionmeta> cert-session-location
                        cert-session-local-bootstrap-obj
                        cert-session-remote-bootstrap-obj
                        cert-session-coordinator
                        cert-session-session-name)
-                    (if ($$ open-session-names->sessionmeta 'has-key? session-id)
-                        ($$ open-session-names->sessionmeta 'ref session-id)
+                    (if ($$ open-session-names->sessionmeta 'has-key? gifter-exporter-session-id)
+                        ($$ open-session-names->sessionmeta 'ref gifter-exporter-session-id)
                         (begin
                           (error 'no-open-session "No open session with key ~s"
-                                 session-id)))))
+                                 gifter-exporter-session-id)))))
         ;; TODO: count stuff here too, but needs to be in this session
         (on (<- cert-session-coordinator 'full-handoff-legit? signed-handoff-receive)
             (lambda (handoff-legit?)

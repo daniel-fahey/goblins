@@ -99,16 +99,16 @@
             <desc:handoff-give>
             desc:handoff-give
             desc:handoff-give?
-            desc:handoff-give-recipient-key
+            desc:handoff-give-receiver-key
             desc:handoff-give-exporter-location
-            desc:handoff-give-session
+            desc:handoff-give-gifter-exporter-session
             desc:handoff-give-gifter-side
             desc:handoff-give-gift-id
 
             <desc:handoff-receive>
             desc:handoff-receive
             desc:handoff-receive?
-            desc:handoff-receive-receiving-session
+            desc:handoff-receive-receiver-exporter-session
             desc:handoff-receive-receiving-side
             desc:handoff-receive-handoff-count
             desc:handoff-receive-signed-give
@@ -299,12 +299,12 @@
 
 ;; The handoff certificate from the gifter
 (define-syrup-record-type <desc:handoff-give>
-  (desc:handoff-give recipient-key exporter-location session gifter-side gift-id)
+  (desc:handoff-give receiver-key exporter-location gifter-exporter-session gifter-side gift-id)
   desc:handoff-give?
   desc:handoff-give marshall::desc:handoff-give unmarshall::desc:handoff-give
    ;; handoff signing key this is being given to
    ;;   : handoff-key?
-  (recipient-key desc:handoff-give-recipient-key)
+  (receiver-key desc:handoff-give-receiver-key)
    ;; exporter-location(-hint(s)): how to connect to get this
    ;;   : ocap-node-uri?
    ;;   Note that currently this requires a certain amount of VatTP
@@ -312,7 +312,7 @@
   (exporter-location desc:handoff-give-exporter-location)
    ;; session: which session betweein gifter and exporter at the location
    ;;   : bytes?
-  (session desc:handoff-give-session)
+  (gifter-exporter-session desc:handoff-give-gifter-exporter-session)
    ;; gifter-side: which "named side" of the session is the gifter
    ;;   : bytes?
   (gifter-side desc:handoff-give-gifter-side)
@@ -322,10 +322,10 @@
 
 ;; TODO: Maybe we only need the receiving-side, unsure
 (define-syrup-record-type <desc:handoff-receive>
-  (desc:handoff-receive receiving-session receiving-side handoff-count signed-give)
+  (desc:handoff-receive receiver-exporter-session receiving-side handoff-count signed-give)
   desc:handoff-receive?
   desc:handoff-receive marshall::desc:handoff-receive unmarshall::desc:handoff-receive
-  (receiving-session desc:handoff-receive-receiving-session)
+  (receiver-exporter-session desc:handoff-receive-receiver-exporter-session)
   (receiving-side desc:handoff-receive-receiving-side)
   (handoff-count desc:handoff-receive-handoff-count)
   (signed-give desc:handoff-receive-signed-give))
