@@ -831,23 +831,37 @@
                 ;; don't bother to deduplicate while attempting a connection...
                 ;; oops)
                 (error "Handoff points at ourselves... crossed hellos or adjacent problem?"))
-              
+
               ;; Oh, this is someone else.
               ;; Well, we're going to need to make a receive certificate
               ;; and work with the router to pass it along
-              (let* ((handoff-receive
-                      (desc:handoff-receive session-name our-side-name
-                                            ($$ our-handoff-count) signed-handoff-give))
-                     (handoff-receive-sig
-                      (sign (syrup-encode handoff-receive
-                                          #:marshallers marshallers)
-                            handoff-privkey))
-                     (signed-handoff-receive
-                      (desc:sig-envelope handoff-receive
-                                         handoff-receive-sig)))
-                ($$ our-handoff-count (1+ ($$ our-handoff-count)))
-                (<- router 'send-handoff-receive signed-handoff-receive)))
-            #:promise? #t)))
+              (on (<- router 'make-handoff-receive-withdrawal exporter-location)
+                  (match-lambda
+                    [(handoff-withdrawl sessionmeta)
+                     (define receiver-exporter-session-coordinator
+                       (match sessionmeta
+                         [($ <sessionmeta> _ _ _ coordinator _) coordinator]))
+                     (define receiver-exporter-session-name
+                       ($$ receiver-exporter-session-coordinator 'get-session-name))
+                     (define receiver-exporter-our-side-name
+                       ($$ receiver-exporter-session-coordinator 'get-our-side-name))
+
+                     (let* ((handoff-receive
+                             (desc:handoff-receive receiver-exporter-session-name
+                                                   receiver-exporter-our-side-name
+                                                   ($$ our-handoff-count)
+                                                   signed-handoff-give))
+                            (handoff-receive-sig
+                             (sign (syrup-encode handoff-receive
+                                                 #:marshallers marshallers)
+                                   handoff-privkey))
+                            (signed-handoff-receive
+                             (desc:sig-envelope handoff-receive
+                                                handoff-receive-sig)))
+                       ($$ our-handoff-count (1+ ($$ our-handoff-count)))
+                       ($$ handoff-withdrawl signed-handoff-receive))])
+                    #:promise? #t))
+              #:promise? #t)))
 
     (define (give-handoff-legit? signed-handoff-give)
       (assert-type signed-handoff-give signed-handoff-give?)
@@ -870,7 +884,6 @@
                      give-sig-sexp)))
         (on (<- router 'self-location? give-exporter-location)
             (lambda (self-location?)
-              
               (and (equal? session-name give-session)
                    (equal? give-gifter-side remote-side-name)
                    ;; I'm not sure if this one is critical.
@@ -881,15 +894,13 @@
                    (verify give-sig encoded-handoff-give remote-key)))
             #:promise? #t)))
 
-    (define (full-handoff-legit? signed-handoff-receive)
+    (define (full-handoff-legit? signed-handoff-receive
+                                 gifter-exporter-session-coordinator)
       (assert-type signed-handoff-receive signed-handoff-receive?)
       (match-let* ((($ <desc:sig-envelope> (and handoff-receive
                                             ($ <desc:handoff-receive>
-                                             ;; TODO: verify these three where appropriate
-                                             ;; (probably not in this session, which is
-                                             ;; with the gifter, but with the receiver)
-                                             (? bytevector? _handoff-session)
-                                             (? bytevector? _handoff-session-side)
+                                             (? bytevector? receiver-exporter-session)
+                                             (? bytevector? receiver-side-name)
                                              (? integer? this-handoff-count)
                                              signed-handoff-give))
                                        (? signature-sexp? receive-sig-sexp))
@@ -906,12 +917,17 @@
                    (receive-sig
                     (captp-signature->crypto-signature
                      receive-sig-sexp)))
-
         (define valid-handoff?
-          (on (give-handoff-legit? signed-handoff-give)
+          (on ($$ gifter-exporter-session-coordinator 'give-handoff-legit? signed-handoff-give)
               (lambda (handoff-give-legit?)
                 (and handoff-give-legit?
-                     (>= this-handoff-count ($$ remote-handoff-count))
+                     ;; Check the desc:handoff-receive was received in the stated session.
+                     (equal? session-name receiver-exporter-session)
+                     ;; Check the side name is the other side (i.e. not us)
+                     (equal? remote-side-name receiver-side-name)
+                     ;; Protect replay attacks by verifying remote handoff-count
+                     (>= this-handoff-count ($$ gifter-exporter-session-coordinator 'get-remote-handoff-count))
+                     ;; Finally verify the signature is valid.
                      (verify receive-sig encoded-handoff-receive give-receiver-key)))
               #:promise? #t))
 
@@ -920,7 +936,7 @@
         (on valid-handoff?
             (lambda (valid?)
               (when valid?
-                ($$ remote-handoff-count (+ this-handoff-count 1)))))
+                ($$ gifter-exporter-session-coordinator 'new-handoff-count (+ this-handoff-count 1)))))
 
         valid-handoff?))
 
@@ -929,6 +945,8 @@
       [(get-remote-location) remote-location]
       [(get-session-name) session-name]
       [(get-our-side-name) our-side-name]
+      [(get-remote-handoff-count) ($$ remote-handoff-count)]
+      [(new-handoff-count new-count) ($$ remote-handoff-count new-count)]
       ;; handoff stuff
       [make-handoff-base-cert make-handoff-base-cert]
       [start-retrieve-handoff start-retrieve-handoff]
@@ -1006,7 +1024,7 @@
                           (error 'no-open-session "No open session with key ~s"
                                  gifter-exporter-session-id)))))
         ;; TODO: count stuff here too, but needs to be in this session
-        (on (<- cert-session-coordinator 'full-handoff-legit? signed-handoff-receive)
+        (on (<- coordinator 'full-handoff-legit? signed-handoff-receive cert-session-coordinator)
             (lambda (handoff-legit?)
               ;; If we made it this far, it's ok... so time to get
               ;; that referenced object!
@@ -1017,7 +1035,7 @@
                   (error 'invalid-handoff-cert
                          "Handoff cert invalid for session: ~s"
                          signed-handoff-receive)))
-            #:promise? #t)))              
+            #:promise? #t)))
 
     (define main-beh
       (methods
@@ -1136,23 +1154,43 @@
          netlayer-map-data)))
 
   (methods
-   [(send-handoff-receive signed-handoff-receive)
-    (define handoff-give
-      (desc:sig-envelope-signed
-       (desc:handoff-receive-signed-give
-        (desc:sig-envelope-signed
-         signed-handoff-receive))))
-    (define exporter-location
-      (desc:handoff-give-exporter-location handoff-give))
+   [(make-handoff-receive-withdrawal remote-location)
+    (define (^handoff-receive-withdrawl bcom remote-bootstrap-obj)
+      (define (active-beh signed-handoff-receive)
+        ;; Feels maybe a little silly to mistrust the use of
+        ;; 'make-handoff-receive-withdrawl, but we can so lets mistrust.
+        (define handoff-give
+          (desc:sig-envelope-signed
+           (desc:handoff-receive-signed-give
+            (desc:sig-envelope-signed
+             signed-handoff-receive))))
+        (define exporter-location
+          (desc:handoff-give-exporter-location handoff-give))
+        (if (equal? exporter-location remote-location)
+            (bcom defunct-beh
+                  (<- remote-bootstrap-obj 'withdraw-gift signed-handoff-receive))
+            (error "Exporter location specified in handoff-receive does not match expected location.")))
+      (define (defunct-beh)
+        (error "Already used."))
+      active-beh)
+
     ;; "Returning home" should be handled in start-retrieve-handoff
     (define session-bootstrap-vow
-      (on (self-location? exporter-location)
+      (on (self-location? remote-location)
           (lambda (self?)
             (if self?
-                (error "self-handoff-receive called with self-location")
-                (retrieve-or-setup-session-vow exporter-location)))
+                (error "send-handoff-receive called with self-location")
+                (retrieve-or-setup-session-vow remote-location)))
           #:promise? #t))
-    (<- session-bootstrap-vow 'withdraw-gift signed-handoff-receive)]
+    (on session-bootstrap-vow
+        (lambda (remote-bootstrap-obj)
+          (define session-name
+            ($$ locations->open-session-names 'ref remote-location))
+          (define sessionmeta
+            ($$ open-session-names->sessionmeta 'ref session-name))
+          (list (spawn ^handoff-receive-withdrawl remote-bootstrap-obj)
+                sessionmeta))
+        #:promise? #t)]
 
    ;; TODO: we should also allow some way to shut things down here or
    ;; somewhere...
@@ -1366,7 +1404,7 @@
         (lambda (netlayer-name)
           (when ($$ netlayer-map 'has-key? netlayer-name)
             (error (format #f "Already has netlayer key ~a" netlayer-name)))
-          
+
           ($$ netlayer-map 'set netlayer-name netlayer)
           (<- netlayer 'setup (spawn ^connection-establisher self netlayer netlayer-name)))
         #:promise? #t)]
