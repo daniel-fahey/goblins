@@ -19,6 +19,7 @@
   #:use-module (goblins core)
   #:use-module (goblins define-actor)
   #:use-module (goblins utils ghash)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins actor-lib methods)
   #:export (^seteq
             ^ghash
@@ -74,15 +75,15 @@ Methods:
    [ref
     (case-lambda
       [(key)
-       (ghash-ref ht key)]
+       (hashmap-ref ht key)]
       [(key dflt)
-       (ghash-ref ht key dflt)])]
+       (hashmap-ref ht key dflt)])]
    [(set key val)
-    (bcom (^ghash bcom (ghash-set ht key val)))]
+    (bcom (^ghash bcom (hashmap-set ht key val)))]
    [(has-key? key)
     (ghash-has-key? ht key)]
    [(remove key)
-    (bcom (^ghash bcom (ghash-remove ht key)))]
+    (bcom (^ghash bcom (hashmap-remove ht key)))]
    [(data) ht]))
 
 (define common-env
