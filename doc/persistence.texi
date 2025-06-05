@@ -1,41 +1,44 @@
 Goblins has a secure persistence mechanism that allows for serializing
-an entire object graph. The mechanism allows objects to describe
-themselves with only the capabilities they have, this protects against
-one object claiming it has more abilities than it actually does.
+an entire live object graph.  This mechanism allows objects to
+describe themselves with @emph{only} the capabilities they have,
+preventing malicious objects from being restored with more power than
+they had when they were saved.
 
-When the object graph can be serialized it allows for it to be stored
-(e.g. to disk) and restored (sometimes called rehydrated) into the
-objects it consisted of. Due to the nature of how the persistence
-mechanism works, it also can be used as a powerful tool in object
-upgrade and live hacking.
+If all objects in a graph can be serialized then they can then be
+stored (e.g. to disk) and later restored (or ``rehydrated'') back into
+live objects that retain all of their original relationships.  Due to
+the nature of how the persistence mechanism works, it also can be used
+as a powerful tool for object upgrades and live hacking.
 
 @menu
-* Persistence Tutorial::
+* Persistence tutorial::
 * Persistence capable objects::
 * Operations on actormaps::
-* Persistent Vats::
-* Persistence Environments::
+* Persistent vats::
+* Persistence environments::
 * Upgrading through persistence::
 * Persistence stores::
 @end menu
 
-@node Persistence Tutorial
-@section Persistence Tutorial
+@node Persistence tutorial
+@section Persistence tutorial
 
-When writing goblins code without considering persistence, we simply
-define a outer lambda (the constructor, usually ^my-constructor) and
-an inner lambda (the behavior) that's invoked when the object is sent
-messages. Persistence capable objects are a little different; they do
-still follow this general pattern, but they need to provide a way to
-describe themselves. Fortunately goblins provides a macro called
-@code{define-actor} which makes this easier (if you're doing something
-more advanced where the macro is unsuitable, or simply prefer not
-using it, @xref{Persistence capable objects}).
+When writing Goblins code without considering persistence, we simply
+define an outer procedure (the constructor, usually
+@code{^my-constructor}) and an inner procedure (the behavior, most
+often using an anonymous @code{lambda}) that's called when the object
+receives a message.  Persistence capable objects are a little
+different; while they still follow this general pattern, they also
+need to provide a way to @emph{describe} themselves.  Fortunately,
+Goblins provides the @code{define-actor} syntax which makes this
+easier.  For more advanced cases where @code{define-actor} is
+unsuitable, see @ref{Persistence capable objects} for the lower-level
+details of creating persistent objects.
 
-Lets take the cell example we defined in the tutorial:
+Let's start with the cell example from the @ref{Tutorial}:
 
 @lisp
-(define* (^cell bcom #:optional [val #f])
+(define* (^cell bcom #:optional (val #f))
   (case-lambda
     (()         ; get
      val)
@@ -43,11 +46,13 @@ Lets take the cell example we defined in the tutorial:
      (bcom (^cell bcom new-val)))))
 @end lisp
 
-Assuming we want to upgrade this to be persistence capable, you just
-change it to @code{define-actor}:
+To make @code{^cell} persistence capable, @code{define} can be changed
+to @code{define-actor}:
 
 @lisp
-(define-actor (^cell bcom #:optional [val #f])
+(use-modules (goblins))
+
+(define-actor (^cell bcom #:optional (val #f))
   (case-lambda
     (()         ; get
      val)
@@ -55,38 +60,43 @@ change it to @code{define-actor}:
      (bcom (^cell bcom new-val)))))
 @end lisp
 
-And it's done! Lets try it out. To use the persistence tooling, you
-need to define a persistence environment. What is this extra thing I
-hear you ask?
+And it's done! Now, let's try it out.  To use persistence, there's an
+additional prerequisite: a @emph{persistence environment} must be
+defined.  ``What is this extra thing?'', I hear you ask.
 
-In short, when Goblins serializes all the objects in the graph it
-needs to take them from scheme procedures (which can't be serialized)
-to something else. It does this by storing them with a name/label and
-the data the actor told Goblins it wanted. The persistence environment
-is simply a mapping between name/label <=> object type.
+In short, serializing an object graph requires translating each object
+from a Scheme procedure representing its current behavior (which
+cannot be serialized) to a serializable @emph{self-portrait}.  Goblins
+does this by storing each object as a mapping of labels to
+self-portraits.  In the @code{^cell} constructor above,
+@code{define-actor} has taken care of the self-portrait for us.
 
-Lets define one that just has our new shiny persistence @code{^cell}:
+To restore an object graph from its serialized form, a
+@emph{persistence environment} is required.  A persistence environment
+is simply a mapping between labels and constructor procedures.  To
+demonstrate, let's define a simple persistence environment that only
+has our shiny new persistent @code{^cell} in it:
 
 @lisp
 (define my-env
   (make-persistence-env
    `((((my-cool-scheme-project cell) ^cell) ,^cell))))
 
-;;    |-----------------------------------|  |------|
-;;            this is the label/name          object
+;;    |-----------------------------------| |----|
+;;                    label                  proc
 @end lisp
 
-Just remember the label/name should be unique within the object graph,
-or you'll get into quite the pickle (for more information, see
-@xref{Persistence Environments}).
+Just remember that each label @emph{must} be unique within the
+environment, or else you'll get into quite the pickle (for more
+information, see @ref{Persistence environments}).
 
-The persistence tools work with both actormaps and vats (they use the
-same tooling even as vats are built on actormaps). When we use vats we
-need to specify a store which is basically a place for the vat to save
-the serialized data to or find it when it starts back up.
-
-For this example lets just use the memory store, which is ephemeral and
-is not actually saved to any long-term storage:
+The persistence tools work with both @ref{Vats} and the lower-level
+@ref{Actormaps} (since vats are built on top of actormaps).
+Persistent vats require a store: a place for the vat to read and write
+serialized object graph data.  One such store is the @ref{Memory
+store}, which is @emph{ephemeral} and not actually saved to any kind
+of long-term storage.  A persistent vat with a memory store can be
+spawned like this:
 
 @lisp
 (use-modules (goblins)
@@ -101,42 +111,49 @@ is not actually saved to any long-term storage:
     memory-store))
 @end lisp
 
-Hold on, did we just spawn our object alongside spawning the vat?
+Hold on, did we just spawn a @code{^cell} object while spawning the
+vat?
 
-Yes we did, we don't need to do it for all the objects in the graph,
-just the roots. When we call @code{spawn-persistent-vat} it checks in
-our store to see if there's already persistence data and if there is
-it doesn't invoke the thunk we provided, it instead restores the graph
-from that data and hands us back the objects. In our case though the
-store is empty so it spawned our cell from the thunk we provided.
+Yes, we did!  Notably, this is not necessary for all the objects in
+the graph, just the @emph{roots} (the objects that spawn all the other
+objects).  When @code{spawn-persistent-vat} is called it first checks
+in the store to see if there's any saved data.  If not then the thunk
+(the @code{lambda} with no arguments above) is called to spawn the
+root objects for the first time.  If there is saved data then it is
+deserialized and the associated persistence environment is used to
+restore the object graph.
 
-Lets enter the vat and use the cell:
+Since the store is empty initially, the value of @code{my-cell} is a
+reference to a freshly spawned cell:
+
 @lisp
-,enter-vat my-vat
+> ,enter-vat my-vat
 goblins[1]> ($ my-cell 'apple)
 @end lisp
 
-Okay we stored an apple but how do we persist this? Well, it already
-is persisted. By default vats are configured to store the changed
-objects.
+Now that the persistent vat and its roots have spawned, the object
+graph has @emph{automatically} been saved to the store.  By default, a
+persistent vat will continuously update the store upon changes to
+object state.
 
-An interesting debugging tool we can use however is the vat command to
-inspect what the persistence data for a given object looks like:
+When debugging it can be useful to see the serialized form of an
+object.  To do this from the REPL, use the
+@command{vat-take-object-portrait} metacommand:
 
 @lisp
 goblins[1]> ,vat-take-object-portrait my-cell
 (apple)
 @end lisp
 
-So lets take a more advanced example of a persistent object. Lets
-first build it without persistence in mind and then see some of the
-problems we might face making it persistence aware. Here's a basic a
-player ship, it has some positions, a @code{fire} method and it can
-be killed, once it's killed it just becomes some dead behavior which
-errors. It also has this @code{tick} that can be hooked up to a game
-loop and will move to player ship forward in the x axis:
+Now, let's look at a more advanced example of a persistent object.
+We'll first build it without persistence in mind and then see some of
+the problems we might encounter when making an object persistable.
+Below is an object representing a player ship in a space shooter video
+game.
 
 @lisp
+(use-modules (goblins actor-lib methods))
+
 (define (^player-ship bcom init-x init-y)
   (define x (spawn ^cell init-x))
   (define y (spawn ^cell init-y))
@@ -144,21 +161,40 @@ loop and will move to player ship forward in the x axis:
     (error "I'm already dead!"))
   (define active-beh
     (methods
-     [(tick) ($ x (+ ($ x) 1))]
-     [(x) ($ x)]
-     [(y) ($ y)]
-     [(fire) "pew pew"]
-     [(kill) (bcom dead-beh)]))
+     ((x) ($ x))
+     ((y) ($ y))
+     ((fire) "pew pew")
+     ((kill) (bcom dead-beh))
+     ((tick) ($ x (1+ ($ x))))))
   active-beh)
 @end lisp
 
-We could just change this to define-actor and at first, maybe it'd
-seem like it worked, but it actually has some big problems. Let's
-actually see this happen:
+This ship object contains the (x, y) coordinates for its current
+position.  These coordinates are stored in cells so that the position
+can be changed over time.  The ship spawns in the ``active'' state and
+responds to several methods:
+
+@itemize
+
+@item @code{x} and @code{y}
+Get the current position.
+
+@item @code{fire}
+Shoot, or rather just say ``pew pew''.
+
+@item @code{kill}
+Transitions the object to the ``dead'' state.
+
+@item @code{tick}
+Move the forward by 1 unit on the X axis.  This method could be hooked
+up to a game loop to animate the player.
+
+@end itemize
+
+To make the ship persist, we could try simply changing @code{define}
+to @code{define-actor}:
 
 @lisp
-(use-modules (goblins actor-lib methods))
-
 (define-actor (^player-ship bcom init-x init-y)
   (define x (spawn ^cell init-x))
   (define y (spawn ^cell init-y))
@@ -166,97 +202,124 @@ actually see this happen:
     (error "I'm already dead!"))
   (define active-beh
     (methods
-     [(tick) ($ x (+ ($ x) 1))]
-     [(x) ($ x)]
-     [(y) ($ y)]
-     [(fire) "pew pew"]
-     [(kill) (bcom dead-beh)]))
+     ((x) ($ x))
+     ((y) ($ y))
+     ((fire) "pew pew")
+     ((kill) (bcom dead-beh))
+     ((tick) ($ x (1+ ($ x))))))
   active-beh)
+@end lisp
 
+At first it might seem like that was enough, but there are actually
+some big problems when we try it out:
+
+@lisp
 goblins[1]> (define ship (spawn ^player-ship 0 0))
 goblins[1]> ,vat-take-object-portrait ship
 (0 0)
-goblins[1]> ;; Lets tick the game loop and see if x changes
+@end lisp
+
+So far, so good.  Now let's try ticking the game loop to see if the X
+coordinate changes:
+
+@lisp
 goblins[1]> ($ ship 'tick)
 goblins[1]> ,vat-take-object-portrait ship
 (0 0)
+@end lisp
+
+Hmm, that's not right.  Well, what happens if we kill the player?
+
+@lisp
 goblins[1]> ($ ship 'kill)
 goblins[1]> ,vat-take-object-portrait ship
 (0 0)
 @end lisp
 
-As we can see, initially it looked correct. We ticked it once and we
-checked to see what the persistence system would get and it didn't
-update, we then killed the ship and the portrait again didn't change,
-how will Goblins know the ship is no longer alive.
+Okay, that's the same as before.  Doesn't seem like the object would
+be restored in the dead state.  What's happening?
 
-The problem we're facing here is that we take two static initial x, y
-values into the object and that's what Goblins is seeing. We then
-spawn cells internally but these cells are not exposed to goblins and
-we're not updating them to bcom.
-
-So how can we write this with persistence aware? This player ship
-solves these problems:
+The problem is that the @code{^player-ship} constructor takes two
+arguments (the initial X and Y coordinates) but then spawns cells
+internally.  These cells live within the @emph{closure} of the object
+and are thus inaccessible to the persistence system (and anything
+else, really).  We need a constructor that accepts all of the values
+that are needed to serialize a complete self-portrait.  The new player
+ship definition below does exactly that:
 
 @lisp
-(define-actor (^player-ship bcom x y #:key [active? #t])
+(define-actor (^player-ship bcom x y #:key (active? #t))
   (define (dead-beh)
     (error "I'm already dead!"))
   (define active-beh
     (methods
-     [(tick) (bcom (^player-ship bcom (+ 1 x) y))]
-     [(x) x]
-     [(y) y]
-     [(fire) "pew pew"]
-     [(kill) (bcom (^player-ship bcom x y #:active? #f))]))
+     ((x) x)
+     ((y) y)
+     ((fire) "pew pew")
+     ((kill) (bcom (^player-ship bcom x y #:active? #f)))
+     ((tick) (bcom (^player-ship bcom (1+ x) y)))))
   (if active?
       active-beh
       dead-beh))
+@end lisp
 
+Let's test it out:
+
+@lisp
 goblins[1]> (define ship (spawn ^player-ship 0 0))
 goblins[1]> ,vat-take-object-portrait ship
 (0 0 #:active? #t)
-goblins[1]> ;; Lets tick the game loop and see if x changes
+@end lisp
+
+Looks good so far.  Now let's try ticking it:
+
+@lisp
 goblins[1]> ($ ship 'tick)
 goblins[1]> ,vat-take-object-portrait ship
 (1 0 #:active? #t)
 @end lisp
 
-Instead of having internal cells we mutate, we just change the values
-in the constructor and Goblins is able to see that and ensure the
-portrait is adjusted correctly, equally switching between the two
-different states is done by having that be passed in to the
-constructor too.
+Great!  Finally, let's make sure we can kill it:
 
-In most cases, and usually when using @code{define-actor}, we need to
-think the behavior and state being determined by the constructor, not
-relying on internal state.
+@lisp
+goblins[1]> ($ ship 'kill)
+goblins[1]> ,vat-take-object-portrait ship
+(1 0 #:active? #f)
+@end lisp
 
-There are many ways to write this object and I'm going to show you two
+Everything works!
+
+Instead of mutating internal cells, we simply pass updated values to
+the constructor using @code{bcom} and now @code{define-actor}'s
+built-in self-portrait contains all of the necessary data to restore
+the player ship later.  In summary, when using @code{define-actor} we
+need to think of both the behavior and state of an object as being
+determined by the constructor rather than relying upon internal state.
+
+There are many other ways to implement this object.  Let's look at two
 more and then put these different ideas together to create a much more
 advanced player ship.
 
-We don't have to do away with cells, we could pass cells into the
-constructor and then Goblins will be able to see that, but then we
-lose some of the old ergonomics and interface of the object, users
-would have to manually spawn these cells.
-
-Here's a solution to continue to use cells but keep the old interface:
+First, we don't have to do away with cells.  We could pass cells into
+the constructor directly, but then we would lose some of the
+ergonomics from the previous version of the constructor; users would
+have to manually spawn these cells.  Here's a solution that continues
+to use cells but keeps the old interface:
 
 @lisp
 (use-modules (goblins actor-lib cell))
 
 ;; IMPORTANT: note this is now ^player-ship* not ^player-ship.
-(define-actor (^player-ship* bcom x y #:key [active? #t])
+(define-actor (^player-ship* bcom x y #:key (active? #t))
   (define (dead-beh)
     (error "I'm already dead!"))
   (define active-beh
     (methods
-     [(tick) ($ x (+ ($ x) 1))]
-     [(x) ($ x)]
-     [(y) ($ y)]
-     [(fire) "pew pew"]
-     [(kill) (bcom (^player-ship bcom x y #:active? #f))]))
+     ((x) ($ x))
+     ((y) ($ y))
+     ((fire) "pew pew")
+     ((kill) (bcom (^player-ship bcom x y #:active? #f)))
+     ((tick) ($ x (1+ ($ x))))))
   (if active?
       active-beh
       dead-beh))
@@ -266,38 +329,46 @@ Here's a solution to continue to use cells but keep the old interface:
          (spawn ^cell x)
          (spawn ^cell y)))
 
-;; NOTE: Because of the feature of returning a refr described
-;; below, only `^player-ship*` needs to be in the environment
+;; NOTE: Because of the feature of returning an object described
+;; below, only ^player-ship* needs to be in the environment.
 (define my-env
   (make-persistence-env
-    `((((my-cool-scheme-project game) ^player-ship) ,player-ship*))
+    `((((game) ^player-ship) ,^player-ship*))
     #:extends cell-env))
 @end lisp
 
-This has a pattern of having a sort of ``public'' constructor which
-allows for nice ergonomics, and maybe does some setup and then hands
-off to a ``real'' or ``internal'' constructor for the actor. In this
-case the public version both prevents a user spawning a dead ship to
-begin with and handles the cellification of the x and y coordinates.
+This wrapper pattern involves a public constructor with the desired
+interface that does some setup and then calls a private constructor.
+In this case, the public interface both prevents a user from spawning
+a dead ship and handles the ``cellification'' of the X and Y
+coordinates.
 
-Normally in Goblins an object returns behavior as a procedure from the
-constructor, however you can return a refr to another object and
-Goblins will instead of creating a new object with spawn, simply
-return the refr returned by the object's constructor.
+A typical constructor returns a procedure that is used as the object's
+initial behavior.  However, it's also possible to return a reference
+to another object!  Instead of creating a new object, Goblins will
+simply return that reference to the caller of the constructor.
 
-The new persistence environment provided defines a single object, just
-the @code{^player-ship*}. This is because, as explained above, the
-@code{^player-ship} doesn't remain around. This also instead of using
-our cell we defined above, uses the one from actor-lib so we need to
-extend from the @code{cell-env} provided by the cell
-module. Persistence environments can extend from one or a list of
-several environments as needed.
+Despite @code{^player-ship} being a wrapper around
+@code{^player-ship*}, both procedures are defined at the top-level.
+In fact, this pattern @emph{would not work} if @code{^player-ship*}
+was encapsulated within @code{^player-ship}.  This is because the
+persistence environment needs access to the private constructor for
+the purpose of restoration.
 
-Okay, so that's bringing the cells back. Having a sort of ``state''
-flag passed into the object allows us to decide if the active or dead
-behavior should be returned, but there are other ways to do that. Lets
-look at an interesting one which uses Goblin's swappable library (for
-more information on this library, @xref{Swappable}):
+The new persistence environment above references only the private
+constructor, @code{^player-ship*}.  This is because, as explained
+above, the @code{^player-ship} is not a true constructor; it merely
+delegates to @code{^player-ship*}.  Note also that, instead of using
+the version of @code{^cell} we defined above, the example uses the one
+from the @code{(goblins actor-lib cell)} module.  So, our persistence
+environments needs to @emph{extend} @code{cell-env} provided by that
+module.  Persistence environments can be composed together.
+
+Onto the second variant.  Having a sort of ``state'' flag passed into
+the constructor allows the ship to decide if the active or dead
+behavior should be used, but there are other ways to do this.  Let's
+look at a particularly interesting technique which uses the
+@ref{Swappable} module, @code{(goblins actor-lib swappable)}:
 
 @lisp
 (use-modules (goblins actor-lib swappable))
@@ -306,69 +377,68 @@ more information on this library, @xref{Swappable}):
 ;; object as well as cellifying the x and y coordinates.
 (define (^player-ship bcom x y)
   (define-values (beh-proxy beh-swapper)
-    ;; NOTE: Due to how swappable works, it must be spawned with a
-    ;; refr. use a place holder one which we will immediately switch
-    ;; away from.
+    ;; NOTE: Due to how swappable works, it must be spawned with an
+    ;; initial reference. We'll use a placeholder one which we will
+    ;; immediately switch away from.
     (swappable (spawn (lambda _ (lambda _ 'noop)))))
-  ;; Swap away from the dummy place-holder above directly to the
-  ;; initial, default behavior of the alive player-ship
-  ($ beh-swapper (spawn ^player-ship:ALIVE
+  ;; Swap away from the dummy placeholder above to an alive ship.
+  ($ beh-swapper (spawn ^player-ship/alive
 			(spawn ^cell x)
 			(spawn ^cell y)
 			beh-swapper))
-  ;; Return the proxy we setup.
+  ;; Return the proxy.
   beh-proxy)
 
-;; The behavior and state for the alive player ship
-(define-actor (^player-ship:ALIVE bcom x y swapper)
+;; The behavior and state for the alive player ship.
+(define-actor (^player-ship/alive bcom x y swapper)
   (methods
-   [(tick) ($ x (+ ($ x) 1))]
-   [(x) ($ x)]
-   [(y) ($ y)]
-   [(fire) "pew pew"]
-   [(kill) ($ swapper (spawn ^player-ship:DEAD x y swapper))]))
+   ((tick) ($ x (1+ ($ x))))
+   ((x) ($ x))
+   ((y) ($ y))
+   ((fire) "pew pew")
+   ((kill) ($ swapper (spawn ^player-ship/dead x y swapper)))))
 
-;; The behavior and state for the dead player ship
-(define-actor (^player-ship:DEAD bcom x y swapper
-                                 #:optional [countdown 30])
+;; The behavior and state for the dead player ship.
+(define-actor (^player-ship/dead bcom x y swapper #:optional (countdown 30))
   (methods
-   [(tick)
+   ((tick)
     ;; When dead instead of moving, just wait until the countdown
     ;; has reached zero and then swap to alive.
     (if (zero? countdown)
-        ($ swapper (spawn ^player-ship:ALIVE x y swapper))
-        (bcom (^player-ship:DEAD bcom x y swapper (- countdown 1))))]
-   [(x) ($ x)]
-   [(y) ($ y)]
-   [(fire) 'noop]   ;; cannot fire when dead
-   [(kill) 'noop])) ;; cannot be killed when dead
+        ($ swapper (spawn ^player-ship/alive x y swapper))
+        (bcom (^player-ship/dead bcom x y swapper (1- countdown)))))
+   ((x) ($ x))
+   ((y) ($ y))
+   ((fire) 'noop)   ; cannot fire when dead
+   ((kill) 'noop))) ; cannot be killed when dead
 
 ;; Note because the swappable and cell objects are being passed in and
 ;; thus need to be persisted in the graph, we *MUST* include those in
 ;; persistence environment.
 (define game-env
   (make-persistence-env
-   `((((game) ^player-ship:ALIVE) ,^player-ship:ALIVE)
-     (((game) ^player-ship:DEAD) ,^player-ship:DEAD))
+   `((((game) ^player-ship/alive) ,^player-ship/alive)
+     (((game) ^player-ship/dead) ,^player-ship/dead))
    #:extends (list swappable-env cell-env)))
 @end lisp
 
-So this is returning the proxy object from swappable as the
-player-ship and then giving the capability to swap to the ships which
-swap between the alive and dead states. While this is probably
-overkill for our version of the player ship, we can see how if an
-object had many different behaviors and those behaviors had their own
-state associated with them, this could be a powerful way of building
-objects.
+In the above example, the @code{^player-ship} constructor is returning
+the @emph{proxy} from @code{swappable} as the reference for the player
+ship.  The proxy will forward messages to the object representing the
+ship's current state.  The capability to swap the state of the ship is
+passed to the @code{^player-ship/alive} and @code{^player-ship/dead}
+constructors.  While this is probably overkill for our player ship,
+this example illustrates that @code{swappable} can be a powerful way
+to implement an object with many different possible behaviors.
 
-If you're wondering if you could simplify this by removing the swapper
-and just doing a @code{(bcom (spawn ^player-ship:DEAD ...))} this does
-not work, Goblins does not allow the object to become something its
-not, this would be a security issue.
+It may be tempting to simplify this by removing the swapper and using
+@code{bcom} like @code{(bcom (spawn ^player-ship/dead ...))}, but this
+@emph{does not} work.  @code{bcom} accepts a procedure representing
+the new behavior, not an object reference.  In other words, Goblins
+does not allow an object to become something that it's not (that would
+be a security issue).
 
-And that's it!
-
-Go out and save the world :)
+And that's it for the tutorial!  Now, go out and save the world!
 
 @node Persistence capable objects
 @section Persistence capable objects
@@ -599,8 +669,8 @@ transactormap which the user can choose whether or not to commit.
 
 @end deffn
 
-@node Persistent Vats
-@section Persistent Vats
+@node Persistent vats
+@section Persistent vats
 
 When a vat is spawned, it can be spawned as a persistent vat with a
 given persistence environment and set of roots. The vat also has a
@@ -620,7 +690,7 @@ persistence.
 @itemize
 @item
 @var{persistence-env}: The persistence environment containing all
-objects within the persistence graph (@xref{Persistence Environments})
+objects within the persistence graph (@xref{Persistence environments})
 
 @item
 @var{spawn-roots-thunk}: A thunk which is invoked if no persisted
@@ -732,8 +802,8 @@ an object on @code{a-vat}
 
 @end deffn
 
-@node Persistence Environments
-@section Persistence Environments
+@node Persistence environments
+@section Persistence environments
 
 All persistence aware objects need be defined in what's known as an
 persistence environment. These environments specify a set of information
@@ -934,8 +1004,8 @@ serialization format.
 Note: Stores are currently not designed in a thread safe manner so
 care should be taken to ensure they are only accessed by one vat.
 
-@node Memory Store
-@subsection Memory Store
+@node Memory store
+@subsection Memory store
 
 The memory store keeps everything within memory and does not persist
 it. This is mostly good for testing.
@@ -949,8 +1019,8 @@ Returns a memory store.
 
 @end deffn
 
-@node Syrup Store
-@subsection Syrup Store
+@node Syrup store
+@subsection Syrup store
 
 This provides a persistent storage mechanism which serializes the data
 to a file in syrup format.
