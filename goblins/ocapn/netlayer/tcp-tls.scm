@@ -218,7 +218,8 @@
   (hashmap-ref (ocapn-node-hints node) "host"))
 
 (define (ocapn-node-hint:port node)
-  (hashmap-ref (ocapn-node-hints node) "port" 8088))
+  (let ((str (hashmap-ref (ocapn-node-hints node) "port")))
+    (if str (string->number str) 8088)))
 
 (define-actor (^tcp-tls-netlayer* bcom host port max-connections key cert)
     "Spawn and return a new TCP + TLS netlayer.  HOST specifies the
