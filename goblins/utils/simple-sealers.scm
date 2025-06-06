@@ -27,13 +27,11 @@
   (name sealed-name))
 
 (define (print-sealed sealed port)
-  (define name (sealed-name sealed))
-  (if name
-      (begin
-        (display "<sealed: " port)
-        (display name port)
-        (display ">" port))
-      (display "<sealed>" port)))
+  (write-string "<sealed" port)
+  (when name
+    (display ": " port)
+    (display (sealed-name sealed) port))
+  (write-char #\> port))
 
 (set-record-type-printer! <sealed> print-sealed)
 
