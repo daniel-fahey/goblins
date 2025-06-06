@@ -49,25 +49,3 @@
           (error "Not a sealed object:" obj)))
     (sealed-content obj))
   (values seal unseal sealed?))
-
-
-;;; Here's the original, simple, "using srfi-9 records direcly"
-;;; version, inspired by Rees's W7. However, the above "secret cookie"
-;;; version is 20x faster.
-
-#;(define* (make-sealer-triplet #:optional name)
-  (define-record-type <seal>
-    (seal val)
-    sealed?
-    (val unseal))
-  (set-record-type-printer! 
-   <seal>
-   (lambda (record port)
-     (if name
-         (begin
-           (display "<sealed: " port)
-           (display name port)
-           (display ">" port))
-         (display "<sealed>" port))))
-  (values seal unseal sealed?))
-
