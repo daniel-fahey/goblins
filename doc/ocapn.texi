@@ -455,7 +455,7 @@ On the other node, the sturdyref can be ``enlivened'' to create a
 promise that, when resolved, yields a remote object:
 
 @lisp
-> (define vow ($ mycapn 'enliven "ocapn://..."))
+> (define vow ($ mycapn 'enliven (string->ocapn-id "ocapn://...")))
 > vow
 => #<local-promise>
 > (on vow
