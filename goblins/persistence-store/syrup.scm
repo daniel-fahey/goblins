@@ -110,9 +110,16 @@
 (define (write-depictions backing-file aurie-vat-id version portraits slots)
   (define portrait-graph
     (make-portrait-graph aurie-vat-id current-data-version version portraits slots))
-  (call-with-output-file backing-file
-    (lambda (port)
-      (syrup-write portrait-graph port #:marshallers marshallers))))
+  ;; If the process were to be terminated while writing to the backing
+  ;; file, the save file would be corrupted.  To avoid this, we
+  ;; instead write to a temporary file and then use the atomic rename
+  ;; operation to replace the backing file.  Worst-case scenario is
+  ;; that a junk temporary file will be left on the file system.
+  (define port (mkstemp (string-append backing-file "-XXXXXX")))
+  (define tmp-file (port-filename port))
+  (syrup-write portrait-graph port #:marshallers marshallers)
+  (close-port port)
+  (rename-file tmp-file backing-file))
 
 (define* (make-syrup-store backing-file)
   (define-values (aurie-vat-id roots-version saved-portraits saved-slots)
