@@ -13,7 +13,8 @@
 ;;; limitations under the License.
 
 (define-library (goblins utils error-handling)
-  (export display-backtrace*
+  (export print-exception*
+          display-backtrace*
           capture-current-stack)
   (cond-expand
    (hoot
@@ -33,6 +34,16 @@
             (ice-9 exceptions))))
 
   (begin
+    (define (print-exception* stack err)
+      (cond-expand
+       (hoot
+        (format-exception err (current-error-port)))
+       (else
+        (print-exception (current-error-port)
+                         (stack-ref stack 0)
+                         (exception-kind err)
+                         (exception-args err)))))
+
     (define (display-backtrace* err stack)
       (cond-expand
        (guile
