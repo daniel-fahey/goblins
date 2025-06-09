@@ -857,16 +857,8 @@ Type: Vat -> Void"
               (format (current-error-port) "~a #~a:\n" title (vat-id vat)))
              (name
               (format (current-error-port) "~a `~a':\n" title name)))
-           ;; XXX: print-exception doesn't work on Hoot, as of
-           ;; writing.
-           (cond-expand
-            (hoot)
-            (else
-             (print-exception (current-error-port)
-                              (stack-ref stack 0)
-                              (exception-kind exn)
-                              (exception-args exn))
-             (newline (current-error-port))))
+           (print-exception* stack exn)
+           (newline (current-error-port))
            (display-backtrace* exn stack)
            (newline (current-error-port))
            (abort (handler exn))))
