@@ -219,6 +219,7 @@ EXTRA_DIST += README.org \
               live-guile.sh \
               build-aux/test-driver.scm \
               build-aux/run-test-suite.scm \
+              goblins/persistence-store/local-storage.scm \
               doc/goblins.css \
               doc/build-html.scm \
               hoot-ffi/imports.js \

@@ -1025,7 +1025,7 @@ Returns a memory store.
 This provides a persistent storage mechanism which serializes the data
 to a file in syrup format.
 
-The memory store can be found in @code{(goblins persistence-store
+The syrup store can be found in @code{(goblins persistence-store
 syrup)}.
 
 More information about the Syrup serialization format can be found
@@ -1035,5 +1035,20 @@ here: @uref{https://github.com/ocapn/syrup}
 
 Returns a syrup store which stores the data in a file specified in
 @var{backing-file}.
+
+@end deffn
+
+@node Web localStorage store
+@subsection Web localStorage store
+
+The @code{(goblins persistence-store local-storage)} module provides a
+persistence store which uses the
+@url{https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage,Web localStorage interface}.
+This store is thus only supported on web targets using Hoot and not the Guile VM.
+
+@deffn {Procedure} make-local-storage-store name
+
+Return a local storage store which stores the data in the web browser's local
+storage, under the @var{name} key (must be a string).
 
 @end deffn
