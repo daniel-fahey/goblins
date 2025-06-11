@@ -714,6 +714,16 @@
     (list value))
   (portraitize main-beh self-portrait))
 
+(define* (^borked _bcom value #:optional borked?)
+  (define (main-beh another-value)
+    (if borked?
+        (error "i am borked now, sorry")
+        (list value another-value)))
+  (define (self-portrait)
+    ;; Become broken upon restoration.
+    (list value #t))
+  (portraitize main-beh self-portrait))
+
 (define (^foo _bcom bar value)
   (define barred-value (<- bar value))
   (define (main-beh)
@@ -725,6 +735,7 @@
 (define env
   (make-persistence-env
    `((((tests test-core) ^bar) ,^bar)
+     (((tests test-core) ^borked) ,^borked)
      (((tests test-core) ^foo) ,^foo))))
 
 (test-equal "Check restored actors can send messages upon construction"
@@ -741,6 +752,25 @@
       am2
       (lambda ()
         ($ foo2))))))
+
+(test-equal "Restored actors can send messages upon construction that cause errors"
+  'nope
+  (let*-values (((am1) (make-actormap))
+                ((am2) (make-actormap))
+                ((bar1) (actormap-spawn! am1 ^borked 'start-bar))
+                ((foo1) (actormap-spawn! am1 ^foo bar1 'start-foo))
+                ((portraits roots) (actormap-take-portrait am1 env foo1))
+                ;; Restoring ^borked sends a message that throws an
+                ;; error and thus breaks a promise.
+                ((foo2) (actormap-restore! am2 env portraits roots))
+                ((result) 'idk))
+    (actormap-churn-run!
+     am2
+     (lambda ()
+       (on (<- foo2)
+           (lambda (v) (set! result 'yep))
+           #:catch (lambda (e) (set! result 'nope)))))
+    result))
 
 ;; Test spawning another actor in the restore behavior
 (define ^second

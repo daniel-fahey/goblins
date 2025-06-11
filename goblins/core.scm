@@ -3146,7 +3146,10 @@ Type: Actormap PersistenceEnv -> Void"
   (while (not (q-empty? near-msg-queue))
     (let-values (((result new-am new-msgs)
                   (actormap-turn-message am (deq! near-msg-queue))))
-      (transactormap-merge! new-am)
+      (match result
+        (#('ok _)
+         (transactormap-merge! new-am))
+        (_ (values)))
       (enq-msgs! new-msgs)))
 
   ;; Dispatch the far messages.
