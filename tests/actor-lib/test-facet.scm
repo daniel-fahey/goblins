@@ -52,6 +52,20 @@
 (test-error
  (actormap-peek am faceted-wizard 'world-ender 99))
 
+;; Test the `facet' procedure which performs a full spawn.
+(actormap-run*
+ am
+ (lambda ()
+   (define faceted-wizard (facet all-powerful-wizard 'magic-missile 'flame-tongue))
+   (test-equal
+     "Casts magic missile level 2!"
+     ($ faceted-wizard 'magic-missile 2))
+   (test-equal
+     "Casts flame tongue level 3!"
+     ($ faceted-wizard 'flame-tongue 3))
+   (test-error
+    ($ faceted-wizard 'world-ender 99))))
+
 ;; Persistence
 (define env
   (make-persistence-env

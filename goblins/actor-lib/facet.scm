@@ -15,6 +15,7 @@
 
 (define-module (goblins actor-lib facet)
   #:use-module (goblins)
+  #:use-module (goblins core-types)
   #:use-module (goblins actor-lib opportunistic)
   #:use-module (ice-9 match)
   #:export (^facet facet facet-env))
@@ -46,9 +47,16 @@ The resulting actor can be invoke with any of METHODS."
 The METHODS argument is the collection of methods of WRAP-ME to be
 exposed to the user.
 
-Type: Actor (Optional (#:async? Boolean)) (Symbol ...) -> Actor"
-  (apply spawn-named (procedure-name wrap-me) ^facet
-         methods))
+Type: Actor (Symbol ...) -> Actor"
+  (define name
+    (match wrap-me
+      ((? local-object-refr?) (local-object-refr-debug-name wrap-me))
+      ((? local-promise-refr?) 'promise)
+      ((? remote-promise-refr?) 'remote-promise)
+      ((? remote-object-refr?) 'remote-object)
+      (else (error "Unexpected object type"))))
+
+  (apply spawn-named name ^facet wrap-me methods))
 
 (define facet-env
   (make-persistence-env
