@@ -803,9 +803,16 @@ Type: Actormap -> TransActormap"
 ;; notion of being interested in "partial" updates (rather than waiting
 ;; until full promise resolution)
 ;;
-;; While this is a curious feature, we never fully documented why we
-;; made the decision to enable this.  It would be interesting to document
-;; it, and we probably will indeed need to for ocapn interoperability.
+;; Most listeners which are part of promise chaining want partial resolutions so
+;; they can become "closer" to their actual value.  This is mainly to aid in
+;; promise pipelining so messages sent get forwarded along the chain and if they
+;; are resolved to a mactor:answer, messages will be pipelined across CapTP
+;; accordingly.
+;;
+;; On listeners, however, do not want partial resolution; they only ever want to
+;; be fulfilled when a promise resolves. This is because the on handlers expect
+;; fully resolved values. In this case wants partial is an important part of the
+;; machinery to prevent on handlers being fulfilled with partial promises.
 (define-record-type <listener-info>
   (make-listener-info resolve-me wants-partial?)
   listener-info?
@@ -2664,7 +2671,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
     ;; like a set of new child objects.
     (define new-child-objs
       (make-hash-table))
-    
+
     (define this-obj-self-portrait-fn
       (mactor:object-self-portrait (or (actormap-ref am this-obj)
                                        (error "Object not in actormap:" this-obj))))
@@ -2680,7 +2687,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
 
     (define (am-far-refr? refr)
       (actormap-run am (lambda () (far-refr? refr))))
-    
+
     (define (process-one value)
       (match value
         [(? depictable-atom? atom) atom]
@@ -2764,7 +2771,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                        (persistable-object-identifier-vat-id value)
                        (persistable-object-identifier-object-id value))]
         [_ (error "Unserializable value!" 'value: value 'obj this-obj)]))
-    
+
     (define (process-portrait obj-spec portrait-data)
       (unless obj-spec
         (error "Don't know how to persist:" this-obj this-obj-constructor-refr))
@@ -3003,7 +3010,7 @@ Type: Actormap PersistenceEnv -> Void"
     (match depiction
       [(_persistence-name debug-name _portrait-version _portrait-data)
        debug-name]))
-  
+
   ;; We *need* to ensure we set the aurie-id counter on the actormap to the
   ;; highest within the graph before creating any new local-object-refrs.
   ;; Unfortunately that means having a pass over the graph just to calculate
