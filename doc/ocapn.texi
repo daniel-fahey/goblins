@@ -833,8 +833,9 @@ Spawn a pair of prelay objects: the @var{endpoint} (public) and
 @var{controller} (private).  The endpoint permits other nodes to send
 messages, and the controller permits sending messages to other nodes.
 
-@var{enliven} is a capability to enliven a sturdyref, and returns a
-promise.  Probably a facet of the MyCapN object.
+@var{enliven} is a object which when provided the @code{'enliven} method and a
+sturdyref, returns a promise to the object.  This is likely created by using
+the @xref{Facet} library with the MyCapN object.
 
 Returns two values to its continuation, the @var{endpoint} and
 @var{controller} respectively.
@@ -870,14 +871,29 @@ netlayer is much simpler:
 
 @end deffn
 
-@deffn {Constructor} ^prelay-netlayer bcom prelay-endpoint-sref prelay-controller
+@deffn {Constructor} ^prelay-netlayer bcom enliven prelay-endpoint-sref prelay-controller-sref
 
 Constructs the prelay netlayer which lives on the client.
 
-Takes two arguments at spawn time.  @var{prelay-endpoint-sref} is a
-sturdyref of the endpoint we will use to communicate with.
-@var{prelay-controller} is a live, probably remote, reference which we
-use to pilot the relay we communicate through.
+Takes three arguments.  Two of these arguments are sturdyrefs to objects which
+likely live on the prelay server and their refrs were created by the
+@code{spawn-prelay-pair} procedure defined above.
+
+The three arguments are:
+
+@itemize
+@item
+@var{enliven} is an object which, when sent an @code{'enliven} message with a
+sturdyref, returns a promise to a remote object.  This is likely created by
+using the @xref{Facet} library with the MyCapN object.
+@item
+@var{prelay-endpoint-sref} is a sturdyref to the public endpoint which
+identifies the peer on the OCapN network.
+@item
+@var{prelay-controller-sref} is a sturdyref to the private controller object.
+This is used by the prelay netlayer to initiate new connections and register
+itself with the prelay server.
+@end itemize
 
 @end deffn
 
