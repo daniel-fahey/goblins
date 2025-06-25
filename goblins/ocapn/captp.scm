@@ -598,7 +598,7 @@
         ;; Actually the easiest thing to do here would be to create our own
         ;; promise-resolver pair, right here, at the captp perimeter, which
         ;; pipelines the result.
-        [($ <op:listen> (? desc:export? to-desc)
+        [($ <op:listen> (and (or (? desc:export?) (? desc:answer?)) to-desc)
                         (? desc:import? listener-desc)
                         (? boolean? wants-partial?))
          (let ((to-refr

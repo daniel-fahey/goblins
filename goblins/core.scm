@@ -1303,14 +1303,14 @@ Type: Any -> Boolean"
        (let send-rest ([waiting-messages orig-waiting-messages])
          (match waiting-messages
            ['() *unspecified*]
-           ;; TODO: add support for <questioned> here, right?!?!
            [((? message? msg) rest-waiting ...)
             (let ((resolve-me (message-resolve-me msg))
                   (args (message-args msg)))
               ;; preserve FIFO by recursing first
               (send-rest rest-waiting)
               ;; and then send this message along
-              (syscaller-send-message syscaller resolve-to-val resolve-me args))])))
+              (let ((vow (syscaller-<- syscaller resolve-to-val args)))
+                (syscaller-<-np syscaller resolve-me (list 'fulfill vow))))])))
 
      (define new-waiting-messages
        (if (remote-promise-refr? resolve-to-val)
