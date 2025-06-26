@@ -325,6 +325,87 @@ This procedure can be used outside of a vat.
 
 @end deffn
 
+@deffn {Procedure} <-hashmap-ref to-refr key
+
+Performs hashamp ref on promise @var{to-refr} value with the string
+key @var{key}. If the promis e@var{to-refr} breaks or is resolved to a
+non-hashmap value, the promise returned will also break.
+
+@var{to-refr} should be a hashmap or a promise which will eventually
+resolve to a hashmap.
+
+@var{key} should be the key to lookup in the hashmap, the key must be
+a string.
+
+@lisp
+(use-modules (goblins)
+             (goblins utils hashmap))
+
+(define-actor (^fruit-colors _bcom)
+  (lambda ()
+    (hashmap ("banana" 'yellow)
+             ("orange" 'orange)
+             ("lemon" 'yellow))))
+
+(define vat (spawn-vat))
+(with-vat vat
+  (define fruit-colors (spawn ^fruit-colors))
+  (define fruit-hashmap-vow (<- fruit-colors))
+  (on (<-hashmap-ref fruit-hashmap-vow "banana")
+      (lambda (banana-color)
+        (pk 'banana-color banana-color))))
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} <-list-ref to-refr index
+
+Like @code{<-hashmap-ref} but will extract the element at @var{index}
+within a list.
+
+@lisp
+(use-modules (goblins))
+
+(define-actor (^fruits _bcom)
+  (lambda ()
+    (list 'banana 'apple 'orange)))
+
+(define vat (spawn-vat))
+(with-vat vat
+  (define fruits (spawn ^fruits))
+  (define fruit-list-vow (<- fruits))
+  (on (<-list-ref fruit-list-vow 1)
+      (lambda (a-fruit)
+        (pk 'fruit a-fruit))))
+@end lisp
+
+@end deffn
+
+@deffn {Procedure} <-tagged-ref to-refr label
+
+Like @code{<-hashmap-ref} except for tagged values. These tagged
+values are those created with @code{make-tagged} from @code{(goblins
+abstract-types)}. @var{label} must be a string.
+
+@lisp
+(use-modules (goblins)
+             (goblins abstract-types))
+
+(define-actor (^tagged-lemon _bcom)
+  (lambda ()
+    (make-tagged "lemon" 'yellow)))
+
+(define vat (spawn-vat))
+(with-vat vat
+  (define tagged-lemon (spawn ^tagged-lemon))
+  (define tagged-lemon-vow (<- tagged-lemon))
+  (on (<-tagged-ref tagged-lemon-vow "lemon")
+      (lambda (lemon-color)
+        (pk 'lemon-color lemon-color))))
+@end lisp
+
+@end deffn
+
 @subheading Handling asynchronous values
 
 Goblins provides two primary tools for resolving and operating on

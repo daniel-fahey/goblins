@@ -21,6 +21,7 @@
   #:use-module (goblins utils ghash)
   #:use-module (goblins utils hashmap)
   #:use-module (goblins ocapn ids)
+  #:use-module (tests utils)
   #:use-module (ice-9 match)
   #:use-module (rnrs bytevectors)
   #:use-module (srfi srfi-64)
@@ -914,5 +915,154 @@
   '((tests test-core) ^type-serializer)
   (match (hashq-ref portraits (car slots))
     [(name debug-name portrait-version portrait-data) name]))
+
+;; Test <-hash-ref
+(define am (make-actormap))
+(define hm1 (hashmap ("foo" 10) ("bar" 'baz)))
+(test-equal "Check <-hash-ref works when given a hashmap, not a refr"
+  (actormap-run
+   am
+   (lambda ()
+     (<-hashmap-ref hm1 "bar")))
+  'baz)
+
+(test-equal "Check <-hash-ref with already resolved vow"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow resolver)
+       (spawn-promise-and-resolver))
+     ($ resolver 'fulfill hm1)
+     (<-hashmap-ref vow "bar")))
+  #(ok baz))
+
+(test-equal "Check <-hash-ref with promise chaining"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow1 resolver1)
+       (spawn-promise-and-resolver))
+     (define-values (vow2 resolver2)
+       (spawn-promise-and-resolver))
+     (define-values (vow3 resolver3)
+       (spawn-promise-and-resolver))
+     (define hashref-vow (<-hashmap-ref vow1 "bar"))
+     (<-np resolver1 'fulfill vow2)
+     (<-np resolver2 'fulfill vow3)
+     (<-np resolver3 'fulfill hm1)
+     hashref-vow))
+  #(ok baz))
+
+(test-assert "Check <-hash-ref breaks when fulfilled with non-hashmap"
+  (match (am-resolve-vow-and-return-result
+          am
+          (lambda ()
+            (define-values (vow resolver)
+              (spawn-promise-and-resolver))
+            ($ resolver 'fulfill 'not-a-hashmap)
+            (<-hashmap-ref vow "bar")))
+    [#(err _) #t]
+    [#(ok _) #f]))
+
+(define lst '(foo bar baz))
+(test-equal "Check <-list-ref works when given a raw list"
+  (actormap-run
+   am
+   (lambda ()
+     (<-list-ref lst 0)))
+  'foo)
+(test-equal "Check <-list-ref works with already resolved vow"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow resolver)
+       (spawn-promise-and-resolver))
+     ($ resolver 'fulfill lst)
+     (<-list-ref vow 0)))
+  #(ok foo))
+
+(test-equal "Check <-list-ref works with promise chaining"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow1 resolver1)
+       (spawn-promise-and-resolver))
+     (define-values (vow2 resolver2)
+       (spawn-promise-and-resolver))
+     (define-values (vow3 resolver3)
+       (spawn-promise-and-resolver))
+     (define listref-vow (<-list-ref vow1 0))
+     (<-np resolver1 'fulfill vow2)
+     (<-np resolver2 'fulfill vow3)
+     (<-np resolver3 'fulfill lst)
+     listref-vow))
+  #(ok foo))
+
+(test-assert "Check <-list-ref breaks when fulfilled with non-list"
+  (match (am-resolve-vow-and-return-result
+          am
+          (lambda ()
+            (define-values (vow resolver)
+              (spawn-promise-and-resolver))
+            ($ resolver 'fulfill 'not-a-list)
+            (<-list-ref vow 0)))
+    [#(err _) #t]
+    [#(ok _) #f]))
+
+(define tagged-val (make-tagged "hello" 'beepboop))
+(test-equal "Check <-tagged-ref works when given a raw tagged value"
+  (actormap-run
+   am
+   (lambda ()
+     (<-tagged-ref tagged-val "hello")))
+  'beepboop)
+(test-equal "Check <-tagged-ref works with already resolved vow"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow resolver)
+       (spawn-promise-and-resolver))
+     ($ resolver 'fulfill tagged-val)
+     (<-tagged-ref vow "hello")))
+  #(ok beepboop))
+
+(test-equal "Check <-tagged-ref works with promise chaining"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow1 resolver1)
+       (spawn-promise-and-resolver))
+     (define-values (vow2 resolver2)
+       (spawn-promise-and-resolver))
+     (define-values (vow3 resolver3)
+       (spawn-promise-and-resolver))
+     (define tagged-ref-vow (<-tagged-ref vow1 "hello"))
+     (<-np resolver1 'fulfill vow2)
+     (<-np resolver2 'fulfill vow3)
+     (<-np resolver3 'fulfill tagged-val)
+     tagged-ref-vow))
+  #(ok beepboop))
+
+(test-assert "Check <-tagged-ref breaks when fulfilled with non-tagged-value"
+  (match (am-resolve-vow-and-return-result
+          am
+          (lambda ()
+            (define-values (vow resolver)
+              (spawn-promise-and-resolver))
+            ($ resolver 'fulfill 'not-a-tagged-value)
+            (<-tagged-ref vow "hello")))
+    [#(err _) #t]
+    [#(ok _) #f]))
+
+(test-assert "Check <-tagged-ref breaks when label does not match found label"
+  (match (am-resolve-vow-and-return-result
+          am
+          (lambda ()
+            (define-values (vow resolver)
+              (spawn-promise-and-resolver))
+            ($ resolver 'fulfill tagged-val)
+            (<-tagged-ref vow "not-the-right-label")))
+    [#(err _) #t]
+    [#(ok _) #f]))
 
 (test-end "test-goblins-core")

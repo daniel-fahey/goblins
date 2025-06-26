@@ -290,6 +290,8 @@ Disable vat event logging for the current vat."
           `(message ,(message-to msg) ,@(message-args msg)))
          ((listen-request? msg)
           `(listen ,(listen-request-to msg)))
+         ((ref-request? msg)
+          `(ref-request ,(ref-request-type msg) ,(ref-request-to msg) ,(ref-request-ref-by msg)))
          ((questioned? msg)
           `(question ,(symbolic-message (questioned-message msg))))
          ((forward-to-captp? msg)

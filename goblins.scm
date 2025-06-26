@@ -110,6 +110,10 @@
                define-actor
                migrations
 
+               <-hashmap-ref
+               <-list-ref
+               <-tagged-ref
+
                ;; Deprecated
                spawn-promise-cons
                spawn-promise-values)

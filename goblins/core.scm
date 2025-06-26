@@ -99,6 +99,13 @@
             listen-request-listener
             listen-request-wants-partial?
 
+            <ref-request>
+            ref-request?
+            ref-request-type
+            ref-request-to
+            ref-request-ref-by
+            ref-request-resolver
+
             forward-to-captp?
             forward-to-captp-msg
 
@@ -121,6 +128,11 @@
 
             local-refr->persistable-object-identifier
             has-persistable-object-identifier?
+
+            <-hashmap-ref
+            <-list-ref
+            <-tagged-ref
+
 
             ;; Deprecated
             spawn-promise-cons
@@ -154,6 +166,8 @@
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
   #:use-module (goblins utils ghash)
+  #:use-module (goblins utils hashmap)
+  #:use-module (goblins utils assert-type)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins utils error-handling)
   #:use-module (goblins utils simple-sealers))
@@ -978,6 +992,16 @@ Type: Any -> Boolean"
   (listener listen-request-listener)
   (wants-partial? listen-request-wants-partial?))
 
+;; A ref request is either a <-hashmap-ref <-list-ref, or <-tagged-ref operation.
+;; These are sent in the smae was as messages and listen requests.
+(define-record-type <ref-request>
+  (make-ref-request type to ref-by resolver)
+  ref-request?
+  (type ref-request-type)
+  (to ref-request-to)
+  (ref-by ref-request-ref-by)
+  (resolver ref-request-resolver))
+
 ;; This kluge is for when we need to forward a message to captp... but
 ;; typically also it might have a question-finder for the `to' field...
 ;; so we put in this hack to let the code handling the turn/churn know
@@ -1006,14 +1030,19 @@ Type: Any -> Boolean"
      (message-or-request-to (forward-to-captp-msg forward-me))]
     [(? message? msg) (message-to msg)]
     [(? listen-request? lr) (listen-request-to lr)]
+    [(? ref-request? rr) (ref-request-to rr)]
     [(? questioned? qstn) (message-to (questioned-message qstn))]))
 
 (define message-who-wants-response
   (match-lambda
+    [(? forward-to-captp? forward-me)
+     (message-who-wants-response (forward-to-captp-msg forward-me))]
     [(? message? msg)
      (message-resolve-me msg)]
     [(? listen-request? lr)
      (listen-request-listener lr)]
+    [(? ref-request? rr)
+     (ref-request-resolver rr)]
     [(? questioned? qm)
      (message-who-wants-response (questioned-message qm))]))
 
@@ -1980,6 +2009,103 @@ Type: Promise (Optional (Any -> Any))
       (bcom (lambda _ *unspecified*))))
   (spawn ^cancel-interest))
 
+(define (syscaller-handle-ref-request syscaller type to by resolver)
+  (define actormap (syscaller-actormap syscaller))
+  (define (type->procedure type)
+    (match type
+      ['hashmap <-hashmap-ref]
+      ['list <-list-ref]
+      ['untag <-tagged-ref]))
+  (define (^ref-listener bcom)
+    (match-lambda*
+      [('fulfill next-value)
+       (define ref-proc (type->procedure type))
+       (<-np resolver 'fulfill (ref-proc next-value by))]
+       ;;(syscaller-send-ref-request syscaller type next-value by resolver)]
+      [('break err)
+       (<-np resolver 'break err)]))
+
+  (define mactor (actormap-ref-or-die actormap to))
+  (match mactor
+    [(or (? mactor:object?) (? mactor:remote-link?))
+     ;; Cannot work on an object, so we break the promise
+     (<-np resolver 'break (format #f "Expected ~a but got an object ~a" type to))]
+    [(? mactor:question?)
+     (let*-values (((captp-connector) (mactor:question-captp-connector mactor))
+                   ((question-finder) (captp-connector 'new-question-finder))
+                   ((followup-vow followup-resolver)
+                    (_spawn-promise-and-resolver #:question-finder question-finder
+                                                 #:captp-connector captp-connector)))
+       (let* ((ref-request (make-ref-request type to by followup-resolver))
+              (forwarded-request (make-forward-to-captp ref-request captp-connector)))
+         (syscaller-queue-new-msg! syscaller forwarded-request)
+         (<-np resolver 'fulfill followup-vow)))]
+    [(? mactor:local-link?)
+     (let ((point-to (mactor:local-link-point-to mactor)))
+       (syscaller-send-ref-request syscaller type point-to by resolver))]
+    [(? mactor:closer?)
+     (let ((point-to (mactor:closer-point-to mactor)))
+       (syscaller-send-ref-request syscaller type point-to by resolver))]
+    [(? mactor:naive?)
+     (let ((listener (syscaller-spawn syscaller ^ref-listener '() '^ref-listener)))
+       (syscaller-send-listen syscaller to listener #t))]
+    [(? mactor:encased?)
+     (let ((ref-proc (type->procedure type)))
+       (<-np resolver 'fulfill (ref-proc (mactor:encased-val mactor) by)))]
+    [(? mactor:broken?)
+     (<-np resolver 'break (mactor:broken-problem mactor))]))
+
+(define (syscaller-send-ref-request syscaller type refr ref-by resolver)
+  (define ref-request
+    (make-ref-request type refr ref-by resolver))
+  (syscaller-queue-new-msg! syscaller ref-request))
+
+(define (<-hashmap-ref refr field-name)
+  (assert-type field-name string?)
+
+  (define sys (get-syscaller-or-die))
+  (match refr
+    [(? hashmap? hm) (hashmap-ref hm field-name)]
+    [(? promise-refr?)
+     (let-values (((vow resolver) (spawn-promise-and-resolver)))
+       (syscaller-send-ref-request sys 'hashmap refr field-name resolver)
+       vow)]
+    [_
+     (error (format #f "<-hashmap-ref must be used with a promise or hashmap, got ~a" refr))]))
+
+
+(define (<-list-ref refr index)
+  (assert-type index positive-or-zero?)
+  (define positive-or-zero?
+    (lambda (n)
+      (and (integer? index) (or (zero? index) (positive? index)))))
+
+  (define sys (get-syscaller-or-die))
+  (match refr
+    [(? list?) (list-ref refr index)]
+    [(? promise-refr?)
+     (let-values (((vow resolver) (spawn-promise-and-resolver)))
+       (syscaller-send-ref-request sys 'list refr index resolver)
+       vow)]
+    [_
+     (error (format #f "<-list-ref must be used with a promise or list, got ~a" refr))]))
+
+(define (<-tagged-ref refr label)
+  (assert-type label string?)
+
+  (define sys (get-syscaller-or-die))
+  (match refr
+    [(? tagged?)
+     (let ((found-label (tagged-label refr)))
+       (if (equal? label found-label)
+           (tagged-data refr)
+           (error (format #f "Expected tag ~a, found ~a" label found-label))))]
+    [(? promise-refr?)
+     (let-values (((vow resolver) (spawn-promise-and-resolver)))
+       (syscaller-send-ref-request sys 'untag refr label resolver)
+       vow)]
+    [_
+     (error (format #f "<-tagged-refr expected tagged or promise-refr, got ~a" refr))]))
 
 
 ;; Coroutine support
@@ -2384,7 +2510,13 @@ Type: Actormap Message (Optional (#:error-handler (Exception -> Any)))
             (syscaller-handle-listen sys
                                      (listen-request-to lr)
                                      (listen-request-listener lr)
-                                     (listen-request-wants-partial? lr))]))
+                                     (listen-request-wants-partial? lr))]
+           [(? ref-request? rr)
+            (syscaller-handle-ref-request sys
+                                          (ref-request-type rr)
+                                          (ref-request-to rr)
+                                          (ref-request-ref-by rr)
+                                          (ref-request-resolver rr))]))
        (values `#(ok ,result) new-actormap (syscaller-new-msgs sys)))
      (if catch-errors?
          ;; We're catching errors?  Well, let's capture the stack without
