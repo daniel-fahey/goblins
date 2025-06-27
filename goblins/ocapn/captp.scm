@@ -473,7 +473,7 @@
       [($ <tagged> 'kw `(,keyword))
        (symbol->keyword keyword)]
       ;; unserialize user-defined records
-      [($ <tagged> 'user-record (list label data))
+      [($ <tagged> 'user-record `(,label ,data))
        (make-tagged label data)]
       [($ <tagged> unknown-tag data)
        (error 'captp-unknown-record-rag "Unknown tag: ~a"
