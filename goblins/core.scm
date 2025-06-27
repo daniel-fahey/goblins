@@ -106,6 +106,13 @@
             ref-request-ref-by
             ref-request-resolver
 
+            <ref-questioned>
+            ref-questioned?
+            ref-questioned-type
+            ref-questioned-to
+            ref-questioned-ref-by
+            ref-questioned-answer-this-question
+
             forward-to-captp?
             forward-to-captp-msg
 
@@ -1002,6 +1009,15 @@ Type: Any -> Boolean"
   (ref-by ref-request-ref-by)
   (resolver ref-request-resolver))
 
+;; This is a ref-request for the asking CapTP
+(define-record-type <ref-questioned>
+  (make-ref-questioned type to ref-by answer-this-question)
+  ref-questioned?
+  (type ref-questioned-type)
+  (to ref-questioned-to)
+  (ref-by ref-questioned-ref-by)
+  (answer-this-question ref-questioned-answer-this-question))
+
 ;; This kluge is for when we need to forward a message to captp... but
 ;; typically also it might have a question-finder for the `to' field...
 ;; so we put in this hack to let the code handling the turn/churn know
@@ -1031,6 +1047,7 @@ Type: Any -> Boolean"
     [(? message? msg) (message-to msg)]
     [(? listen-request? lr) (listen-request-to lr)]
     [(? ref-request? rr) (ref-request-to rr)]
+    [(? ref-questioned? rq) (ref-questioned-to rq)]
     [(? questioned? qstn) (message-to (questioned-message qstn))]))
 
 (define message-who-wants-response
@@ -2016,14 +2033,23 @@ Type: Promise (Optional (Any -> Any))
       ['hashmap <-hashmap-ref]
       ['list <-list-ref]
       ['untag <-tagged-ref]))
-  (define (^ref-listener bcom)
+  (define (^ref-listener bcom resolve-me)
     (match-lambda*
       [('fulfill next-value)
        (define ref-proc (type->procedure type))
-       (<-np resolver 'fulfill (ref-proc next-value by))]
+       (<-np resolve-me 'fulfill (ref-proc next-value by))]
        ;;(syscaller-send-ref-request syscaller type next-value by resolver)]
       [('break err)
-       (<-np resolver 'break err)]))
+       (<-np resolve-me 'break err)]))
+
+  (define (emit-captp-listen-request! captp-connector to resolve-me)
+    (define from-vat
+      (syscaller-vat-connector syscaller))
+    (define listen-request
+      (make-listen-request from-vat to resolve-me #t))
+    (define wrapped-listen-request
+      (make-forward-to-captp listen-request captp-connector))
+    (syscaller-queue-new-msg! syscaller wrapped-listen-request))
 
   (define mactor (actormap-ref-or-die actormap to))
   (match mactor
@@ -2032,14 +2058,18 @@ Type: Promise (Optional (Any -> Any))
      (<-np resolver 'break (format #f "Expected ~a but got an object ~a" type to))]
     [(? mactor:question?)
      (let*-values (((captp-connector) (mactor:question-captp-connector mactor))
-                   ((question-finder) (captp-connector 'new-question-finder))
+                   ((followup-question-finder) (captp-connector 'new-question-finder))
                    ((followup-vow followup-resolver)
-                    (_spawn-promise-and-resolver #:question-finder question-finder
+                    (_spawn-promise-and-resolver #:question-finder followup-question-finder
                                                  #:captp-connector captp-connector)))
-       (let* ((ref-request (make-ref-request type to by followup-resolver))
-              (forwarded-request (make-forward-to-captp ref-request captp-connector)))
+       (let* ((to-question-finder (mactor:question-question-finder mactor))
+              (ref-questioned (make-ref-questioned type to-question-finder by followup-question-finder))
+              (forwarded-request (make-forward-to-captp ref-questioned captp-connector)))
          (syscaller-queue-new-msg! syscaller forwarded-request)
-         (<-np resolver 'fulfill followup-vow)))]
+         (<-np resolver 'fulfill followup-vow)
+         ;; TODO: At some point later, probably remove the eager followup listen
+         (emit-captp-listen-request! captp-connector followup-question-finder
+                                     followup-resolver)))]
     [(? mactor:local-link?)
      (let ((point-to (mactor:local-link-point-to mactor)))
        (syscaller-send-ref-request syscaller type point-to by resolver))]
@@ -2047,7 +2077,8 @@ Type: Promise (Optional (Any -> Any))
      (let ((point-to (mactor:closer-point-to mactor)))
        (syscaller-send-ref-request syscaller type point-to by resolver))]
     [(? mactor:naive?)
-     (let ((listener (syscaller-spawn syscaller ^ref-listener '() '^ref-listener)))
+     (let ((listener (syscaller-spawn syscaller ^ref-listener
+                                      (list resolver) '^ref-listener)))
        (syscaller-send-listen syscaller to listener #t))]
     [(? mactor:encased?)
      (let ((ref-proc (type->procedure type)))

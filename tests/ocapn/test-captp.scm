@@ -16,8 +16,10 @@
 (define-module (tests ocapn test-captp)
   #:use-module (goblins core)
   #:use-module (goblins core-types)
+  #:use-module (goblins abstract-types)
   #:use-module (goblins vat)
   #:use-module (goblins utils ghash)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib joiners)
   #:use-module (goblins actor-lib methods)
@@ -445,5 +447,36 @@
    (lambda ()
      (let ((echo-vow (<- b-mycapn 'enliven echo-sref)))
        (<- echo-vow 'reconnected)))))
+
+;; op:get, op:index and op:untag
+(test-equal "Can get item from a hashmap with op:get"
+  (resolve-vow-and-return-result
+   b-vat
+   (lambda ()
+    (define echo ($ b-mycapn 'enliven echo-sref))
+    (define hashmap-vow
+      (<- echo (hashmap ("foo" 'bar))))
+    (<-hashmap-ref hashmap-vow "foo")))
+  #(ok bar))
+
+(test-equal "Can get index from a list with op:index"
+  (resolve-vow-and-return-result
+   b-vat
+   (lambda ()
+    (define echo ($ b-mycapn 'enliven echo-sref))
+    (define list-vow
+      (<- echo (list 'beep 'boop)))
+    (<-list-ref list-vow 0)))
+  #(ok beep))
+
+(test-equal "Can get tagged value with op:untag"
+  (resolve-vow-and-return-result
+   b-vat
+   (lambda ()
+    (define echo ($ b-mycapn 'enliven echo-sref))
+    (define tagged-vow
+      (<- echo (make-tagged "hello" 'goodbye)))
+    (<-tagged-ref tagged-vow "hello")))
+  #(ok goodbye))
 
 (test-end "test-captp")

@@ -102,6 +102,15 @@
       [($ <op:abort> reason)
        (<-np-extern internal-handler
                     (internal-shutdown 'abort reason))]
+      [($ <ref-questioned> 'hashmap to (? string? field-name) answer-me)
+       (<-np-extern internal-handler
+                    (cmd-send-hashmap-ref to field-name answer-me))]
+      [($ <ref-questioned> 'list to (? integer? index) answer-me)
+       (<-np-extern internal-handler
+                    (cmd-send-list-ref to index answer-me))]
+      [($ <ref-questioned> 'untag to (? string? label) answer-me)
+       (<-np-extern internal-handler
+                    (cmd-send-tagged-ref to label answer-me))]
       [($ <listen-request> _ to-refr listener wants-partial?)
        (<-np-extern internal-handler
                     (cmd-send-listen to-refr listener
@@ -588,6 +597,27 @@
            *unspecified*)
          (do-it)]
 
+        [($ <op:get> to-desc (? string? field-name) (? integer? answer-pos))
+         (define target (unmarshall-to-desc to-desc))
+         (when (hashv-ref answers answer-pos)
+           (error 'already-have-answer "~a" answer-pos))
+         (define vow (<-hashmap-ref target field-name))
+         (hashv-set! answers answer-pos vow)]
+        ;; Technically integer must be 0 or a positive integer...
+        [($ <op:index> to-desc (? integer? index) (? integer? answer-pos))
+         (define target (unmarshall-to-desc to-desc))
+         (when (hashv-ref answers answer-pos)
+           (error 'already-have-answer "~a" answer-pos))
+         (define vow (<-list-ref target index))
+         (hashv-set! answers answer-pos vow)]
+        [($ <op:untag> to-desc (? string? tag) (? integer? answer-pos))
+         (define target (unmarshall-to-desc to-desc))
+         (when (hashv-ref answers answer-pos)
+           (error 'already-have-answer "~a" answer-pos))
+         (define vow (<-tagged-ref target tag))
+         (hashv-set! answers answer-pos vow)]
+
+
         ;; TODO: Here's where we have to record that a listening interest
         ;; has occured, assuming we do the "automatically notify on session
         ;; severance" thing?
@@ -643,13 +673,23 @@
                    (op:deliver-only (marshall-to to)
                                     (outgoing-pre-marshall! args))))
              (send-to-remote deliver-msg))]
-          [($ <cmd-send-listen> (? remote-refr? to-refr) (? local-refr? listener-refr)
+          [($ <cmd-send-listen> (and (or (? remote-refr?) (? question-finder?)) to)
+                                (? local-refr? listener-refr)
                                 (? boolean? wants-partial?))
            (let ((listen-msg
-                  (op:listen (marshall-to to-refr)
+                  (op:listen (marshall-to to)
                              (outgoing-pre-marshall! listener-refr)
                              wants-partial?)))
              (send-to-remote listen-msg))]
+          [($ <cmd-send-hashmap-ref> to field-name answer-this-question)
+           (let ((new-answer-pos (hashq-ref questions answer-this-question)))
+             (send-to-remote (op:get (marshall-to to) field-name new-answer-pos)))]
+          [($ <cmd-send-list-ref> to index answer-this-question)
+           (let ((new-answer-pos (hashq-ref questions answer-this-question)))
+             (send-to-remote (op:index (marshall-to to) index new-answer-pos)))]
+          [($ <cmd-send-tagged-ref> to label answer-this-question)
+           (let ((new-answer-pos (hashq-ref questions answer-this-question)))
+             (send-to-remote (op:untag (marshall-to to) label new-answer-pos)))]
           [($ <cmd-send-gc-answer> (? integer? answer-pos))
            (send-to-remote (op:gc-answer answer-pos))]
           [($ <cmd-send-gc-export> (? integer? export-pos) (? integer? wire-delta))

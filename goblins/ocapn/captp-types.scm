@@ -67,6 +67,27 @@
             op:gc-answer?
             op:gc-answer-answer-pos
 
+            <op:get>
+            op:get
+            op:get?
+            op:get-receiver-desc
+            op:get-field-name
+            op:get-new-answer-pos
+
+            <op:index>
+            op:index
+            op:index?
+            op:index-receiver-desc
+            op:index-index
+            op:index-new-answer-pos
+
+            <op:untag>
+            op:untag
+            op:untag?
+            op:untag-receiver-desc
+            op:untag-tag
+            op:untag-new-answer-pos
+
             <desc:import-object>
             desc:import-object
             desc:import-object?
@@ -155,6 +176,27 @@
             cmd-send-gc-export-export-pos
             cmd-send-gc-export-wire-delta
 
+            <cmd-send-hashmap-ref>
+            cmd-send-hashmap-ref
+            cmd-send-hashmap-ref?
+            cmd-send-hashmap-ref-to
+            cmd-send-hashmap-ref-field-name
+            cmd-send-hashmap-ref-answer-this-question
+
+            <cmd-send-list-ref>
+            cmd-send-list-ref
+            cmd-send-list-ref?
+            cmd-send-list-ref-to
+            cmd-send-list-ref-index
+            cmd-send-list-ref-answer-this-question
+
+            <cmd-send-tagged-ref>
+            cmd-send-tagged-ref
+            cmd-send-tagged-ref?
+            cmd-send-tagged-ref-to
+            cmd-send-tagged-ref-label
+            cmd-send-tagged-ref-answer-this-question
+
             &mystery-exception
             make-mystery-exception
             mystery-exception?
@@ -196,6 +238,30 @@
    ;; Either arguments to the method or to the procedure, depending
    ;; on whether method exists
   (args op:deliver-only-args))
+
+(define-syrup-record-type <op:get>
+  (op:get receiver-desc field-name new-answer-pos)
+  op:get?
+  op:get marshall::op:get unmarshall::op:get
+  (receiver-desc op:get-receiver-desc)
+  (field-name op:get-field-name)
+  (new-answer-pos op:get-new-answer-pos))
+
+(define-syrup-record-type <op:index>
+  (op:index receiver-desc index new-answer-pos)
+  op:index?
+  op:index marshall::op:index unmarshall::op:index
+  (receiver-desc op:index-receiver-desc)
+  (index op:index-index)
+  (new-answer-pos op:index-new-answer-pos))
+
+(define-syrup-record-type <op:untag>
+  (op:untag receiver-desc tag new-answer-pos)
+  op:untag?
+  op:untag marshall::op:untag unmarshall::op:untag
+  (receiver-desc op:untag-receiver-desc)
+  (tag op:untag-tag)
+  (new-answer-pos op:untag-new-answer-pos))
 
 ;; Queue a delivery of verb(args..) to recip, binding answer/rdr to the outcome.
 (define-syrup-record-type <op:deliver>
@@ -355,6 +421,9 @@
         marshall::desc:handoff-give
         marshall::desc:handoff-receive
         marshall::op:start-session
+        marshall::op:get
+        marshall::op:index
+        marshall::op:untag
 
         marshall::ocapn-peer
         marshall::ocapn-sturdyref))
@@ -374,6 +443,9 @@
         unmarshall::desc:handoff-give
         unmarshall::desc:handoff-receive
         unmarshall::op:start-session
+        unmarshall::op:get
+        unmarshall::op:index
+        unmarshall::op:untag
 
         unmarshall::ocapn-peer
         unmarshall::ocapn-sturdyref))
@@ -427,6 +499,27 @@
   cmd-send-gc-export?
   (export-pos cmd-send-gc-export-export-pos)
   (wire-delta cms-send-gc-export-wire-delta))
+
+(define-record-type <cmd-send-hashmap-ref>
+  (cmd-send-hashmap-ref to field-name answer-this-question)
+  cmd-send-hashmap-ref?
+  (to cmd-send-hashmap-ref-to)
+  (field-name cmd-send-hashmap-ref-field-name)
+  (answer-this-question cmd-send-hashmap-ref-answer-this-question))
+
+(define-record-type <cmd-send-list-ref>
+  (cmd-send-list-ref to index answer-this-question)
+  cmd-send-list-ref?
+  (to cmd-send-list-ref-to)
+  (index cmd-send-list-ref-index)
+  (answer-this-question cmd-send-list-ref-answer-this-question))
+
+(define-record-type <cmd-send-tagged-ref>
+  (cmd-send-tagged-ref to label answer-this-question)
+  cmd-send-tagged-ref?
+  (to cmd-send-tagged-ref-to)
+  (label cmd-send-tagged-ref-label)
+  (answer-this-question cmd-send-tagged-ref-answer-this-question))
 
 ;; We don't want to leak information about exceptions across CapTP boundries.
 ;; Eventually we want to have specific intentional error sharing across CapTP,
