@@ -1342,7 +1342,7 @@
    vat2
    (lambda ()
      (define tagged-vow (<- tagged-actor))
-     (<-hashmap-ref tagged-vow "hello")))
+     (<-tagged-ref tagged-vow "hello")))
   #(ok beepboop))
 
 (test-end "test-vat")

@@ -105,7 +105,7 @@
       [($ <ref-questioned> 'hashmap to (? string? field-name) answer-me)
        (<-np-extern internal-handler
                     (cmd-send-hashmap-ref to field-name answer-me))]
-      [($ <ref-questioned> 'list to (? integer? index) answer-me)
+      [($ <ref-questioned> 'list to (? exact-integer? index) answer-me)
        (<-np-extern internal-handler
                     (cmd-send-list-ref to index answer-me))]
       [($ <ref-questioned> 'untag to (? string? label) answer-me)
@@ -597,20 +597,20 @@
            *unspecified*)
          (do-it)]
 
-        [($ <op:get> to-desc (? string? field-name) (? integer? answer-pos))
+        [($ <op:get> to-desc (? string? field-name) (? exact-integer? answer-pos))
          (define target (unmarshall-to-desc to-desc))
          (when (hashv-ref answers answer-pos)
            (error 'already-have-answer "~a" answer-pos))
          (define vow (<-hashmap-ref target field-name))
          (hashv-set! answers answer-pos vow)]
         ;; Technically integer must be 0 or a positive integer...
-        [($ <op:index> to-desc (? integer? index) (? integer? answer-pos))
+        [($ <op:index> to-desc (? integer? index) (? exact-integer? answer-pos))
          (define target (unmarshall-to-desc to-desc))
          (when (hashv-ref answers answer-pos)
            (error 'already-have-answer "~a" answer-pos))
          (define vow (<-list-ref target index))
          (hashv-set! answers answer-pos vow)]
-        [($ <op:untag> to-desc (? string? tag) (? integer? answer-pos))
+        [($ <op:untag> to-desc (? string? tag) (? exact-integer? answer-pos))
          (define target (unmarshall-to-desc to-desc))
          (when (hashv-ref answers answer-pos)
            (error 'already-have-answer "~a" answer-pos))

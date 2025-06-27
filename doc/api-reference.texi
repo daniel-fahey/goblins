@@ -328,7 +328,7 @@ This procedure can be used outside of a vat.
 @deffn {Procedure} <-hashmap-ref to-refr key
 
 Performs hashamp ref on promise @var{to-refr} value with the string
-key @var{key}. If the promis e@var{to-refr} breaks or is resolved to a
+key @var{key}. If the promise @var{to-refr} breaks or is resolved to a
 non-hashmap value, the promise returned will also break.
 
 @var{to-refr} should be a hashmap or a promise which will eventually

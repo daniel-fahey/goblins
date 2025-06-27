@@ -1000,7 +1000,7 @@ Type: Any -> Boolean"
   (wants-partial? listen-request-wants-partial?))
 
 ;; A ref request is either a <-hashmap-ref <-list-ref, or <-tagged-ref operation.
-;; These are sent in the smae was as messages and listen requests.
+;; These are sent in the same way as messages and listen requests.
 (define-record-type <ref-request>
   (make-ref-request type to ref-by resolver)
   ref-request?
@@ -2038,7 +2038,6 @@ Type: Promise (Optional (Any -> Any))
       [('fulfill next-value)
        (define ref-proc (type->procedure type))
        (<-np resolve-me 'fulfill (ref-proc next-value by))]
-       ;;(syscaller-send-ref-request syscaller type next-value by resolver)]
       [('break err)
        (<-np resolve-me 'break err)]))
 
@@ -2109,7 +2108,7 @@ Type: Promise (Optional (Any -> Any))
   (assert-type index positive-or-zero?)
   (define positive-or-zero?
     (lambda (n)
-      (and (integer? index) (or (zero? index) (positive? index)))))
+      (and (exact-integer? index) (or (zero? index) (positive? index)))))
 
   (define sys (get-syscaller-or-die))
   (match refr
