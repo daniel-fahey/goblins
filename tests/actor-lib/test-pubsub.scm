@@ -141,4 +141,8 @@
   '(first 1 2 3)
   (car (actormap-peek am* listener3*)))
 
+;; Persist /again/ the pubsub actor
+(define-values (am** pubsub** listener1** listener2** listener3**)
+  (persist-and-restore am* env pubsub* listener1* listener2* listener3*))
+
 (test-end "test-pubsub")
