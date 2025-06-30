@@ -192,7 +192,7 @@
          (tls-port (make-tls-port tls-session port))
          ;; Before the TLS handshake is performed, the client needs to
          ;; fetch the cert from the server and verify that its hash matches
-         ;; the expected hash given in the node location.
+         ;; the expected hash given in the peer location.
          (cert-length (u32vector-ref (get-bytevector-n port 4) 0))
          (server-cert (get-bytevector-n port cert-length))
          (server-cert-hash (sha256d server-cert))
@@ -214,11 +214,11 @@
     (tls-validate-peer-certificate tls-session)
     tls-port))
 
-(define (ocapn-node-hint:host node)
-  (hashmap-ref (ocapn-node-hints node) "host"))
+(define (ocapn-peer-hint:host peer)
+  (hashmap-ref (ocapn-peer-hints peer) "host"))
 
-(define (ocapn-node-hint:port node)
-  (let ((str (hashmap-ref (ocapn-node-hints node) "port")))
+(define (ocapn-peer-hint:port peer)
+  (let ((str (hashmap-ref (ocapn-peer-hints peer) "port")))
     (if str (string->number str) 8088)))
 
 (define-actor (^tcp-tls-netlayer* bcom host port max-connections key cert)
@@ -239,8 +239,8 @@ automatically generated provided that the version of Guile-GnuTLS is
 new enough to do so.  To import PEM encoded private keys and
 certificates from the file system, use 'load-tls-private-key' and
 'load-tls-certificate', respectively.  Automatically generated keys
-and certificates are useful for nodes that do not need persistent
-identity across process lifetimes, but nodes that do should import
+and certificates are useful for peers that do not need persistent
+identity across process lifetimes, but peers that do should import
 from the file system."
   (define-values (server-socket server-port)
     (make-server-socket+port ($ port) max-connections))
@@ -252,7 +252,7 @@ from the file system."
   (define server-socket-io
     (spawn ^io server-socket))
   (define our-location
-    (make-ocapn-node 'tcp-tls
+    (make-ocapn-peer 'tcp-tls
                      (base32-encode (sha256d cert))
                      (hashmap ("host" host)
                               ("port" (number->string server-port)))))
@@ -267,12 +267,12 @@ from the file system."
            (make-server-tls-port client-socket cert key)))
         #:promise? #t))
   (define (outgoing-connect-location location)
-    (unless (eq? (ocapn-node-transport location) 'tcp-tls)
+    (unless (eq? (ocapn-peer-transport location) 'tcp-tls)
       (error "Wrong netlayer! Expected `tcp-tls'" location))
-    (let* ((host (ocapn-node-hint:host location))
-           (port (ocapn-node-hint:port location))
+    (let* ((host (ocapn-peer-hint:host location))
+           (port (ocapn-peer-hint:port location))
            (server-cert-hash (base32-decode
-                              (ocapn-node-designator location)))
+                              (ocapn-peer-designator location)))
            (client-socket (make-client-socket host port)))
       (make-client-tls-port client-socket cert key server-cert-hash)))
   (^base-port-netlayer bcom our-location incoming-accept
@@ -299,8 +299,8 @@ automatically generated provided that the version of Guile-GnuTLS is
 new enough to do so.  To import PEM encoded private keys and
 certificates from the file system, use 'load-tls-private-key' and
 'load-tls-certificate', respectively.  Automatically generated keys
-and certificates are useful for nodes that do not need persistent
-identity across process lifetimes, but nodes that do should import
+and certificates are useful for peers that do not need persistent
+identity across process lifetimes, but peers that do should import
 from the file system."
   (define port-cell (spawn ^cell port))
   (spawn ^tcp-tls-netlayer* host port-cell max-connections key cert))

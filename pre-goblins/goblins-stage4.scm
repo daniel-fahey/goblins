@@ -118,7 +118,7 @@
 ;;; Here's an image to get started:
 ;;;
 ;;;   .----------------------------------.         .-------------------.
-;;;   |              Node 1              |         |       Node 2      |
+;;;   |              Peer 1              |         |       Peer 2      |
 ;;;   |             =======              |         |       =======     |
 ;;;   |                                  |         |                   |
 ;;;   | .--------------.  .---------.   .-.       .-.                  |
@@ -148,16 +148,16 @@
 ;;;    Alfred are both objects in Vat A, Bob is an object in Vat B, and
 ;;;    Carol and Carlos are objects in Vat C.
 ;;;
-;;;  - Zooming out the farthest is the "node/network level".
-;;;    There are two nodes (Node 1 and Node 2) connected over a
+;;;  - Zooming out the farthest is the "peer/network level".
+;;;    There are two peers (Peer 1 and Peer 2) connected over a
 ;;;    Goblins CapTP network.  The stubby shapes on the borders between the
-;;;    nodes represent the directions of references Node 1 has to
-;;;    objects in Node 2 (at the top) and references Node 2 has to
-;;;    Node 1.  Both nodes in this diagram are cooperating to preserve
+;;;    peers represent the directions of references Peer 1 has to
+;;;    objects in Peer 2 (at the top) and references Peer 2 has to
+;;;    Peer 1.  Both peers in this diagram are cooperating to preserve
 ;;;    that Bob has access to Carol but that Carol does not have access to
 ;;;    Bob, and that Carlos has access to Bob but Bob does not have access
 ;;;    to Carlos.  (However there is no strict guarantee from either
-;;;    node's perspective that this is the case... generally it's in
+;;;    peer's perspective that this is the case... generally it's in
 ;;;    everyone's best interests to take a "principle of least authority"
 ;;;    approach though so usually it is.)
 ;;;
@@ -178,21 +178,21 @@
 ;
 ; Generally, things look like so:
 ;
-;;;   (node (vat (actormap {refr: (mactor object-handler)})))
+;;;   (peer (vat (actormap {refr: (mactor object-handler)})))
 ;;;
 ;;; However, we could really benefit from looking at those in more detail,
 ;;; so from the outermost layer in...
 ;;;
-;;;    .--- A node in Goblins is basically an OS process.
+;;;    .--- A peer in Goblins is basically an OS process.
 ;;;    |    However, the broader Goblins CapTP/MachineTP network is
-;;;    |    made up of many nodes.  A connection to another node
-;;;    |    is the closest amount of "assurance" a Goblins node has
+;;;    |    made up of many peers.  A connection to another peer
+;;;    |    is the closest amount of "assurance" a Goblins peer has
 ;;;    |    that it is delivering to a specific destination.
 ;;;    |    Nonetheless, Goblins users generally operate at the object
-;;;    |    reference level of abstraction, even across nodes.
+;;;    |    reference level of abstraction, even across peers.
 ;;;    |
-;;;    |    An object reference on the same node is considered
-;;;    |    "local" and an object reference on another node is
+;;;    |    An object reference on the same peer is considered
+;;;    |    "local" and an object reference on another peer is
 ;;;    |    considered "remote".
 ;;;    |
 ;;;    |    .--- Christine: "How about I call this 'hive'?"
@@ -314,7 +314,7 @@
 ;;;    |    |    |         |      |      |    time)
 ;;;    |    |    |         |      |      |
 ;;;    V    V    V         V      V      V
-;;; (node (vat (actormap {refr: (mactor object-handler)})))
+;;; (peer (vat (actormap {refr: (mactor object-handler)})))
 ;;;
 ;;;
 ;;; Whew!  That's a lot of info, so go take a break and then we'll go onto
@@ -339,7 +339,7 @@
 ;;;           '----------------'----------------'  :
 ;;;
 ;;; On the left hand side we see live references (only valid within this
-;;; process runtime or between nodes across captp sessions) and
+;;; process runtime or between peers across captp sessions) and
 ;;; offline-storeable references (sturdy refrs, a kind of bearer URI,
 ;;; and certificate chains, which are like "deeds" indicating that the
 ;;; possessor of some cryptographic material is permitted access).
@@ -349,8 +349,8 @@
 ;;; capability, as well as authority to produce these offline-storeable
 ;;; objects).
 ;;;
-;;; Live references subdivide into local (on the same node) and
-;;; remote (on a foreign node).  These are typed as either
+;;; Live references subdivide into local (on the same peer) and
+;;; remote (on a foreign peer).  These are typed as either
 ;;; representing an object or a promise.
 ;;;
 ;;; (Local references also further subdivide into "near" and "far",

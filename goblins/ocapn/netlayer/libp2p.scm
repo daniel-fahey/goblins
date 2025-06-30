@@ -28,11 +28,11 @@
   #:use-module (goblins utils hashmap)
   #:use-module (goblins contrib syrup)
   #:export (^libp2p-netlayer
-            ocapn-node->libp2p-multiaddrs
-            libp2p-multiaddress->ocapn-node
+            ocapn-peer->libp2p-multiaddrs
+            libp2p-multiaddress->ocapn-peer
             libp2p-netlayer-env))
 
-(define (libp2p-multiaddress->ocapn-node multiaddrs)
+(define (libp2p-multiaddress->ocapn-peer multiaddrs)
   (define peer-id
     (let* ((addr (car multiaddrs))
            (p2p-index (string-contains addr "/p2p/"))
@@ -44,13 +44,13 @@
             [something-else (error "Couldn't parse peer-id" something-else)]))))
   (define hints
     (hashmap ("multiaddrs" (base32-encode (syrup-encode multiaddrs)))))
-  (make-ocapn-node 'libp2p peer-id hints))
+  (make-ocapn-peer 'libp2p peer-id hints))
 
-(define (ocapn-node->libp2p-multiaddrs node)
-  (unless (and (ocapn-node? node) (eq? (ocapn-node-transport node) 'libp2p))
-    (error "Can only convert libp2p OCapN node to libp2p mutliaddrs"
-           node))
-  (let ((hints (ocapn-node-hints node)))
+(define (ocapn-peer->libp2p-multiaddrs peer)
+  (unless (and (ocapn-peer? peer) (eq? (ocapn-peer-transport peer) 'libp2p))
+    (error "Can only convert libp2p OCapN peer to libp2p mutliaddrs"
+           peer))
+  (let ((hints (ocapn-peer-hints peer)))
     (syrup-decode (base32-decode (hashmap-ref hints "multiaddrs")))))
 
 (define (libp2p-multiaddrs->libp2p-config multiaddrs)
@@ -121,7 +121,7 @@
         ""))
   (define multiaddr-config
     (if our-location
-        (let* ((multiaddrs (ocapn-node->libp2p-multiaddrs our-location))
+        (let* ((multiaddrs (ocapn-peer->libp2p-multiaddrs our-location))
                (address-config (libp2p-multiaddrs->libp2p-config multiaddrs)))
           (string-join address-config " "))
         ""))
@@ -151,7 +151,7 @@
           [(("address" multiaddrs) ... ("private-key" privkey))
            ($ private-key-resolver 'fulfill privkey)
            ($ our-location-resolver 'fulfill
-              (libp2p-multiaddress->ocapn-node multiaddrs))]
+              (libp2p-multiaddress->ocapn-peer multiaddrs))]
           [something
            ($ private-key-resolver 'break (format #f "Expected private key, got ~a" something))
            ($ our-location-resolver 'break (format #f "Expected our-location, got ~a" something))
@@ -165,7 +165,7 @@
 (define (setup-outgoing-sock sock location)
   (display
    (format #f "CONNECT ~a\n"
-           (string-join (ocapn-node->libp2p-multiaddrs location) " "))
+           (string-join (ocapn-peer->libp2p-multiaddrs location) " "))
    sock)
   (flush-output-port sock))
 
@@ -200,9 +200,9 @@
         #:promise? #t))
 
   (define (outgoing-connect-location location)
-    (unless (eq? (ocapn-node-transport location) 'libp2p)
+    (unless (eq? (ocapn-peer-transport location) 'libp2p)
       (error "Wrong netlayer! Expected libp2p" location))
-    (let ((designator (ocapn-node-designator location))
+    (let ((designator (ocapn-peer-designator location))
           (sock (make-client-unix-domain-socket outgoing-connection-path)))
       (setup-outgoing-sock sock location)
       sock))

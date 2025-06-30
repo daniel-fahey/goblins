@@ -27,49 +27,53 @@
   #:use-module (goblins ocapn ids)
   #:use-module (goblins utils base32)
   #:use-module (goblins contrib syrup)
-  #:export (prelay-sturdyref->prelay-node
-            prelay-node->prelay-sturdyref
+  #:export (prelay-sturdyref->prelay-peer
+            prelay-peer->prelay-sturdyref
             spawn-prelay-pair
             ^prelay-netlayer
-            prelay-env))
+            prelay-env
+
+            ;; Deprecated
+            prelay-sturdyref->prelay-node
+            prelay-node->prelay-sturdyref))
 
 
 ;;; URI utils
 ;;; =========
 
-(define (prelay-sturdyref->prelay-node prelay-endpoint-sref)
-  "Convert PRELAY-ENDPOINT-SREF sturdyref into an ocapn node
+(define (prelay-sturdyref->prelay-peer prelay-endpoint-sref)
+  "Convert PRELAY-ENDPOINT-SREF sturdyref into an ocapn peer
 
 This sturdyref represents the underlying prelay endpoint."
   (let* ((swiss-num (ocapn-sturdyref-swiss-num prelay-endpoint-sref))
-         (node (ocapn-sturdyref-node prelay-endpoint-sref))
-         (orig-transport (ocapn-node-transport node))
-         (orig-designator (ocapn-node-designator node))
-         (orig-hints (ocapn-node-hints node))
+         (peer (ocapn-sturdyref-peer prelay-endpoint-sref))
+         (orig-transport (ocapn-peer-transport peer))
+         (orig-designator (ocapn-peer-designator peer))
+         (orig-hints (ocapn-peer-hints peer))
          (encoded-designator
           (base32-encode
            (syrup-encode (list orig-designator
                                orig-transport
                                swiss-num)))))
-    (make-ocapn-node 'prelay
+    (make-ocapn-peer 'prelay
                      encoded-designator
                      orig-hints)))
 
-(define (prelay-node->prelay-sturdyref prelay-node)
-  "Convert PRELAY-NODE into an OCapN sturdyref
+(define (prelay-peer->prelay-sturdyref prelay-peer)
+  "Convert PRELAY-PEER into an OCapN sturdyref
 
 This sturdyref represents the underlying prelay endpoint."
-  (let ((netlayer-name (ocapn-node-transport prelay-node)))
+  (let ((netlayer-name (ocapn-peer-transport prelay-peer)))
     (unless (eq? netlayer-name 'prelay)
-      (error "Attempt to connect to non-prelay node via prelay netlayer:"
+      (error "Attempt to connect to non-prelay peer via prelay netlayer:"
              netlayer-name)))
-  (match (syrup-decode (base32-decode (ocapn-node-designator prelay-node)))
+  (match (syrup-decode (base32-decode (ocapn-peer-designator prelay-peer)))
     ((designator netlayer-name swiss-num)
-     (let ((reconstructed-node
-            (make-ocapn-node netlayer-name
+     (let ((reconstructed-peer
+            (make-ocapn-peer netlayer-name
                              designator
-                             (ocapn-node-hints prelay-node))))
-       (make-ocapn-sturdyref reconstructed-node
+                             (ocapn-peer-hints prelay-peer))))
+       (make-ocapn-sturdyref reconstructed-peer
                              swiss-num)))))
 
 
@@ -155,9 +159,9 @@ be fulfilled more than once"
    ((connect to-endpoint deliver-in)
     ;; TODO: Do we allow deliver-in
     ;; refr or is it always a sturdyref?
-    ;; TODO: Do we need to transform this node?
+    ;; TODO: Do we need to transform this peer?
     (define to-endpoint-vow
-      (<- enliven 'enliven (prelay-node->prelay-sturdyref to-endpoint)))
+      (<- enliven 'enliven (prelay-peer->prelay-sturdyref to-endpoint)))
 
     (define our-prelay-in
       (spawn ^session-prelay-in deliver-in))
@@ -273,7 +277,7 @@ respectively."
   (define our-location-vow
     (on prelay-endpoint-sref-vow
         (lambda (prelay-endpoint-sref)
-          (prelay-sturdyref->prelay-node prelay-endpoint-sref))
+          (prelay-sturdyref->prelay-peer prelay-endpoint-sref))
         #:promise? #t))
 
   (define-values (conn-establisher-vow conn-establisher-resolver)
@@ -352,27 +356,27 @@ respectively."
      ((netlayer-name) 'prelay)
      ((our-location) our-location)
      ((self-location? loc)
-      (same-node-location? our-location loc))
+      (same-peer-location? our-location loc))
      ((setup conn-establisher)
       ;; Now that we're set up, transition to the main behavior
       (<-np conn-establisher-resolver 'fulfill conn-establisher))
-     ((connect-to remote-node)
+     ((connect-to remote-peer)
       ;; Commented out because the relay is going to do some key authentication
-      ;; checks later so it needs the node itself... but we're going to need
+      ;; checks later so it needs the peer itself... but we're going to need
       ;; need to do that too presumably, so maybe we'll uncomment this once we
       ;; add cryptography
       ;; ;; Now we use our relay controller to connect to the object
       ;; ;; First that means deconstructing the URI so we can get out
       ;; ;; the relevant sturdyref object
-      ;; (define remote-endpoint-sref (relay-node->relay-sturdyref remote-node))
+      ;; (define remote-endpoint-sref (relay-peer->relay-sturdyref remote-peer))
       ;; ;; Now we need to enliven it
       ;; (define remote-endpoint-vow (enliven remote-endpoint-sref))
       (define-values (deliver-in incoming-deq-ch incoming-stop?)
         (setup-delivery-agent-and-actor))
 
       ;; TODO: Should we be giving just the sturdyref to the endpoint
-      ;;   or the remote-node?  I'm not sure.
-      (on (<- prelay-controller-vow 'connect remote-node deliver-in)
+      ;;   or the remote-peer?  I'm not sure.
+      (on (<- prelay-controller-vow 'connect remote-peer deliver-in)
           (lambda (session-prelay-outgoing)
             (define message-io
               (spawn-message-io incoming-deq-ch session-prelay-outgoing))
@@ -384,7 +388,7 @@ respectively."
                         (lambda (type reason)
                           (<-np deliver-in 'abort))))
 
-            (<- conn-establisher-vow message-io remote-node))
+            (<- conn-establisher-vow message-io remote-peer))
           #:promise? #t))))
   (lambda args
     (match args
@@ -465,3 +469,13 @@ Takes three arguments at spawn time:
      (((goblins ocapn netlayer prelay) ^prelay-controller) ,^prelay-controller)
      (((goblins ocapn netlayer prelay) ^prelay-netlayer) ,^prelay-netlayer*))
    #:extends (list cell-env facet-env)))
+
+;; Deprecation
+(define (prelay-sturdyref->prelay-node endpoint-sref)
+  (issue-deprecation-warning
+   "prelay-sturdyref->prelay-node is deprecated in favor of prelay-sturdyref->prelay-peer")
+  (prelay-sturdyref->prelay-peer endpoint-sref))
+(define (prelay-node->prelay-sturdyref node)
+  (issue-deprecation-warning
+   "prelay-node->prelay-sturdyref is deprecated in favor of prelay-peer->prelay-sturdyref")
+  (prelay-peer->prelay-sturdyref node))

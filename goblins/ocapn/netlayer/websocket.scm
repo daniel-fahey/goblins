@@ -323,8 +323,8 @@
                     (websocket-send ws bv #:mask? (not server-side?))
                     #t)))))))
 
-    (define* (hint-ref node key #:optional default)
-      (hashmap-ref (ocapn-node-hints node) key default))
+    (define* (hint-ref peer key #:optional default)
+      (hashmap-ref (ocapn-peer-hints peer) key default))
 
     (cond-expand
      (guile
@@ -371,7 +371,7 @@
               url
               (default-url host assigned-port encrypted?)))
         (define our-location
-          (make-ocapn-node 'websocket
+          (make-ocapn-peer 'websocket
                            (base32-encode
                             (match (key-pair->public-key designator-key)
                               (`(public-key (ecc (curve Ed25519)
@@ -383,14 +383,14 @@
           (warn "TLS certificate verification is disabled"))
         (methods
          ((netlayer-name) 'websocket)
-         ((self-location? other) (same-node-location? our-location other))
+         ((self-location? other) (same-peer-location? our-location other))
          ((our-location) our-location)
          ((setup conn-establisher)
           ($$ conn-establisher-resolver 'fulfill conn-establisher))
-         ((connect-to remote-node)
-          (match remote-node
-            (($ <ocapn-node> 'websocket designator _)
-             (let ((uri (string->uri (hint-ref remote-node "url"))))
+         ((connect-to remote-peer)
+          (match remote-peer
+            (($ <ocapn-peer> 'websocket designator _)
+             (let ((uri (string->uri (hint-ref remote-peer "url"))))
                ;; If the server is encrypted, then clients must be
                ;; encrypted, too.
                (when (and tls-private-key (not (eq? (uri-scheme uri) 'wss)))
@@ -400,8 +400,8 @@
                              #:verify-certificate? verify-certificates?)))
                  (<- conn-establisher-vow
                      (spawn ^websocket-captp-io ws #f)
-                     remote-node))))
-            (($ <ocapn-node> transport _ _)
+                     remote-peer))))
+            (($ <ocapn-peer> transport _ _)
              (error "mismatched netlayer" transport 'websocket))))
          ;; Private API:
          ((halt) (<- server 'halt))))
@@ -491,22 +491,22 @@
       (define-actor (^websocket-netlayer/client-only bcom)
         (define-values (conn-establisher-vow conn-establisher-resolver)
           (spawn-promise-and-resolver))
-        (define our-location (make-ocapn-node 'websocket "unreachable" (hashmap)))
+        (define our-location (make-ocapn-peer 'websocket "unreachable" (hashmap)))
         (methods
          ((netlayer-name) 'websocket)
-         ((self-location? other) (same-node-location? our-location other))
+         ((self-location? other) (same-peer-location? our-location other))
          ((our-location) our-location)
          ((setup conn-establisher)
           ($$ conn-establisher-resolver 'fulfill conn-establisher))
-         ((connect-to remote-node)
-          (match remote-node
-            (($ <ocapn-node> 'websocket designator _)
-             (let ((url (hint-ref remote-node "url")))
+         ((connect-to remote-peer)
+          (match remote-peer
+            (($ <ocapn-peer> 'websocket designator _)
+             (let ((url (hint-ref remote-peer "url")))
                (let-on ((ws (open-websocket designator url)))
                  (<- conn-establisher-vow
                      (spawn ^websocket-captp-io ws #f)
-                     remote-node))))
-            (($ <ocapn-node> transport _ _)
+                     remote-peer))))
+            (($ <ocapn-peer> transport _ _)
              (error "mismatched netlayer" transport 'websocket))))))))
 
     (define (default-url host port encrypted?)

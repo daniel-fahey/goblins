@@ -821,7 +821,7 @@
                            got-near-refr
                            got-promise-to-refr
                            got-promise-to-value
-                           got-ocapn-node got-ocapn-sref)
+                           got-ocapn-peer got-ocapn-sref)
   ;; Make the promises
   (define-values (refr-vow refr-resolver)
     (spawn-promise-and-resolver))
@@ -844,14 +844,14 @@
   (define gset (make-gset 1 2 3 'foo 'bar 'baz "Hello"))
   (define gh (ghash ('banana 'yellow)))
   (define dotted '(1 2 3 4 . zilch))
-  (define ocapn-node
-    (make-ocapn-node
+  (define ocapn-peer
+    (make-ocapn-peer
      'fake
      "4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"
      (hashmap ("name" "test 1"))))
   (define ocapn-sref
     (make-ocapn-sturdyref
-     ocapn-node
+     ocapn-peer
      #vu8(74 174 136 226 211 114 92 53 153 139 168 28 82 26 52 183 107 50 123 83 116 61 247 240 172 189 77 35 75 63 51 162)))
 
   (define (main-beh restored-refr)
@@ -873,7 +873,7 @@
          (equal? dotted got-dotted)
          (live-refr? got-promise-to-refr)
          (eq? ($ encased-vow) ($ got-promise-to-value))
-         (equal? ocapn-node got-ocapn-node)
+         (equal? ocapn-peer got-ocapn-peer)
          (equal? ocapn-sref got-ocapn-sref)))
 
   (define (self-portrait)
@@ -882,7 +882,7 @@
           tagged string char bv bool
           *unspecified* my-vector gset gh dotted
           supplied-refr refr-vow encased-vow
-          ocapn-node ocapn-sref))
+          ocapn-peer ocapn-sref))
   (portraitize main-beh self-portrait))
 (define env
   (make-persistence-env

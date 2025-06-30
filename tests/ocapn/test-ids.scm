@@ -20,19 +20,19 @@
 (test-begin "test-ids")
 
 (define ocapn-m1
-  (make-ocapn-node
+  (make-ocapn-peer
    'fake
    "4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"
    (hashmap ("name" "test 1"))))
 
 (define ocapn-m1*
-  (make-ocapn-node
+  (make-ocapn-peer
    'fake
    "4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"
    (hashmap ("name" "test 2"))))
 
 (define ocapn-m2
-  (make-ocapn-node
+  (make-ocapn-peer
    'fake
    "8upy8klbgvtxwopxz93oyx5rxtglasaphptdjbb0hqjfvsalsinc9p7g"
    (hashmap ("name" "test 3"))))
@@ -41,33 +41,33 @@
   (make-ocapn-sturdyref ocapn-m1 #vu8(74 174 136 226 211 114 92 53 153 139 168 28 82 26 52 183 107 50 123 83 116 61 247 240 172 189 77 35 75 63 51 162)))
 
 (test-assert
-    "Verify ocapn-node? tests positive when given an ocapn-node"
-  (ocapn-node? ocapn-m1))
+    "Verify ocapn-peer? tests positive when given an ocapn-peer"
+  (ocapn-peer? ocapn-m1))
 
-;; ocapn-id->ocapn-node
-(test-equal "ocapn-id->ocapn-node with an ocapn-node"
+;; ocapn-id->ocapn-peer
+(test-equal "ocapn-id->ocapn-peer with an ocapn-peer"
   ocapn-m1
-  (ocapn-id->ocapn-node ocapn-m1))
+  (ocapn-id->ocapn-peer ocapn-m1))
 
-(test-equal "ocapn-id->ocapn-node with an ocapn-studyref"
+(test-equal "ocapn-id->ocapn-peer with an ocapn-studyref"
   ocapn-m1
-  (ocapn-id->ocapn-node ocapn-sref1))
+  (ocapn-id->ocapn-peer ocapn-sref1))
 
-;; same-node-location?
+;; same-peer-location?
 (test-assert
-    "same-node-location? with the same node, and same hints"
-  (same-node-location? ocapn-m1 ocapn-m1))
-
-(test-assert
-    "same-node-location? with the same node, but different hints"
-  (same-node-location? ocapn-m1 ocapn-m1*))
+    "same-peer-location? with the same peer, and same hints"
+  (same-peer-location? ocapn-m1 ocapn-m1))
 
 (test-assert
-    "same-node-location? doesn't match with two different nodes"
-  (not (same-node-location? ocapn-m1 ocapn-m2)))
+    "same-peer-location? with the same peer, but different hints"
+  (same-peer-location? ocapn-m1 ocapn-m1*))
+
+(test-assert
+    "same-peer-location? doesn't match with two different peers"
+  (not (same-peer-location? ocapn-m1 ocapn-m2)))
 
 ;; Check string->ocapn-id
-(test-equal "Verify string->ocapn-id produces the correct ocapn-node"
+(test-equal "Verify string->ocapn-id produces the correct ocapn-peer"
   ocapn-m1
   (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake?name=test%201"))
 
@@ -76,7 +76,7 @@
   (string->ocapn-id "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake/s/Sq6I4tNyXDWZi6gcUho0t2sye1N0PffwrL1NI0s_M6I?name=test%201"))
 
 ;; Check ocapn-id->string
-(test-equal "ocapn-id->string works for ocapn-node"
+(test-equal "ocapn-id->string works for ocapn-peer"
   "ocapn://4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd.fake?name=test%201"
   (ocapn-id->string ocapn-m1))
 

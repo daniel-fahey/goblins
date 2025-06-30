@@ -274,8 +274,8 @@ Type: Any -> Boolean"
      (local-promise-refr-vat-connector local-refr)]))
 
 ;; Captp-connector should be a procedure which both sends a message
-;; to the local node representative actor, but also has something
-;; serialized that knows which specific remote node + session this
+;; to the local peer representative actor, but also has something
+;; serialized that knows which specific remote peer + session this
 ;; corresponds to (to look up the right captp session and forward)
 
 (define-record-type <remote-object-refr>

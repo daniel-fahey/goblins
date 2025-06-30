@@ -306,7 +306,7 @@
    ;;   : handoff-key?
   (receiver-key desc:handoff-give-receiver-key)
    ;; exporter-location(-hint(s)): how to connect to get this
-   ;;   : ocap-node-uri?
+   ;;   : ocap-peer-uri?
    ;;   Note that currently this requires a certain amount of VatTP
    ;;   crossover, since we have to give a way to connect to VatTP...
   (exporter-location desc:handoff-give-exporter-location)
@@ -340,8 +340,6 @@
   (acceptable-location op:start-session-acceptable-location)
   (acceptable-location-sig op:start-session-acceptable-location-sig))
 
-;; TODO: 3 vat/node handoff versions (Promise3Desc, Far3Desc)
-
 (define marshallers
   (list marshall::op:deliver-only
         marshall::op:deliver
@@ -358,7 +356,7 @@
         marshall::desc:handoff-receive
         marshall::op:start-session
 
-        marshall::ocapn-node
+        marshall::ocapn-peer
         marshall::ocapn-sturdyref))
 
 (define unmarshallers
@@ -377,7 +375,7 @@
         unmarshall::desc:handoff-receive
         unmarshall::op:start-session
 
-        unmarshall::ocapn-node
+        unmarshall::ocapn-peer
         unmarshall::ocapn-sturdyref))
 
 ;; Doesn't verify that it's *valid*, just that it's *signed*
@@ -442,7 +440,7 @@
 ;; look up what question corresponds to an entry in the table.
 ;; Used by mactor:question (a special kind of promise),
 ;; since messages sent to a question are pipelined through the answer
-;; side of some "remote" node.
+;; side of some "remote" peer.
 (define-record-type <question-finder>
   (make-question-finder sealed-pos)
   question-finder?

@@ -757,7 +757,7 @@
                    (vat-log-ref-by-time a-vat (vat-clock a-vat)))))
         (equal? tree (vat-event-tree-map identity tree))))))
 
-(test-assert "Filtering event tree keeps only nodes that satisfy predicate"
+(test-assert "Filtering event tree keeps only peers that satisfy predicate"
   (begin
     (vat-log-clear! a-vat)
     (vat-log-clear! b-vat)

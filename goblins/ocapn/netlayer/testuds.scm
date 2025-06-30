@@ -25,25 +25,25 @@
   #:export (^testuds-netlayer))
 
 (define* (^testuds-netlayer bcom netlayers-dir
-                            #:key (node-id (random-name 32)))
+                            #:key (peer-id (random-name 32)))
   (define our-location
-    (make-ocapn-node 'testuds node-id '()))
+    (make-ocapn-peer 'testuds peer-id '()))
   (define (sock-filename-for-id id)
     (string-append netlayers-dir file-name-separator-string id
                    ".sock"))
   (define our-sock-filename
-    (sock-filename-for-id node-id))
+    (sock-filename-for-id peer-id))
   (define our-server-sock
-    (make-server-unix-domain-socket (sock-filename-for-id node-id)))
+    (make-server-unix-domain-socket (sock-filename-for-id peer-id)))
   (define (incoming-accept)
     (match (accept our-server-sock SOCK_NONBLOCK)
       ((client . addr)
        (setvbuf client 'block 1024)
        client)))
   (define (outgoing-connect-location location)
-    (unless (eq? (ocapn-node-transport location) 'testuds)
+    (unless (eq? (ocapn-peer-transport location) 'testuds)
       (error "Wrong netlayer! Expected testuds" location))
     (make-client-unix-domain-socket (sock-filename-for-id
-                                     (ocapn-node-designator location))))
+                                     (ocapn-peer-designator location))))
   (^base-port-netlayer bcom our-location
                        incoming-accept outgoing-connect-location))

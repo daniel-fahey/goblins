@@ -32,20 +32,20 @@
 
 (test-begin "test-captp")
 
-(define (make-new-node name)
+(define (make-new-peer name)
   "Create a new vat, spawns a fake netlayer & mycapn for given `name'"
-  (define node-vat (spawn-vat #:name name))
+  (define peer-vat (spawn-vat #:name name))
   (define new-conn-ch (make-channel))
   (with-vat test-vat
     ($ test-network 'register name new-conn-ch))
-  (define location (make-ocapn-node 'fake name #f))
+  (define location (make-ocapn-peer 'fake name #f))
   (define netlayer
-    (with-vat node-vat
+    (with-vat peer-vat
      (spawn ^fake-netlayer name test-network new-conn-ch)))
   (define mycapn
-    (with-vat node-vat
+    (with-vat peer-vat
      (spawn-mycapn netlayer)))
-  (values node-vat netlayer mycapn))
+  (values peer-vat netlayer mycapn))
 
 (define test-vat (spawn-vat #:name "test"))
 (define test-network
@@ -53,13 +53,13 @@
    (spawn ^fake-network)))
 
 
-;; Spawn different nodes.
+;; Spawn different peers.
 (define-values (a-vat a-netlayer a-mycapn)
-  (make-new-node "a"))
+  (make-new-peer "a"))
 (define-values (b-vat b-netlayer b-mycapn)
-  (make-new-node "b"))
+  (make-new-peer "b"))
 (define-values (c-vat c-netlayer c-mycapn)
-  (make-new-node "c"))
+  (make-new-peer "c"))
 
 (define (^greeter _bcom our-name)
   (lambda (their-name)
@@ -139,7 +139,7 @@
               (lambda (meeter-bob)
                 (<- introducer-alice meeter-bob chatty-carol))
               #:promise? #t)))))
-  (test-equal "A and C on one node, B on another with introductions"
+  (test-equal "A and C on one peer, B on another with introductions"
     #(ok (hello-back-from carol))
     result))
 
@@ -314,9 +314,9 @@
     result))
 
 (define-values (a-vat a-netlayer a-mycapn)
-  (make-new-node "a"))
+  (make-new-peer "a"))
 (define-values (b-vat b-netlayer b-mycapn)
-  (make-new-node "b"))
+  (make-new-peer "b"))
 (define bob-sref
   (with-vat b-vat
     ($ b-mycapn 'register (spawn ^greeter "Bob") 'fake)))
@@ -349,19 +349,19 @@
     result))
 
 
-;; Test for enlivening the srefs to same node twice at the same time
+;; Test for enlivening the srefs to same peer twice at the same time
 ;; Requires fresh connections
 (define-values (a-vat a-netlayer a-mycapn)
-  (make-new-node "a"))
+  (make-new-peer "a"))
 (define-values (b-vat b-netlayer b-mycapn)
-  (make-new-node "b"))
+  (make-new-peer "b"))
 
 (define-values (cell-1-sref cell-2-sref)
   (with-vat a-vat
     (values ($ a-mycapn 'register (spawn ^cell) 'fake)
             ($ a-mycapn 'register (spawn ^cell) 'fake))))
 
-(test-equal "Two srefs to the same node produce only 1 connection"
+(test-equal "Two srefs to the same peer produce only 1 connection"
   #(ok #t)
   (resolve-vow-and-return-result
           b-vat

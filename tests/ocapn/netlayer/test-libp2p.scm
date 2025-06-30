@@ -77,14 +77,14 @@
     [something-else #f]))
 
 (define provided-private-key "this-is-our-super-secret-pk")
-(define provided-location "/ip4/1.2.3.4/udp/6000/p2p/node-id-is-here")
+(define provided-location "/ip4/1.2.3.4/udp/6000/p2p/peer-id-is-here")
 (with-vat test-vat
   (<-np control-socket-io 'write-line
         (format #f "address:~a private-key:~a\n"
                 provided-location provided-private-key)))
 
 (test-equal "Check libp2p location is correct"
-  #(ok "ocapn://node-id-is-here.libp2p?multiaddrs=lm2dcirpnfydilzrfyzc4mzogqxxkzdqf43dambqf5yde4bpnzxwizjnnfsc22ltfvugk4tflu")
+  #(ok "ocapn://peer-id-is-here.libp2p?multiaddrs=lm2dcirpnfydilzrfyzc4mzogqxxkzdqf43dambqf5yde4bpobswk4rnnfsc22ltfvugk4tflu")
   (resolve-vow-and-return-result
    libp2p-vat
    (lambda ()
