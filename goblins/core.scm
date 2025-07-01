@@ -2036,8 +2036,19 @@ Type: Promise (Optional (Any -> Any))
   (define (^ref-listener bcom resolve-me)
     (match-lambda*
       [('fulfill next-value)
-       (define ref-proc (type->procedure type))
-       (<-np resolve-me 'fulfill (ref-proc next-value by))]
+       (match next-value
+         [(? live-refr?)
+          (let ((sys (get-syscaller-or-die)))
+            (syscaller-send-ref-request sys type next-value by resolve-me))]
+         [_
+          (let ((ref-proc (type->procedure type)))
+            (with-exception-handler
+                (lambda (exn)
+                  (<-np resolve-me 'break exn))
+              (lambda ()
+                (<-np resolve-me 'fulfill (ref-proc next-value by)))
+              #:unwind? #t)
+            *unspecified*)])]
       [('break err)
        (<-np resolve-me 'break err)]))
 
@@ -2105,14 +2116,13 @@ Type: Promise (Optional (Any -> Any))
 
 
 (define (<-list-ref refr index)
-  (assert-type index positive-or-zero?)
-  (define positive-or-zero?
-    (lambda (n)
-      (and (exact-integer? index) (or (zero? index) (positive? index)))))
+  (assert-type index non-negative-integer?)
+  (define (non-negative-integer? n)
+    (and (exact-integer? index) (or (zero? index) (positive? index))))
 
   (define sys (get-syscaller-or-die))
   (match refr
-    [(? list?) (list-ref refr index)]
+    [(? pair?) (list-ref refr index)]
     [(? promise-refr?)
      (let-values (((vow resolver) (spawn-promise-and-resolver)))
        (syscaller-send-ref-request sys 'list refr index resolver)
@@ -2127,7 +2137,7 @@ Type: Promise (Optional (Any -> Any))
   (match refr
     [(? tagged?)
      (let ((found-label (tagged-label refr)))
-       (if (equal? label found-label)
+       (if (string=? label found-label)
            (tagged-data refr)
            (error (format #f "Expected tag ~a, found ~a" label found-label))))]
     [(? promise-refr?)
