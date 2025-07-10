@@ -1160,11 +1160,6 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
 
 (define (transactormap-calculate-obj-delta am)
   "Gets the refrs of all objects that changed in last transaction"
-  (define actormap-data
-    (@@ (goblins core) actormap-data))
-  (define transactormap-data-delta
-    (@@ (goblins core) transactormap-data-delta))
-
   (define am-data
     (actormap-data am))
   (define delta-obj-map
@@ -1271,15 +1266,13 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
     ;; the standard "read-portrait" functions we normally would
     ;; we should get the self-portrait function and just give
     ;; that data.
-    (define get-self-portrait
-      (@@ (goblins core) mactor:object-self-portrait))
     (define mactor
       (actormap-ref am refr))
 
     (unless mactor
       (error "refr not found in vat" refr))
     (define take-self-portrait
-      (get-self-portrait mactor))
+      (mactor:object-self-portrait mactor))
     (take-self-portrait))
   (call-system-op-with-vat vat take-object-portrait))
 
