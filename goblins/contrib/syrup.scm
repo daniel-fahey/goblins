@@ -14,9 +14,12 @@
   #:use-module (ice-9 match)
   #:use-module (ice-9 binary-ports)
   #:use-module (ice-9 vlist)
+  #:use-module (ice-9 format)
   #:use-module (goblins abstract-types)
+  #:use-module (goblins utils base32)
   #:use-module (goblins utils ghash)
   #:use-module (rnrs bytevectors)
+  #:use-module (ice-9 textual-ports)
 
   #:export (;;; The main procedures
             ;;; -------------------
@@ -30,7 +33,11 @@
             psuedosingle->float
 
             make-marshallers
-            define-syrup-record-type))
+            define-syrup-record-type
+
+            ;;; For jsyrup
+            ;;; ----------
+            jsyrup-write))
 
 ;;; Data format
 ;;; ===========
@@ -470,3 +477,161 @@
                            [($ name arg ...)
                             (make-tagged* obj-label arg ...)]))))
         (make-marshallers 'label pred ctor serialize)))))
+
+
+;;; Jsyrup writer
+;;; =============
+
+;; TODO: Add indentation
+(define* (jsyrup-write obj #:optional (op (current-output-port))
+                       #:key [marshallers '()]
+                       (hash? ghash?)
+                       (hash-fold ghash-fold)
+                       (set? gset?)
+                       (set-fold gset-fold)
+                       (pretty-print? #t))
+  (define (write-obj obj indent)
+    (define* (indent-and-newline #:optional (indent indent))
+      (when pretty-print?
+        (newline op)
+        (do ((i 0 (1+ i)))
+            ((= i indent))
+          (put-string op "  "))))
+    (match obj
+      ;; Bytes are like |<base32>|
+      [(? bytevector?)
+       (put-char op #\|)
+       (base32-encode obj #:out-port op)
+       (put-char op #\|)]
+      ;; Numbers are like 3.14 (floats) or 3 or -4 (ints)
+      [(? number?)
+       (if (exact? obj)
+           (if (integer? obj)
+               (display obj op)
+               (error "Fractional numbers not supported in Syrup:" obj))
+           (if (real? obj)
+               (display obj op)
+               (error "Imaginary numbers not supported in Syrup:" obj)))]
+      ;; Lists are like [<item1>, <item2>, <item3>]
+      ['() (put-string op "[]")]
+      [(? pair?)
+       (put-char op #\[)
+       (let lp ((lst obj))
+         (match lst
+           (()
+            (indent-and-newline)
+            (put-char op #\]))
+           ((item)
+            (indent-and-newline (1+ indent))
+            (write-obj item (1+ indent))
+            (indent-and-newline)
+            (put-char op #\]))
+           ((item rest ...)
+            (indent-and-newline (1+ indent))
+            (write-obj item (1+ indent))
+            (put-string op ", ")
+            (lp rest))))]
+      ;; Dictionaries are like {<key1>: <val1>, <key2>: <val2>}
+      ;; We sort by the key being fully encoded.
+      [(? hash? ht)
+       (put-string op "{")
+       (hash-fold
+        (lambda (key val first?)
+          (unless first?
+            (put-string op (if pretty-print? "," ", ")))
+          (indent-and-newline (1+ indent))
+          (write-obj key (1+ indent))
+          (put-string op ": ")
+          (write-obj val (1+ indent))
+          #f)  ; no longer first
+        #t     ; for the first run
+        ht)
+       (indent-and-newline)
+       (put-string op "}")]
+
+      ;; Strings are like "foo"
+      [(? string? str)
+       (define (escape-char char)
+         (display (match char
+                    (#\" "\\\"")
+                    (#\\ "\\\\")
+                    (#\/ "\\/")
+                    (#\backspace "\\b")
+                    (#\page "\\f")
+                    (#\newline "\\n")
+                    (#\return "\\r")
+                    (#\tab "\\t")
+                    (_ char))
+                  op))
+       (put-char op #\")
+       (string-for-each escape-char str)
+       (put-char op #\")]
+      ;; Symbols are like 'foo'
+      [(? symbol? sym)
+       (define (escape-char char)
+         (display (match char
+                    (#\' "\\'")
+                    (#\\ "\\\\")
+                    (#\/ "\\/")
+                    (#\backspace "\\b")
+                    (#\page "\\f")
+                    (#\newline "\\n")
+                    (#\return "\\r")
+                    (#\tab "\\t")
+                    (_ char))
+                  op))
+       (put-char op #\')
+       (string-for-each escape-char (symbol->string sym))
+       (put-char op #\')]
+      ;; Records are like <<tag> <arg1>, <arg2>> but with the outer <> for realsies
+      [(? tagged?)
+       (put-char op #\<)
+       (write-obj (tagged-label obj) indent)
+       (match (tagged-data obj)
+         (() (values))              ; tagged record with no data
+         ((first . rest)            ; unroll, putting space before first arg
+          (put-char op #\space)
+          (write-obj first indent)
+          (let lp ((items rest))    ; unroll rest of args
+            (match items
+              (() (values))
+              ((item . rest)
+               (put-string op ", ")
+               (write-obj item indent)
+               (lp rest))))))
+       (put-char op #\>)]
+      ;; true is true, false is false
+      [#t (put-string op "true")]
+      [#f (put-string op "false")]
+      ;; Sets are like (<item1>, <item2>, <item3>)
+      [(? set?)
+       (put-char op #\()
+       (let ((first? #t))
+         (set-fold (lambda (item first?)
+                     (when first?
+                       (put-string op (if pretty-print? "," ", ")))
+                     (indent-and-newline (1+ indent))
+                     (write-obj item (1+ indent))
+                     #f)   ; no longer first
+                   #t      ; for the first run
+                   obj))
+       (indent-and-newline)
+       (put-char op #\))]
+      [_
+       (let lp ((marshallers marshallers))
+         (match marshallers
+           ('()  ; nothing found
+            (error "Unsupported Syrup type:" obj))
+           (((handles-it? . translate) . rest-marshallers)
+            (cond
+             ((handles-it? obj)
+              (let ((translated (translate obj)))
+                (if (record? translated)
+                    (write-obj translated indent)    ; done
+                    (error 'syrup-marshaller-returned-unsupported-type))))
+             (else
+              (lp rest-marshallers))))))]))
+  (write-obj obj 0)
+  (when pretty-print? (newline op)))
+
+
