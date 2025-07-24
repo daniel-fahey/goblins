@@ -232,7 +232,7 @@
          (put-bytevector port F-bv)
          (put-bytevector port bv))]
       ;; Double flonum floats are like D<big-endian-encoded-double-float>
-      [(and (? number?) (? inexact?))
+      [(and (? number?) (? inexact?) (? real?))
        (let ([bv (make-bytevector 8)])
          (bytevector-ieee-double-set! bv 0 obj (endianness big))
          (put-bytevector port D-bv)
