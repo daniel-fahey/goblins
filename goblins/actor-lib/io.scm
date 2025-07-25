@@ -17,7 +17,6 @@
   #:use-module (ice-9 match)
   #:use-module (goblins core)
   #:use-module (goblins vat)
-  #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins inbox)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils error-handling)
@@ -25,6 +24,7 @@
   #:use-module (fibers conditions)
   #:use-module (fibers channels)
   #:use-module (fibers operations)
+  #:use-module (fibers scheduler)
   #:export (^io ^read-write-io))
 
 ;; Not exported for now, but maybe someday it would be useful to export?
@@ -39,7 +39,7 @@ Returns two values to its continuation:
    and a resolver to resolve a promise with the answer
  - STOP!: a thunk which halts the fiber"
   (define-values (enq-ch deq-ch stop-inbox?)
-    (spawn-delivery-agent #:scheduler (default-vat-scheduler)))
+    (spawn-delivery-agent #:scheduler (current-scheduler)))
   (define (run-proc proc fulfill-me)
     (put-message enq-ch (cons proc fulfill-me)))
   (define (stop!)
