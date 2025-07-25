@@ -608,7 +608,7 @@
        (put-char op #\()
        (let ((first? #t))
          (set-fold (lambda (item first?)
-                     (when first?
+                     (unless first?
                        (put-string op (if pretty-print? "," ", ")))
                      (indent-and-newline (1+ indent))
                      (write-obj item (1+ indent))
