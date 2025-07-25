@@ -570,7 +570,7 @@
       [(? symbol? sym)
        (define (escape-char char)
          (display (match char
-                    (#\' "\\'")
+                    (#\` "\\`")
                     (#\\ "\\\\")
                     (#\/ "\\/")
                     (#\backspace "\\b")
@@ -580,9 +580,9 @@
                     (#\tab "\\t")
                     (_ char))
                   op))
-       (put-char op #\')
+       (put-char op #\`)
        (string-for-each escape-char (symbol->string sym))
-       (put-char op #\')]
+       (put-char op #\`)]
       ;; Records are like <<tag> <arg1>, <arg2>> but with the outer <> for realsies
       [(? tagged?)
        (put-char op #\<)
