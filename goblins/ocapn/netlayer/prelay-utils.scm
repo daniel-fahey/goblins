@@ -19,6 +19,7 @@
 
   (import (guile)
           (goblins)
+          (goblins utils hashmap)
           (goblins utils ghash)
           (goblins ocapn captp)
           (goblins ocapn ids)
@@ -63,14 +64,14 @@ created on this prelay-admin."
 
       (methods
        [(add-account name)
-        (when (ghash-has-key? accounts name)
+        (when (not (eq? ':none (hashmap-ref accounts name ':none)))
           (error "Account with name already exists" name))
         (define new-account (spawn ^relay-account enliven register))
         (bcom (^prelay-admin bcom enliven register
-                             (ghash-set accounts name new-account))
+                             (hashmap-set accounts name new-account))
               (<- register 'register new-account))]
        [(get-accounts)
-        (ghash-fold
+        (hashmap-fold
          (lambda (name revoke account-list)
            (cons name account-list))
          (list)

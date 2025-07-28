@@ -21,6 +21,7 @@
   #:use-module ((goblins core) #:select ($) #:prefix $)
   #:use-module (goblins core-types)
   #:use-module (goblins vat)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins utils ghash)
   #:use-module (goblins inbox)
   #:use-module (goblins abstract-types)
@@ -385,12 +386,12 @@
                       prev))
         vlist-null
         obj)]
-      [(? ghash?)
-       (ghash-fold
+      [(? hashmap?)
+       (hashmap-fold
         (lambda (key value prev)
-          (ghash-set prev
-                     (outgoing-pre-marshall! key)
-                     (outgoing-pre-marshall! value)))
+          (hashmap-set prev
+                       (outgoing-pre-marshall! key)
+                       (outgoing-pre-marshall! value)))
         (make-ghash)
         obj)]
       [(? gset?)
@@ -447,10 +448,10 @@
                       prev))
         vlist-null
         obj)]
-      [(? ghash?)
-       (ghash-fold
+      [(? hashmap?)
+       (hashmap-fold
         (lambda (key value prev)
-          (ghash-set prev
+          (hashmap-set prev
                      (incoming-post-unmarshall! key)
                      (incoming-post-unmarshall! value)))
         (make-ghash)
@@ -1191,7 +1192,7 @@
   ;; if we're being rehydrated with aurie.
   (on (<- netlayer-map 'data)
       (lambda (netlayer-map-data)
-        (ghash-for-each
+        (hashmap-for-each
          (lambda (netlayer-name netlayer)
            (<-np netlayer 'setup (spawn ^connection-establisher self netlayer netlayer-name)))
          netlayer-map-data)))
@@ -1462,8 +1463,8 @@
     (spawn ^ghash
            (fold
             (lambda (netlayer netmap)
-              (ghash-set netmap ($$ netlayer 'netlayer-name)
-                         netlayer))
+              (hashmap-set netmap ($$ netlayer 'netlayer-name)
+                           netlayer))
             (make-ghash)
             netlayers)))
 

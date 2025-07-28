@@ -14,6 +14,7 @@
 
 (define-module (tests actor-lib test-common)
   #:use-module (goblins core)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins utils ghash)
   #:use-module (goblins actor-lib common)
   #:use-module (tests utils)
@@ -51,9 +52,9 @@
 (actormap-poke! am ghash 'set 'foobar 'baz)
 (test-assert "Check data method returns a hash with all the values in"
   (let ((data (actormap-peek am ghash 'data)))
-    (and (ghash? data)
-         (eq? (ghash-ref data 'my-key) 'my-value)
-         (eq? (ghash-ref data 'foobar) 'baz)
+    (and (hashmap? data)
+         (eq? (hashmap-ref data 'my-key) 'my-value)
+         (eq? (hashmap-ref data 'foobar) 'baz)
          (eq? (ghash-length data) 2))))
 
 (actormap-poke! am ghash 'remove 'my-key)

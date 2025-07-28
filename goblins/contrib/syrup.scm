@@ -17,6 +17,7 @@
   #:use-module (ice-9 format)
   #:use-module (goblins abstract-types)
   #:use-module (goblins utils base32)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins utils ghash)
   #:use-module (rnrs bytevectors)
   #:use-module (ice-9 textual-ports)
@@ -180,7 +181,7 @@
          [(_ . val) val]))
      vhash-fold))
   (define write-ghash!
-    (build-encode-hash ghash-ref ghash-fold))
+    (build-encode-hash hashmap-ref hashmap-fold))
   (define (output-tagged! port obj)
     (put-bytevector port anglebrac-left-bv)
     (encode (tagged-label obj) #:port port)
@@ -215,7 +216,7 @@
       ;; We sort by the key being fully encoded.
       [(? hash-table?)
        (write-hash! obj port)]
-      [(? ghash?)
+      [(? hashmap?)
        (write-ghash! obj port)]
       ;; Strings are like <encoded-bytes-len>"<utf8-encoded>
       [(? string?)
@@ -389,7 +390,7 @@
               [_
                (let ((key (read-next))
                      (val (read-next)))
-                 (lp (ghash-set ht key val)))]))]
+                 (lp (hashmap-set ht key val)))]))]
          ;; it's a record
          [#\<
           (read-byte in-port)
@@ -485,8 +486,8 @@
 ;; TODO: Add indentation
 (define* (jsyrup-write obj #:optional (op (current-output-port))
                        #:key [marshallers '()]
-                       (hash? ghash?)
-                       (hash-fold ghash-fold)
+                       (hash? hashmap?)
+                       (hash-fold hashmap-fold)
                        (set? gset?)
                        (set-fold gset-fold)
                        (pretty-print? #t))

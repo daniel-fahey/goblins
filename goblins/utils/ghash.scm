@@ -80,8 +80,8 @@
   (syntax-rules ()
     ((_) (make-ghash))
     ((_ (key val) . rest)
-     (ghash-set (ghash . rest)
-                key val))))
+     (hashmap-set (ghash . rest)
+                  key val))))
 
 (define (ghash-set ghash key val)
   (issue-deprecation-warning

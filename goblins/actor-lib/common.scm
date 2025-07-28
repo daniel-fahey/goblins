@@ -81,7 +81,7 @@ Methods:
    [(set key val)
     (bcom (^ghash bcom (hashmap-set ht key val)))]
    [(has-key? key)
-    (ghash-has-key? ht key)]
+    (not (eq? ':none (hashmap-ref ht key ':none)))]
    [(remove key)
     (bcom (^ghash bcom (hashmap-remove ht key)))]
    [(data) ht]))

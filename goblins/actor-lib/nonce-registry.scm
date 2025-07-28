@@ -17,6 +17,7 @@
 (define-module (goblins actor-lib nonce-registry)
   #:use-module (goblins core)
   #:use-module (goblins define-actor)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins utils ghash)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils assert-type)
@@ -64,15 +65,15 @@
     (let* ((storable-id (refr->storable-id refr))
            (new-swiss-num (or provided-swiss-num (make-swiss-num)))
            (hashed-swiss-num (hash new-swiss-num))
-           (new-swiss-num->refr (ghash-set swiss-num->refr hashed-swiss-num refr))
+           (new-swiss-num->refr (hashmap-set swiss-num->refr hashed-swiss-num refr))
            (new-storable-id->swiss-num
-            (ghash-set storable-id->swiss-num storable-id new-swiss-num)))
+            (hashmap-set storable-id->swiss-num storable-id new-swiss-num)))
       (bcom (^nonce-registry bcom new-swiss-num->refr
                              new-storable-id->swiss-num
                              hash-algorithm salt) new-swiss-num)))
   (define* (register refr #:optional provided-swiss-num)
     (assert-type refr live-refr?)
-    (match (ghash-ref storable-id->swiss-num (refr->storable-id refr) #f)
+    (match (hashmap-ref storable-id->swiss-num (refr->storable-id refr) #f)
       [#f (register-refr-new refr provided-swiss-num)]
       [swiss-num swiss-num]))
   (methods
@@ -82,16 +83,16 @@
       [(swiss-num)
        (let ((hashed-swiss-num (hash swiss-num)))
          ;; TODO: Better errors when no swiss num
-         (unless (ghash-has-key? swiss-num->refr hashed-swiss-num)
+         (unless (not (eq? ':none (hashmap-ref swiss-num->refr hashed-swiss-num ':none)))
            (throw 'no-such-key
                   (format #f "No object registered with swiss-num: ~a"
                           (base64-encode swiss-num
                                          #:alphabet base64-url-alphabet
                                          #:padding? #f))))
-         (ghash-ref swiss-num->refr hashed-swiss-num))]
+         (hashmap-ref swiss-num->refr hashed-swiss-num))]
       [(swiss-num dflt)
        (let ((hashed-swiss-num (hash swiss-num)))
-         (ghash-ref swiss-num->refr hashed-swiss-num dflt))])]))
+         (hashmap-ref swiss-num->refr hashed-swiss-num dflt))])]))
 
 (define-actor (^nonce-locator bcom registry)
   (methods

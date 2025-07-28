@@ -2749,10 +2749,10 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                 '()
                 (cons (process-one (vector-ref vec i))
                       (lp (1+ i))))))]
-        [(? ghash?)
-         (ghash-fold
+        [(? hashmap?)
+         (hashmap-fold
           (lambda (k v prev)
-            (ghash-set prev (process-one k) (process-one v)))
+            (hashmap-set prev (process-one k) (process-one v)))
           (make-ghash)
           value)]
         [(? gset?)
@@ -3146,10 +3146,10 @@ Type: Actormap PersistenceEnv -> Void"
                 [(vat-id object-id)
                  (make-persistable-object-identifier vat-id object-id)])]
              [_ (error "Unknown depiction type" type)]))]
-        [(? ghash?)
-         (ghash-fold
+        [(? hashmap?)
+         (hashmap-fold
           (lambda (k v prev)
-            (ghash-set prev (restore-one k) (restore-one v)))
+            (hashmap-set prev (restore-one k) (restore-one v)))
           (make-ghash)
           depicted)]
         [(? gset?)

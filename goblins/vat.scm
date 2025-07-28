@@ -19,6 +19,7 @@
   #:use-module (goblins base-io-ports)
   #:use-module (goblins core)
   #:use-module (goblins core-types)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins utils ghash)
   #:use-module (goblins inbox)
   #:use-module (goblins abstract-types)
@@ -1338,18 +1339,18 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
        (spawn ^aurie-vat-refr-resolver vat-to-register))
      ;; fulfill a waiting resolver, if there is one
      ;; If there is not... we should error (?)
-     (match (ghash-ref vat-id->vat vat-aurie-id #f)
+     (match (hashmap-ref vat-id->vat vat-aurie-id #f)
        (('waiting _registered-vat-vow registered-vat-resolver)
         ($ registered-vat-resolver 'fulfill vat-obj))
        (#f 'noop))
      ;; but regardless, become a new version of the registry with the
      ;; registered-vat being set
      (bcom (^persistence-registry
-            bcom (ghash-set vat-id->vat vat-aurie-id vat-obj))))
+            bcom (hashmap-set vat-id->vat vat-aurie-id vat-obj))))
     ((? registry-fetch-vat? reg-fetch-req)
      (define vat-aurie-id
        (registry-fetch-vat-vat-aurie-id reg-fetch-req))
-     (match (ghash-ref vat-id->vat vat-aurie-id #f)
+     (match (hashmap-ref vat-id->vat vat-aurie-id #f)
        ;; There's a version waiting
        (('waiting registered-vat-vow _registered-vat-resolver)
         registered-vat-vow)
@@ -1359,10 +1360,10 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
         (let*-values (((registered-vat-vow registered-vat-resolver)
                        (spawn-promise-and-resolver))
                       ((new-vat-id->vat)
-                       (ghash-set vat-id->vat
-                                  vat-aurie-id
-                                  (list 'waiting registered-vat-vow
-                                        registered-vat-resolver))))
+                       (hashmap-set vat-id->vat
+                                    vat-aurie-id
+                                    (list 'waiting registered-vat-vow
+                                          registered-vat-resolver))))
           (bcom (^persistence-registry bcom new-vat-id->vat)
                 registered-vat-vow)))
        ;; otherwise, it must be the registered vat, so return that
