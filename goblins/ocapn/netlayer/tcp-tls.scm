@@ -16,6 +16,7 @@
 (define-module (goblins ocapn netlayer tcp-tls)
   #:use-module (gnutls)
   #:use-module (goblins)
+  #:use-module ((goblins vat) #:select (spawn-fibrous-vow))
   #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn netlayer base-port)
   #:use-module (goblins actor-lib cell)
@@ -269,12 +270,14 @@ from the file system."
   (define (outgoing-connect-location location)
     (unless (eq? (ocapn-peer-transport location) 'tcp-tls)
       (error "Wrong netlayer! Expected `tcp-tls'" location))
-    (let* ((host (ocapn-peer-hint:host location))
-           (port (ocapn-peer-hint:port location))
-           (server-cert-hash (base32-decode
-                              (ocapn-peer-designator location)))
-           (client-socket (make-client-socket host port)))
-      (make-client-tls-port client-socket cert key server-cert-hash)))
+    (spawn-fibrous-vow
+     (lambda ()
+       (let* ((host (ocapn-peer-hint:host location))
+              (port (ocapn-peer-hint:port location))
+              (server-cert-hash (base32-decode
+                                 (ocapn-peer-designator location)))
+              (client-socket (make-client-socket host port)))
+         (make-client-tls-port client-socket cert key server-cert-hash)))))
   (^base-port-netlayer bcom our-location incoming-accept
                        outgoing-connect-location))
 

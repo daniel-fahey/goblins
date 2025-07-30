@@ -61,9 +61,7 @@
     ;; return the value from the connection establisher
     ;; (which itself returns the meta-bootstrap-vow)
     (define connected-port-vow
-      (spawn-fibrous-vow
-       (lambda ()
-         (outgoing-connect-location remote-peer))))
+      (outgoing-connect-location remote-peer))
 
     (on connected-port-vow
         (lambda (connected-port)

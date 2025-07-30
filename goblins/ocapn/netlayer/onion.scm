@@ -221,9 +221,10 @@
       (error "Wrong netlayer! Expected onion" location))
     (let* ((designator (ocapn-peer-designator location))
            (sock (make-client-unix-domain-socket tor-socks-path)))
-      (onion-socks5-setup! sock (string-append designator ".onion")
-                           9045)
-      sock))
+      (spawn-fibrous-vow
+       (lambda ()
+         (onion-socks5-setup! sock (string-append designator ".onion") 9045)
+         sock))))
 
   (^base-port-netlayer bcom our-location
                        incoming-accept outgoing-connect-location))

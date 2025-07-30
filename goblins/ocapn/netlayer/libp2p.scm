@@ -202,10 +202,12 @@
   (define (outgoing-connect-location location)
     (unless (eq? (ocapn-peer-transport location) 'libp2p)
       (error "Wrong netlayer! Expected libp2p" location))
-    (let ((designator (ocapn-peer-designator location))
-          (sock (make-client-unix-domain-socket outgoing-connection-path)))
-      (setup-outgoing-sock sock location)
-      sock))
+    (spawn-fibrous-vow
+     (lambda ()
+       (let ((designator (ocapn-peer-designator location))
+             (sock (make-client-unix-domain-socket outgoing-connection-path)))
+         (setup-outgoing-sock sock location)
+         sock))))
   (^base-port-netlayer bcom our-location
                        incoming-accept outgoing-connect-location))
 
