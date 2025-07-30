@@ -23,6 +23,7 @@
   (gnu packages pkg-config)
   (gnu packages texinfo)
   (gnu packages tls)
+  ((guix licenses) #:prefix license:)
   (srfi srfi-1))
 
 (define (keep-file? file stat)
@@ -46,6 +47,32 @@
                   "02751d4j6v6cm2nvywncwx4vi7ccx4lrn6yailwxb1mk683rxz33"))))
       (inputs (list guile-3.0 guile-gnutls)))))
 
+(define guile-bstructs
+  (let ((commit "8e2c5031a9c3935b8c3892babb99b87fb9476373")
+        (revision "0"))
+    (package
+     (name "guile-bstructs")
+     (version (git-version "0.1.0" revision commit))
+     (source (origin
+              (method git-fetch)
+              (uri (git-reference
+                    (url "https://git.dthompson.us/guile-bstructs.git")
+                    (commit (string-append commit))))
+              (file-name (git-file-name name version))
+              (sha256
+               (base32
+                "0f0cx6abz2fgbis9xpwrmr5aidl8f307gf7yi6i4inj7laq9dlji"))))
+     (build-system gnu-build-system)
+     (arguments '(#:make-flags '("GUILE_AUTO_COMPILE=0")))
+     (native-inputs
+      (list autoconf automake pkg-config texinfo guile-syntax-highlight))
+     (inputs (list guile-3.0))
+     (home-page "https://dthompson.us/projects/guile-bstructs.html")
+     (synopsis "Efficient binary structures for Guile")
+     (description "Guile-bstruct provides an efficient implementation of low-level binary
+structures for Guile Scheme.")
+     (license license:asl2.0))))
+
 (package
   (name "guile-goblins")
   (version "0.15.1-git")
@@ -65,7 +92,7 @@
    (list autoconf automake pkg-config texinfo))
   (inputs (list guile-3.0))
   (propagated-inputs
-   (list guile-fibers guile-gnutls guile-websocket-next))
+   (list guile-fibers guile-gnutls guile-websocket-next guile-bstructs))
   (synopsis "Transactional, distributed object programming environment")
   (description
    "Spritely Goblins is a transactional, distributed object programming

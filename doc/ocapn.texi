@@ -651,6 +651,59 @@ Return a freshly generated X.509 certificate for @var{key}.
 @defvr {Persistence Environment} tcp-tls-netlayer-env
 @end defvr
 
+@node Unix domain socket
+@subsection Unix domain socket
+
+The Unix domain socket netlayer is designed to be a fast and secure
+netlayer for communication between several processes on the same
+machine. It relies on one or more Unix domain socket introduction
+servers which provide introductions between the processes, but do not
+themselves relay the traffic.
+
+The netlayer works as follows: when a netlayer wants to open a new
+connection to a peer, it creates an anonymous Unix domain socket pair
+for that session. Since anonymous Unix domain sockets can be sent
+across other Unix domain sockets. The netlayer works by passing one
+side of the anonymous Unix domain socket it made to the introduction
+server, which will then pass it along to the recipient. This allows
+two Unix domain socket peers to communicate directly without relay or
+needing any access to the file system. The introduction server could
+go offline and existing sessions would remain unaffected.
+
+@deffn {Constructor} ^unix-domain-socket-netlayer
+
+Spawn a new Unix domain socket netlayer.
+
+Once spawned the netlayer needs at least one introduction server to be
+provided. This can be done using the @code{add-server} method on the
+netlayer, which takes one argument, a socket which is already
+connected to a Unix domain socket introduction server.
+
+Multiple introduction servers can be used by calling @code{add-server}
+several times.
+
+@lisp
+;; Setup the socket to the intro server.
+(define intro-server-sock
+  (make-unix-domain-socket))
+
+(define address (make-socket-address AF_UNIX "/tmp/the-intro-server.sock"))
+(connect intro-server-sock-sock address)
+
+;; Spawn the netlayer
+(define ocapn-vat (spawn-vat #:name "OCapN"))
+(define mycapn
+  (with-vat ocapn-vat
+    (define netlayer (spawn ^unix-domain-socket-netlayer))
+    ($ netlayer 'add-server intro-server-sock)
+    (spawn-mycapn netlayer)))
+@end lisp
+
+@end deffn
+
+@defvr {Persistence Environment} unix-domain-socket-netlayer-env
+@end defvr
+
 @node libp2p
 @subsection libp2p
 

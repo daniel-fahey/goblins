@@ -33,6 +33,7 @@ AC_SUBST(GUILE_SCM_DIR)
 
 GUILE_MODULE_REQUIRED([fibers])
 GUILE_MODULE_REQUIRED([gnutls])
+GUILE_MODULE_REQUIRED([bstructs])
 GUILE_MODULE_REQUIRED([web socket server])
 
 dnl Find Hoot's reflect.js/reflect.wasm directories.
