@@ -28,6 +28,7 @@
           bytevector->crypto-public-key
           captp-public-key->crypto-public-key
           captp-signature->crypto-signature
+          captp-public-key->bytevector
           private-key->data
           data->private-key)
 
@@ -180,6 +181,13 @@ Type: CryptoKeyPair -> S-Expression"
                              (hoot
                               (export-key
                                (extract-public-key keypair))))))))
+
+    (define (captp-public-key->bytevector public-key)
+      (match public-key
+        (`(public-key (ecc (curve Ed25519)
+                           (flags eddsa)
+                           (q ,bv)))
+         bv)))
 
     (define (sign data private-key)
       "Sign @var{data} using Ed25519 @var{private-key}

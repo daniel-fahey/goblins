@@ -373,11 +373,8 @@
         (define our-location
           (make-ocapn-peer 'websocket
                            (base32-encode
-                            (match (key-pair->public-key designator-key)
-                              (`(public-key (ecc (curve Ed25519)
-                                                 (flags eddsa)
-                                                 (q ,bv)))
-                               bv)))
+                            (captp-public-key->bytevector
+                             (key-pair->public-key designator-key)))
                            (hashmap ("url" external-url))))
         (unless verify-certificates?
           (warn "TLS certificate verification is disabled"))
