@@ -452,8 +452,8 @@
        (hashmap-fold
         (lambda (key value prev)
           (hashmap-set prev
-                     (incoming-post-unmarshall! key)
-                     (incoming-post-unmarshall! value)))
+                       (incoming-post-unmarshall! key)
+                       (incoming-post-unmarshall! value)))
         (make-ghash)
         obj)]
       [(? gset?)

@@ -64,7 +64,7 @@ created on this prelay-admin."
 
       (methods
        [(add-account name)
-        (when (not (eq? ':none (hashmap-ref accounts name ':none)))
+        (when (hashmap-ref accounts name)
           (error "Account with name already exists" name))
         (define new-account (spawn ^relay-account enliven register))
         (bcom (^prelay-admin bcom enliven register

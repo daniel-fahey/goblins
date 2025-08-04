@@ -83,13 +83,14 @@
       [(swiss-num)
        (let ((hashed-swiss-num (hash swiss-num)))
          ;; TODO: Better errors when no swiss num
-         (unless (not (eq? ':none (hashmap-ref swiss-num->refr hashed-swiss-num ':none)))
-           (throw 'no-such-key
-                  (format #f "No object registered with swiss-num: ~a"
-                          (base64-encode swiss-num
-                                         #:alphabet base64-url-alphabet
-                                         #:padding? #f))))
-         (hashmap-ref swiss-num->refr hashed-swiss-num))]
+         (match (hashmap-ref swiss-num->refr hashed-swiss-num)
+           [#f
+            (throw 'no-such-key
+                   (format #f "No object registered with swiss-num: ~a"
+                           (base64-encode swiss-num
+                                          #:alphabet base64-url-alphabet
+                                          #:padding? #f)))]
+           [refr refr]))]
       [(swiss-num dflt)
        (let ((hashed-swiss-num (hash swiss-num)))
          (hashmap-ref swiss-num->refr hashed-swiss-num dflt))])]))

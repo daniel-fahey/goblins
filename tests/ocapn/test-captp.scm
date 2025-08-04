@@ -401,7 +401,7 @@
   (with-vat b-vat
     (spawn ^echo)))
 (define ghash-to-send
-  (hashmap-set (make-ghash) 'echo echo-on-b))
+  (ghash ('echo echo-on-b)))
 (test-equal "Test we're able to send ghashes with refrs inside"
   (list->vector `(ok ,ghash-to-send))
   (resolve-vow-and-return-result
