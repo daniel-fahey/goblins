@@ -479,4 +479,87 @@
     (<-tagged-ref tagged-vow "hello")))
   #(ok goodbye))
 
+;; Test that promises pointing at remote-refrs are broken
+;; if CapTP breaks...
+(define-values (a-vat a-netlayer a-mycapn)
+  (make-new-peer "a"))
+(define-values (b-vat b-netlayer b-mycapn)
+  (make-new-peer "b"))
+
+(define b-sref
+  (with-vat b-vat
+    (define echo (spawn ^echo))
+    ($ b-mycapn 'register echo 'fake)))
+(let ((result
+       (resolve-vow-and-return-result
+        a-vat
+        (lambda ()
+          (define-values (sever-vow sever-resolver)
+            (spawn-promise-and-resolver))
+          ;; Enliven the sref on b, once enlivened trigger a sever.
+          ;; Once we've broken the connection and confirmed CapTP sees
+          ;; the sever, then see if our promise to the remote-refr breaks
+          (define remote-refr-vow
+            (<- a-mycapn 'enliven b-sref))
+          (on remote-refr-vow
+              (lambda (refr)
+                (on-sever refr
+                          (lambda (type reason)
+                            ($ sever-resolver 'fulfill (list type reason))))
+                ;; Break the connection
+                (define captp-connector
+                  (remote-refr-captp-connector refr))
+                (captp-connector 'handle-message (op:abort "break connection"))))
+
+          (on sever-vow
+              (lambda _
+                remote-refr-vow)
+              #:promise? #t)))))
+  (test-equal "severence of CapTP connection breaks enlivened vows to remote refrs"
+    #(err ("Broken due to CapTP severence"))
+    result))
+
+(define-values (a-vat a-netlayer a-mycapn)
+  (make-new-peer "a"))
+(define-values (b-vat b-netlayer b-mycapn)
+  (make-new-peer "b"))
+
+(define b-sref
+  (with-vat b-vat
+    (define echo (spawn ^echo))
+    ($ b-mycapn 'register echo 'fake)))
+
+(let ((result
+       (resolve-vow-and-return-result
+        a-vat
+        (lambda ()
+          (define-values (sever-vow sever-resolver)
+            (spawn-promise-and-resolver))
+          ;; Enliven the sref on b, once enlivened trigger a sever.
+          ;; Once we've broken the connection and confirmed CapTP sees
+          ;; the sever, then see if our promise to the remote-refr breaks
+          (define vow-containing-remote-refr
+            (on (<- a-mycapn 'enliven b-sref)
+                (lambda (echo)
+                  ;; Create a vow which will resolve to echo, a remote refr.
+                  (<- echo echo))
+                #:promise? #t))
+          (on vow-containing-remote-refr
+              (lambda (refr)
+                (on-sever refr
+                          (lambda (type reason)
+                            ($ sever-resolver 'fulfill (list type reason))))
+                ;; Break the connection
+                (define captp-connector
+                  (remote-refr-captp-connector refr))
+                (captp-connector 'handle-message (op:abort "break connection"))))
+
+          (on sever-vow
+              (lambda _
+                vow-containing-remote-refr)
+              #:promise? #t)))))
+  (test-equal "severence of CapTP connection breaks vows pointing to remote refrs"
+    #(err ("Broken due to CapTP severence"))
+    result))
+
 (test-end "test-captp")

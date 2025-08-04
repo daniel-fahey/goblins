@@ -154,7 +154,9 @@
               (spawn ^cancel-sever-notification))
             (match shutdown-reason
               [(shutdown-type reason)
-               ($$ sever-resolver 'fulfill (list 'severed shutdown-type reason))]))]
+               (define sealed-reason
+                 (partition-seal (list shutdown-type reason)))
+               ($$ sever-resolver 'fulfill (list 'severed sealed-reason))]))]
        [(cancel-sever-interest sever-resolver)
         ($$ interested-in-sever 'remove sever-resolver)]))
     (ward intra-peer-warden intra-peer-beh
@@ -534,8 +536,9 @@
     (set! shutdown-reason (list shutdown-type reason))
     (for-each
      (lambda (interested)
-       (<-np interested 'fulfill (list 'severed shutdown-type
-                                       reason)))
+       (define sealed-reason
+         (partition-seal (list shutdown-type reason)))
+       (<-np interested 'fulfill (list 'severed sealed-reason)))
      ($$ interested-in-sever 'as-list))
     (set! interested-in-sever #f))
 

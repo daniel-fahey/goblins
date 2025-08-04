@@ -1202,16 +1202,12 @@ Type: Any -> Boolean"
                                       'cycle-in-promise-resolution)))
           (make-mactor:local-link resolve-to-val)]
          [(? remote-object-refr?)
-          ;; Since the captp connection is the one that might break this,
-          ;; we need to ask it what it uses as its resolver unsealer/tm
-          ;; @@: ... This doesn't seem like a good solution.
-          ;;   Maybe bears re-examination with the addition of on-sever.
+          ;; The promise resolver checks for remote-object-refrs and breaks
+          ;; the promise if it occurs. The CapTP severence is sealed to
+          ;; ensure it's only CapTP severence which can break it. Use the
+          ;; partition unsealer/tm from CapTP for this purpose.
           (let* ([connector (remote-refr-captp-connector resolve-to-val)]
                  [partition-unsealer-tm-cons (connector 'partition-unsealer-tm-cons)])
-            ;; TODO: Do we need to notify it that we want to know about
-            ;;   breakage?  Presumably... so do it here instead...?
-            ;; TODO: Do we really need to pattern match against a cons here?
-            ;;   Couldn't we return multiple values?
             (match partition-unsealer-tm-cons
               [(new-resolver-unsealer . new-resolver-tm?)
                (make-mactor:remote-link (make-m~eventual new-resolver-unsealer
@@ -1246,6 +1242,8 @@ Type: Any -> Boolean"
                          (syscaller-spawn syscaller ^resolver
                                           (list promise-id new-resolver-sealer)
                                           '^resolver)])
+            ;; Give the ^resolver actor a reference to itself
+            (syscaller-$ syscaller new-resolver (list new-resolver))
             ;; Now subscribe to the promise...
             (syscaller-send-listen syscaller resolve-to-val new-resolver #t)
             (let* ([new-listeners
@@ -1290,8 +1288,6 @@ Type: Any -> Boolean"
                                    (list 'fulfill resolve-to-val)))
                  orig-listeners)))))
 
-;; TODO: Add support for broken-because-of-network-partition support
-;;   even for mactor:remote-link
 (define (syscaller-break-promise syscaller promise-id sealed-problem)
   (define actormap (syscaller-actormap syscaller))
 
@@ -1322,8 +1318,15 @@ Type: Any -> Boolean"
      ;; Now we "become" broken with that problem
      (actormap-set! actormap promise-id
                     (make-mactor:broken problem))]
-    [(? mactor:remote-link?)
-     (error "TODO: Implement breaking on captp disconnect!")]
+    [(? mactor:remote-link? refr)
+     (let* ((eventual (mactor:remote-link-eventual refr))
+            (tm? (m~eventual-resolver-tm? eventual)))
+       ;; TODO: Do we want to pass through the CapTP severence reason
+       ;; to the broken promise or leave as it is now...
+       (if (tm? sealed-problem)
+           (actormap-set! actormap promise-id
+                          (make-mactor:broken "Broken due to CapTP severence"))
+           (error "Only CapTP severence can break a resolved promise")))]
     [#f (error "no actor with this id")]
     [_ (error "can only resolve eventual references")]))
 
@@ -1813,7 +1816,7 @@ Type: Promise (Optional (Any -> Any))
 ;; object.
 ;;
 ;; The thing that gets returned is the ability to cancel interest.
-(define (on-sever remote-object-refr sever-handler)
+(define* (on-sever remote-object-refr sever-handler #:key [sealed? #f])
   "Register `sever-handler' when connection for `remote-object-refr' is severed"
   (define-values (sever-vow sever-resolver)
     (spawn-promise-and-resolver))
@@ -1823,16 +1826,25 @@ Type: Promise (Optional (Any -> Any))
     (captp-connector 'connector-obj))
   (define connector-cancel-vow
     (<- connector-obj 'resolve-on-sever sever-resolver))
+  (define partition-unsealer
+    (match (captp-connector 'partition-unsealer-tm-cons)
+      [(unseal . tm?) unseal]))
 
   (on sever-vow
       (match-lambda
         ['canceled *unspecified*]
-        [('severed shutdown-type reason)
+        [('severed sealed-reason)
+         (define partition-reason
+           (if sealed?
+               (list sealed-reason)
+               ;; Unsealed value matches (shutdown-type reason)
+               (partition-unsealer sealed-reason)))
          (match sever-handler
            [(? procedure?)
-            (sever-handler shutdown-type reason)]
+            (apply sever-handler partition-reason)]
            [(? live-refr?)
-            (<-np sever-handler shutdown-type reason)])]))
+            (let ((sys (get-syscaller-or-die)))
+              (syscaller-<-np sys sever-handler partition-reason))])]))
 
 
   ;; Notifies the captp connector we're no longer interested and cancels
@@ -2006,16 +2018,47 @@ Type: Promise (Optional (Any -> Any))
 (define already-resolved
   (lambda _ #f))
 
-(define (^resolver bcom promise sealer)
-  (match-lambda*
-    [('fulfill val)
-     (define sys (get-syscaller-or-die))
-     (syscaller-fulfill-promise sys promise (sealer val))
-     (bcom already-resolved)]
-    [('break problem)
-     (define sys (get-syscaller-or-die))
-     (syscaller-break-promise sys promise (sealer problem))
-     (bcom already-resolved)]))
+(define* (^resolver bcom promise sealer #:key self)
+  ;; Hack so that we can have a reference to ourselves, this will
+  ;; be called as the first message by _spawn-promise-and-resolver
+  (define (self-beh self)
+    (bcom (^resolver bcom promise sealer #:self self)))
+
+  ;; Promises resolved to a remote-link value can be resolved again
+  ;; by breaking them. This should be due to a CapTP severence occuring.
+  (define (remote-resolved-beh method val)
+    (define sys (get-syscaller-or-die))
+    (case method
+      ((break)
+       (syscaller-break-promise sys promise val)
+       (bcom already-resolved))
+      (else
+       (error "No such method" method))))
+
+  (define (main-beh method val)
+    (define sys (get-syscaller-or-die))
+    (case method
+      ((fulfill)
+       (cond
+        ((remote-object-refr? val)
+         ;; If it's a reference to a remote object, ask to be informed if the
+         ;; CapTP session severs, then break the promise...
+         (on-sever val
+                   (lambda (sealed-severence)
+                     ($ self 'break sealed-severence))
+                   #:sealed? #t)
+         (syscaller-fulfill-promise sys promise (sealer val))
+         (bcom remote-resolved-beh))
+        (else
+         (syscaller-fulfill-promise sys promise (sealer val))
+         (bcom already-resolved))))
+      ((break)
+       (syscaller-break-promise sys promise (sealer val))
+       (bcom already-resolved))))
+
+  (if self
+      main-beh
+      self-beh))
 
 (define* (_spawn-promise-and-resolver #:key
                                       (question-finder #f)
@@ -2040,6 +2083,7 @@ Type: Promise (Optional (Any -> Any))
       (syscaller-spawn-mactor sys new-mactor #f)))
   (define resolver
     (spawn-named 'resolver ^resolver promise sealer))
+  (syscaller-$ sys resolver (list resolver))
   (values promise resolver))
 
 ;; We don't want to expose the keyword arguments of the parent
