@@ -90,7 +90,6 @@ SOURCES = goblins.scm \
           goblins/ocapn/netlayer/prelay-utils.scm \
           goblins/ocapn/netlayer/tcp-tls.scm \
           goblins/ocapn/netlayer/testuds.scm \
-          goblins/ocapn/netlayer/unix-domain-socket.scm \
           goblins/ocapn/netlayer/utils.scm \
           goblins/persistence-store/memory.scm \
           goblins/persistence-store/syrup.scm \
@@ -106,8 +105,6 @@ SOURCES = goblins.scm \
           goblins/utils/random-name.scm \
           goblins/utils/simple-dispatcher.scm \
           goblins/utils/simple-sealers.scm \
-          goblins/utils/unix-domain-socket.scm \
-          goblins/utils/unix-domain-socket-server.scm \
           goblins/utils/weak-box.scm \
           goblins/utils/ring-buffer.scm \
           goblins/utils/hashmap.scm \
@@ -139,7 +136,6 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/ocapn/netlayer/test-fake.scm \
         tests/ocapn/netlayer/test-websocket.scm \
         tests/ocapn/netlayer/test-libp2p.scm \
-        tests/ocapn/netlayer/test-unix-domain-socket.scm \
         tests/ocapn/netlayer/test-prelay.scm \
         tests/ocapn/netlayer/test-prelay-utils.scm \
         tests/persistence-store/test-syrup.scm \
@@ -158,6 +154,13 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/utils/test-crypto.scm \
         tests/utils/test-hashmap.scm \
         tests/contrib/test-syrup.scm
+
+if HAVE_GUILE_BSTRUCTS
+SOURCES += goblins/ocapn/netlayer/unix-domain-socket.scm \
+           goblins/utils/unix-domain-socket.scm \
+           goblins/utils/unix-domain-socket-server.scm
+TESTS += tests/ocapn/netlayer/test-unix-domain-socket.scm
+endif
 
 TEST_EXTENSIONS = .scm
 SCM_LOG_DRIVER =                                \
