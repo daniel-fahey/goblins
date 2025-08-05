@@ -124,4 +124,4 @@
   #:export (spawn)
   #:replace (spawn))
 
-(define spawn core:spawn)
+(define-syntax spawn (identifier-syntax core:spawn))

@@ -1705,21 +1705,42 @@ Type: Any -> Boolean"
 ;; =================================
 
 ;; System calls
-(define (spawn constructor . args)
-  "Construct and return a reference to the actor described by
-CONSTRUCTOR, passing it ARGS.
+(define (%spawn constructor . args)
+  #((name . spawn)
+    (documentation . "Construct and return a reference to the actor described by
+@var{constructor}, passing it @var{args}.
 
-Type: Constructor Any ... -> Actor"
+Type: Constructor Any ... -> Actor"))
   (define sys (get-syscaller-or-die))
   (syscaller-spawn sys constructor args (procedure-name constructor)))
 
 (define (spawn-named name constructor . args)
   "Construct and return a reference to an actor with the debug name
-NAME described by CONSTRUCTOR, passing it ARGS.
+@var{name} described by @var{constructor}, passing it @var{args}.
 
 Type: Symbol Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
   (syscaller-spawn sys constructor args name))
+
+;; When an actor is spawned and a name is not specified, we default to
+;; the name of its constructor.  However, 'procedure-name' is very
+;; slow and can involve parsing ELF for compiled code.  To speed
+;; things up, we take advantage of the fact that actor constructors
+;; are typically specified as identifiers in the source, so we can
+;; simply use that identifier as the name.  To preserve the illusion
+;; that 'spawn' is just a regular ol' procedure, there is identifier
+;; syntax.
+(define-syntax spawn
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ constructor arg ...)          ; fast path
+       (identifier? #'constructor)
+       #'(spawn-named 'constructor constructor arg ...))
+      ((_ constructor arg ...)          ; slow path
+       #'(%spawn constructor arg ...))
+      (id                               ; identifier syntax; also slow
+       (identifier? #'id)
+       #'%spawn))))
 
 (define ($ refr . args)
   "Synchronously invoke REFR with ARGS; return the result.
