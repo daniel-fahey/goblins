@@ -1065,4 +1065,17 @@
     [#(err _) #t]
     [#(ok _) #f]))
 
+(test-equal "Check refr-name returns debug name for local-refr"
+  'i-am-the-local-name
+  (let* ((am (make-actormap))
+         (refr (actormap-run! am (lambda () (spawn-named 'i-am-the-local-name ^greeter "Bob")))))
+    (refr-name refr)))
+
+(test-equal "Check refr-name returns #f for non-local-refr values"
+  #f
+  (let* ((am (make-actormap))
+         (vow (actormap-run! am (lambda () (spawn-promise-and-resolver)))))
+    ;; vow's a promise not an actor refr...
+    (refr-name vow)))
+
 (test-end "test-goblins-core")

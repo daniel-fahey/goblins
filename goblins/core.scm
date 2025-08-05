@@ -53,6 +53,7 @@
 
             copy-whactormap
 
+            refr-name
             near-refr?
             far-refr?
 
@@ -3240,3 +3241,8 @@ Returns the root objects of the graph."
     (local-refr-vat-connector local-refr))
   (and vat-connector
        (vat-connector 'aurie-vat-id)))
+
+(define (refr-name refr)
+  "Return debug name for @var{refr}, or @code{#f} if there is none."
+  (and (local-object-refr? refr)
+       (local-object-refr-debug-name refr)))

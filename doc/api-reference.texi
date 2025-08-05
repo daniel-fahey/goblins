@@ -23,7 +23,7 @@ transactional operations.  Most users will just use vats.
 * Synchronous calls::
 * Promises::
 * Asynchronous calls::
-* Object reference predicates::
+* Object reference procedures::
 * define-actor::
 @end menu
 
@@ -496,8 +496,8 @@ failure, where @var{problem} is the cause of a failed computation.
 
 @end deffn
 
-@node Object reference predicates
-@subsection Object reference predicates
+@node Object reference procedures
+@subsection Object reference procedures
 
 Goblins comes with a variety of predicates for identifying and working
 with objects.  While these are primarily for internal use, they are
@@ -570,6 +570,12 @@ Return @code{#t} if @var{obj} is a @emph{near} object or promise, else
 
 Return @code{#t} if @var{obj} is a @emph{far} object or promise, else
 @code{#f}.
+
+@end deffn
+
+@deffn {Procedure} refr-name refr
+
+Return debug name for @var{refr}, or @code{#f} if there is none.
 
 @end deffn
 

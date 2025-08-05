@@ -29,6 +29,7 @@
                local-promise-refr?
                remote-object-refr?
                remote-promise-refr?
+               refr-name
 
                near-refr?
                far-refr?
