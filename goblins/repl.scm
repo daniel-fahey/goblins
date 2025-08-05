@@ -20,7 +20,6 @@
             (fibers conditions)
             (fibers operations)
             (goblins core)
-            (only (goblins core-types) local-object-refr-debug-name)
             (goblins vat)
             (goblins utils graphviz)
             (goblins utils random-name)
@@ -394,7 +393,7 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
              (vat-event-local? obj)
              (vat-event-message? obj)
              (let ((msg (vat-event-message obj)))
-               (and (eq? (local-object-refr-debug-name (message-to msg)) debug-name)
+               (and (eq? (refr-name (message-to msg)) debug-name)
                     ;; Look for the proper argument form to make this
                     ;; heuristic less prone to false positives.
                     (match (message-args msg)
@@ -413,8 +412,7 @@ Display a backtrace of events starting from TIMESTAMP in the current vat."
         (and (vat-receive-event? obj)
              (vat-event-local? obj)
              (vat-event-message? obj)
-             (eq? (local-object-refr-debug-name
-                   (message-to (vat-event-message obj)))
+             (eq? (refr-name (message-to (vat-event-message obj)))
                   handler-debug-name)))
 
       (define (fulfilled-handler-event? obj)
@@ -598,7 +596,7 @@ Display a tree view of events starting at TIMESTAMP in the current vat."
                     ;; object refrs with just their debug name.
                     (map (match-lambda
                            ((? local-object-refr? refr)
-                            (local-object-refr-debug-name refr))
+                            (refr-name refr))
                            (x x))
                          ;; Tag the different event message types.
                          (cond
