@@ -22,6 +22,8 @@
 
             actormap-spawn
             actormap-spawn!
+            actormap-spawn-named
+            actormap-spawn-named!
             ;; actormap-spawn-mactor!
 
             &actormap-turn-error
@@ -2110,77 +2112,52 @@ Type: -> (Values Promise Resolver)"
 ;; Spawning
 ;; ========
 
-;; This is the internally used version of actormap-spawn,
-;; also used by the syscaller.  It doesn't set up a syscaller
-;; if there isn't currently one.
-(define* (actormap-spawn!* actormap maybe-constructor
-                           args
-                           #:optional
-                           [debug-name (procedure-name maybe-constructor)])
-  (define vat-connector
-    (actormap-vat-connector actormap))
-  (define-values (become become-unseal become?)
-    (make-become-sealer-triplet))
-  (define-values (constructor constructor-refr)
-    (values (if (redefinable-object? maybe-constructor)
-                (redefinable-object-constructor maybe-constructor)
-                maybe-constructor)
-            maybe-constructor))
-  (define actor-handler
-    (apply constructor become args))
-  (define* (handler->refr handler #:optional maybe-self-portrait)
-    (match handler
-      ;; We can't use match record unpacking because of goblin's $ function.
-      [(? portraitized-behavior?)
-       (handler->refr (portraitized-behavior-behavior handler)
-                      (portraitized-behavior-self-portrait handler))]
-      [(? procedure?)
-       (let ((actor-refr
-              (make-local-object-refr debug-name vat-connector
-                                      (increment-actormap-aurie-counter! actormap))))
-         (actormap-set! actormap actor-refr
-                        (make-mactor:object handler constructor-refr
-                                            constructor
-                                            maybe-self-portrait
-                                            become-unseal become?))
-         actor-refr)]
-      [(? live-refr? pre-existing-refr)
-       pre-existing-refr]
-      [_
-       (error 'invalid-actor-handler "Not a procedure, aurie or live refr:" handler)]))
-  (handler->refr actor-handler))
-
-;; These two are user-facing procedures.  Thus, they set up
-;; their own syscaller.
-
-;; non-committal version of actormap-spawn
-(define (actormap-spawn actormap actor-constructor . args)
-  "Create and return a reference to ACTOR-CONSTRUCTOR inside ACTORMAP,
-passing in ARGS; do not commit the transaction.
-
-Type: Actormap Constructor Any ... -> Actor"
+(define (actormap-spawn-named* actormap name actor-constructor args)
   (define new-actormap
     (make-transactormap actormap))
   (call-with-fresh-syscaller
    new-actormap
    (lambda (sys)
      (define actor-refr
-       (actormap-spawn!* new-actormap actor-constructor
-                         args))
+       (syscaller-spawn sys actor-constructor args name))
      (values actor-refr new-actormap))))
 
+;; These four are user-facing procedures.  Thus, they set up
+;; their own syscaller.
+(define (actormap-spawn-named actormap name actor-constructor . args)
+  "Construct an actor using @var{actor-constructor} inside @var{actormap}
+passing in @var{args}. The resulting actor is spawned with  debug name
+@var{name}; do not commit the transaction.
+
+Actormap Any Constructor Any ... -> Actor Actormap"
+  (actormap-spawn-named* actormap name actor-constructor args))
+
+(define (actormap-spawn actormap actor-constructor . args)
+  "Create and return a reference to @var{actor-constructor} inside
+@var{actormap}, passing in @var{args}; do not commit the transaction.
+
+Type: Actormap Constructor Any ... -> Actor Actormap"
+  (define debug-name (procedure-name actor-constructor))
+  (actormap-spawn-named* actormap debug-name actor-constructor args))
+
 (define (actormap-spawn! actormap actor-constructor . args)
-  "Create and return a reference to ACTOR-CONSTRUCTOR inside ACTORMAP,
-passing in ARGS; commit the transaction.
+  "Create and return a reference to @var{actor-constructor} inside
+@var{actormap}, passing in @var{args}; commit the transaction.
 
 Type: Actormap Constructor Any ... -> Actor"
-  (define new-actormap
-    (make-transactormap actormap))
-  (define actor-refr
-    (call-with-fresh-syscaller
-     new-actormap
-     (lambda (sys)
-       (actormap-spawn!* new-actormap actor-constructor args))))
+  (define debug-name (procedure-name actor-constructor))
+  (define-values (actor-refr new-actormap)
+    (actormap-spawn-named* actormap debug-name actor-constructor args))
+  (transactormap-merge! new-actormap)
+  actor-refr)
+(define (actormap-spawn-named! actormap name actor-constructor . args)
+  "Construct an actor using @var{actor-constructor} inside @var{actormap}
+passing in @var{args}. The resulting actor is spawned with  debug name
+@var{name}.
+
+Type: Actormap Any Constructor Any ... -> Actor"
+  (define-values (actor-refr new-actormap)
+    (actormap-spawn-named* actormap name actor-constructor args))
   (transactormap-merge! new-actormap)
   actor-refr)
 

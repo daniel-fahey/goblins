@@ -1146,6 +1146,20 @@ Like @code{actormap-spawn}, but do commit the transaction.
 
 @end deffn
 
+@deffn {Procedure} actormap-spawn-named actormap name actormap-constructor args @dots{}
+
+Like @code{actormap-spawn}, but uses @var{name} as the debug name for the object
+reference.
+
+@end deffn
+
+@deffn {Procedure} actormap-spawn-named! actormap name actormap-constructor args @dots{}
+
+Like @code{actormap-spawn!}, but uses @var{name} as the debug name for the
+object reference.
+
+@end deffn
+
 Once objects have been put into an @emph{actormap}, they may be invoked
 to perform some action or other.  There are several ways to do this,
 falling into one of two general categories: @emph{turn}s and

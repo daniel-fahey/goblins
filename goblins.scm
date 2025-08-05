@@ -40,6 +40,8 @@
 
                actormap-spawn
                actormap-spawn!
+               actormap-spawn-named
+               actormap-spawn-named!
                ;; actormap-spawn-mactor!
 
                actormap-turn*
