@@ -387,4 +387,21 @@
 (test-assert "Only the migration from 1 to 2 is called"
   (and migration-2-called migration-1-called))
 
+;; Check you can use both keyword/optional args with selfish
+(define-actor (^knows-self bcom #:optional bar #:key foo)
+  #:self self
+  (lambda ()
+    (list foo bar self)))
+
+(define am (make-actormap))
+(let ((ks (actormap-spawn! am ^knows-self)))
+  (test-equal "Check we can use #:key and #:optional with #:self keyword"
+    (list #f #f ks)
+    (actormap-peek am ks)))
+
+(let ((ks (actormap-spawn! am ^knows-self 'optional #:foo 'foo-kw)))
+  (test-equal "Check we can use and pass in #:key and #:optional with #:self keyword"
+    (list 'foo-kw 'optional ks)
+    (actormap-peek am ks)))
+
 (test-end "test-define-actor")
