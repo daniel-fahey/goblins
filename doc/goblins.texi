@@ -391,7 +391,8 @@ both of them at the same time ascynhronously:
 
 @lisp
 (use-modules (goblins)
-             (fibers))
+             (fibers)
+             (fibers conditions))
 
 (define-actor (^sleeper _bcom)
   (lambda ()
@@ -418,6 +419,9 @@ both of them at the same time ascynhronously:
   (on (<- hello)
       (lambda (response)
         (pk 'hello-said response))))
+
+;; Prevent the program from exiting immediately
+(wait (make-condition))
 @end lisp
 
 When we run this, the first thing we might notice is nothing happens
