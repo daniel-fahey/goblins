@@ -95,7 +95,7 @@
 
 
 (define (^fake-netlayer _bcom our-name network new-conn-ch)
-  (define our-location (make-ocapn-node 'fake our-name #f))
+  (define our-location (make-ocapn-peer 'fake our-name #f))
   (define-values (halted-vow halted-resolver)
     (spawn-promise-and-resolver))
   (define new-connection-io (spawn ^io new-conn-ch))
@@ -117,15 +117,15 @@
     (methods
      [(netlayer-name) 'fake]
      [(self-location? loc)
-      (same-node-location? our-location loc)]
+      (same-peer-location? our-location loc)]
      [(our-location) our-location]
      [(setup conn-establisher)
       (start-listening conn-establisher)
       (bcom (^netlayer bcom conn-establisher))]
      [(halt) ($$ halted-resolver 'fulfill #t)]
-     [(connect-to remote-node)
-      (match remote-node
-        (($ <ocapn-node> 'fake name #f)
+     [(connect-to remote-peer)
+      (match remote-peer
+        (($ <ocapn-peer> 'fake name #f)
          (on (<- network 'connect-to name)
              (match-lambda
                (('*outgoing-new-conn* me-deq-ch them-enq-ch)
@@ -134,6 +134,6 @@
                 (on halted-vow
                     (lambda _
                       (<-np message-io 'halt)))
-                (<- conn-establisher message-io remote-node)))
+                (<- conn-establisher message-io remote-peer)))
              #:promise? #t)))]))
   (spawn ^netlayer))

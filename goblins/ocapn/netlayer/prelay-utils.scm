@@ -19,6 +19,7 @@
 
   (import (guile)
           (goblins)
+          (goblins utils hashmap)
           (goblins utils ghash)
           (goblins ocapn captp)
           (goblins ocapn ids)
@@ -63,14 +64,14 @@ created on this prelay-admin."
 
       (methods
        [(add-account name)
-        (when (ghash-has-key? accounts name)
+        (when (hashmap-ref accounts name)
           (error "Account with name already exists" name))
         (define new-account (spawn ^relay-account enliven register))
         (bcom (^prelay-admin bcom enliven register
-                             (ghash-set accounts name new-account))
+                             (hashmap-set accounts name new-account))
               (<- register 'register new-account))]
        [(get-accounts)
-        (ghash-fold
+        (hashmap-fold
          (lambda (name revoke account-list)
            (cons name account-list))
          (list)
@@ -81,24 +82,24 @@ created on this prelay-admin."
                                               [netlayer #f]
                                               [mycapn #f])
       "Retrieves account from account-setup-sref and provides prelay-netlayer"
-      (define account-setup-node
-        (ocapn-sturdyref-node account-setup-sref))
+      (define account-setup-peer
+        (ocapn-sturdyref-peer account-setup-sref))
       (define base-netlayer
         (or netlayer
             (cond-expand
              (guile
-              (match (ocapn-node-transport account-setup-node)
+              (match (ocapn-peer-transport account-setup-peer)
                 ('onion (spawn ^onion-netlayer))
                 ('tcp-tls (spawn ^tcp-tls-netlayer "localhost"))
                 ('websocket (spawn ^websocket-netlayer))))
              (hoot
-              (match (ocapn-node-transport account-setup-node)
+              (match (ocapn-peer-transport account-setup-peer)
                 ((or 'onion 'tcp-tls) (error "Not supported under hoot"))
                 ('websocket (spawn ^websocket-netlayer)))))))
 
       ;; While most OCapN connections normally would expect connections to many
-      ;; different nodes and support for handoffs between those, this situation is a
-      ;; bit different.  We're just looking for a connection between this node and
+      ;; different peers and support for handoffs between those, this situation is a
+      ;; bit different.  We're just looking for a connection between this peer and
       ;; the prelay "server", this is what this mycapn object is that we're setting
       ;; up. We should not expect any shortening or connection to ourselves problems
       ;; with this setup.

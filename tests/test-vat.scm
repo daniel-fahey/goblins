@@ -17,6 +17,7 @@
 (define-module (tests test-vat)
   #:use-module (goblins core)
   #:use-module (goblins core-types)
+  #:use-module (goblins abstract-types)
   #:use-module (goblins migrations)
   #:use-module (goblins define-actor)
   #:use-module (goblins vat)
@@ -24,6 +25,7 @@
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins actor-lib joiners)
   #:use-module (goblins persistence-store memory)
+  #:use-module (goblins utils hashmap)
   #:use-module (tests utils)
   #:use-module (fibers)
   #:use-module (fibers channels)
@@ -757,7 +759,7 @@
                    (vat-log-ref-by-time a-vat (vat-clock a-vat)))))
         (equal? tree (vat-event-tree-map identity tree))))))
 
-(test-assert "Filtering event tree keeps only nodes that satisfy predicate"
+(test-assert "Filtering event tree keeps only peers that satisfy predicate"
   (begin
     (vat-log-clear! a-vat)
     (vat-log-clear! b-vat)
@@ -1291,5 +1293,56 @@
      (with-vat vat
        (with-vat vat
          'hello)))))
+
+;; Check <-hashmap-ref, <-list-ref and <-tagged-ref work across vats
+(define vat1
+  (spawn-vat))
+(define vat2
+  (spawn-vat))
+
+(define (^hashmap bcom)
+  (lambda ()
+    (hashmap ("foo" 'bar))))
+(define hm-actor
+  (with-vat vat1
+    (spawn ^hashmap)))
+
+(test-equal "<-hashmap-ref works across vats"
+  (resolve-vow-and-return-result
+   vat2
+   (lambda ()
+     (define hm-vow (<- hm-actor))
+     (<-hashmap-ref hm-vow "foo")))
+  #(ok bar))
+
+(define (^list bcom)
+  (lambda ()
+    '(foo bar baz)))
+(define list-actor
+  (with-vat vat1
+    (spawn ^list)))
+
+(test-equal "<-list-ref works across vats"
+  (resolve-vow-and-return-result
+   vat2
+   (lambda ()
+     (define lst-vow (<- list-actor))
+     (<-list-ref lst-vow 0)))
+  #(ok foo))
+
+(define (^tagged bcom)
+  (lambda ()
+    (make-tagged "hello" 'beepboop)))
+(define tagged-actor
+  (with-vat vat1
+    (spawn ^tagged)))
+
+(test-equal "<-tagged-ref works across vats"
+  (resolve-vow-and-return-result
+   vat2
+   (lambda ()
+     (define tagged-vow (<- tagged-actor))
+     (<-tagged-ref tagged-vow "hello")))
+  #(ok beepboop))
 
 (test-end "test-vat")

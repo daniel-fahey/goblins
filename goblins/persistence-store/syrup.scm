@@ -15,6 +15,7 @@
 (define-module (goblins persistence-store syrup)
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins utils ghash)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins contrib syrup)
@@ -97,7 +98,7 @@
 
           (define portraits-as-hash-table
             (make-hash-table))
-          (ghash-for-each
+          (hashmap-for-each
            (lambda (key value)
              (hashq-set! portraits-as-hash-table key value))
            portraits-as-ghash)

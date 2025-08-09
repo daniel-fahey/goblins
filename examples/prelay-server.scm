@@ -114,12 +114,12 @@
   [(_cmd "add-account" relay-admin-sref-str account-name)
    (define relay-admin-sref
      (string->ocapn-id relay-admin-sref-str))
-   (define relay-admin-node
-     (ocapn-sturdyref-node relay-admin-sref))
+   (define relay-admin-peer
+     (ocapn-sturdyref-peer relay-admin-sref))
    (let ((relay-vat (spawn-vat #:name "relay-vat")))
      (with-vat relay-vat
        (define netlayer
-         (spawn-netlayer-by-name (symbol->string (ocapn-node-transport relay-admin-node)) (list)))
+         (spawn-netlayer-by-name (symbol->string (ocapn-peer-transport relay-admin-peer)) (list)))
        (define mycapn
          (spawn-mycapn netlayer))
        (define relay-admin-vow (<- mycapn 'enliven relay-admin-sref))
@@ -136,12 +136,12 @@
   [(_cmd "list-accounts" relay-admin-sref-str)
    (define relay-admin-sref
      (string->ocapn-id relay-admin-sref-str))
-   (define relay-admin-node
-     (ocapn-sturdyref-node relay-admin-sref))
+   (define relay-admin-peer
+     (ocapn-sturdyref-peer relay-admin-sref))
    (let ((relay-vat (spawn-vat #:name "relay-vat")))
      (with-vat relay-vat
        (define netlayer
-         (spawn-netlayer-by-name (symbol->string (ocapn-node-transport relay-admin-node)) (list)))
+         (spawn-netlayer-by-name (symbol->string (ocapn-peer-transport relay-admin-peer)) (list)))
        (define mycapn
          (spawn-mycapn netlayer))
        (define relay-admin-vow (<- mycapn 'enliven relay-admin-sref))

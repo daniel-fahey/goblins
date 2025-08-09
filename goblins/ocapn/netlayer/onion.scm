@@ -197,7 +197,7 @@
           tor-control-path tor-socks-path tor-ocapn-socks-dir))
 
   (define our-location
-    (make-ocapn-node 'onion service-id #f))
+    (make-ocapn-peer 'onion service-id #f))
 
   (define-values (ocapn-sock-path ocapn-sock-listener)
     (if (and init-ocapn-sock-path init-ocapn-sock-listener)
@@ -215,15 +215,16 @@
              (setvbuf client 'block 1024)
              client)))
         #:promise? #t))
-  
+
   (define (outgoing-connect-location location)
-    (unless (eq? (ocapn-node-transport location) 'onion)
+    (unless (eq? (ocapn-peer-transport location) 'onion)
       (error "Wrong netlayer! Expected onion" location))
-    (let* ((designator (ocapn-node-designator location))
+    (let* ((designator (ocapn-peer-designator location))
            (sock (make-client-unix-domain-socket tor-socks-path)))
-      (onion-socks5-setup! sock (string-append designator ".onion")
-                           9045)
-      sock))
+      (spawn-fibrous-vow
+       (lambda ()
+         (onion-socks5-setup! sock (string-append designator ".onion") 9045)
+         sock))))
 
   (^base-port-netlayer bcom our-location
                        incoming-accept outgoing-connect-location))

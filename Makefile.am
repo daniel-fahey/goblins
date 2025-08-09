@@ -139,6 +139,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/ocapn/netlayer/test-prelay.scm \
         tests/ocapn/netlayer/test-prelay-utils.scm \
         tests/persistence-store/test-syrup.scm \
+        tests/persistence-store/test-memory.scm \
         tests/ocapn/test-ids.scm \
         tests/test-await.scm \
         tests/test-core.scm \
@@ -153,6 +154,13 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/utils/test-crypto.scm \
         tests/utils/test-hashmap.scm \
         tests/contrib/test-syrup.scm
+
+if HAVE_GUILE_BSTRUCTS
+SOURCES += goblins/ocapn/netlayer/unix-domain-socket.scm \
+           goblins/utils/unix-domain-socket.scm \
+           goblins/utils/unix-domain-socket-server.scm
+TESTS += tests/ocapn/netlayer/test-unix-domain-socket.scm
+endif
 
 TEST_EXTENSIONS = .scm
 SCM_LOG_DRIVER =                                \
@@ -201,7 +209,8 @@ js: js/goblins.wasm js/reflect.js js/reflect.wasm js/wtf8.wasm
 EXAMPLES = examples/cauldron.scm		\
            examples/try-captp-onion.scm		\
            examples/try-base-netlayer.scm	\
-           examples/prelay-server.scm
+           examples/prelay-server.scm \
+           examples/unix-domain-socket-server.scm
 
 EXTRA_DIST += README.org \
               README \
@@ -219,6 +228,7 @@ EXTRA_DIST += README.org \
               live-guile.sh \
               build-aux/test-driver.scm \
               build-aux/run-test-suite.scm \
+              goblins/persistence-store/local-storage.scm \
               doc/goblins.css \
               doc/build-html.scm \
               hoot-ffi/imports.js \

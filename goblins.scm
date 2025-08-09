@@ -29,6 +29,7 @@
                local-promise-refr?
                remote-object-refr?
                remote-promise-refr?
+               refr-name
 
                near-refr?
                far-refr?
@@ -39,6 +40,8 @@
 
                actormap-spawn
                actormap-spawn!
+               actormap-spawn-named
+               actormap-spawn-named!
                ;; actormap-spawn-mactor!
 
                actormap-turn*
@@ -110,6 +113,10 @@
                define-actor
                migrations
 
+               <-hashmap-ref
+               <-list-ref
+               <-tagged-ref
+
                ;; Deprecated
                spawn-promise-cons
                spawn-promise-values)
@@ -117,4 +124,4 @@
   #:export (spawn)
   #:replace (spawn))
 
-(define spawn core:spawn)
+(define-syntax spawn (identifier-syntax core:spawn))

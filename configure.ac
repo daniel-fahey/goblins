@@ -1,7 +1,7 @@
 
 dnl -*- Autoconf -*-
 
-AC_INIT(guile-goblins, 0.15.1)
+AC_INIT(guile-goblins, 0.16.0)
 AC_SUBST(AUTHOR, "\"The Spritely Institute\"")
 AC_SUBST(COPYRIGHT, "'(2025)")
 AC_SUBST(LICENSE, asl2.0)
@@ -34,6 +34,10 @@ AC_SUBST(GUILE_SCM_DIR)
 GUILE_MODULE_REQUIRED([fibers])
 GUILE_MODULE_REQUIRED([gnutls])
 GUILE_MODULE_REQUIRED([web socket server])
+
+dnl Guile-bstructs is needed for Unix domain socket netlayer support.
+GUILE_MODULE_AVAILABLE([have_guile_bstructs], [(bstructs)])
+AM_CONDITIONAL([HAVE_GUILE_BSTRUCTS], [test "x$have_guile_bstructs" = "xyes"])
 
 dnl Find Hoot's reflect.js/reflect.wasm directories.
 AC_MSG_CHECKING(for Hoot reflect.js directory)

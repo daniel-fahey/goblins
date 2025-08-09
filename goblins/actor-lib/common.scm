@@ -81,7 +81,11 @@ Methods:
    [(set key val)
     (bcom (^ghash bcom (hashmap-set ht key val)))]
    [(has-key? key)
-    (ghash-has-key? ht key)]
+    (issue-deprecation-warning
+     "^ghash's 'has-key? is deprecated. Use 'ref method instead.")
+    (let ((none (cons 'no 'value)))
+      (not (eq? (hashmap-ref ht key none)
+                none)))]
    [(remove key)
     (bcom (^ghash bcom (hashmap-remove ht key)))]
    [(data) ht]))

@@ -669,6 +669,82 @@ transactormap which the user can choose whether or not to commit.
 
 @end deffn
 
+@deffn {Procedure} actormap-save-to-store! am persistence-env store . roots
+
+Take and save the portrait for the object graph starting with @var{roots}
+as the root objects in the graph. Store the portrait data within the
+@var{store}, which is a @xref{Persistence stores}.
+
+The @var{persistence-env} should be a persistence environment with the object
+specifications of all the objects within the object graph being persisted.
+
+@end deffn
+
+@deffn {Procedure} actormap-restore-from-store! am persistence-env store
+
+Restores the object graph that has previously been stored in the @var{store}
+into the actormap @var{am}. All objects that appear in the graph must be defined
+in the persistence environment @var{persistence-env}. Returns the roots as
+values.
+
+@end deffn
+
+@deffn {Procedure} local-refr->persistable-object-identifier local-refr
+
+Convert a local object reference, @var{local-refr} to a persistable object
+identifier.
+
+A persistable object identifier is a value which can be used when comparing
+two objects together with @code{equal?}. This is particularly useful when using
+object refrs as keys within hash tables. They are persistable by Goblins'
+persistence system and available immediately upon restoration, without requiring
+any coordination with other objects or vats, as is the case when persisting
+references to objects on other vats.
+
+This identifier is not a refr and cannot be used to send messages to the object.
+It is solely designed as a stand-in to compare two object refrs together to check
+if they are the same object or not. Persistable object identifiers also cannot
+be converted back to refrs.
+
+This procedure will always convert a local-refr to a persistable object
+identifier value which will always be @code{equal?} to another persistable
+object identifier produced from the same refr, even between restores.
+
+Note: This only works for refrs spawned in vats, not for refrs from working
+directly with actormaps.
+
+@lisp
+(use-modules (goblins)
+             (goblins core)
+             (goblins actor-lib cell)
+             (goblins persistence-store memory))
+
+(define store (make-memory-store))
+(define-values (vat my-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda ()
+     (spawn ^cell))
+   store))
+(define my-cell-identifier
+  (local-refr->persistable-object-identifier my-cell))
+
+;; Now make a new actormap, and restore a new cell refr from the portrait data
+(define-values (vat* my-cell*)
+  (spawn-persistent-vat
+   cell-env
+   (lambda ()
+     (error "should never get here as it's reading from the store"))
+   store))
+;; Now create an identifier for the my-cell* that we just restored.
+(define my-cell-identifier*
+  (local-refr->persistable-object-identifier my-cell*))
+
+;;; they're `equal?': (equal? #t)
+(pk 'equal? (equal? my-cell-identifier my-cell-identifier*))
+@end lisp
+@end deffn
+
 @node Persistent vats
 @section Persistent vats
 
@@ -1025,7 +1101,7 @@ Returns a memory store.
 This provides a persistent storage mechanism which serializes the data
 to a file in syrup format.
 
-The memory store can be found in @code{(goblins persistence-store
+The syrup store can be found in @code{(goblins persistence-store
 syrup)}.
 
 More information about the Syrup serialization format can be found
@@ -1035,5 +1111,20 @@ here: @uref{https://github.com/ocapn/syrup}
 
 Returns a syrup store which stores the data in a file specified in
 @var{backing-file}.
+
+@end deffn
+
+@node Web localStorage store
+@subsection Web localStorage store
+
+The @code{(goblins persistence-store local-storage)} module provides a
+persistence store which uses the
+@url{https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage,Web localStorage interface}.
+This store is thus only supported on web targets using Hoot and not the Guile VM.
+
+@deffn {Procedure} make-local-storage-store name
+
+Return a local storage store which stores the data in the web browser's local
+storage, under the @var{name} key (must be a string).
 
 @end deffn

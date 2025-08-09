@@ -21,6 +21,7 @@
   #:use-module ((goblins core) #:select ($) #:prefix $)
   #:use-module (goblins core-types)
   #:use-module (goblins vat)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins utils ghash)
   #:use-module (goblins inbox)
   #:use-module (goblins abstract-types)
@@ -49,7 +50,7 @@
   #:use-module (fibers channels)
   #:export (spawn-mycapn captp-env))
 
-(define captp-version "goblins-0.12")
+(define captp-version "goblins-0.16")
 
 ;; This should be better documented, and will when it becomes more of
 ;; a "standardized protocol" as opposed to a "bespoke implementation".
@@ -74,7 +75,7 @@
                           ;; handoffs, etc.
                           coordinator
                           bootstrap-obj
-                          intra-node-warden intra-node-incanter)
+                          intra-peer-warden intra-peer-incanter)
   ;; position sealers, so we know this really is from our imports/exports
   ;; @@: Not great protection, subject to a reuse attack, but really
   ;;   this is just an extra step... in general we shouldn't be exposing
@@ -102,6 +103,15 @@
       [($ <op:abort> reason)
        (<-np-extern internal-handler
                     (internal-shutdown 'abort reason))]
+      [($ <ref-questioned> 'hashmap to (? string? field-name) answer-me)
+       (<-np-extern internal-handler
+                    (cmd-send-hashmap-ref to field-name answer-me))]
+      [($ <ref-questioned> 'list to (? exact-integer? index) answer-me)
+       (<-np-extern internal-handler
+                    (cmd-send-list-ref to index answer-me))]
+      [($ <ref-questioned> 'untag to (? string? label) answer-me)
+       (<-np-extern internal-handler
+                    (cmd-send-tagged-ref to label answer-me))]
       [($ <listen-request> _ to-refr listener wants-partial?)
        (<-np-extern internal-handler
                     (cmd-send-listen to-refr listener
@@ -118,7 +128,7 @@
                                   wants-partial?)))
 
   (define (^connector-obj _bcom)
-    (define intra-node-beh
+    (define intra-peer-beh
       (methods
        [(get-handoff-privkey)
         ($$ coordinator 'get-handoff-privkey)]
@@ -145,10 +155,12 @@
               (spawn ^cancel-sever-notification))
             (match shutdown-reason
               [(shutdown-type reason)
-               ($$ sever-resolver 'fulfill (list 'severed shutdown-type reason))]))]
+               (define sealed-reason
+                 (partition-seal (list shutdown-type reason)))
+               ($$ sever-resolver 'fulfill (list 'severed sealed-reason))]))]
        [(cancel-sever-interest sever-resolver)
         ($$ interested-in-sever 'remove sever-resolver)]))
-    (ward intra-node-warden intra-node-beh
+    (ward intra-peer-warden intra-peer-beh
           #:extends main-beh))
   (define connector-obj (spawn ^connector-obj))
   (define (_get-connector-obj) connector-obj)
@@ -374,12 +386,12 @@
                       prev))
         vlist-null
         obj)]
-      [(? ghash?)
-       (ghash-fold
+      [(? hashmap?)
+       (hashmap-fold
         (lambda (key value prev)
-          (ghash-set prev
-                     (outgoing-pre-marshall! key)
-                     (outgoing-pre-marshall! value)))
+          (hashmap-set prev
+                       (outgoing-pre-marshall! key)
+                       (outgoing-pre-marshall! value)))
         (make-ghash)
         obj)]
       [(? gset?)
@@ -436,12 +448,12 @@
                       prev))
         vlist-null
         obj)]
-      [(? ghash?)
-       (ghash-fold
+      [(? hashmap?)
+       (hashmap-fold
         (lambda (key value prev)
-          (ghash-set prev
-                     (incoming-post-unmarshall! key)
-                     (incoming-post-unmarshall! value)))
+          (hashmap-set prev
+                       (incoming-post-unmarshall! key)
+                       (incoming-post-unmarshall! value)))
         (make-ghash)
         obj)]
       [(? gset?)
@@ -464,14 +476,14 @@
       [($ <tagged> 'kw `(,keyword))
        (symbol->keyword keyword)]
       ;; unserialize user-defined records
-      [($ <tagged> 'user-record (list label data))
+      [($ <tagged> 'user-record `(,label ,data))
        (make-tagged label data)]
       [($ <tagged> unknown-tag data)
        (error 'captp-unknown-record-rag "Unknown tag: ~a"
               unknown-tag)]
       [(? signed-handoff-give? sig-envelope-and-handoff)
        ;; We need to send this message to the coordinator, which will
-       ;; work with the node to (hopefully) get it to the right
+       ;; work with the peer to (hopefully) get it to the right
        ;; destination
        ($$ coordinator 'start-retrieve-handoff sig-envelope-and-handoff)]
       [_ obj]))
@@ -496,7 +508,7 @@
           [(eq? refr-captp-connector captp-connector)
            (desc:export (pos-unseal (remote-refr-sealed-pos obj)))]
           [else
-           (error 'captp-to-wrong-node)]))]))
+           (error 'captp-to-wrong-peer)]))]))
 
   (define (install-answer! answer-pos resolve-me-desc)
     (define resolve-me
@@ -525,8 +537,9 @@
     (set! shutdown-reason (list shutdown-type reason))
     (for-each
      (lambda (interested)
-       (<-np interested 'fulfill (list 'severed shutdown-type
-                                       reason)))
+       (define sealed-reason
+         (partition-seal (list shutdown-type reason)))
+       (<-np interested 'fulfill (list 'severed sealed-reason)))
      ($$ interested-in-sever 'as-list))
     (set! interested-in-sever #f))
 
@@ -588,6 +601,27 @@
            *unspecified*)
          (do-it)]
 
+        [($ <op:get> to-desc (? string? field-name) (? exact-integer? answer-pos))
+         (define target (unmarshall-to-desc to-desc))
+         (when (hashv-ref answers answer-pos)
+           (error 'already-have-answer "~a" answer-pos))
+         (define vow (<-hashmap-ref target field-name))
+         (hashv-set! answers answer-pos vow)]
+        ;; Technically integer must be 0 or a positive integer...
+        [($ <op:index> to-desc (? integer? index) (? exact-integer? answer-pos))
+         (define target (unmarshall-to-desc to-desc))
+         (when (hashv-ref answers answer-pos)
+           (error 'already-have-answer "~a" answer-pos))
+         (define vow (<-list-ref target index))
+         (hashv-set! answers answer-pos vow)]
+        [($ <op:untag> to-desc (? string? tag) (? exact-integer? answer-pos))
+         (define target (unmarshall-to-desc to-desc))
+         (when (hashv-ref answers answer-pos)
+           (error 'already-have-answer "~a" answer-pos))
+         (define vow (<-tagged-ref target tag))
+         (hashv-set! answers answer-pos vow)]
+
+
         ;; TODO: Here's where we have to record that a listening interest
         ;; has occured, assuming we do the "automatically notify on session
         ;; severance" thing?
@@ -598,7 +632,7 @@
         ;; Actually the easiest thing to do here would be to create our own
         ;; promise-resolver pair, right here, at the captp perimeter, which
         ;; pipelines the result.
-        [($ <op:listen> (? desc:export? to-desc)
+        [($ <op:listen> (and (or (? desc:export?) (? desc:answer?)) to-desc)
                         (? desc:import? listener-desc)
                         (? boolean? wants-partial?))
          (let ((to-refr
@@ -643,13 +677,23 @@
                    (op:deliver-only (marshall-to to)
                                     (outgoing-pre-marshall! args))))
              (send-to-remote deliver-msg))]
-          [($ <cmd-send-listen> (? remote-refr? to-refr) (? local-refr? listener-refr)
+          [($ <cmd-send-listen> (and (or (? remote-refr?) (? question-finder?)) to)
+                                (? local-refr? listener-refr)
                                 (? boolean? wants-partial?))
            (let ((listen-msg
-                  (op:listen (marshall-to to-refr)
+                  (op:listen (marshall-to to)
                              (outgoing-pre-marshall! listener-refr)
                              wants-partial?)))
              (send-to-remote listen-msg))]
+          [($ <cmd-send-hashmap-ref> to field-name answer-this-question)
+           (let ((new-answer-pos (hashq-ref questions answer-this-question)))
+             (send-to-remote (op:get (marshall-to to) field-name new-answer-pos)))]
+          [($ <cmd-send-list-ref> to index answer-this-question)
+           (let ((new-answer-pos (hashq-ref questions answer-this-question)))
+             (send-to-remote (op:index (marshall-to to) index new-answer-pos)))]
+          [($ <cmd-send-tagged-ref> to label answer-this-question)
+           (let ((new-answer-pos (hashq-ref questions answer-this-question)))
+             (send-to-remote (op:untag (marshall-to to) label new-answer-pos)))]
           [($ <cmd-send-gc-answer> (? integer? answer-pos))
            (send-to-remote (op:gc-answer answer-pos))]
           [($ <cmd-send-gc-export> (? integer? export-pos) (? integer? wire-delta))
@@ -691,7 +735,7 @@
   (values captp-incoming-handler remote-bootstrap-obj))
 
 (define* (^coordinator bcom router our-location-vow
-                       intra-node-warden intra-node-incanter
+                       intra-peer-warden intra-peer-incanter
                        #:key [handoff-key-pair (generate-key-pair)])
   ;; counters used to increment how many handoff requests have been
   ;; made in this session to prevent replay attacks.
@@ -775,13 +819,13 @@
         (exported-captp-connector 'connector-obj))
       (define receiver-key remote-encoded-key)
       (define exporter-location
-        ($$ intra-node-incanter
+        ($$ intra-peer-incanter
             exported-connector-obj 'get-remote-location))
       (define gifter-and-exporter-session
-        ($$ intra-node-incanter exported-connector-obj
+        ($$ intra-peer-incanter exported-connector-obj
             'get-session-name))
       (define gifter-side
-        ($$ intra-node-incanter exported-connector-obj
+        ($$ intra-peer-incanter exported-connector-obj
             'get-our-side-name))
       (define gift-id (strong-random-bytes 32))
 
@@ -793,11 +837,11 @@
       (define handoff-give-sig
         (sign (syrup-encode handoff-give
                             #:marshallers marshallers)
-              ($$ intra-node-incanter
+              ($$ intra-peer-incanter
                   exported-connector-obj 'get-handoff-privkey)))
 
       (define exporter-session-bootstrap
-        ($$ intra-node-incanter
+        ($$ intra-peer-incanter
             exported-connector-obj 'get-remote-bootstrap))
 
       (unless (exported-captp-connector 'same-connection? exported-remote-refr)
@@ -965,8 +1009,8 @@
 
 (define-actor (^mycapn bcom self netlayer-map registry locator)
   ;; Warden and incanter for collaborating parties in this
-  ;; particular node
-  (define-values (intra-node-warden intra-node-incanter)
+  ;; particular peer
+  (define-values (intra-peer-warden intra-peer-incanter)
     (spawn-warding-pair))
   (define locations->session-name-resolvers
     (spawn ^ghash))
@@ -1029,7 +1073,7 @@
               ;; If we made it this far, it's ok... so time to get
               ;; that referenced object!
               (if handoff-legit?
-                  ($$ intra-node-incanter cert-session-local-bootstrap-obj
+                  ($$ intra-peer-incanter cert-session-local-bootstrap-obj
                       'pull-out-gift
                       (desc:handoff-give-gift-id handoff-give))
                   (error 'invalid-handoff-cert
@@ -1065,46 +1109,46 @@
                 ($$ waiting-gifts 'set id (list gift-promise gift-resolver))
                 gift-promise))])]))
 
-    (ward intra-node-warden cross-gift-beh #:extends main-beh))
+    (ward intra-peer-warden cross-gift-beh #:extends main-beh))
 
-  ;; TODO: Rename this to connect-to-node I guess?
-  (define (retrieve-or-setup-session-vow remote-node-loc)
-    (if ($$ locations->open-session-names 'has-key? remote-node-loc)
+  ;; TODO: Rename this to connect-to-peer I guess?
+  (define (retrieve-or-setup-session-vow remote-peer-loc)
+    (if ($$ locations->open-session-names 'has-key? remote-peer-loc)
         ;; found an open session for this location
         (let ([session-name-vow ($$ locations->open-session-names
-                                    'ref remote-node-loc)])
+                                    'ref remote-peer-loc)])
           (on session-name-vow
               (lambda (session-name)
                 (sessionmeta-remote-bootstrap-obj
                  ($$ open-session-names->sessionmeta 'ref session-name)))
               #:promise? #t))
         ;; Guess we'll make a new one
-        (let-values ([(netlayer) (get-netlayer-for-location remote-node-loc)]
+        (let-values ([(netlayer) (get-netlayer-for-location remote-peer-loc)]
                      [(session-name-vow session-name-resolver) (spawn-promise-and-resolver)]
                      [(bootstrap-vow bootstrap-resolver) (spawn-promise-and-resolver)])
           ;; To ensure future calls don't create more than one connection
           ;; setup a vow for the session name which will be fulfilled later.
           ;; Once the vow we're creating here is fulfilled we'll swap it out
           ;; for the real value so GC can happen & for minor speed improvements.
-          ($$ locations->session-name-resolvers 'set remote-node-loc session-name-resolver)
-          ($$ locations->open-session-names 'set remote-node-loc session-name-vow)
-          ;; Connect to the node
-          (on (<- netlayer 'connect-to remote-node-loc)
+          ($$ locations->session-name-resolvers 'set remote-peer-loc session-name-resolver)
+          ($$ locations->open-session-names 'set remote-peer-loc session-name-vow)
+          ;; Connect to the peer
+          (on (<- netlayer 'connect-to remote-peer-loc)
               (lambda (session)
                 ($$ bootstrap-resolver 'fulfill session))
               #:catch
               (lambda (err)
                 ($$ session-name-resolver 'break err)
-                ($$ locations->session-name-resolvers 'remove remote-node-loc)
-                ($$ locations->open-session-names 'remove remote-node-loc)
+                ($$ locations->session-name-resolvers 'remove remote-peer-loc)
+                ($$ locations->open-session-names 'remove remote-peer-loc)
                 ($$ bootstrap-resolver 'break err)))
           bootstrap-vow)))
 
   (define (get-netlayer-for-location loc)
-    (define transport-tag (ocapn-node-transport loc))
+    (define transport-tag (ocapn-peer-transport loc))
     (unless ($$ netlayer-map 'has-key? transport-tag)
       (error 'unsupported-transport
-             "NETLAYER not supported for this node: ~a" transport-tag))
+             "NETLAYER not supported for this peer: ~a" transport-tag))
     ($$ netlayer-map 'ref transport-tag))
 
   (define (self-location? loc)
@@ -1118,20 +1162,20 @@
     (assert-type netlayer-name symbol?)
     (unless ($$ netlayer-map 'has-key? netlayer-name)
       (error 'unsupported-transport
-             "NETLAYER not supported for this node: ~a" netlayer-name))
+             "NETLAYER not supported for this peer: ~a" netlayer-name))
     (let* ((netlayer ($$ netlayer-map 'ref netlayer-name))
-           (node-loc (<- netlayer 'our-location))
+           (peer-loc (<- netlayer 'our-location))
            (nonce ($$ registry 'register obj)))
-      (if (promise-refr? node-loc)
-          (on node-loc
-              (lambda (node-loc)
-                (make-ocapn-sturdyref node-loc nonce))
+      (if (promise-refr? peer-loc)
+          (on peer-loc
+              (lambda (peer-loc)
+                (make-ocapn-sturdyref peer-loc nonce))
               #:promise? #t)
-          (make-ocapn-sturdyref node-loc nonce))))
+          (make-ocapn-sturdyref peer-loc nonce))))
   (define (enliven sturdyref-vow)
     (on sturdyref-vow
         (lambda (sturdyref)
-          (let ((sref-loc (ocapn-sturdyref-node sturdyref))
+          (let ((sref-loc (ocapn-sturdyref-peer sturdyref))
                 (sref-swiss-num (ocapn-sturdyref-swiss-num sturdyref)))
             ;; Is it local?
             (on (self-location? sref-loc)
@@ -1148,7 +1192,7 @@
   ;; if we're being rehydrated with aurie.
   (on (<- netlayer-map 'data)
       (lambda (netlayer-map-data)
-        (ghash-for-each
+        (hashmap-for-each
          (lambda (netlayer-name netlayer)
            (<-np netlayer 'setup (spawn ^connection-establisher self netlayer netlayer-name)))
          netlayer-map-data)))
@@ -1204,7 +1248,7 @@
       (<- netlayer 'our-location))
     (define coordinator
       (spawn ^coordinator ($$ self) our-location-vow
-             intra-node-warden intra-node-incanter))
+             intra-peer-warden intra-peer-incanter))
     (define handoff-pubkey
       ($$ coordinator 'get-handoff-pubkey))
     (define our-location-sig-vow
@@ -1213,7 +1257,7 @@
     (define-values (remote-bootstrap-vow remote-bootstrap-resolver)
       (spawn-promise-and-resolver))
 
-    ;; Complete the initialization step against the remote node.
+    ;; Complete the initialization step against the remote peer.
     ;; Basically this allows the coordinator to know of what remote
     ;; key will be used in this session.
     (define (^setup-completer bcom)
@@ -1229,7 +1273,7 @@
             ;;   two.
             #;(and remote-encoded-pubkey
             ('eddsa 'public 'ed25519 _))
-            (? ocapn-node? claimed-remote-location)
+            (? ocapn-peer? claimed-remote-location)
             encoded-remote-location-sig)
 
          ;; Check we are speaking the same language!
@@ -1249,7 +1293,7 @@
          ;;   for the start-session message...
          ;;   So, remove this if we can.  Or realistically, move this whole part
          ;;   to the NETLAYER code.
-         #;(unless (same-node-location? claimed-remote-location remote-location)
+         #;(unless (same-peer-location? claimed-remote-location remote-location)
          (error (format "Supplied location mismatch. Claimed: ~s Expected: ~s" ; ; ; ;
          claimed-remote-location remote-location)))
 
@@ -1287,7 +1331,7 @@
          (define can-continue?
            (let* ((chm ($$ locations->crossed-hellos-mitigator 'ref remote-location #f))
                   (their-side-name ($$ coordinator 'get-remote-side-name))
-                  (outgoing? (ocapn-node? remote-connect-location))
+                  (outgoing? (ocapn-peer? remote-connect-location))
                   (must-abort? (and chm (not outgoing?) ($$ chm their-side-name))))
              ;; Send internal shutdown if needed.
              (when must-abort?
@@ -1304,7 +1348,7 @@
                          ((captp-incoming-handler remote-bootstrap-obj)
                           (setup-captp-conn send-to-remote coordinator
                                             local-bootstrap-obj
-                                            intra-node-warden intra-node-incanter)))
+                                            intra-peer-warden intra-peer-incanter)))
              ($$ remote-bootstrap-resolver 'fulfill remote-bootstrap-obj)
 
              ;; And set things up so that the incoming-forwarder now goes
@@ -1379,7 +1423,7 @@
                 (bcom voided-beh #f))
               (bcom voided-beh #t)))))
 
-    (when (ocapn-node? remote-connect-location)
+    (when (ocapn-peer? remote-connect-location)
       ($$ locations->crossed-hellos-mitigator 'set
           remote-connect-location
           (spawn ^crossed-hellos-mitigator ($$ coordinator 'get-our-side-name))))
@@ -1397,7 +1441,7 @@
 
    [self-location? self-location?]
    ;; ... is that it?
-   [connect-to-node retrieve-or-setup-session-vow]
+   [connect-to-peer retrieve-or-setup-session-vow]
 
    [(install-netlayer netlayer)
     (on (<- netlayer 'netlayer-name)
@@ -1419,8 +1463,8 @@
     (spawn ^ghash
            (fold
             (lambda (netlayer netmap)
-              (ghash-set netmap ($$ netlayer 'netlayer-name)
-                         netlayer))
+              (hashmap-set netmap ($$ netlayer 'netlayer-name)
+                           netlayer))
             (make-ghash)
             netlayers)))
 

@@ -33,7 +33,7 @@
                              outgoing-connect-location)
   "A basis for defining netlayers."
   (define our-netlayer-name
-    (ocapn-node-transport our-location))
+    (ocapn-peer-transport our-location))
   (define-values (conn-establisher-vow conn-establisher-resolver)
     (spawn-promise-and-resolver))
 
@@ -47,25 +47,23 @@
    [(netlayer-name) our-netlayer-name]
    [(our-location) our-location]
    [(self-location? loc)
-    (same-node-location? our-location loc)]
+    (same-peer-location? our-location loc)]
    [(setup conn-establisher)
     (<-np conn-establisher-resolver 'fulfill conn-establisher)
     (listen-and-handle-new-connection conn-establisher)]
-   [(connect-to remote-node)
-    (unless (eq? (ocapn-node-transport remote-node)
+   [(connect-to remote-peer)
+    (unless (eq? (ocapn-peer-transport remote-peer)
                  our-netlayer-name)
       (error "Mismatched netlayer:"
-             (ocapn-node-transport remote-node)
+             (ocapn-peer-transport remote-peer)
              our-netlayer-name))
     ;; Asynchronously set up connection.  Once it's ready, we'll
     ;; return the value from the connection establisher
     ;; (which itself returns the meta-bootstrap-vow)
     (define connected-port-vow
-      (spawn-fibrous-vow
-       (lambda ()
-         (outgoing-connect-location remote-node))))
-    
+      (outgoing-connect-location remote-peer))
+
     (on connected-port-vow
         (lambda (connected-port)
-          (<- conn-establisher-vow (spawn ^captp-io connected-port) remote-node))
+          (<- conn-establisher-vow (spawn ^captp-io connected-port) remote-peer))
         #:promise? #t)]))

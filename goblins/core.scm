@@ -22,6 +22,8 @@
 
             actormap-spawn
             actormap-spawn!
+            actormap-spawn-named
+            actormap-spawn-named!
             ;; actormap-spawn-mactor!
 
             &actormap-turn-error
@@ -53,6 +55,7 @@
 
             copy-whactormap
 
+            refr-name
             near-refr?
             far-refr?
 
@@ -99,6 +102,20 @@
             listen-request-listener
             listen-request-wants-partial?
 
+            <ref-request>
+            ref-request?
+            ref-request-type
+            ref-request-to
+            ref-request-ref-by
+            ref-request-resolver
+
+            <ref-questioned>
+            ref-questioned?
+            ref-questioned-type
+            ref-questioned-to
+            ref-questioned-ref-by
+            ref-questioned-answer-this-question
+
             forward-to-captp?
             forward-to-captp-msg
 
@@ -121,6 +138,11 @@
 
             local-refr->persistable-object-identifier
             has-persistable-object-identifier?
+
+            <-hashmap-ref
+            <-list-ref
+            <-tagged-ref
+
 
             ;; Deprecated
             spawn-promise-cons
@@ -154,6 +176,8 @@
   #:use-module (goblins core-types)
   #:use-module (goblins abstract-types)
   #:use-module (goblins utils ghash)
+  #:use-module (goblins utils hashmap)
+  #:use-module (goblins utils assert-type)
   #:use-module (goblins ocapn ids)
   #:use-module (goblins utils error-handling)
   #:use-module (goblins utils simple-sealers))
@@ -189,7 +213,7 @@
 ;;; Here's an image to get started:
 ;;;
 ;;;   .----------------------------------.         .-------------------.
-;;;   |              Node 1              |         |       Node 2      |
+;;;   |              Peer 1              |         |       Peer 2      |
 ;;;   |             =======              |         |       =======     |
 ;;;   |                                  |         |                   |
 ;;;   | .--------------.  .---------.   .-.       .-.                  |
@@ -219,16 +243,16 @@
 ;;;    Alfred are both objects in Vat A, Bob is an object in Vat B, and
 ;;;    Carol and Carlos are objects in Vat C.
 ;;;
-;;;  - Zooming out the farthest is the "node/network level".
-;;;    There are two nodes (Node 1 and Node 2) connected over a
+;;;  - Zooming out the farthest is the "peer/network level".
+;;;    There are two peers (Peer 1 and Peer 2) connected over a
 ;;;    Goblins CapTP network.  The stubby shapes on the borders between the
-;;;    nodes represent the directions of references Node 1 has to
-;;;    objects in Node 2 (at the top) and references Node 2 has to
-;;;    Node 1.  Both nodes in this diagram are cooperating to preserve
+;;;    peers represent the directions of references Peer 1 has to
+;;;    objects in Peer 2 (at the top) and references Peer 2 has to
+;;;    Peer 1.  Both peers in this diagram are cooperating to preserve
 ;;;    that Bob has access to Carol but that Carol does not have access to
 ;;;    Bob, and that Carlos has access to Bob but Bob does not have access
 ;;;    to Carlos.  (However there is no strict guarantee from either
-;;;    node's perspective that this is the case... generally it's in
+;;;    peer's perspective that this is the case... generally it's in
 ;;;    everyone's best interests to take a "principle of least authority"
 ;;;    approach though so usually it is.)
 ;;;
@@ -249,21 +273,21 @@
 ;
 ; Generally, things look like so:
 ;
-;;;   (node (vat (actormap {refr: (mactor object-handler)})))
+;;;   (peer (vat (actormap {refr: (mactor object-handler)})))
 ;;;
 ;;; However, we could really benefit from looking at those in more detail,
 ;;; so from the outermost layer in...
 ;;;
-;;;    .--- A node in Goblins is basically an OS process.
+;;;    .--- A peer in Goblins is basically an OS process.
 ;;;    |    However, the broader Goblins CapTP/MachineTP network is
-;;;    |    made up of many nodes.  A connection to another node
-;;;    |    is the closest amount of "assurance" a Goblins node has
+;;;    |    made up of many peers.  A connection to another peer
+;;;    |    is the closest amount of "assurance" a Goblins peer has
 ;;;    |    that it is delivering to a specific destination.
 ;;;    |    Nonetheless, Goblins users generally operate at the object
-;;;    |    reference level of abstraction, even across nodes.
+;;;    |    reference level of abstraction, even across peers.
 ;;;    |
-;;;    |    An object reference on the same node is considered
-;;;    |    "local" and an object reference on another node is
+;;;    |    An object reference on the same peer is considered
+;;;    |    "local" and an object reference on another peer is
 ;;;    |    considered "remote".
 ;;;    |
 ;;;    |    .--- Christine: "How about I call this 'hive'?"
@@ -385,7 +409,7 @@
 ;;;    |    |    |         |      |      |    time)
 ;;;    |    |    |         |      |      |
 ;;;    V    V    V         V      V      V
-;;; (node (vat (actormap {refr: (mactor object-handler)})))
+;;; (peer (vat (actormap {refr: (mactor object-handler)})))
 ;;;
 ;;;
 ;;; Whew!  That's a lot of info, so go take a break and then we'll go onto
@@ -410,7 +434,7 @@
 ;;;           '----------------'----------------'  :
 ;;;
 ;;; On the left hand side we see live references (only valid within this
-;;; process runtime or between nodes across captp sessions) and
+;;; process runtime or between peers across captp sessions) and
 ;;; offline-storeable references (sturdy refrs, a kind of bearer URI,
 ;;; and certificate chains, which are like "deeds" indicating that the
 ;;; possessor of some cryptographic material is permitted access).
@@ -420,8 +444,8 @@
 ;;; capability, as well as authority to produce these offline-storeable
 ;;; objects).
 ;;;
-;;; Live references subdivide into local (on the same node) and
-;;; remote (on a foreign node).  These are typed as either
+;;; Live references subdivide into local (on the same peer) and
+;;; remote (on a foreign peer).  These are typed as either
 ;;; representing an object or a promise.
 ;;;
 ;;; (Local references also further subdivide into "near" and "far",
@@ -614,198 +638,21 @@ Type: Actormap -> TransActormap"
             (bcom-sealed-return-val obj)))
   (values bcom bcom-unseal bcom-sealed?))
 
-
-
-;; Mactors
-;; =======
-
-;;;                    .======================.
-;;;                    | The World of Mactors |
-;;;                    '======================'
-;;;
-;;; This is getting really deep into the weeds and is really only
-;;; relevant to anyone hacking on this module.
-;;;
-;;; Mactors are only ever relevant to the internals of a vat, but they
-;;; do define some common behaviors.
-;;;
-;;; Here are the categories and transition states:
-;;;
-;;;        Unresolved                     Resolved
-;;;  __________________________  ___________________________
-;;; |                          ||                           |
-;;;
-;;;                 .----------------->.        [object]
-;;;                 |                  |
-;;;                 |    .--.          |    .-->[local-link]
-;;;     [naive]-->. |    v  |          |    |
-;;;               +>+->[closer]------->'--->+-->[encased]
-;;;  [question]-->' |       |               |
-;;;                 |       |               '-->[broken]
-;;;                 '------>'--->[remote-link]    ^
-;;;                                  |            |
-;;;                                  '----------->'
-;;;
-;;; |________________________________________||_____________|
-;;;                  Eventual                     Settled
-;;;
-;;; The four major categories of mactors:
-;;;
-;;;  - Unresolved: A promise that has never been fulfilled or broken.
-;;;  - Resolved: Either an object with its own handler or a promise which
-;;;    has been fulfilled to some value/object reference or which has broken.
-;;;
-;;; and:
-;;;
-;;;  - Eventual: Something which *might* eventually transition its state.
-;;;  - Settled: Something which will never transition its state again.
-;;;
-;;; The surprising thing here is that there is any distinction between
-;;; unresolved/resolved and eventual/settled at all.  The key to
-;;; understanding the difference is observing that a mactor:remote-link
-;;; might become broken upon network disconnect from that object.
-;;;
-;;; One intersting observation is that if you have a local-object-refr that
-;;; it is sure to correspond to a mactor:object.  A local-promise-refr can
-;;; correspond to any object state *except* for mactor:object (if a promise
-;;; resolves to a local object, it must point to it via mactor:local-link.)
-;;; (remote-refrs of course never correspond to a mactor on this node;
-;;; those are managed by captp.)
-;;;
-;;; See also:
-;;;  - The comments above each of these below
-;;;  - "Miranda methods":
-;;;      http://www.erights.org/elang/blocks/miranda.html
-;;;  - "Reference mechanics":
-;;;      http://erights.org/elib/concurrency/refmech.html
-
-;; TODO: Maybe move this to core-types?
-;; local-objects are the most common type, have a message handler
-;; which specifies how to respond to the next message, as well as
-;; a predicate and unsealer to identify and unpack when a message
-;; handler specifies that this actor would like to "become" a new
-;; version of itself (get a new handler)
-(define-record-type <mactor:object>
-  (make-mactor:object behavior constructor-refr spawned-constructor
-                      self-portrait become-unsealer become?)
-  mactor:object?
-  ;; Behavior procedure
-  (behavior mactor:object-behavior)
-  ;; Reference to the constructor procedure or redefinable-object-constructor
-  ;; this actor was spawned from
-  ;; TODO: rename this, it's not a live-refr, and it kind of sounds like it is
-  (constructor-refr mactor:object-constructor-refr)
-  ;; This is the inner constructor *procedure*, which is unboxed from a
-  ;; redefinable-object-constructor, so we can compare if the constructor
-  ;; changed when doing an `actormap-replace-behavior'
-  (spawned-constructor mactor:object-spawned-constructor)
-  ;; The object's self-portrait procedure, if it exists
-  (self-portrait mactor:object-self-portrait)
-  ;; The following two are the predicate and unsealer from a
-  ;; `make-become-sealer-triplet', specific to this actor
-  (become-unsealer mactor:object-become-unsealer)
-  (become? mactor:object-become?))
-
-;; The other kinds of mactors correspond to promises and their resolutions.
-
-;; There are two supertypes here which are not used directly:
-;; mactor:unresolved and mactor:eventual.  See above for an explaination
-;; of what these mean.
-;; These are never directly exposed as mactors, hence the ~
-(define-record-type <m~eventual>
-  (make-m~eventual resolver-unsealer resolver-tm?)
-  m~eventual?
-  ;; We can still be resolved, so identify who is allowed to do that
-  ;; and provide a mechanism for unsealing the resolution
-  (resolver-unsealer m~eventual-resolver-unsealer)
-  (resolver-tm? m~eventual-resolver-tm?))
-(define-record-type <m~unresolved>
-  (make-m~unresolved eventual listeners)
-  m~unresolved?
-  ;; the <m~eventual> info
-  (eventual m~unresolved-eventual)
-  ;; Who's listening for a resolution?
-  (listeners m~unresolved-listeners))
-
-;; The most common kind of freshly made promise is a naive one.
-;; It knows no interesting information about how what it will eventually
-;; become.
-;; Since it knows of no closer information it keeps a queue of waiting
-;; messages which will eventually be transmitted.
-(define-record-type <mactor:naive>
-  (make-mactor:naive unresolved waiting-messages)
-  mactor:naive?
-  (unresolved mactor:naive-unresolved)
-  ;; All of these get "rewritten" as this promise is either resolved
-   ;; or moved closer to resolution.
-  (waiting-messages mactor:naive-waiting-messages))
-
-;; A special kind of "freshly made" promise which also corresponds to being
-;; a question on the remote end.  Keeps track of the captp-connector
-;; relevant to this connection so it can send it messages and the
-;; question-finder that it corresponds to (used for passing along messages).
-(define-record-type <mactor:question>
-  (make-mactor:question unresolved captp-connector question-finder)
-  mactor:question?
-  (unresolved mactor:question-unresolved)
-  (captp-connector mactor:question-captp-connector)
-  (question-finder mactor:question-question-finder))
-
-;; "You make me closer to God" -- Nine Inch Nails
-;; Well, in this case we're actually just "closer to resolution"...
-;; pointing at some other promise that isn't us.
-;;
-;; NOTE: Any attempt to remove this in favor of "deferring an answer
-;; until fulfillment is possible" should think through whether it will
-;; also prevent cycles.  A great deal of work went into that here.
-(define-record-type <mactor:closer>
-  (make-mactor:closer unresolved point-to history waiting-messages)
-  mactor:closer?
-  (unresolved mactor:closer-unresolved)
-  ;; Who do we currently point to?
-  (point-to mactor:closer-point-to)
-  ;; A set of promises we used to point to before they themselves
-  ;; resolved... used to detect cycles
-  (history mactor:closer-history)
-  ;; Any messages that are waiting to be passed along...
-  ;; Currently only if we're pointing to a remote-promise, otherwise
-  ;; this will be an empty list.
-  (waiting-messages mactor:closer-waiting-messages))
-
-;; Point at a remote object.
-;; It's eventual because, well, it could still break on network partition.
-(define-record-type <mactor:remote-link>
-  (make-mactor:remote-link eventual point-to)
-  mactor:remote-link?
-  (eventual mactor:remote-link-eventual)
-  (point-to mactor:remote-link-point-to))
-
-;; Link to an object on the same node.
-(define-record-type <mactor:local-link>
-  (make-mactor:local-link point-to)
-  mactor:local-link?
-  (point-to mactor:local-link-point-to))
-
-;; A promise that has resolved to some value
-(define-record-type <mactor:encased>
-  (make-mactor:encased val)
-  mactor:encased?
-  (val mactor:encased-val))
-
-;; Breakage (and remember why!)
-(define-record-type <mactor:broken>
-  (make-mactor:broken problem)
-  mactor:broken?
-  (problem mactor:broken-problem))
-
 ;; Rather than directly storing references to listeners, we use these
 ;; <listener-info> structs because, at least at the time, we have this
 ;; notion of being interested in "partial" updates (rather than waiting
 ;; until full promise resolution)
 ;;
-;; While this is a curious feature, we never fully documented why we
-;; made the decision to enable this.  It would be interesting to document
-;; it, and we probably will indeed need to for ocapn interoperability.
+;; Most listeners which are part of promise chaining want partial resolutions so
+;; they can become "closer" to their actual value.  This is mainly to aid in
+;; promise pipelining so messages sent get forwarded along the chain and if they
+;; are resolved to a mactor:answer, messages will be pipelined across CapTP
+;; accordingly.
+;;
+;; On listeners, however, do not want partial resolution; they only ever want to
+;; be fulfilled when a promise resolves. This is because the on handlers expect
+;; fully resolved values. In this case wants partial is an important part of the
+;; machinery to prevent on handlers being fulfilled with partial promises.
 (define-record-type <listener-info>
   (make-listener-info resolve-me wants-partial?)
   listener-info?
@@ -971,6 +818,25 @@ Type: Any -> Boolean"
   (listener listen-request-listener)
   (wants-partial? listen-request-wants-partial?))
 
+;; A ref request is either a <-hashmap-ref <-list-ref, or <-tagged-ref operation.
+;; These are sent in the same way as messages and listen requests.
+(define-record-type <ref-request>
+  (make-ref-request type to ref-by resolver)
+  ref-request?
+  (type ref-request-type)
+  (to ref-request-to)
+  (ref-by ref-request-ref-by)
+  (resolver ref-request-resolver))
+
+;; This is a ref-request for the asking CapTP
+(define-record-type <ref-questioned>
+  (make-ref-questioned type to ref-by answer-this-question)
+  ref-questioned?
+  (type ref-questioned-type)
+  (to ref-questioned-to)
+  (ref-by ref-questioned-ref-by)
+  (answer-this-question ref-questioned-answer-this-question))
+
 ;; This kluge is for when we need to forward a message to captp... but
 ;; typically also it might have a question-finder for the `to' field...
 ;; so we put in this hack to let the code handling the turn/churn know
@@ -999,14 +865,20 @@ Type: Any -> Boolean"
      (message-or-request-to (forward-to-captp-msg forward-me))]
     [(? message? msg) (message-to msg)]
     [(? listen-request? lr) (listen-request-to lr)]
+    [(? ref-request? rr) (ref-request-to rr)]
+    [(? ref-questioned? rq) (ref-questioned-to rq)]
     [(? questioned? qstn) (message-to (questioned-message qstn))]))
 
 (define message-who-wants-response
   (match-lambda
+    [(? forward-to-captp? forward-me)
+     (message-who-wants-response (forward-to-captp-msg forward-me))]
     [(? message? msg)
      (message-resolve-me msg)]
     [(? listen-request? lr)
      (listen-request-listener lr)]
+    [(? ref-request? rr)
+     (ref-request-resolver rr)]
     [(? questioned? qm)
      (message-who-wants-response (questioned-message qm))]))
 
@@ -1296,14 +1168,16 @@ Type: Any -> Boolean"
        (let send-rest ([waiting-messages orig-waiting-messages])
          (match waiting-messages
            ['() *unspecified*]
-           ;; TODO: add support for <questioned> here, right?!?!
            [((? message? msg) rest-waiting ...)
             (let ((resolve-me (message-resolve-me msg))
                   (args (message-args msg)))
               ;; preserve FIFO by recursing first
               (send-rest rest-waiting)
               ;; and then send this message along
-              (syscaller-send-message syscaller resolve-to-val resolve-me args))])))
+              (if (live-refr? resolve-me)
+                  (let ((vow (syscaller-<- syscaller resolve-to-val args)))
+                    (syscaller-<-np syscaller resolve-me (list 'fulfill vow)))
+                  (syscaller-<-np syscaller resolve-to-val args)))])))
 
      (define new-waiting-messages
        (if (remote-promise-refr? resolve-to-val)
@@ -1331,16 +1205,12 @@ Type: Any -> Boolean"
                                       'cycle-in-promise-resolution)))
           (make-mactor:local-link resolve-to-val)]
          [(? remote-object-refr?)
-          ;; Since the captp connection is the one that might break this,
-          ;; we need to ask it what it uses as its resolver unsealer/tm
-          ;; @@: ... This doesn't seem like a good solution.
-          ;;   Maybe bears re-examination with the addition of on-sever.
+          ;; The promise resolver checks for remote-object-refrs and breaks
+          ;; the promise if it occurs. The CapTP severence is sealed to
+          ;; ensure it's only CapTP severence which can break it. Use the
+          ;; partition unsealer/tm from CapTP for this purpose.
           (let* ([connector (remote-refr-captp-connector resolve-to-val)]
                  [partition-unsealer-tm-cons (connector 'partition-unsealer-tm-cons)])
-            ;; TODO: Do we need to notify it that we want to know about
-            ;;   breakage?  Presumably... so do it here instead...?
-            ;; TODO: Do we really need to pattern match against a cons here?
-            ;;   Couldn't we return multiple values?
             (match partition-unsealer-tm-cons
               [(new-resolver-unsealer . new-resolver-tm?)
                (make-mactor:remote-link (make-m~eventual new-resolver-unsealer
@@ -1375,6 +1245,8 @@ Type: Any -> Boolean"
                          (syscaller-spawn syscaller ^resolver
                                           (list promise-id new-resolver-sealer)
                                           '^resolver)])
+            ;; Give the ^resolver actor a reference to itself
+            (syscaller-$ syscaller new-resolver (list new-resolver))
             ;; Now subscribe to the promise...
             (syscaller-send-listen syscaller resolve-to-val new-resolver #t)
             (let* ([new-listeners
@@ -1419,8 +1291,6 @@ Type: Any -> Boolean"
                                    (list 'fulfill resolve-to-val)))
                  orig-listeners)))))
 
-;; TODO: Add support for broken-because-of-network-partition support
-;;   even for mactor:remote-link
 (define (syscaller-break-promise syscaller promise-id sealed-problem)
   (define actormap (syscaller-actormap syscaller))
 
@@ -1451,8 +1321,15 @@ Type: Any -> Boolean"
      ;; Now we "become" broken with that problem
      (actormap-set! actormap promise-id
                     (make-mactor:broken problem))]
-    [(? mactor:remote-link?)
-     (error "TODO: Implement breaking on captp disconnect!")]
+    [(? mactor:remote-link? refr)
+     (let* ((eventual (mactor:remote-link-eventual refr))
+            (tm? (m~eventual-resolver-tm? eventual)))
+       ;; TODO: Do we want to pass through the CapTP severence reason
+       ;; to the broken promise or leave as it is now...
+       (if (tm? sealed-problem)
+           (actormap-set! actormap promise-id
+                          (make-mactor:broken "Broken due to CapTP severence"))
+           (error "Only CapTP severence can break a resolved promise")))]
     [#f (error "no actor with this id")]
     [_ (error "can only resolve eventual references")]))
 
@@ -1828,21 +1705,42 @@ Type: Any -> Boolean"
 ;; =================================
 
 ;; System calls
-(define (spawn constructor . args)
-  "Construct and return a reference to the actor described by
-CONSTRUCTOR, passing it ARGS.
+(define (%spawn constructor . args)
+  #((name . spawn)
+    (documentation . "Construct and return a reference to the actor described by
+@var{constructor}, passing it @var{args}.
 
-Type: Constructor Any ... -> Actor"
+Type: Constructor Any ... -> Actor"))
   (define sys (get-syscaller-or-die))
   (syscaller-spawn sys constructor args (procedure-name constructor)))
 
 (define (spawn-named name constructor . args)
   "Construct and return a reference to an actor with the debug name
-NAME described by CONSTRUCTOR, passing it ARGS.
+@var{name} described by @var{constructor}, passing it @var{args}.
 
 Type: Symbol Constructor Any ... -> Actor"
   (define sys (get-syscaller-or-die))
   (syscaller-spawn sys constructor args name))
+
+;; When an actor is spawned and a name is not specified, we default to
+;; the name of its constructor.  However, 'procedure-name' is very
+;; slow and can involve parsing ELF for compiled code.  To speed
+;; things up, we take advantage of the fact that actor constructors
+;; are typically specified as identifiers in the source, so we can
+;; simply use that identifier as the name.  To preserve the illusion
+;; that 'spawn' is just a regular ol' procedure, there is identifier
+;; syntax.
+(define-syntax spawn
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ constructor arg ...)          ; fast path
+       (identifier? #'constructor)
+       #'(spawn-named 'constructor constructor arg ...))
+      ((_ constructor arg ...)          ; slow path
+       #'(%spawn constructor arg ...))
+      (id                               ; identifier syntax; also slow
+       (identifier? #'id)
+       #'%spawn))))
 
 (define ($ refr . args)
   "Synchronously invoke REFR with ARGS; return the result.
@@ -1942,7 +1840,7 @@ Type: Promise (Optional (Any -> Any))
 ;; object.
 ;;
 ;; The thing that gets returned is the ability to cancel interest.
-(define (on-sever remote-object-refr sever-handler)
+(define* (on-sever remote-object-refr sever-handler #:key [sealed? #f])
   "Register `sever-handler' when connection for `remote-object-refr' is severed"
   (define-values (sever-vow sever-resolver)
     (spawn-promise-and-resolver))
@@ -1952,16 +1850,25 @@ Type: Promise (Optional (Any -> Any))
     (captp-connector 'connector-obj))
   (define connector-cancel-vow
     (<- connector-obj 'resolve-on-sever sever-resolver))
+  (define partition-unsealer
+    (match (captp-connector 'partition-unsealer-tm-cons)
+      [(unseal . tm?) unseal]))
 
   (on sever-vow
       (match-lambda
         ['canceled *unspecified*]
-        [('severed shutdown-type reason)
+        [('severed sealed-reason)
+         (define partition-reason
+           (if sealed?
+               (list sealed-reason)
+               ;; Unsealed value matches (shutdown-type reason)
+               (partition-unsealer sealed-reason)))
          (match sever-handler
            [(? procedure?)
-            (sever-handler shutdown-type reason)]
+            (apply sever-handler partition-reason)]
            [(? live-refr?)
-            (<-np sever-handler shutdown-type reason)])]))
+            (let ((sys (get-syscaller-or-die)))
+              (syscaller-<-np sys sever-handler partition-reason))])]))
 
 
   ;; Notifies the captp connector we're no longer interested and cancels
@@ -1973,6 +1880,126 @@ Type: Promise (Optional (Any -> Any))
       (bcom (lambda _ *unspecified*))))
   (spawn ^cancel-interest))
 
+(define (syscaller-handle-ref-request syscaller type to by resolver)
+  (define actormap (syscaller-actormap syscaller))
+  (define (type->procedure type)
+    (match type
+      ['hashmap <-hashmap-ref]
+      ['list <-list-ref]
+      ['untag <-tagged-ref]))
+  (define (^ref-listener bcom resolve-me)
+    (match-lambda*
+      [('fulfill next-value)
+       (match next-value
+         [(? live-refr?)
+          (let ((sys (get-syscaller-or-die)))
+            (syscaller-send-ref-request sys type next-value by resolve-me))]
+         [_
+          (let ((ref-proc (type->procedure type)))
+            (with-exception-handler
+                (lambda (exn)
+                  (<-np resolve-me 'break exn))
+              (lambda ()
+                (<-np resolve-me 'fulfill (ref-proc next-value by)))
+              #:unwind? #t)
+            *unspecified*)])]
+      [('break err)
+       (<-np resolve-me 'break err)]))
+
+  (define (emit-captp-listen-request! captp-connector to resolve-me)
+    (define from-vat
+      (syscaller-vat-connector syscaller))
+    (define listen-request
+      (make-listen-request from-vat to resolve-me #t))
+    (define wrapped-listen-request
+      (make-forward-to-captp listen-request captp-connector))
+    (syscaller-queue-new-msg! syscaller wrapped-listen-request))
+
+  (define mactor (actormap-ref-or-die actormap to))
+  (match mactor
+    [(or (? mactor:object?) (? mactor:remote-link?))
+     ;; Cannot work on an object, so we break the promise
+     (<-np resolver 'break (format #f "Expected ~a but got an object ~a" type to))]
+    [(? mactor:question?)
+     (let*-values (((captp-connector) (mactor:question-captp-connector mactor))
+                   ((followup-question-finder) (captp-connector 'new-question-finder))
+                   ((followup-vow followup-resolver)
+                    (_spawn-promise-and-resolver #:question-finder followup-question-finder
+                                                 #:captp-connector captp-connector)))
+       (let* ((to-question-finder (mactor:question-question-finder mactor))
+              (ref-questioned (make-ref-questioned type to-question-finder by followup-question-finder))
+              (forwarded-request (make-forward-to-captp ref-questioned captp-connector)))
+         (syscaller-queue-new-msg! syscaller forwarded-request)
+         (<-np resolver 'fulfill followup-vow)
+         ;; TODO: At some point later, probably remove the eager followup listen
+         (emit-captp-listen-request! captp-connector followup-question-finder
+                                     followup-resolver)))]
+    [(? mactor:local-link?)
+     (let ((point-to (mactor:local-link-point-to mactor)))
+       (syscaller-send-ref-request syscaller type point-to by resolver))]
+    [(? mactor:closer?)
+     (let ((point-to (mactor:closer-point-to mactor)))
+       (syscaller-send-ref-request syscaller type point-to by resolver))]
+    [(? mactor:naive?)
+     (let ((listener (syscaller-spawn syscaller ^ref-listener
+                                      (list resolver) '^ref-listener)))
+       (syscaller-send-listen syscaller to listener #t))]
+    [(? mactor:encased?)
+     (let ((ref-proc (type->procedure type)))
+       (<-np resolver 'fulfill (ref-proc (mactor:encased-val mactor) by)))]
+    [(? mactor:broken?)
+     (<-np resolver 'break (mactor:broken-problem mactor))]))
+
+(define (syscaller-send-ref-request syscaller type refr ref-by resolver)
+  (define ref-request
+    (make-ref-request type refr ref-by resolver))
+  (syscaller-queue-new-msg! syscaller ref-request))
+
+(define (<-hashmap-ref refr field-name)
+  (assert-type field-name string?)
+
+  (define sys (get-syscaller-or-die))
+  (match refr
+    [(? hashmap? hm) (hashmap-ref hm field-name)]
+    [(? promise-refr?)
+     (let-values (((vow resolver) (spawn-promise-and-resolver)))
+       (syscaller-send-ref-request sys 'hashmap refr field-name resolver)
+       vow)]
+    [_
+     (error (format #f "<-hashmap-ref must be used with a promise or hashmap, got ~a" refr))]))
+
+
+(define (<-list-ref refr index)
+  (assert-type index non-negative-integer?)
+  (define (non-negative-integer? n)
+    (and (exact-integer? index) (or (zero? index) (positive? index))))
+
+  (define sys (get-syscaller-or-die))
+  (match refr
+    [(? pair?) (list-ref refr index)]
+    [(? promise-refr?)
+     (let-values (((vow resolver) (spawn-promise-and-resolver)))
+       (syscaller-send-ref-request sys 'list refr index resolver)
+       vow)]
+    [_
+     (error (format #f "<-list-ref must be used with a promise or list, got ~a" refr))]))
+
+(define (<-tagged-ref refr label)
+  (assert-type label string?)
+
+  (define sys (get-syscaller-or-die))
+  (match refr
+    [(? tagged?)
+     (let ((found-label (tagged-label refr)))
+       (if (string=? label found-label)
+           (tagged-data refr)
+           (error (format #f "Expected tag ~a, found ~a" label found-label))))]
+    [(? promise-refr?)
+     (let-values (((vow resolver) (spawn-promise-and-resolver)))
+       (syscaller-send-ref-request sys 'untag refr label resolver)
+       vow)]
+    [_
+     (error (format #f "<-tagged-refr expected tagged or promise-refr, got ~a" refr))]))
 
 
 ;; Coroutine support
@@ -2015,16 +2042,47 @@ Type: Promise (Optional (Any -> Any))
 (define already-resolved
   (lambda _ #f))
 
-(define (^resolver bcom promise sealer)
-  (match-lambda*
-    [('fulfill val)
-     (define sys (get-syscaller-or-die))
-     (syscaller-fulfill-promise sys promise (sealer val))
-     (bcom already-resolved)]
-    [('break problem)
-     (define sys (get-syscaller-or-die))
-     (syscaller-break-promise sys promise (sealer problem))
-     (bcom already-resolved)]))
+(define* (^resolver bcom promise sealer #:key self)
+  ;; Hack so that we can have a reference to ourselves, this will
+  ;; be called as the first message by _spawn-promise-and-resolver
+  (define (self-beh self)
+    (bcom (^resolver bcom promise sealer #:self self)))
+
+  ;; Promises resolved to a remote-link value can be resolved again
+  ;; by breaking them. This should be due to a CapTP severence occuring.
+  (define (remote-resolved-beh method val)
+    (define sys (get-syscaller-or-die))
+    (case method
+      ((break)
+       (syscaller-break-promise sys promise val)
+       (bcom already-resolved))
+      (else
+       (error "No such method" method))))
+
+  (define (main-beh method val)
+    (define sys (get-syscaller-or-die))
+    (case method
+      ((fulfill)
+       (cond
+        ((remote-object-refr? val)
+         ;; If it's a reference to a remote object, ask to be informed if the
+         ;; CapTP session severs, then break the promise...
+         (on-sever val
+                   (lambda (sealed-severence)
+                     ($ self 'break sealed-severence))
+                   #:sealed? #t)
+         (syscaller-fulfill-promise sys promise (sealer val))
+         (bcom remote-resolved-beh))
+        (else
+         (syscaller-fulfill-promise sys promise (sealer val))
+         (bcom already-resolved))))
+      ((break)
+       (syscaller-break-promise sys promise (sealer val))
+       (bcom already-resolved))))
+
+  (if self
+      main-beh
+      self-beh))
 
 (define* (_spawn-promise-and-resolver #:key
                                       (question-finder #f)
@@ -2049,6 +2107,7 @@ Type: Promise (Optional (Any -> Any))
       (syscaller-spawn-mactor sys new-mactor #f)))
   (define resolver
     (spawn-named 'resolver ^resolver promise sealer))
+  (syscaller-$ sys resolver (list resolver))
   (values promise resolver))
 
 ;; We don't want to expose the keyword arguments of the parent
@@ -2074,77 +2133,52 @@ Type: -> (Values Promise Resolver)"
 ;; Spawning
 ;; ========
 
-;; This is the internally used version of actormap-spawn,
-;; also used by the syscaller.  It doesn't set up a syscaller
-;; if there isn't currently one.
-(define* (actormap-spawn!* actormap maybe-constructor
-                           args
-                           #:optional
-                           [debug-name (procedure-name maybe-constructor)])
-  (define vat-connector
-    (actormap-vat-connector actormap))
-  (define-values (become become-unseal become?)
-    (make-become-sealer-triplet))
-  (define-values (constructor constructor-refr)
-    (values (if (redefinable-object? maybe-constructor)
-                (redefinable-object-constructor maybe-constructor)
-                maybe-constructor)
-            maybe-constructor))
-  (define actor-handler
-    (apply constructor become args))
-  (define* (handler->refr handler #:optional maybe-self-portrait)
-    (match handler
-      ;; We can't use match record unpacking because of goblin's $ function.
-      [(? portraitized-behavior?)
-       (handler->refr (portraitized-behavior-behavior handler)
-                      (portraitized-behavior-self-portrait handler))]
-      [(? procedure?)
-       (let ((actor-refr
-              (make-local-object-refr debug-name vat-connector
-                                      (increment-actormap-aurie-counter! actormap))))
-         (actormap-set! actormap actor-refr
-                        (make-mactor:object handler constructor-refr
-                                            constructor
-                                            maybe-self-portrait
-                                            become-unseal become?))
-         actor-refr)]
-      [(? live-refr? pre-existing-refr)
-       pre-existing-refr]
-      [_
-       (error 'invalid-actor-handler "Not a procedure, aurie or live refr:" handler)]))
-  (handler->refr actor-handler))
-
-;; These two are user-facing procedures.  Thus, they set up
-;; their own syscaller.
-
-;; non-committal version of actormap-spawn
-(define (actormap-spawn actormap actor-constructor . args)
-  "Create and return a reference to ACTOR-CONSTRUCTOR inside ACTORMAP,
-passing in ARGS; do not commit the transaction.
-
-Type: Actormap Constructor Any ... -> Actor"
+(define (actormap-spawn-named* actormap name actor-constructor args)
   (define new-actormap
     (make-transactormap actormap))
   (call-with-fresh-syscaller
    new-actormap
    (lambda (sys)
      (define actor-refr
-       (actormap-spawn!* new-actormap actor-constructor
-                         args))
+       (syscaller-spawn sys actor-constructor args name))
      (values actor-refr new-actormap))))
 
+;; These four are user-facing procedures.  Thus, they set up
+;; their own syscaller.
+(define (actormap-spawn-named actormap name actor-constructor . args)
+  "Construct an actor using @var{actor-constructor} inside @var{actormap}
+passing in @var{args}. The resulting actor is spawned with  debug name
+@var{name}; do not commit the transaction.
+
+Actormap Any Constructor Any ... -> Actor Actormap"
+  (actormap-spawn-named* actormap name actor-constructor args))
+
+(define (actormap-spawn actormap actor-constructor . args)
+  "Create and return a reference to @var{actor-constructor} inside
+@var{actormap}, passing in @var{args}; do not commit the transaction.
+
+Type: Actormap Constructor Any ... -> Actor Actormap"
+  (define debug-name (procedure-name actor-constructor))
+  (actormap-spawn-named* actormap debug-name actor-constructor args))
+
 (define (actormap-spawn! actormap actor-constructor . args)
-  "Create and return a reference to ACTOR-CONSTRUCTOR inside ACTORMAP,
-passing in ARGS; commit the transaction.
+  "Create and return a reference to @var{actor-constructor} inside
+@var{actormap}, passing in @var{args}; commit the transaction.
 
 Type: Actormap Constructor Any ... -> Actor"
-  (define new-actormap
-    (make-transactormap actormap))
-  (define actor-refr
-    (call-with-fresh-syscaller
-     new-actormap
-     (lambda (sys)
-       (actormap-spawn!* new-actormap actor-constructor args))))
+  (define debug-name (procedure-name actor-constructor))
+  (define-values (actor-refr new-actormap)
+    (actormap-spawn-named* actormap debug-name actor-constructor args))
+  (transactormap-merge! new-actormap)
+  actor-refr)
+(define (actormap-spawn-named! actormap name actor-constructor . args)
+  "Construct an actor using @var{actor-constructor} inside @var{actormap}
+passing in @var{args}. The resulting actor is spawned with  debug name
+@var{name}.
+
+Type: Actormap Any Constructor Any ... -> Actor"
+  (define-values (actor-refr new-actormap)
+    (actormap-spawn-named* actormap name actor-constructor args))
   (transactormap-merge! new-actormap)
   actor-refr)
 
@@ -2377,7 +2411,13 @@ Type: Actormap Message (Optional (#:error-handler (Exception -> Any)))
             (syscaller-handle-listen sys
                                      (listen-request-to lr)
                                      (listen-request-listener lr)
-                                     (listen-request-wants-partial? lr))]))
+                                     (listen-request-wants-partial? lr))]
+           [(? ref-request? rr)
+            (syscaller-handle-ref-request sys
+                                          (ref-request-type rr)
+                                          (ref-request-to rr)
+                                          (ref-request-ref-by rr)
+                                          (ref-request-resolver rr))]))
        (values `#(ok ,result) new-actormap (syscaller-new-msgs sys)))
      (if catch-errors?
          ;; We're catching errors?  Well, let's capture the stack without
@@ -2664,7 +2704,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
     ;; like a set of new child objects.
     (define new-child-objs
       (make-hash-table))
-    
+
     (define this-obj-self-portrait-fn
       (mactor:object-self-portrait (or (actormap-ref am this-obj)
                                        (error "Object not in actormap:" this-obj))))
@@ -2680,7 +2720,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
 
     (define (am-far-refr? refr)
       (actormap-run am (lambda () (far-refr? refr))))
-    
+
     (define (process-one value)
       (match value
         [(? depictable-atom? atom) atom]
@@ -2708,10 +2748,10 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                 '()
                 (cons (process-one (vector-ref vec i))
                       (lp (1+ i))))))]
-        [(? ghash?)
-         (ghash-fold
+        [(? hashmap?)
+         (hashmap-fold
           (lambda (k v prev)
-            (ghash-set prev (process-one k) (process-one v)))
+            (hashmap-set prev (process-one k) (process-one v)))
           (make-ghash)
           value)]
         [(? gset?)
@@ -2764,7 +2804,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
                        (persistable-object-identifier-vat-id value)
                        (persistable-object-identifier-object-id value))]
         [_ (error "Unserializable value!" 'value: value 'obj this-obj)]))
-    
+
     (define (process-portrait obj-spec portrait-data)
       (unless obj-spec
         (error "Don't know how to persist:" this-obj this-obj-constructor-refr))
@@ -3003,7 +3043,7 @@ Type: Actormap PersistenceEnv -> Void"
     (match depiction
       [(_persistence-name debug-name _portrait-version _portrait-data)
        debug-name]))
-  
+
   ;; We *need* to ensure we set the aurie-id counter on the actormap to the
   ;; highest within the graph before creating any new local-object-refrs.
   ;; Unfortunately that means having a pass over the graph just to calculate
@@ -3105,10 +3145,10 @@ Type: Actormap PersistenceEnv -> Void"
                 [(vat-id object-id)
                  (make-persistable-object-identifier vat-id object-id)])]
              [_ (error "Unknown depiction type" type)]))]
-        [(? ghash?)
-         (ghash-fold
+        [(? hashmap?)
+         (hashmap-fold
           (lambda (k v prev)
-            (ghash-set prev (restore-one k) (restore-one v)))
+            (hashmap-set prev (restore-one k) (restore-one v)))
           (make-ghash)
           depicted)]
         [(? gset?)
@@ -3199,3 +3239,8 @@ Returns the root objects of the graph."
     (local-refr-vat-connector local-refr))
   (and vat-connector
        (vat-connector 'aurie-vat-id)))
+
+(define (refr-name refr)
+  "Return debug name for @var{refr}, or @code{#f} if there is none."
+  (and (local-object-refr? refr)
+       (local-object-refr-debug-name refr)))

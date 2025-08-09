@@ -118,7 +118,7 @@ so as to not lose it.
    ;;   : handoff-key?
    recipient-key
    ;; exporter-location(-hint(s)): how to connect to get this
-   ;;   : ocap-node-uri?
+   ;;   : ocap-peer-uri?
    ;;   Note that currently this requires a certain amount of VatTP
    ;;   crossover, since we have to give a way to connect to VatTP...
    exporter-location
@@ -147,7 +147,7 @@ so as to not lose it.
 (desc:sig-envelope
   (desc:handoff-give
    <B-key-of-AtoB1>       ; recipient-key
-   ocapn:foo:<c-node>  ; exporter-location
+   ocapn:foo:<c-peer>  ; exporter-location
    AtoC1-session          ; session
    A-key-of-AtoC1         ; gifter-side
    25)                    ; gift-id
@@ -174,7 +174,7 @@ so as to not lose it.
    (desc:sig-envelope
     (desc:handoff-give
      <B-key-of-AtoB1>       ; recipient-key
-     ocapn:foo:<c-node>  ; exporter-location
+     ocapn:foo:<c-peer>  ; exporter-location
      AtoC1-session          ; session
      A-key-of-AtoC1         ; gifter-side
      25)                    ; gift-id

@@ -47,12 +47,9 @@ Methods:
   "Public interface to ^pubsub"
   (define subscribers
     (apply spawn ^seteq initial-subscribers))
-  (^pubsub* bcom subscribers))
-
-(define (restore-pubsub _version subscribers)
   (spawn ^pubsub* subscribers))
 
 (define pubsub-env
   (make-persistence-env
-   `((((goblins actor-lib pubsub) ^pubsub) ,^pubsub ,restore-pubsub))
+   `((((goblins actor-lib pubsub) ^pubsub) ,^pubsub*))
    #:extends common-env))

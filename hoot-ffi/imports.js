@@ -42,6 +42,10 @@ let bindings = {
             ws.onerror = (e) => f();
         }
     },
+    localStorage: {
+        setItem: (name, data) => localStorage.setItem(name, data),
+        getItem: (name) => localStorage.getItem(name),
+    },
     uint8Array: {
         new: (length) => new Uint8Array(length),
         fromArrayBuffer: (buffer) => new Uint8Array(buffer),

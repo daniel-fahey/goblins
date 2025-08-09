@@ -99,6 +99,72 @@
             live-refr?
             promise-refr?
 
+            <mactor:object>
+            make-mactor:object
+            mactor:object?
+            mactor:object-behavior
+            mactor:object-constructor-refr
+            mactor:object-spawned-constructor
+            mactor:object-self-portrait
+            mactor:object-become-unsealer
+            mactor:object-become?
+
+            <m~eventual>
+            make-m~eventual
+            m~eventual?
+            m~eventual-resolver-unsealer
+            m~eventual-resolver-tm?
+
+            <m~unresolved>
+            make-m~unresolved
+            m~unresolved?
+            m~unresolved-eventual
+            m~unresolved-listeners
+
+            <mactor:naive>
+            make-mactor:naive
+            mactor:naive?
+            mactor:naive
+            mactor:naive-unresolved
+            mactor:naive-waiting-messages
+
+            <mactor:question>
+            make-mactor:question
+            mactor:question?
+            mactor:question-unresolved
+            mactor:question-captp-connector
+            mactor:question-question-finder
+
+            <mactor:closer>
+            make-mactor:closer
+            mactor:closer?
+            mactor:closer-unresolved
+            mactor:closer-point-to
+            mactor:closer-history
+            mactor:closer-waiting-messages
+
+            <mactor:remote-link>
+            make-mactor:remote-link
+            mactor:remote-link?
+            mactor:remote-link-eventual
+            mactor:remote-link-point-to
+
+            <mactor-local-link>
+            make-mactor:local-link
+            mactor:local-link?
+            mactor:local-link-point-to
+
+            <mactor:encased>
+            make-mactor:encased
+            mactor:encased?
+            mactor:encased-val
+
+            <mactor:broken>
+            make-mactor:broken
+            mactor:broken?
+            mactor:broken-problem
+
+
             <persistence-env>
             _make-persistence-env
             persistence-env?
@@ -274,8 +340,8 @@ Type: Any -> Boolean"
      (local-promise-refr-vat-connector local-refr)]))
 
 ;; Captp-connector should be a procedure which both sends a message
-;; to the local node representative actor, but also has something
-;; serialized that knows which specific remote node + session this
+;; to the local peer representative actor, but also has something
+;; serialized that knows which specific remote peer + session this
 ;; corresponds to (to look up the right captp session and forward)
 
 (define-record-type <remote-object-refr>
@@ -335,6 +401,188 @@ else #f.
 Type: Any -> Boolean"
   (or (local-refr? obj)
       (remote-refr? obj)))
+
+
+;; Mactors
+;; =======
+
+;;;                    .======================.
+;;;                    | The World of Mactors |
+;;;                    '======================'
+;;;
+;;; This is getting really deep into the weeds and is really only
+;;; relevant to anyone hacking on this module.
+;;;
+;;; Mactors are only ever relevant to the internals of a vat, but they
+;;; do define some common behaviors.
+;;;
+;;; Here are the categories and transition states:
+;;;
+;;;        Unresolved                     Resolved
+;;;  __________________________  ___________________________
+;;; |                          ||                           |
+;;;
+;;;                 .----------------->.        [object]
+;;;                 |                  |
+;;;                 |    .--.          |    .-->[local-link]
+;;;     [naive]-->. |    v  |          |    |
+;;;               +>+->[closer]------->'--->+-->[encased]
+;;;  [question]-->' |       |               |
+;;;                 |       |               '-->[broken]
+;;;                 '------>'--->[remote-link]    ^
+;;;                                  |            |
+;;;                                  '----------->'
+;;;
+;;; |________________________________________||_____________|
+;;;                  Eventual                     Settled
+;;;
+;;; The four major categories of mactors:
+;;;
+;;;  - Unresolved: A promise that has never been fulfilled or broken.
+;;;  - Resolved: Either an object with its own handler or a promise which
+;;;    has been fulfilled to some value/object reference or which has broken.
+;;;
+;;; and:
+;;;
+;;;  - Eventual: Something which *might* eventually transition its state.
+;;;  - Settled: Something which will never transition its state again.
+;;;
+;;; The surprising thing here is that there is any distinction between
+;;; unresolved/resolved and eventual/settled at all.  The key to
+;;; understanding the difference is observing that a mactor:remote-link
+;;; might become broken upon network disconnect from that object.
+;;;
+;;; One intersting observation is that if you have a local-object-refr that
+;;; it is sure to correspond to a mactor:object.  A local-promise-refr can
+;;; correspond to any object state *except* for mactor:object (if a promise
+;;; resolves to a local object, it must point to it via mactor:local-link.)
+;;; (remote-refrs of course never correspond to a mactor on this peer;
+;;; those are managed by captp.)
+;;;
+;;; See also:
+;;;  - The comments above each of these below
+;;;  - "Miranda methods":
+;;;      http://www.erights.org/elang/blocks/miranda.html
+;;;  - "Reference mechanics":
+;;;      http://erights.org/elib/concurrency/refmech.html
+
+;; local-objects are the most common type, have a message handler
+;; which specifies how to respond to the next message, as well as
+;; a predicate and unsealer to identify and unpack when a message
+;; handler specifies that this actor would like to "become" a new
+;; version of itself (get a new handler)
+(define-record-type <mactor:object>
+  (make-mactor:object behavior constructor-refr spawned-constructor
+                      self-portrait become-unsealer become?)
+  mactor:object?
+  ;; Behavior procedure
+  (behavior mactor:object-behavior)
+  ;; Reference to the constructor procedure or redefinable-object-constructor
+  ;; this actor was spawned from
+  ;; TODO: rename this, it's not a live-refr, and it kind of sounds like it is
+  (constructor-refr mactor:object-constructor-refr)
+  ;; This is the inner constructor *procedure*, which is unboxed from a
+  ;; redefinable-object-constructor, so we can compare if the constructor
+  ;; changed when doing an `actormap-replace-behavior'
+  (spawned-constructor mactor:object-spawned-constructor)
+  ;; The object's self-portrait procedure, if it exists
+  (self-portrait mactor:object-self-portrait)
+  ;; The following two are the predicate and unsealer from a
+  ;; `make-become-sealer-triplet', specific to this actor
+  (become-unsealer mactor:object-become-unsealer)
+  (become? mactor:object-become?))
+
+;; The other kinds of mactors correspond to promises and their resolutions.
+
+;; There are two supertypes here which are not used directly:
+;; mactor:unresolved and mactor:eventual.  See above for an explaination
+;; of what these mean.
+;; These are never directly exposed as mactors, hence the ~
+(define-record-type <m~eventual>
+  (make-m~eventual resolver-unsealer resolver-tm?)
+  m~eventual?
+  ;; We can still be resolved, so identify who is allowed to do that
+  ;; and provide a mechanism for unsealing the resolution
+  (resolver-unsealer m~eventual-resolver-unsealer)
+  (resolver-tm? m~eventual-resolver-tm?))
+(define-record-type <m~unresolved>
+  (make-m~unresolved eventual listeners)
+  m~unresolved?
+  ;; the <m~eventual> info
+  (eventual m~unresolved-eventual)
+  ;; Who's listening for a resolution?
+  (listeners m~unresolved-listeners))
+
+;; The most common kind of freshly made promise is a naive one.
+;; It knows no interesting information about how it will eventually
+;; become what it will.
+;; Since it knows of no closer information it keeps a queue of waiting
+;; messages which will eventually be transmitted.
+(define-record-type <mactor:naive>
+  (make-mactor:naive unresolved waiting-messages)
+  mactor:naive?
+  (unresolved mactor:naive-unresolved)
+  ;; All of these get "rewritten" as this promise is either resolved
+   ;; or moved closer to resolution.
+  (waiting-messages mactor:naive-waiting-messages))
+
+;; A special kind of "freshly made" promise which also corresponds to being
+;; a question on the remote end.  Keeps track of the captp-connector
+;; relevant to this connection so it can send it messages and the
+;; question-finder that it corresponds to (used for passing along messages).
+(define-record-type <mactor:question>
+  (make-mactor:question unresolved captp-connector question-finder)
+  mactor:question?
+  (unresolved mactor:question-unresolved)
+  (captp-connector mactor:question-captp-connector)
+  (question-finder mactor:question-question-finder))
+
+;; "You make me closer to God" -- Nine Inch Nails
+;; Well, in this case we're actually just "closer to resolution"...
+;; pointing at some other promise that isn't us.
+;;
+;; NOTE: Any attempt to remove this in favor of "deferring an answer
+;; until fulfillment is possible" should think through whether it will
+;; also prevent cycles.  A great deal of work went into that here.
+(define-record-type <mactor:closer>
+  (make-mactor:closer unresolved point-to history waiting-messages)
+  mactor:closer?
+  (unresolved mactor:closer-unresolved)
+  ;; Who do we currently point to?
+  (point-to mactor:closer-point-to)
+  ;; A set of promises we used to point to before they themselves
+  ;; resolved... used to detect cycles
+  (history mactor:closer-history)
+  ;; Any messages that are waiting to be passed along...
+  ;; Currently only if we're pointing to a remote-promise, otherwise
+  ;; this will be an empty list.
+  (waiting-messages mactor:closer-waiting-messages))
+
+;; Point at a remote object.
+;; It's eventual because, well, it could still break on network partition.
+(define-record-type <mactor:remote-link>
+  (make-mactor:remote-link eventual point-to)
+  mactor:remote-link?
+  (eventual mactor:remote-link-eventual)
+  (point-to mactor:remote-link-point-to))
+
+;; Link to an object on the same peer.
+(define-record-type <mactor:local-link>
+  (make-mactor:local-link point-to)
+  mactor:local-link?
+  (point-to mactor:local-link-point-to))
+
+;; A promise that has resolved to some value
+(define-record-type <mactor:encased>
+  (make-mactor:encased val)
+  mactor:encased?
+  (val mactor:encased-val))
+
+;; Breakage (and remember why!)
+(define-record-type <mactor:broken>
+  (make-mactor:broken problem)
+  mactor:broken?
+  (problem mactor:broken-problem))
 
 ;; Persistence
 ;; ===========

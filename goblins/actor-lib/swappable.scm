@@ -16,8 +16,6 @@
 (define-module (goblins actor-lib swappable)
   #:use-module (goblins core)
   #:use-module (goblins define-actor)
-  #:use-module ((goblins core-types)
-                #:select (local-object-refr-debug-name))
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
   #:use-module (goblins utils assert-type)
@@ -38,8 +36,7 @@
                     #:optional
                     [proxy-name
                      (string->symbol
-                      (format #f "swappable: ~a"
-                              (local-object-refr-debug-name initial-target)))])
+                      (format #f "swappable: ~a" (refr-name initial-target)))])
   "Return a proxy providing access to INITIAL-TARGET and a swap
 capability, accepting a single argument of an actor to switch out with
 INITIAL-TARGET. PROXY-NAME, if provided, is the debug name for the proxy.

@@ -21,6 +21,7 @@
   #:use-module (goblins utils ghash)
   #:use-module (goblins utils hashmap)
   #:use-module (goblins ocapn ids)
+  #:use-module (tests utils)
   #:use-module (ice-9 match)
   #:use-module (rnrs bytevectors)
   #:use-module (srfi srfi-64)
@@ -821,7 +822,7 @@
                            got-near-refr
                            got-promise-to-refr
                            got-promise-to-value
-                           got-ocapn-node got-ocapn-sref)
+                           got-ocapn-peer got-ocapn-sref)
   ;; Make the promises
   (define-values (refr-vow refr-resolver)
     (spawn-promise-and-resolver))
@@ -844,14 +845,14 @@
   (define gset (make-gset 1 2 3 'foo 'bar 'baz "Hello"))
   (define gh (ghash ('banana 'yellow)))
   (define dotted '(1 2 3 4 . zilch))
-  (define ocapn-node
-    (make-ocapn-node
+  (define ocapn-peer
+    (make-ocapn-peer
      'fake
      "4wy6gxdweyqn5m7ntzwlxinhdia2jjanlsh37gxklwhfec7yxqr4k3qd"
      (hashmap ("name" "test 1"))))
   (define ocapn-sref
     (make-ocapn-sturdyref
-     ocapn-node
+     ocapn-peer
      #vu8(74 174 136 226 211 114 92 53 153 139 168 28 82 26 52 183 107 50 123 83 116 61 247 240 172 189 77 35 75 63 51 162)))
 
   (define (main-beh restored-refr)
@@ -873,7 +874,7 @@
          (equal? dotted got-dotted)
          (live-refr? got-promise-to-refr)
          (eq? ($ encased-vow) ($ got-promise-to-value))
-         (equal? ocapn-node got-ocapn-node)
+         (equal? ocapn-peer got-ocapn-peer)
          (equal? ocapn-sref got-ocapn-sref)))
 
   (define (self-portrait)
@@ -882,7 +883,7 @@
           tagged string char bv bool
           *unspecified* my-vector gset gh dotted
           supplied-refr refr-vow encased-vow
-          ocapn-node ocapn-sref))
+          ocapn-peer ocapn-sref))
   (portraitize main-beh self-portrait))
 (define env
   (make-persistence-env
@@ -914,5 +915,167 @@
   '((tests test-core) ^type-serializer)
   (match (hashq-ref portraits (car slots))
     [(name debug-name portrait-version portrait-data) name]))
+
+;; Test <-hash-ref
+(define am (make-actormap))
+(define hm1 (hashmap ("foo" 10) ("bar" 'baz)))
+(test-equal "Check <-hash-ref works when given a hashmap, not a refr"
+  (actormap-run
+   am
+   (lambda ()
+     (<-hashmap-ref hm1 "bar")))
+  'baz)
+
+(test-equal "Check <-hash-ref with already resolved vow"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow resolver)
+       (spawn-promise-and-resolver))
+     ($ resolver 'fulfill hm1)
+     (<-hashmap-ref vow "bar")))
+  #(ok baz))
+
+(test-equal "Check <-hash-ref with promise chaining"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow1 resolver1)
+       (spawn-promise-and-resolver))
+     (define-values (vow2 resolver2)
+       (spawn-promise-and-resolver))
+     (define-values (vow3 resolver3)
+       (spawn-promise-and-resolver))
+     (define hashref-vow (<-hashmap-ref vow1 "bar"))
+     (<-np resolver1 'fulfill vow2)
+     (<-np resolver2 'fulfill vow3)
+     (<-np resolver3 'fulfill hm1)
+     hashref-vow))
+  #(ok baz))
+
+(test-assert "Check <-hash-ref breaks when fulfilled with non-hashmap"
+  (match (am-resolve-vow-and-return-result
+          am
+          (lambda ()
+            (define-values (vow resolver)
+              (spawn-promise-and-resolver))
+            ($ resolver 'fulfill 'not-a-hashmap)
+            (<-hashmap-ref vow "bar")))
+    [#(err _) #t]
+    [#(ok _) #f]))
+
+(define lst '(foo bar baz))
+(test-equal "Check <-list-ref works when given a raw list"
+  (actormap-run
+   am
+   (lambda ()
+     (<-list-ref lst 0)))
+  'foo)
+(test-equal "Check <-list-ref works with already resolved vow"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow resolver)
+       (spawn-promise-and-resolver))
+     ($ resolver 'fulfill lst)
+     (<-list-ref vow 0)))
+  #(ok foo))
+
+(test-equal "Check <-list-ref works with promise chaining"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow1 resolver1)
+       (spawn-promise-and-resolver))
+     (define-values (vow2 resolver2)
+       (spawn-promise-and-resolver))
+     (define-values (vow3 resolver3)
+       (spawn-promise-and-resolver))
+     (define listref-vow (<-list-ref vow1 0))
+     (<-np resolver1 'fulfill vow2)
+     (<-np resolver2 'fulfill vow3)
+     (<-np resolver3 'fulfill lst)
+     listref-vow))
+  #(ok foo))
+
+(test-assert "Check <-list-ref breaks when fulfilled with non-list"
+  (match (am-resolve-vow-and-return-result
+          am
+          (lambda ()
+            (define-values (vow resolver)
+              (spawn-promise-and-resolver))
+            ($ resolver 'fulfill 'not-a-list)
+            (<-list-ref vow 0)))
+    [#(err _) #t]
+    [#(ok _) #f]))
+
+(define tagged-val (make-tagged "hello" 'beepboop))
+(test-equal "Check <-tagged-ref works when given a raw tagged value"
+  (actormap-run
+   am
+   (lambda ()
+     (<-tagged-ref tagged-val "hello")))
+  'beepboop)
+(test-equal "Check <-tagged-ref works with already resolved vow"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow resolver)
+       (spawn-promise-and-resolver))
+     ($ resolver 'fulfill tagged-val)
+     (<-tagged-ref vow "hello")))
+  #(ok beepboop))
+
+(test-equal "Check <-tagged-ref works with promise chaining"
+  (am-resolve-vow-and-return-result
+   am
+   (lambda ()
+     (define-values (vow1 resolver1)
+       (spawn-promise-and-resolver))
+     (define-values (vow2 resolver2)
+       (spawn-promise-and-resolver))
+     (define-values (vow3 resolver3)
+       (spawn-promise-and-resolver))
+     (define tagged-ref-vow (<-tagged-ref vow1 "hello"))
+     (<-np resolver1 'fulfill vow2)
+     (<-np resolver2 'fulfill vow3)
+     (<-np resolver3 'fulfill tagged-val)
+     tagged-ref-vow))
+  #(ok beepboop))
+
+(test-assert "Check <-tagged-ref breaks when fulfilled with non-tagged-value"
+  (match (am-resolve-vow-and-return-result
+          am
+          (lambda ()
+            (define-values (vow resolver)
+              (spawn-promise-and-resolver))
+            ($ resolver 'fulfill 'not-a-tagged-value)
+            (<-tagged-ref vow "hello")))
+    [#(err _) #t]
+    [#(ok _) #f]))
+
+(test-assert "Check <-tagged-ref breaks when label does not match found label"
+  (match (am-resolve-vow-and-return-result
+          am
+          (lambda ()
+            (define-values (vow resolver)
+              (spawn-promise-and-resolver))
+            ($ resolver 'fulfill tagged-val)
+            (<-tagged-ref vow "not-the-right-label")))
+    [#(err _) #t]
+    [#(ok _) #f]))
+
+(test-equal "Check refr-name returns debug name for local-refr"
+  'i-am-the-local-name
+  (let* ((am (make-actormap))
+         (refr (actormap-run! am (lambda () (spawn-named 'i-am-the-local-name ^greeter "Bob")))))
+    (refr-name refr)))
+
+(test-equal "Check refr-name returns #f for non-local-refr values"
+  #f
+  (let* ((am (make-actormap))
+         (vow (actormap-run! am (lambda () (spawn-promise-and-resolver)))))
+    ;; vow's a promise not an actor refr...
+    (refr-name vow)))
 
 (test-end "test-goblins-core")

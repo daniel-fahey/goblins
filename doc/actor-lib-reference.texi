@@ -165,16 +165,18 @@ or @var{dflt} if the key is not found.
 with @var{val}.
 
 @item
-@code{has-key? key}: Return @code{#t} if @var{key} is in the
-@code{ghash}; otherwise return @code{#f}.
-
-@item
 @code{remove key}: Delete @var{key} and its associated value from the
 @code{ghash}.
 
 @item
 @code{data}: Return the underlying @code{ghash}.
 
+@item
+@code{has-key? key} (Deprecated): Return @code{#t} if @var{key} is in the
+@code{ghash}; otherwise return @code{#f}.
+
+This method is deprecated. Instead use the @code{ref} method checking against
+the @code{dflt} value if needed.
 @end itemize
 
 @lisp

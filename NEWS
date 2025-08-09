@@ -3,6 +3,121 @@
 #+startup: show2levels
 
 * Releases
+** v0.16.0
+*** Highlights
+**** Unix Domain Socket Netlayer
+
+Another new netlayer has come to Goblins, this time one based on Unix domain
+sockets. Unix domain sockets are ideal for communication between multiple
+processes running on the same machine. Many users might be familiar with using
+them where by sockets address using file paths on the system, however since the
+file system on Unix(-like) systems use ACLs, this can lead to security
+vulnerabilities.
+
+Our implementation uses a feature of Unix domain sockets which allow sockets to
+be sent and received over other sockets. We built an introduction server which
+you run on your system (think of it as a little
+[OCaps](https://en.wikipedia.org/wiki/Object-capability_model] kernel in amongst
+the modern ACL sea that our systems are built on today). The Unix domain socket
+netlayer can connect to one or multiple of these introduction servers and so
+long as two netlayers share the same introduction server, they can securely
+communicate with one another.
+
+**** Performance speedups
+
+Several areas of Goblins have received huge performance improvements, the two
+main areas are simple sealers and spawning actors.
+
+The simple sealers system in Goblins. Sealers provide a capability to "seal" a
+value which makes it opaque until the value is "unsealed" with the unseal
+capability. These sealers are used throughout core of Goblins, including "bcom"
+and within promises. These sealer improvements alone should be expected to bring
+around x20 better performance for spawning named actors (i.e. those spawned with
+=spawn-named=) and x10 improvements for sending messages with promises.
+
+The =spawn= procedure that's provided by =(goblins)= has got a speedup. Most
+actors used have a debug name that is printed when a traceback involving the
+actor is displayed or the actor reference is printed at the REPL. Prior to 0.16,
+spawn would call =procedure-name= on the actor's constructor which is expensive.
+We now have a macro which provides a fast path where possible which under the
+hood calls the much faster =spawn-named=. This showed 22 times better
+performance spawning actors in our testing.
+
+*** Deprecations
+The following should not be used in new projects and existing codebases should
+move away from using them as they will be removed in future releases:
+
+- =ocapn-node= has been renamed to =ocapn-peer=. This brings us into alignment
+  with the naming decided by the [OCapN pre-standardization
+  Group](https://ocapn.org). All accesses to the =ocapn-node= record have also
+  been renamed.
+
+*** Bug fixes
+- =(goblins actor-lib methods)='s =extend-methods= macro no longer assumes the
+  actor being extended is within the same vat. It now supports extending from
+  actors from other vats or even over CapTP.
+- If multiple far-refrs were being restored by persistence system, all but one
+  of them would fail to restore properly. This has now been fixed.
+- Promises settled to local far-refrs (i.e. refrs to actors on another vat but
+  not over CapTP) would cause issues when the persistence system tried to
+  serialize them. This is now fixed.
+- CapTP did not set the correct session information in the
+  =desc:handoff-receive= certificate when performing 3rd party handoffs. We now
+  populate the correct session information and also check this information.
+- When using the =(goblins persistence-store syrup)= store, sometimes if the
+  goblins process was stopped during updating the file, the data would become
+  currupt. This fixes that by writing to temporary file and then atomically
+  replacing the real store file preventing this corruption.
+- Previously messages sent during resturation which resulted in an error
+  would break resturation. This is now fixed to handle these errors properly.
+- When sending messages to a promise chained with a promise for messages sent
+  over CapTP did not result in promise pipelining behavior expected. This is now
+  fixed to properly handle the promises chaining situation.
+- =(goblins actor-lib pubsub)= had the wrong actor specified within the
+  persistence environment, which would cause problems when used with the
+  persistence system, this has now been fixed.
+- The issue where persistent vats could not be used under Hoot has now been
+  fixed.
+- =define-actor= had a bug when using #:key/#:optional along with #:self. This
+  has now been resolved. Notably this does not fix the issue around selfish
+  actors not being persistable.
+*** Known issues
+**** Persisted objects are not cleaned up when orphaned
+Issue: [[https://codeberg.org/spritely/goblins/issues/227][#227]]
+
+When using Goblins' persistence system, the objects within a graph are
+stored within the persistence store used.  When an object stops
+appearing in the graph of objects, it's expected that the object would
+be cleaned up and removed.  Goblins currently will continue to store
+the object data and upon restoration the object will be respawned.
+**** Actors using define-actor along with its #:self keyword cannot persist
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/256][#256]]
+
+Objects that are defined with =define-actor= and use the =#:self=
+keyword should be persisted properly, but this currently is not the
+case.  Instead, an error occurs.
+**** Prelay connections are unencrypted and unauthenticated
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/144][#144]]
+
+Messages sent through the Prelay netlayer can be viewed by the relay
+server, modified and new messages inserted by the server or silently
+removed and thus not delivered by the Prelay netlayer.
+
+This means that, for the time being, you should only use the Prelay
+netlayers where you can place high trust in the relaying server.  An
+end-to-end encrypted relay is planned for a future release.
+**** Lack of dialback within CapTP
+
+Issue: [[https://codeberg.org/spritely/goblins/issues/50][#50]]
+
+When a node connects to another node in Goblins it provides the
+location from where it's accessible (i.e. the OCapN node address). One
+feature of OCapN is to ensure only one connection exists to any given
+node, since the address provided by a new incoming connection is never
+authenticated, this could lead to a denial of service by a malicious
+actor claiming to be a node it is not.
 ** v0.15.1
 *** New features and improvements
 **** Added additional explanation of cooperative multitasking to manual

@@ -67,7 +67,7 @@
     (spawn ^io sock #:cleanup close-port))
 
   (define our-location
-    (make-ocapn-node 'tcp-testing-only
+    (make-ocapn-peer 'tcp-testing-only
                      "guile-goblins"
                      (hashmap ("host" host)
                               ("port" (number->string assigned-port)))))
@@ -82,9 +82,9 @@
          client-socket)))
 
   (define (outgoing-connect-to-loc loc)
-    (unless (eq? (ocapn-node-transport loc) 'tcp-testing-only)
+    (unless (eq? (ocapn-peer-transport loc) 'tcp-testing-only)
       (error "Wrong netlayer! Expected `tcp-testing-only'" loc))
-    (let*-values (((hints) (ocapn-node-hints loc))
+    (let*-values (((hints) (ocapn-peer-hints loc))
                   ((host) (hashmap-ref hints "host"))
                   ((port) (hashmap-ref hints "port")))
       (make-client-socket host (string->number port))))

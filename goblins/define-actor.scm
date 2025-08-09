@@ -161,7 +161,7 @@
                    (let ((constructor-id
                           #`(lambda* (_bcom arg ...)
                              (define constructor-id real-constructor)
-                             (define #,self (spawn constructor-id arg ...))
+                             (define #,self (spawn constructor-id arg-name ...))
                              #,self)))
                      constructor-id)
                    #`(let ((constructor-id real-constructor))

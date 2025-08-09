@@ -16,8 +16,10 @@
 (define-module (tests ocapn test-captp)
   #:use-module (goblins core)
   #:use-module (goblins core-types)
+  #:use-module (goblins abstract-types)
   #:use-module (goblins vat)
   #:use-module (goblins utils ghash)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib joiners)
   #:use-module (goblins actor-lib methods)
@@ -32,20 +34,20 @@
 
 (test-begin "test-captp")
 
-(define (make-new-node name)
+(define (make-new-peer name)
   "Create a new vat, spawns a fake netlayer & mycapn for given `name'"
-  (define node-vat (spawn-vat #:name name))
+  (define peer-vat (spawn-vat #:name name))
   (define new-conn-ch (make-channel))
   (with-vat test-vat
     ($ test-network 'register name new-conn-ch))
-  (define location (make-ocapn-node 'fake name #f))
+  (define location (make-ocapn-peer 'fake name #f))
   (define netlayer
-    (with-vat node-vat
+    (with-vat peer-vat
      (spawn ^fake-netlayer name test-network new-conn-ch)))
   (define mycapn
-    (with-vat node-vat
+    (with-vat peer-vat
      (spawn-mycapn netlayer)))
-  (values node-vat netlayer mycapn))
+  (values peer-vat netlayer mycapn))
 
 (define test-vat (spawn-vat #:name "test"))
 (define test-network
@@ -53,13 +55,13 @@
    (spawn ^fake-network)))
 
 
-;; Spawn different nodes.
+;; Spawn different peers.
 (define-values (a-vat a-netlayer a-mycapn)
-  (make-new-node "a"))
+  (make-new-peer "a"))
 (define-values (b-vat b-netlayer b-mycapn)
-  (make-new-node "b"))
+  (make-new-peer "b"))
 (define-values (c-vat c-netlayer c-mycapn)
-  (make-new-node "c"))
+  (make-new-peer "c"))
 
 (define (^greeter _bcom our-name)
   (lambda (their-name)
@@ -139,7 +141,7 @@
               (lambda (meeter-bob)
                 (<- introducer-alice meeter-bob chatty-carol))
               #:promise? #t)))))
-  (test-equal "A and C on one node, B on another with introductions"
+  (test-equal "A and C on one peer, B on another with introductions"
     #(ok (hello-back-from carol))
     result))
 
@@ -314,9 +316,9 @@
     result))
 
 (define-values (a-vat a-netlayer a-mycapn)
-  (make-new-node "a"))
+  (make-new-peer "a"))
 (define-values (b-vat b-netlayer b-mycapn)
-  (make-new-node "b"))
+  (make-new-peer "b"))
 (define bob-sref
   (with-vat b-vat
     ($ b-mycapn 'register (spawn ^greeter "Bob") 'fake)))
@@ -349,19 +351,19 @@
     result))
 
 
-;; Test for enlivening the srefs to same node twice at the same time
+;; Test for enlivening the srefs to same peer twice at the same time
 ;; Requires fresh connections
 (define-values (a-vat a-netlayer a-mycapn)
-  (make-new-node "a"))
+  (make-new-peer "a"))
 (define-values (b-vat b-netlayer b-mycapn)
-  (make-new-node "b"))
+  (make-new-peer "b"))
 
 (define-values (cell-1-sref cell-2-sref)
   (with-vat a-vat
     (values ($ a-mycapn 'register (spawn ^cell) 'fake)
             ($ a-mycapn 'register (spawn ^cell) 'fake))))
 
-(test-equal "Two srefs to the same node produce only 1 connection"
+(test-equal "Two srefs to the same peer produce only 1 connection"
   #(ok #t)
   (resolve-vow-and-return-result
           b-vat
@@ -399,7 +401,7 @@
   (with-vat b-vat
     (spawn ^echo)))
 (define ghash-to-send
-  (ghash-set (make-ghash) 'echo echo-on-b))
+  (ghash ('echo echo-on-b)))
 (test-equal "Test we're able to send ghashes with refrs inside"
   (list->vector `(ok ,ghash-to-send))
   (resolve-vow-and-return-result
@@ -445,5 +447,119 @@
    (lambda ()
      (let ((echo-vow (<- b-mycapn 'enliven echo-sref)))
        (<- echo-vow 'reconnected)))))
+
+;; op:get, op:index and op:untag
+(test-equal "Can get item from a hashmap with op:get"
+  (resolve-vow-and-return-result
+   b-vat
+   (lambda ()
+    (define echo ($ b-mycapn 'enliven echo-sref))
+    (define hashmap-vow
+      (<- echo (hashmap ("foo" 'bar))))
+    (<-hashmap-ref hashmap-vow "foo")))
+  #(ok bar))
+
+(test-equal "Can get index from a list with op:index"
+  (resolve-vow-and-return-result
+   b-vat
+   (lambda ()
+    (define echo ($ b-mycapn 'enliven echo-sref))
+    (define list-vow
+      (<- echo (list 'beep 'boop)))
+    (<-list-ref list-vow 0)))
+  #(ok beep))
+
+(test-equal "Can get tagged value with op:untag"
+  (resolve-vow-and-return-result
+   b-vat
+   (lambda ()
+    (define echo ($ b-mycapn 'enliven echo-sref))
+    (define tagged-vow
+      (<- echo (make-tagged "hello" 'goodbye)))
+    (<-tagged-ref tagged-vow "hello")))
+  #(ok goodbye))
+
+;; Test that promises pointing at remote-refrs are broken
+;; if CapTP breaks...
+(define-values (a-vat a-netlayer a-mycapn)
+  (make-new-peer "a"))
+(define-values (b-vat b-netlayer b-mycapn)
+  (make-new-peer "b"))
+
+(define b-sref
+  (with-vat b-vat
+    (define echo (spawn ^echo))
+    ($ b-mycapn 'register echo 'fake)))
+(let ((result
+       (resolve-vow-and-return-result
+        a-vat
+        (lambda ()
+          (define-values (sever-vow sever-resolver)
+            (spawn-promise-and-resolver))
+          ;; Enliven the sref on b, once enlivened trigger a sever.
+          ;; Once we've broken the connection and confirmed CapTP sees
+          ;; the sever, then see if our promise to the remote-refr breaks
+          (define remote-refr-vow
+            (<- a-mycapn 'enliven b-sref))
+          (on remote-refr-vow
+              (lambda (refr)
+                (on-sever refr
+                          (lambda (type reason)
+                            ($ sever-resolver 'fulfill (list type reason))))
+                ;; Break the connection
+                (define captp-connector
+                  (remote-refr-captp-connector refr))
+                (captp-connector 'handle-message (op:abort "break connection"))))
+
+          (on sever-vow
+              (lambda _
+                remote-refr-vow)
+              #:promise? #t)))))
+  (test-equal "severence of CapTP connection breaks enlivened vows to remote refrs"
+    #(err ("Broken due to CapTP severence"))
+    result))
+
+(define-values (a-vat a-netlayer a-mycapn)
+  (make-new-peer "a"))
+(define-values (b-vat b-netlayer b-mycapn)
+  (make-new-peer "b"))
+
+(define b-sref
+  (with-vat b-vat
+    (define echo (spawn ^echo))
+    ($ b-mycapn 'register echo 'fake)))
+
+(let ((result
+       (resolve-vow-and-return-result
+        a-vat
+        (lambda ()
+          (define-values (sever-vow sever-resolver)
+            (spawn-promise-and-resolver))
+          ;; Enliven the sref on b, once enlivened trigger a sever.
+          ;; Once we've broken the connection and confirmed CapTP sees
+          ;; the sever, then see if our promise to the remote-refr breaks
+          (define vow-containing-remote-refr
+            (on (<- a-mycapn 'enliven b-sref)
+                (lambda (echo)
+                  ;; Create a vow which will resolve to echo, a remote refr.
+                  (<- echo echo))
+                #:promise? #t))
+          (on vow-containing-remote-refr
+              (lambda (refr)
+                (on-sever refr
+                          (lambda (type reason)
+                            ($ sever-resolver 'fulfill (list type reason))))
+                ;; Break the connection
+                (define captp-connector
+                  (remote-refr-captp-connector refr))
+                (captp-connector 'handle-message (op:abort "break connection"))))
+
+          (on sever-vow
+              (lambda _
+                vow-containing-remote-refr)
+              #:promise? #t)))))
+  (test-equal "severence of CapTP connection breaks vows pointing to remote refrs"
+    #(err ("Broken due to CapTP severence"))
+    result))
 
 (test-end "test-captp")
