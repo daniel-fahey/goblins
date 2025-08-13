@@ -27,7 +27,11 @@
 
 (define* (am-resolve-vow-and-return-result am goblins-thunk #:key (timeout 2))
   (define vow (actormap-churn-run! am goblins-thunk))
-  (run-fibers
+  (define (run-thunk-in-fiber thunk)
+    (cond-expand
+     (guile (run-fibers thunk))
+     (hoot (thunk))))
+  (run-thunk-in-fiber
    (lambda ()
      (define results-ch (make-channel))
      (actormap-churn-run!

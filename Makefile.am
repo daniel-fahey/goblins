@@ -195,6 +195,9 @@ run-tests:
 		$(GUILE) --no-auto-compile -L "$(top_srcdir)" \
 			build-aux/run-test-suite.scm $(TESTS)
 
+tests/hoot-ci/test-program.wasm: tests/hoot-ci/test-program.scm
+	$(GUILE_TOOLS) compile-wasm -L "$(GUILE_SCM_DIR)" -L "$(abs_top_srcdir)" -o "$@" "$<"
+
 # Optional goblins.js build:
 js/reflect.js:
 	cp $(HOOT_REFLECT_JS_DIR)/reflect.js "$@"

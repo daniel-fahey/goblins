@@ -53,3 +53,14 @@ jobs:
           python3 ./test_runner.py --captp-version=goblins-0.16 "ocapn://guile-goblins.tcp-testing-only?host=127.0.0.1&port=24680"
         shell: guix shell -m manifest.scm python python-cryptography python-stem netcat -- {0}
         working-directory: goblins
+  basic-hoot-check:
+    runs-on: guix
+    steps:
+      - run: git clone --depth=1 --branch=$GITHUB_REF_NAME https://codeberg.org/$GITHUB_REPOSITORY src
+      - run: |
+          set -e
+          ./bootstrap.sh
+          ./configure
+          make tests/hoot-ci/test-program.wasm
+        shell: guix shell -m manifest.scm guile-next guile-hoot -- {0}
+        working-directory: src
