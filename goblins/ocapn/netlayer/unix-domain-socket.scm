@@ -76,6 +76,9 @@
 
   (define server-processes (spawn ^ghash))
   (define (add-server server-sock)
+    ;; Make a promise pair, which will be fulfilled if we disconnect.
+    (define-values (sever-vow sever-resolver)
+      (spawn-promise-and-resolver))
     ;; Do initial handshake
     (define server-io
       (spawn ^read-write-io
@@ -94,11 +97,15 @@
                             (make-uds:register our-loc our-challenge)))
     ;; When the server responds and we've verified add it to our proccesses list
     (on-match (<- server-io 'read read-uds-msg)
+      ((? eof-object?)
+       ($$ sever-resolver 'fulfill 'disconnect)
+       ($$ server-io 'halt))
       (($ <uds:server-response> server-pubkey server-challenge our-challenge-sig)
        ;; First check the server signature matches their public key's signature
        (let ((server-crypto-pubkey (captp-public-key->crypto-public-key server-pubkey))
              (crypto-sig (captp-signature->crypto-signature our-challenge-sig)))
          (unless (verify crypto-sig our-challenge server-crypto-pubkey)
+           ($$ sever-resolver 'fulfill 'error)
            (error "Server signature does not match pubkey provided")))
 
        (define server-pubkey-bv
@@ -109,7 +116,7 @@
        ;; Add the server to the list of hints.
        ($$ server-processes 'set b32-server-pubkey server-io)
        (add-new-server-hint! server-pubkey-bv)
-       (accept-incoming-from-server server-io)
+       (accept-incoming-from-server server-io sever-resolver)
 
        ;; Now we've checked the server's pubkey, move on to providing the
        ;; signature for the challenge the server gave to us.
@@ -129,20 +136,24 @@
   ;; accept-incoming reads them from the inbox.
   (define-values (incoming-inbox incoming-outbox incoming-stop)
     (spawn-inbox))
-  (define (accept-incoming-from-server server-io)
+  (define (accept-incoming-from-server server-io sever-resolver)
     (define new-conn-vow
       (<- server-io 'read
           (lambda (sock)
             (match (read-uds-msg sock)
+              ((? eof-object? eof) eof)
               (($ <uds:new-connection> from to)
                (list from to (read-port-from-socket sock)))))))
     (on-match new-conn-vow
+      ((? eof-object?)
+       ($$ incoming-stop)
+       ($$ sever-resolver 'fulfill 'disconnect))
       ((from to incoming-sock)
        (let-on ((our-loc (<- our-loc-vow)))
          (unless (same-peer-location? our-loc to)
            (error "Got new connection not meant for us" to))
          (<-np incoming-outbox (use-nonblocking-i/o incoming-sock))
-         (accept-incoming-from-server server-io)))))
+         (accept-incoming-from-server server-io sever-resolver)))))
   (define (accept-incoming)
     (<- incoming-inbox))
 
