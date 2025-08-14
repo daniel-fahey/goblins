@@ -114,6 +114,9 @@
                      (make-uds:new-connection from to))
                    (write-uds-msg port new-conn-msg)
                    (send-port-over-socket port forward-sock)))))
+        #:catch
+        (lambda (err)
+          ($$ continue? #f))
         #:finally
         (lambda ()
           (when ($$ continue?)
@@ -168,7 +171,17 @@
 
   (define (halt-me-beh socket-io)
     (lambda ()
-      ($$ socket-io 'halt)))
+      ;; Stop accepting new connections
+      ($$ socket-io 'halt)
+      ;; Go through each connection halting its IO actor and removing
+      ;; it from our hashmap.
+      (hashmap-for-each
+       (lambda (peer client-io)
+         ($$ client-io 'halt)
+         ($$ peer->connection 'remove peer))
+       ($$ peer->connection 'data))
+      ;; Return back to the pre-setup behavior
+      (bcom (^unix-domain-socket-server bcom privkey #:max-clients max-clients))))
   (lambda (sock addr)
     (define socket-io
       (spawn ^io (use-nonblocking-i/o sock)

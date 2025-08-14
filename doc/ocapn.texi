@@ -677,7 +677,9 @@ Spawn a new Unix domain socket netlayer.
 Once spawned the netlayer needs at least one introduction server to be
 provided. This can be done using the @code{add-server} method on the
 netlayer, which takes one argument, a socket which is already
-connected to a Unix domain socket introduction server.
+connected to a Unix domain socket introduction server. The method
+returns a promise which will be fulfilled if the netlayer disconnects
+from the introduction server provided in the @code{add-server} call.
 
 Multiple introduction servers can be used by calling @code{add-server}
 several times.

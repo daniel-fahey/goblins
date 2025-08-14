@@ -124,7 +124,8 @@
               (sig-bytes (captp-signature->crypto-signature signature))
               (uds-sig (make-uds:signature server-challenge sig-bytes)))
          (<-np server-io 'write (make-uds-msg-writer uds-sig))
-         #t))))
+         #t)))
+    sever-vow)
 
   ;; Unlike most netlayers, because we can have connections from multiple UDS
   ;; servers, we need to accept incoming connections from several places too.

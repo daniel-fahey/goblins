@@ -403,4 +403,78 @@
   #(ok aurie-works)
   (test-uds-aurie-restore))
 
+(define (test-disconnect-from-intro-server)
+  (define server-vat (spawn-vat #:name "server"))
+
+  (define peer1-vat (spawn-vat #:name "peer1"))
+  (define peer2-vat (spawn-vat #:name "peer2"))
+  (define peer3-vat (spawn-vat #:name "peer3"))
+
+  (define server-socket-path
+    (tmpnam))
+  (define server-socket-addr
+    (make-socket-address AF_UNIX server-socket-path))
+  (define server-socket
+    (make-unix-domain-socket))
+
+  ;; Spawn the server
+  (define server
+    (with-vat server-vat
+      (let ((uds-server (spawn ^unix-domain-socket-server)))
+        ($ uds-server server-socket server-socket-addr)
+        uds-server)))
+
+  ;; Peers
+  (define-values (peer1-netlayer peer1-intro-server-sever-vow peer1-mycapn)
+    (with-vat peer1-vat
+      (let ((netlayer (spawn ^unix-domain-socket-netlayer))
+            (sock (make-unix-domain-socket)))
+        (connect sock server-socket-addr)
+        (values netlayer
+                ($ netlayer 'add-server sock)
+                (spawn-mycapn netlayer)))))
+  (define-values (peer2-netlayer peer2-mycapn)
+    (with-vat peer2-vat
+      (spawn-unix-domain-socket-netlayer-and-mycapn server-socket-addr)))
+  (define-values (peer3-netlayer peer3-mycapn)
+    (with-vat peer3-vat
+      (spawn-unix-domain-socket-netlayer-and-mycapn server-socket-addr)))
+
+  (define cell-sref
+    (with-vat peer1-vat
+      (let ((cell (spawn ^cell)))
+        ($ peer1-mycapn 'register cell 'unix-domain-socket))))
+
+  (define peer3-cell-sref
+    (with-vat peer3-vat
+      (let ((cell (spawn ^cell)))
+        ($ peer3-mycapn 'register cell 'unix-domain-socket))))
+
+  (define cell-vow
+    (with-vat peer2-vat
+      ($ peer2-mycapn 'enliven cell-sref)))
+
+  ;; Once we're connected, lets shutdown the intro server and see if we get
+  ;; notified of the severence...
+  (with-vat server-vat
+    (on cell-vow
+        (lambda (cell-refr)
+          ;; We're connected, lets halt this thing after setup the halt
+          ;; behavior is invoked by sending it a message with no arguments.
+          ($ server)
+          ;; Annoyingly because of #803 we even after we've sent the halt things
+          ;; don't immediately stop as there are a queue "tasks" within the IO
+          ;; actor, the halt is just enqueued. To ensure this flushes, get peer1
+          ;; to try and reach out and connect to peer3. Janky but should work.
+          (<-np peer1-mycapn 'enliven peer3-cell-sref))))
+
+  (resolve-vow-and-return-result
+   peer1-vat
+   (lambda ()
+     peer1-intro-server-sever-vow)))
+
+(test-equal "When netlayer receives disconnect from intro server. Sends message to promise"
+  #(ok disconnect)
+  (test-disconnect-from-intro-server))
+
 (test-end "test-unix-domain-socket")
