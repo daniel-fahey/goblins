@@ -61,6 +61,17 @@
       (key-pair->public-key designator-key))))
   (define-values (our-loc-vow our-loc-resolver)
     (spawn-promise-and-resolver))
+
+  (define (remove-server-hint! server-pubkey-data)
+    (define b32-server-pubkey
+      (base32-encode server-pubkey-data))
+    (on our-loc-vow
+        (lambda (our-loc-cell)
+          (let ((current-hints (ocapn-peer-hints ($$ our-loc-cell))))
+            ($$ our-loc-cell
+                (make-ocapn-peer 'unix-domain-socket peer-designator
+                                 (hashmap-remove current-hints b32-server-pubkey)))))))
+
   (define (add-new-server-hint! server-pubkey-data)
     (define b32-server-pubkey
       (base32-encode server-pubkey-data))
@@ -79,6 +90,7 @@
     ;; Make a promise pair, which will be fulfilled if we disconnect.
     (define-values (sever-vow sever-resolver)
       (spawn-promise-and-resolver))
+
     ;; Do initial handshake
     (define server-io
       (spawn ^read-write-io
@@ -117,6 +129,11 @@
        ($$ server-processes 'set b32-server-pubkey server-io)
        (add-new-server-hint! server-pubkey-bv)
        (accept-incoming-from-server server-io sever-resolver)
+
+       ;; If we disconnect... ensure our hint is removed.
+       (on sever-vow
+           (lambda _
+             (remove-server-hint! server-pubkey-bv)))
 
        ;; Now we've checked the server's pubkey, move on to providing the
        ;; signature for the challenge the server gave to us.
@@ -188,7 +205,7 @@
        (use-nonblocking-i/o our-side)]))
 
   (define base-port-netlayer-vow
-    (let-on ((our-loc (<- our-loc-vow)))
+    (let-on ((our-loc our-loc-vow))
       (spawn ^base-port-netlayer our-loc accept-incoming connect-outgoing)))
   (match-lambda*
    [('netlayer-name) 'unix-domain-socket]

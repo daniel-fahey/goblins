@@ -28,12 +28,17 @@
   #:use-module (goblins contrib syrup)
   #:export (^base-port-netlayer))
 
+;; Allow our-location to be a cell or an ocapn peer locator.
 (define (^base-port-netlayer _bcom our-location
                              incoming-accept
                              outgoing-connect-location)
   "A basis for defining netlayers."
+  (define (get-our-location)
+    (if (live-refr? our-location)
+        ($ our-location)
+        our-location))
   (define our-netlayer-name
-    (ocapn-peer-transport our-location))
+    (ocapn-peer-transport (get-our-location)))
   (define-values (conn-establisher-vow conn-establisher-resolver)
     (spawn-promise-and-resolver))
 
@@ -45,9 +50,9 @@
 
   (methods
    [(netlayer-name) our-netlayer-name]
-   [(our-location) our-location]
+   [our-location get-our-location]
    [(self-location? loc)
-    (same-peer-location? our-location loc)]
+    (same-peer-location? (get-our-location) loc)]
    [(setup conn-establisher)
     (<-np conn-establisher-resolver 'fulfill conn-establisher)
     (listen-and-handle-new-connection conn-establisher)]

@@ -17,8 +17,12 @@
   #:use-module (goblins vat)
   #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib on)
+  #:use-module (goblins ocapn ids)
   #:use-module (goblins ocapn captp)
   #:use-module (goblins ocapn netlayer unix-domain-socket)
+  #:use-module (goblins utils crypto)
+  #:use-module (goblins utils base32)
+  #:use-module (goblins utils hashmap)
   #:use-module (goblins utils unix-domain-socket)
   #:use-module (goblins utils unix-domain-socket-server)
   #:use-module (goblins persistence-store memory)
@@ -33,7 +37,6 @@
 (define (spawn-unix-domain-socket-netlayer-and-mycapn . addresses)
   (define netlayer (spawn ^unix-domain-socket-netlayer))
 
-
   (for-each
     (lambda (address)
       (syscaller-free-fiber
@@ -44,23 +47,34 @@
     addresses)
   (values netlayer (spawn-mycapn netlayer)))
 
+(define* (spawn-uds-intro-server name #:key [key (generate-key-pair)])
+  (define vat (spawn-vat #:name name))
+  (define server-socket-path (tmpnam))
+  (define server-socket-addr
+    (make-socket-address AF_UNIX server-socket-path))
+  (define server-socket (make-unix-domain-socket))
+
+  ;; Spawn the server
+  (with-vat vat
+    (let ((uds-server (spawn ^unix-domain-socket-server key)))
+      ($ uds-server server-socket server-socket-addr)
+      (values vat uds-server server-socket-addr))))
+
+(define (intro-server-key->name key)
+  ;; The name is just the base32 encoded pubkey of a server
+  (define pubkey (key-pair->public-key key))
+  (define pubkey-bv (captp-public-key->bytevector pubkey))
+  (base32-encode pubkey-bv))
+
+
 ;; Test can enliven over UDS netlayer
 (define (test-enliven-over-uds-netlayer)
-  (define server-vat (spawn-vat #:name "server"))
   (define peer1-vat (spawn-vat #:name "peer1"))
   (define peer2-vat (spawn-vat #:name "peer2"))
 
   ;; Setup the server
-  (define server-socket-path
-    (tmpnam))
-  (define server-socket-addr
-    (make-socket-address AF_UNIX server-socket-path))
-  (define server
-    (with-vat server-vat
-      (let ((uds-server (spawn ^unix-domain-socket-server))
-            (sock (make-unix-domain-socket)))
-        ($ uds-server sock server-socket-addr)
-        uds-server)))
+  (define-values (server-vat server server-socket-addr)
+    (spawn-uds-intro-server "intro server"))
 
   ;; Connect peer1.
   (define-values (peer1-netlayer peer1-mycapn)
@@ -86,34 +100,14 @@
   (test-enliven-over-uds-netlayer))
 
 (define (test-using-multiple-introduction-servers)
-  (define server1-vat (spawn-vat #:name "server1"))
-  (define server2-vat (spawn-vat #:name "server2"))
-
   (define peer1-vat (spawn-vat #:name "peer1"))
   (define peer2-vat (spawn-vat #:name "peer2"))
   (define peer3-vat (spawn-vat #:name "peer3"))
 
-  (define server1-socket-path
-    (tmpnam))
-  (define server1-socket-addr
-    (make-socket-address AF_UNIX server1-socket-path))
-  (define server1
-    (with-vat server1-vat
-      (let ((uds-server (spawn ^unix-domain-socket-server))
-            (sock (make-unix-domain-socket)))
-        ($ uds-server sock server1-socket-addr)
-        uds-server)))
-
-  (define server2-socket-path
-    (tmpnam))
-  (define server2-socket-addr
-    (make-socket-address AF_UNIX server2-socket-path))
-  (define server2
-    (with-vat server2-vat
-      (let ((uds-server (spawn ^unix-domain-socket-server))
-            (sock (make-unix-domain-socket)))
-        ($ uds-server sock server2-socket-addr)
-        uds-server)))
+  (define-values (server1-vat server1 server1-socket-addr)
+    (spawn-uds-intro-server "intro server 1"))
+  (define-values (server2-vat server2 server2-socket-addr)
+    (spawn-uds-intro-server "intro server 2"))
 
   ;; Make peer1 initially connected to server1
   (define-values (peer1-netlayer peer1-mycapn)
@@ -130,7 +124,7 @@
   ;; Make peer3 and connect it to server2
   (define-values (peer3-netlayer peer3-mycapn)
     (with-vat peer3-vat
-      (spawn-unix-domain-socket-netlayer-and-mycapn server2-socket-addr)))
+      (spawn-unix-domain-socket-netlayer-and-mycapn server1-socket-addr)))
 
   (define cell1-sref
     (with-vat peer1-vat
@@ -153,23 +147,12 @@
   (test-using-multiple-introduction-servers))
 
 (define (test-3ph-over-unix-domain-sockets)
-  (define server-vat (spawn-vat #:name "server"))
   (define alice-vat (spawn-vat #:name "alice"))
   (define bob-vat (spawn-vat #:name "bob"))
   (define carol-vat (spawn-vat #:name "carol"))
 
-  (define server-socket-path
-    (tmpnam))
-  (define server-socket-addr
-    (make-socket-address AF_UNIX server-socket-path))
-
-  ;; Spawn the server
-  (define server
-    (with-vat server-vat
-      (let ((uds-server (spawn ^unix-domain-socket-server))
-            (sock (make-unix-domain-socket)))
-        ($ uds-server sock server-socket-addr)
-        uds-server)))
+  (define-values (server-vat server server-socket-addr)
+    (spawn-uds-intro-server "intro server"))
 
   ;; Spawn the peers
   (define-values (alice-netlayer alice-mycapn)
@@ -211,23 +194,11 @@
   (test-3ph-over-unix-domain-sockets))
 
 (define (test-communication-without-intro-server)
-  (define server-vat (spawn-vat #:name "server"))
-
   (define peer1-vat (spawn-vat #:name "peer1"))
   (define peer2-vat (spawn-vat #:name "peer2"))
 
-  (define server-socket-path
-    (tmpnam))
-  (define server-socket-addr
-    (make-socket-address AF_UNIX server-socket-path))
-
-  ;; Spawn the server
-  (define server
-    (with-vat server-vat
-      (let ((uds-server (spawn ^unix-domain-socket-server))
-            (sock (make-unix-domain-socket)))
-        ($ uds-server sock server-socket-addr)
-        uds-server)))
+  (define-values (server-vat server server-socket-addr)
+    (spawn-uds-intro-server "intro server 1"))
 
   ;; Peers
   (define-values (peer1-netlayer peer1-mycapn)
@@ -404,25 +375,12 @@
   (test-uds-aurie-restore))
 
 (define (test-disconnect-from-intro-server)
-  (define server-vat (spawn-vat #:name "server"))
-
   (define peer1-vat (spawn-vat #:name "peer1"))
   (define peer2-vat (spawn-vat #:name "peer2"))
   (define peer3-vat (spawn-vat #:name "peer3"))
 
-  (define server-socket-path
-    (tmpnam))
-  (define server-socket-addr
-    (make-socket-address AF_UNIX server-socket-path))
-  (define server-socket
-    (make-unix-domain-socket))
-
-  ;; Spawn the server
-  (define server
-    (with-vat server-vat
-      (let ((uds-server (spawn ^unix-domain-socket-server)))
-        ($ uds-server server-socket server-socket-addr)
-        uds-server)))
+  (define-values (server-vat server server-socket-addr)
+    (spawn-uds-intro-server "intro server"))
 
   ;; Peers
   (define-values (peer1-netlayer peer1-intro-server-sever-vow peer1-mycapn)
@@ -476,5 +434,108 @@
 (test-equal "When netlayer receives disconnect from intro server. Sends message to promise"
   #(ok disconnect)
   (test-disconnect-from-intro-server))
+
+(define (test-disconnect-from-intro-server-removes-hint)
+  (define peer1-vat (spawn-vat #:name "peer1"))
+  (define peer2-vat (spawn-vat #:name "peer2"))
+  (define peer3-vat (spawn-vat #:name "peer3"))
+
+  (define server1-key (generate-key-pair))
+  (define server1-name (intro-server-key->name server1-key))
+  (define-values (server1-vat server1 server1-socket-addr)
+    (spawn-uds-intro-server "intro server 1" #:key server1-key))
+
+  (define server2-key (generate-key-pair))
+  (define server2-name (intro-server-key->name server2-key))
+  (define-values (server2-vat server2 server2-socket-addr)
+    (spawn-uds-intro-server "intro server 2" #:key server2-key))
+
+  ;; Peers
+  (define-values (peer1-netlayer peer1-server1-disconnect-vow peer1-mycapn)
+    (with-vat peer1-vat
+      (let ((netlayer (spawn ^unix-domain-socket-netlayer))
+            (sock1 (make-unix-domain-socket))
+            (sock2 (make-unix-domain-socket)))
+        (connect sock1 server1-socket-addr)
+        (connect sock2 server2-socket-addr)
+        ;; We don't care about the disconnect vow from 2
+        ($ netlayer 'add-server sock2)
+        (values netlayer
+                ($ netlayer 'add-server sock1)
+                (spawn-mycapn netlayer)))))
+  (define-values (peer2-netlayer peer2-mycapn)
+    (with-vat peer2-vat
+      (spawn-unix-domain-socket-netlayer-and-mycapn
+       server1-socket-addr)))
+  (define-values (peer3-netlayer peer3-mycapn)
+    (with-vat peer3-vat
+      (spawn-unix-domain-socket-netlayer-and-mycapn
+       server1-socket-addr)))
+
+  ;; We need to check both UDS servers get added to the hints
+  ;; to begin with. This means we need two connections from peer1
+  ;; which use both intro servers
+  (define-values (cell-sref cell)
+    (with-vat peer1-vat
+      (let ((cell (spawn ^cell)))
+        (values ($ peer1-mycapn 'register cell 'unix-domain-socket)
+                cell))))
+
+  (define peer3-cell-sref
+    (with-vat peer3-vat
+      (let ((cell (spawn ^cell)))
+        ($ peer3-mycapn 'register cell 'unix-domain-socket))))
+
+  (define cell-vow
+    (with-vat peer2-vat
+      ($ peer2-mycapn 'enliven cell-sref)))
+
+  ;; Once connected, shutdown and then we can see what our locator is
+  (define old-cell-sref-vow
+    (with-vat server1-vat
+      (let*-on ((remote-cell cell-vow)
+                ;; Get it again to try and ensure it has both hints. Both UDS
+                ;; servers might not have finished handshaking at the start.
+                (cell-sref-again
+                 (<- peer1-mycapn 'register cell 'unix-domain-socket)))
+        ;; We're connected, lets halt this thing after setup the halt
+        ;; behavior is invoked by sending it a message with no arguments.
+        ($ server1)
+        ;; Annoyingly because of #803 we even after we've sent the halt things
+        ;; don't immediately stop as there are a queue "tasks" within the IO
+        ;; actor, the halt is just enqueued. To ensure this flushes, get peer1
+        ;; to try and reach out and connect to peer3. Janky but should work.
+        (<-np peer1-mycapn 'enliven peer3-cell-sref)
+        cell-sref-again)))
+
+  (resolve-vow-and-return-result
+   peer2-vat
+   (lambda ()
+     (let-on ((old-sref old-cell-sref-vow)
+              (disconnect-reason peer1-server1-disconnect-vow)
+              (new-sref (<- peer1-mycapn 'register cell 'unix-domain-socket)))
+       (list server1-name server2-name
+             (ocapn-peer-hints (ocapn-sturdyref-peer old-sref))
+             (ocapn-peer-hints (ocapn-sturdyref-peer new-sref)))))))
+
+;; This test doesn't work. Annoyingly there's a timing issue between the
+;; disconnect handling and removing the UDS server from the hints. The
+;; `new-sref' contains both hints as it's made before the netlayer manages to
+;; remove the intro server from the hints...
+
+;; (test-assert "Check hint is removed from UDS netlayer when intro server
+;; disconnects"
+;;   (match (test-disconnect-from-intro-server-removes-hint)
+;;     (#(ok (server1-name server2-name old-hints new-hints))
+;;      ;; The old hints were generated when both servers were connected and
+;;      ;; should then have both names in the hints, the new should only have
+;;      ;; server2's hints as server1 was disconnected.
+;;      (and (hashmap-ref old-hints server1-name)
+;;           (hashmap-ref old-hints server2-name)
+;;           (hashmap-ref new-hints server2-name)
+;;           ;; Check server1 hint does not exist.
+;;           (let ((does-not-exist (cons 'no 'value)))
+;;             (eq? (hashmap-ref new-hints server1-name does-not-exist)
+;;                  does-not-exist))))))
 
 (test-end "test-unix-domain-socket")

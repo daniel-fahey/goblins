@@ -142,8 +142,8 @@
                 (peer-pubkey (bytevector->crypto-public-key (base32-decode peer-designator)))
                 (their-challenge-sig (sign their-challenge privkey))
                 (our-challenge (strong-random-bytes 64))
-                (sendable-privkey (key-pair->public-key privkey))
-                (response-msg (make-uds:server-response sendable-privkey
+                (sendable-pubkey (key-pair->public-key privkey))
+                (response-msg (make-uds:server-response sendable-pubkey
                                                         our-challenge
                                                         their-challenge-sig)))
            (<-np client-io 'write (make-uds-msg-writer response-msg))
