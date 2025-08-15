@@ -562,4 +562,37 @@
     #(err ("Broken due to CapTP severence"))
     result))
 
+;; Check we can't have two connections to the same location if only the hints differ
+(define-values (a-vat a-netlayer a-mycapn)
+  (make-new-peer "a"))
+(define-values (b-vat b-netlayer b-mycapn)
+  (make-new-peer "b"))
+
+(define b-sref
+  (with-vat b-vat
+    (define echo (spawn ^echo))
+    ($ b-mycapn 'register echo 'fake)))
+(define b-sref*
+  (with-vat b-vat
+    (on b-sref
+        (lambda (b-sref)
+          (make-ocapn-sturdyref
+           (make-ocapn-peer 'fake "b" (hashmap ("foo" "bar")))
+           (ocapn-sturdyref-swiss-num b-sref)))
+        #:promise? #t)))
+
+(let ((result
+       (resolve-vow-and-return-result
+        a-vat
+        (lambda ()
+          (define refr-vow (<- a-mycapn 'enliven b-sref))
+          (define refr-vow* (<- a-mycapn 'enliven b-sref*))
+          (on (all-of refr-vow refr-vow*)
+              (match-lambda
+                [(refr refr*) (eq? refr refr*)])
+              #:promise? #t)))))
+  (test-equal "Check two sessions cannot exist between two peers"
+    #(ok #t)
+    result))
+
 (test-end "test-captp")

@@ -125,7 +125,7 @@
      [(halt) ($$ halted-resolver 'fulfill #t)]
      [(connect-to remote-peer)
       (match remote-peer
-        (($ <ocapn-peer> 'fake name #f)
+        (($ <ocapn-peer> 'fake name _)
          (on (<- network 'connect-to name)
              (match-lambda
                (('*outgoing-new-conn* me-deq-ch them-enq-ch)

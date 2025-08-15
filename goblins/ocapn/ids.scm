@@ -32,7 +32,7 @@
             unmarshall::ocapn-peer
 
             <ocapn-sturdyref>
-            ocapn-sturdyref
+            make-ocapn-sturdyref
             ocapn-sturdyref?
             make-ocapn-sturdyref
             ocapn-sturdyref?
