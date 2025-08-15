@@ -46,23 +46,6 @@
   (lambda (sock)
     (write-uds-msg sock message)))
 
-;; We use a custom hashing procedure for peers as two peers are
-;; considered equal if their netlayer/transport and designator
-;; are the same. This is the case across all of CapTP but really
-;; matters in this netlayer were hints may change based on new
-;; introduction servers being added or removed. Since we keep
-;; a hashmap of peers, we need to ensure peers hash to the same
-;; value regardless of their hints.
-(define (hash-ocapn-peer peer size)
-  (match peer
-    (($ <ocapn-peer> transport designator _)
-      (modulo (logxor (ash (hash transport size) 5)
-                      (hash designator size))
-              size))))
-
-(define (make-ocapn-peer-hashmap)
-  (make-hashmap hash-ocapn-peer same-peer-location?))
-
 ;; The general gist with this server is that OCapN peers will use it to get
 ;; introduced to other peers on the same machine. There is no federation or
 ;; mechanism to connect to peers which do not share an introduction server. The

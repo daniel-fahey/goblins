@@ -1013,15 +1013,15 @@
   (define-values (intra-peer-warden intra-peer-incanter)
     (spawn-warding-pair))
   (define locations->session-name-resolvers
-    (spawn ^ghash))
+    (spawn ^ghash (make-ocapn-peer-hashmap)))
   (define locations->open-session-names
-    (spawn ^ghash))
+    (spawn ^ghash (make-ocapn-peer-hashmap)))
   (define open-session-names->sessionmeta
     (spawn ^ghash))
 
   ;; For keeping track of new outbound sessions to detect crossed hellos
   (define locations->crossed-hellos-mitigator
-    (spawn ^ghash))
+    (spawn ^ghash (make-ocapn-peer-hashmap)))
 
   (define (^bootstrap bcom coordinator)
     (define session-name ($$ coordinator 'get-session-name))

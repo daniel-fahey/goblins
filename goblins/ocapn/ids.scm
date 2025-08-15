@@ -48,6 +48,8 @@
             ocapn-id->string
             string->ocapn-id
 
+            make-ocapn-peer-hashmap
+
             ;; Deprecated
             <ocapn-node>
             make-ocapn-node
@@ -240,6 +242,19 @@
 
 (define (ocapn-id->string ocapn-id)
   (uri->string (ocapn-id->uri ocapn-id)))
+
+;; Hashmaps for containing OCapN Peer Locators
+;; We use a custom hashing procedure for peers as two peers are considered equal
+;; if their netlayer/transport and designator are the same.
+(define (hash-ocapn-peer peer size)
+  (match peer
+    (($ <ocapn-peer> transport designator _)
+      (modulo (logxor (ash (hash transport size) 5)
+                      (hash designator size))
+              size))))
+
+(define (make-ocapn-peer-hashmap)
+  (make-hashmap hash-ocapn-peer same-peer-location?))
 
 ;; Deprecation
 (define-syntax-rule (define-deprecated (old-name arg ...) new-name)
