@@ -68,6 +68,7 @@
        (mallet-fraud-purse (actormap-poke! am mint 'new-purse 0)))
   ;; Mallet tries to deposit money from their mint into ours.
   (test-error "Mallet cannot deposit money from their mint into ours"
+              #t
               (actormap-poke! am mallet-fraud-purse 'deposit 1000 mallet-purse))
   (test-equal "the fraudulent purse balance remains zero"
     0
@@ -78,11 +79,13 @@
 (let ((zed-purse (actormap-poke! am mint 'new-purse 100))
       (willow-purse (actormap-poke! am mint 'new-purse 0)))
   (test-error "cannot withdraw more than what a purse contains"
+              #t
               (actormap-run! am (lambda () (withdraw 9000 zed-purse))))
   (test-equal "purse balance remains unchanged after failed withdrawal"
     100
     (actormap-peek am zed-purse 'get-balance))
   (test-error "cannot deposit more than what a purse contains"
+              #t
               (actormap-poke! am willow-purse 'deposit 9000 zed-purse))
   (test-equal "purse balance remains unchanged after failed deposit"
     0

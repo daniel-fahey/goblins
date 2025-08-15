@@ -111,6 +111,7 @@
   (persist-and-restore am inbox-env read write stop!))
 
 (test-error "Stopped inbox state persists after restoring"
+            #t
             (actormap-poke! am write 'foo))
 
 (test-end "test-inbox")

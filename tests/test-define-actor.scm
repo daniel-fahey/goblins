@@ -261,6 +261,7 @@
   '((persisted2-match blop)) cpv-match-data)
 
 (test-error "Error raised when #:portrait provides version mismatching with #:version"
+            #t
             (actormap-take-portrait am4 portrait-version-env cpv-mismatch))
 
 

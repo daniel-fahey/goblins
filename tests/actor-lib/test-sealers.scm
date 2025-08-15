@@ -57,10 +57,12 @@
 
 (test-error
  "Alice can't unseal bob's lunch"
+ #t
  (actormap-peek am alice-unsealer bob-sealed-lunch))
 
 (test-error
  "Bob can't unseal alice's lunch"
+ #t
  (actormap-peek am bob-unsealer alice-sealed-lunch))
 
 ;; Custom sealer triplet
