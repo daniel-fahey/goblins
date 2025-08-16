@@ -17,11 +17,14 @@
 ;;; mitigates this.
 
 (define-library (goblins default-vat-scheduler)
-  (export default-vat-scheduler)
+  (export default-vat-scheduler
+          current-vat-scheduler)
   (cond-expand
    (hoot
     (import (only (scheme base) define))
-    (begin (define (default-vat-scheduler) #f)))
+    (begin
+      (define (default-vat-scheduler) #f)
+      (define (current-vat-scheduler) #f)))
    (guile
     (import (guile)
             (fibers)
@@ -60,4 +63,6 @@ appropriate"
                             (put-message result-ch this-sched)
                             ;; since we're the new scheduler, run forever...
                             (wait (make-condition))))))))
-                (get-message result-ch)))))))))
+                (get-message result-ch)))))
+      (define (current-vat-scheduler)
+        (current-scheduler))))))

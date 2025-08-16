@@ -16,6 +16,7 @@
 (define-module (goblins actor-lib io)
   #:use-module (ice-9 match)
   #:use-module (goblins core)
+  #:use-module (goblins default-vat-scheduler)
   #:use-module (goblins vat)
   #:use-module (goblins inbox)
   #:use-module (goblins actor-lib methods)
@@ -39,7 +40,7 @@ Returns two values to its continuation:
    and a resolver to resolve a promise with the answer
  - STOP!: a thunk which halts the fiber"
   (define-values (enq-ch deq-ch stop-inbox?)
-    (spawn-delivery-agent #:scheduler (current-scheduler)))
+    (spawn-delivery-agent #:scheduler (current-vat-scheduler)))
   (define (run-proc proc fulfill-me)
     (put-message enq-ch (cons proc fulfill-me)))
   (define (stop!)
