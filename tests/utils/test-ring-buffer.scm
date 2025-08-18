@@ -65,6 +65,7 @@
     (ring-buffer-length ring)))
 
 (test-error "Getting throws an error when empty"
+            #t
             (ring-buffer-get! (make-ring-buffer 1)))
 
 (test-eq "Refing returns item at index"
@@ -74,6 +75,7 @@
     (ring-buffer-ref ring 0)))
 
 (test-error "Refing throws an error when index is out of bounds"
+            #t
             (ring-buffer-ref (make-ring-buffer 1) 0))
 
 (test-eqv "Resizing increases capacity"
