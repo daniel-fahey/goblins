@@ -25,7 +25,9 @@
   (test-assert description
     (call-with-repl-driver
      (lambda (driver)
-       (repl-driver-meta driver '(import (goblins)))
+       (repl-driver-meta driver '(import (goblins)
+                                         (fibers conditions)
+                                         (fibers operations)))
        (let ((output (repl-driver-run driver '(commands ...))))
          (format #t "REPL output:\n~a\n" output);
          (string-match regexp output))))))
@@ -135,10 +137,19 @@
            (meta quit)
            (meta enter-vat a-vat)
            (meta vat-log-enable)
+           (eval (define bob-messaged (make-condition)))
            (meta vat-resolve
                  (on (<- bob)
                      (lambda (response)
-                       (format #f "Bob said: ~a" response))))
+                       (format #f "Bob said: ~a" response)
+                       (signal-condition! bob-messaged))))
+           (meta quit)
+           (eval
+            (perform-operation
+             (choice-operation (wrap-operation (sleep-operation 2)
+                                               (lambda _ (error 'timeout)))
+                               (wait-operation bob-messaged))))
+           (meta enter-vat a-vat)
            (meta vat-tree))
 
 (test-repl ",vat-errors doesn't work outside of Goblins REPL"
