@@ -62,6 +62,12 @@
   (define-values (our-loc-vow our-loc-resolver)
     (spawn-promise-and-resolver))
 
+  ;; The unix domain socket netlayer uses hints to tell other peers which intro
+  ;; servers are valid ways of reaching us. For each intro server we're
+  ;; connected to we store the intro server name (base32 encoded pubkey). Since
+  ;; new intro servers can be added at point and we can disconnect from intro
+  ;; servers these may change and evolve over time, the following two procedures
+  ;; add or remove an intro server from our hints.
   (define (remove-server-hint! server-pubkey-data)
     (define b32-server-pubkey
       (base32-encode server-pubkey-data))
