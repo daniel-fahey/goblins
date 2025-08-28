@@ -195,7 +195,47 @@ the @code{dflt} value if needed.
 > ($ ag 'data)
 => $<ghash (1)>
 @end lisp
+@end deffn
 
+@deffn {Constructor} ^vector size [fill]
+
+Construct an actor providing an actor interface to a vector of size @var{size}
+and with initial values of @var{fill}.
+
+The actor has the following methods:
+
+@itemize
+@item
+@code{ref index}: Return the value at @var{index}.
+@item
+@code{set index new-value}: Set the value at @var{index} to @var{new-value}.
+@item
+@code{length}: Return the length of the vector.
+@item
+@code{as-list}: Return the values within the vector as a list.
+@item
+@code{resize new-size [fill]}: Resize the vector to @var{new-size}. If the
+vector grows, then the new elements will be filled with @var{fill}.
+@item
+@code{fill new-fill-value}: Fill all elements in the vector with
+@var{new-fill-value}.
+@end itemize
+
+@lisp
+> (define vec (spawn ^vector 5))
+> ($ vec 'length)
+=> 5
+> ($ vec 'set 0 'apple)
+> ($ vec 'set 1 'banana)
+> ($ vec 'set 2 'pear)
+> ($ vec 'set 3 'grapes)
+> ($ vec 'set 4 'kiwi)
+> ($ vec 'as-list)
+=> (apple banana pear grapes kiwi)
+> ($ vec 'resize 3)
+> ($ vec 'ref 0)
+=> apple
+@end lisp
 @end deffn
 
 @defvr {Persistence Environment} common-env
@@ -1035,6 +1075,75 @@ Constructs a FIFO queue actor which has the following methods:
 @end deffn
 
 @defvr {Persistence Environment} queue-env
+@end defvr
+
+@node Ring Buffer
+@section Ring Buffer
+
+The @code{(goblins actor-lib ring-buffer)} module provides an actor implementing
+a ring buffer data structure.
+
+@deffn {Constructor} ^ring-buffer capacity
+
+Construct new ^ring-buffer actor with a capacity of @var{capacity}.
+
+The actor has the following methods:
+
+@itemize
+@item
+@code{empty?}: Return @code{#t} if ring buffer is empty.
+@item
+@code{full?}: Return @code{#t} if ring buffer is full.
+@item
+@code{capacity}: Return the capacity of the ring buffer.
+@item
+@code{length}: Return the number of items currently stored in the ring buffer.
+@item
+@code{put value}: Append @var{value} to the ring buffer.
+@item
+@code{take}: Dequeue an item from the ring buffer.
+@item
+@code{ref index}: Return the item @var{index} within the ring buffer.
+@item
+@code{head amount}: Return up to @var{amount} items from the front of the ring
+buffer (i.e. the oldest items).
+@item
+@code{tail amount}: Return up to @var{amount} items from the end of the ring
+buffer (i.e. the newest items).
+@item
+@code{resize new-capacity}: Resizes the ring buffer to have a new
+capacity of @var{new-capacity}. If the @var{new-capacity} is smaller than the
+current capacity the oldest items within the ring buffer will be dropped.
+@item
+@code{clear}: Removes all items from the ring buffer, returning it to be empty.
+@end itemize
+
+@lisp
+> (define ring-buffer (spawn ^ring-buffer 5))
+> ($ ring-buffer 'empty?)
+=> #t
+> ($ ring-buffer 'put 'one)
+> ($ ring-buffer 'put 'two)
+> ($ ring-buffer 'put 'three)
+> ($ ring-buffer 'put 'four)
+> ($ ring-buffer 'put 'five)
+> ($ ring-buffer 'head 5)
+=> (one two three four five)
+> ($ ring-buffer 'put 'six)
+> ($ ring-buffer 'head 5)
+=> (two three four five six)
+> ($ ring-buffer 'resize 3)
+> ($ ring-buffer 'head 3)
+=> (four five six)
+> ($ ring-buffer 'take)
+=> four
+> ($ ring-buffer 'full?)
+=> #f
+@end lisp
+
+@end deffn
+
+@defvr {Persistence Environment} ring-buffer-env
 @end defvr
 
 @node Sealers

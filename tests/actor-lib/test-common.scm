@@ -62,20 +62,52 @@
     "Check removing a key means it's no longer in the ghash (relies on has-key? method)"
   (not (actormap-peek am ghash 'has-key? 'my-key)))
 
+;; Vectors
+(define vec (actormap-spawn! am ^vector 5 'hello))
+(test-equal "Check newely spawned vector has correct length"
+  5
+  (actormap-peek am vec 'length))
+
+(test-equal "Check newely spawned vector has fill value specified"
+  '(hello hello hello hello hello)
+   (actormap-peek am vec 'as-list))
+
+(actormap-poke! am vec 'set 2 'goodbye)
+(test-equal "Check both set and ref by refing an index we just set"
+  'goodbye
+  (actormap-peek am vec 'ref 2))
+
+(actormap-poke! am vec 'fill 'salutations)
+(test-equal "Check fill method on vectors"
+  '(salutations salutations salutations salutations salutations)
+   (actormap-peek am vec 'as-list))
+
+(actormap-poke! am vec 'resize 10)
+(test-equal "Check we can resize the vector"
+  10
+  (actormap-peek am vec 'length))
+
 ;; Persistence
 (define s1 (actormap-spawn! am ^seteq 'a 'b 'c))
 (actormap-poke! am s1 'add 'd)
 (define gh1 (actormap-spawn! am ^ghash))
 (actormap-poke! am gh1 'set 'granny-smith 'green)
 (actormap-poke! am gh1 'set 'jazz 'pink)
-(define-values (am* s1* gh1*)
-  (persist-and-restore am common-env s1 gh1))
+(define v1 (actormap-spawn! am ^vector 5))
+(actormap-poke! am v1 'set 0 'granny-smith)
+(actormap-poke! am v1 'set 1 'jazz)
+(actormap-poke! am v1 'set 2 'gala)
+(define-values (am* s1* gh1* v1*)
+  (persist-and-restore am common-env s1 gh1 v1))
 (test-equal "Set still has same items in after rehydration"
   (actormap-peek am s1 'as-list)
   (actormap-peek am* s1* 'as-list))
 (test-equal "Ghash lookup still works after rehydration"
   'green
   (actormap-peek am* gh1* 'ref 'granny-smith))
+(test-equal "Vector still has same elements after rehydration"
+  (actormap-peek am v1 'as-list)
+  (actormap-peek am* v1* 'as-list))
 
 (test-end "test-common")
 

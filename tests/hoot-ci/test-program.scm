@@ -23,6 +23,8 @@
              (goblins actor-lib pubsub)
              (goblins actor-lib simple-mint)
              (goblins actor-lib swappable)
+             (goblins actor-lib queue)
+             (goblins actor-lib ring-buffer)
              (goblins actor-lib ticker)
              (goblins actor-lib timers)
              (goblins actor-lib ward)

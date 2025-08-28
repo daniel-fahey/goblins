@@ -20,9 +20,11 @@
   #:use-module (goblins define-actor)
   #:use-module (goblins utils ghash)
   #:use-module (goblins utils hashmap)
+  #:use-module (goblins actor-lib cell)
   #:use-module (goblins actor-lib methods)
   #:export (^seteq
             ^ghash
+            ^vector
             common-env))
 
 ;; And the rest, eventually...
@@ -90,7 +92,50 @@ Methods:
     (bcom (^ghash bcom (hashmap-remove ht key)))]
    [(data) ht]))
 
+(define-actor (^vector* bcom vec)
+  ;; Everything within the vec is within a cell so that the entire
+  ;; vector isn't written out each time by aurie everytime something
+  ;; is set.
+  #:frozen
+  (methods
+   [(ref index) ($ (vector-ref vec index))]
+   [(set index new-value) ($ (vector-ref vec index) new-value)]
+   [(length) (vector-length vec)]
+   [(as-list)
+    (let lp ((index 0))
+      (if (< index (vector-length vec))
+          (cons ($ (vector-ref vec index))
+                (lp (1+ index)))
+          '()))]
+   [(resize new-size #:optional fill)
+    (let* ((new-vec (make-vector new-size))
+           (old-size (vector-length vec))
+           (keep (min old-size new-size)))
+      (do ((i 0 (1+ i)))
+          ((= i keep))
+        (vector-set! new-vec i (vector-ref vec i)))
+      (do ((i keep (1+ i)))
+          ((>= i new-size))
+        (vector-set! new-vec i (spawn ^cell fill)))
+      (bcom (^vector* bcom new-vec)))]
+   [(fill new-fill-value)
+    (do ((i 0 (1+ i)))
+        ((>= i (vector-length vec)))
+      (let ((element (vector-ref vec i)))
+        ($ element new-fill-value)))]))
+
+(define* (^vector bcom size #:optional fill)
+  "Return a new vector actor of size @var{size}. The vector elements will
+have the initial value of @var{fill}."
+  (define vec (make-vector size))
+  (do ((i 0 (1+ i)))
+      ((>= i size))
+    (vector-set! vec i (spawn ^cell fill)))
+  (spawn ^vector* vec))
+
 (define common-env
   (make-persistence-env
    `((((goblins actor-lib common) ^ghash) ,^ghash)
-     (((goblins actor-lib common) ^seteq) ,^seteq))))
+     (((goblins actor-lib common) ^seteq) ,^seteq)
+     (((goblins actor-lib common) ^vector) ,^vector*))
+   #:extends cell-env))
