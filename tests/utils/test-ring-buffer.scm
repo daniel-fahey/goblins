@@ -84,20 +84,40 @@
     (ring-buffer-resize! ring 2)
     (ring-buffer-capacity ring)))
 
-(test-eq "Resizing retains existing items"
-  'foo
-  (let ((ring (make-ring-buffer 1)))
-    (ring-buffer-put! ring 'foo)
-    (ring-buffer-resize! ring 2)
-    (ring-buffer-ref ring 0)))
-
-(test-assert "Resizing deletes oldest items when capacity is decreased"
+(test-equal "Resizing retains existing items"
+  '(foo bar)
   (let ((ring (make-ring-buffer 2)))
     (ring-buffer-put! ring 'foo)
     (ring-buffer-put! ring 'bar)
-    (ring-buffer-resize! ring 1)
-    (and (= (ring-buffer-length ring) 1)
-         (eq? (ring-buffer-ref ring 0) 'bar))))
+    (ring-buffer-resize! ring 3)
+    (list (ring-buffer-ref ring 0)
+          (ring-buffer-ref ring 1))))
+
+(test-equal "Resizing deletes oldest items when capacity is decreased"
+  '(baz zort)
+  (let ((ring (make-ring-buffer 3)))
+    (ring-buffer-put! ring 'foo)
+    (ring-buffer-put! ring 'bar)
+    (ring-buffer-put! ring 'baz)
+    (ring-buffer-resize! ring 2)
+    (ring-buffer-put! ring 'zort)
+    (list (ring-buffer-ref ring 0)
+          (ring-buffer-ref ring 1))))
+
+(test-equal "Resizing sets up the head/tail pointers correctly for future puts"
+  '(baz zort narf troz)
+  (let ((ring (make-ring-buffer 3)))
+    (ring-buffer-put! ring 'foo)
+    (ring-buffer-put! ring 'bar)
+    (ring-buffer-put! ring 'baz)
+    (ring-buffer-put! ring 'zort)
+    (ring-buffer-resize! ring 4)
+    (ring-buffer-put! ring 'narf)
+    (ring-buffer-put! ring 'troz)
+    (list (ring-buffer-ref ring 0)
+          (ring-buffer-ref ring 1)
+          (ring-buffer-ref ring 2)
+          (ring-buffer-ref ring 3))))
 
 (test-assert "Clearing empties the buffer"
   (let ((ring (make-ring-buffer 1)))
