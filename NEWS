@@ -3,6 +3,29 @@
 #+startup: show2levels
 
 * Releases
+** v0.16.1
+*** Bug fixes
+**** Fixed bug where netlayers could not be used with Hoot
+
+This fixes a regression introduced in v0.16.0. This caused programs to have an
+error when being compiled with Hoot if they used a netlayer. This in effect
+prevented the use of OCapN in Hoot programs. This is now fixed.
+
+The bug was caused by an issue in the ^io code using an unsupported procedure in
+Hoot.
+**** Fixed a bug where multiple sessions between two OCapN peers could exist
+
+It's an important property of OCapN that only one session can exist between two
+peers. OCapN has machinary to ensure this but due to a bug with how we were
+treating OCapN Locators (i.e. `(goblins ocapn ids)`), multiple sessions could
+be established if only the hints differed.
+
+For Hoot programs, multiple sessions could be established even when the hints do
+not differ and the OCapN Locator is the same. This was caused by
+[a bug](https://codeberg.org/spritely/goblins/issues/806) around how Hoot hashes
+values.
+
+Both these issues have been fixed.
 ** v0.16.0
 *** Highlights
 **** Unix Domain Socket Netlayer
