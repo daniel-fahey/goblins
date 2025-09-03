@@ -1041,45 +1041,44 @@
                           )
       (assert-type gift-id valid-gift-id?)
       (assert-type obj local-refr?)
-      (when ($$ waiting-gifts 'has-key? gift-id)
-        (match ($$ waiting-gifts 'ref gift-id)
-          [(_gift-promise gift-resolver)
-           ($$ gift-resolver 'fulfill obj)
-           ($$ waiting-gifts 'remove gift-id)]))
+      (match ($$ waiting-gifts 'ref gift-id)
+        [#f #f]
+        [(_gift-promise gift-resolver)
+         ($$ gift-resolver 'fulfill obj)
+         ($$ waiting-gifts 'remove gift-id)])
       ($$ gifts 'set gift-id (make-giftmeta obj #t)))
 
     (define (withdraw-gift signed-handoff-receive)
       (assert-type signed-handoff-receive signed-handoff-receive?)
-      (match-let* ((handoff-receive
-                    (desc:sig-envelope-signed signed-handoff-receive))
-                   (handoff-give
-                    (desc:sig-envelope-signed
-                     (desc:handoff-receive-signed-give handoff-receive)))
-                   (gifter-exporter-session-id
-                    (desc:handoff-give-gifter-exporter-session handoff-give))
-                   (($ <sessionmeta> cert-session-location
-                       cert-session-local-bootstrap-obj
-                       cert-session-remote-bootstrap-obj
-                       cert-session-coordinator
-                       cert-session-session-name)
-                    (if ($$ open-session-names->sessionmeta 'has-key? gifter-exporter-session-id)
-                        ($$ open-session-names->sessionmeta 'ref gifter-exporter-session-id)
-                        (begin
-                          (error 'no-open-session "No open session with key ~s"
-                                 gifter-exporter-session-id)))))
-        ;; TODO: count stuff here too, but needs to be in this session
-        (on (<- coordinator 'full-handoff-legit? signed-handoff-receive cert-session-coordinator)
-            (lambda (handoff-legit?)
-              ;; If we made it this far, it's ok... so time to get
-              ;; that referenced object!
-              (if handoff-legit?
-                  ($$ intra-peer-incanter cert-session-local-bootstrap-obj
-                      'pull-out-gift
-                      (desc:handoff-give-gift-id handoff-give))
-                  (error 'invalid-handoff-cert
-                         "Handoff cert invalid for session: ~s"
-                         signed-handoff-receive)))
-            #:promise? #t)))
+      (let* ((handoff-receive (desc:sig-envelope-signed signed-handoff-receive))
+             (handoff-give
+              (desc:sig-envelope-signed
+               (desc:handoff-receive-signed-give handoff-receive)))
+             (gifter-exporter-session-id
+              (desc:handoff-give-gifter-exporter-session handoff-give)))
+        (match ($$ open-session-names->sessionmeta 'ref gifter-exporter-session-id)
+          (#f
+           (error 'no-open-session "No open session with key ~s"
+                  gifter-exporter-session-id))
+          (($ <sessionmeta>
+              cert-session-location
+              cert-session-local-bootstrap-obj
+              cert-session-remote-bootstrap-obj
+              cert-session-coordinator
+              cert-session-session-name)
+           ;; TODO: count stuff here too, but needs to be in this session
+           (on (<- coordinator 'full-handoff-legit? signed-handoff-receive cert-session-coordinator)
+               (lambda (handoff-legit?)
+                 ;; If we made it this far, it's ok... so time to get
+                 ;; that referenced object!
+                 (if handoff-legit?
+                     ($$ intra-peer-incanter cert-session-local-bootstrap-obj
+                         'pull-out-gift
+                         (desc:handoff-give-gift-id handoff-give))
+                     (error 'invalid-handoff-cert
+                            "Handoff cert invalid for session: ~s"
+                            signed-handoff-receive)))
+               #:promise? #t)))))
 
     (define main-beh
       (methods
@@ -1090,40 +1089,30 @@
 
     (define cross-gift-beh
       (methods
-       [(pull-out-gift id)
-        (cond
-         [($$ gifts 'has-key? id)
-          (match-let ((($ <giftmeta> gift destroy-on-fetch?)
-                       ($$ gifts 'ref id)))
-            (when destroy-on-fetch?
-              ($$ gifts 'remove id))
-            gift)]
-         ;; queue it
-         [else
-          (if ($$ waiting-gifts 'has-key? id)
-              (match ($$ waiting-gifts 'ref id)
-                [(gift-promise _gift-resolver)
-                 gift-promise])
+       ((pull-out-gift id)
+        (match ($$ gifts 'ref id)
+          (($ <giftmeta> gift destroy-on-fetch?)
+           (when destroy-on-fetch?
+             ($$ gifts 'remove id))
+           gift)
+          ;; queue it
+          (#f
+           (match ($$ waiting-gifts 'ref id)
+             ((gift-promise _gift-resolver) gift-promise)
+             (#f
               (let-values ([(gift-promise gift-resolver)
                             (spawn-promise-and-resolver)])
                 ($$ waiting-gifts 'set id (list gift-promise gift-resolver))
-                gift-promise))])]))
+                gift-promise))))))))
 
     (ward intra-peer-warden cross-gift-beh #:extends main-beh))
 
   ;; TODO: Rename this to connect-to-peer I guess?
   (define (retrieve-or-setup-session-vow remote-peer-loc)
-    (if ($$ locations->open-session-names 'has-key? remote-peer-loc)
-        ;; found an open session for this location
-        (let ([session-name-vow ($$ locations->open-session-names
-                                    'ref remote-peer-loc)])
-          (on session-name-vow
-              (lambda (session-name)
-                (sessionmeta-remote-bootstrap-obj
-                 ($$ open-session-names->sessionmeta 'ref session-name)))
-              #:promise? #t))
-        ;; Guess we'll make a new one
-        (let-values ([(netlayer) (get-netlayer-for-location remote-peer-loc)]
+    (match ($$ locations->open-session-names 'ref remote-peer-loc)
+      ;; If we don't have one, make one.
+      (#f
+       (let-values ([(netlayer) (get-netlayer-for-location remote-peer-loc)]
                      [(session-name-vow session-name-resolver) (spawn-promise-and-resolver)]
                      [(bootstrap-vow bootstrap-resolver) (spawn-promise-and-resolver)])
           ;; To ensure future calls don't create more than one connection
@@ -1142,14 +1131,22 @@
                 ($$ locations->session-name-resolvers 'remove remote-peer-loc)
                 ($$ locations->open-session-names 'remove remote-peer-loc)
                 ($$ bootstrap-resolver 'break err)))
-          bootstrap-vow)))
+          bootstrap-vow))
+      ;; Otherwise, use the one we have.
+      (session-name-vow
+       (on session-name-vow
+           (lambda (session-name)
+             (sessionmeta-remote-bootstrap-obj
+              ($$ open-session-names->sessionmeta 'ref session-name)))
+           #:promise? #t))))
 
   (define (get-netlayer-for-location loc)
     (define transport-tag (ocapn-peer-transport loc))
-    (unless ($$ netlayer-map 'has-key? transport-tag)
-      (error 'unsupported-transport
-             "NETLAYER not supported for this peer: ~a" transport-tag))
-    ($$ netlayer-map 'ref transport-tag))
+    (match ($$ netlayer-map 'ref transport-tag)
+      (#f
+       (error 'unsupported-transport
+              "NETLAYER not supported for this peer: ~a" transport-tag))
+      (netlayer netlayer)))
 
   (define (self-location? loc)
     (define netlayer (get-netlayer-for-location loc))
@@ -1160,18 +1157,16 @@
   (define (register obj netlayer-name)
     (assert-type obj live-refr?)
     (assert-type netlayer-name symbol?)
-    (unless ($$ netlayer-map 'has-key? netlayer-name)
-      (error 'unsupported-transport
-             "NETLAYER not supported for this peer: ~a" netlayer-name))
-    (let* ((netlayer ($$ netlayer-map 'ref netlayer-name))
-           (peer-loc (<- netlayer 'our-location))
-           (nonce ($$ registry 'register obj)))
-      (if (promise-refr? peer-loc)
-          (on peer-loc
-              (lambda (peer-loc)
-                (make-ocapn-sturdyref peer-loc nonce))
-              #:promise? #t)
-          (make-ocapn-sturdyref peer-loc nonce))))
+    (match ($$ netlayer-map 'ref netlayer-name)
+      (#f
+       (error 'unsupported-transport
+              "NETLAYER not supported for this peer: ~a" netlayer-name))
+      (netlayer
+       (on (<- netlayer 'our-location)
+           (lambda (peer-loc)
+             (define nonce ($$ registry 'register obj))
+             (make-ocapn-sturdyref peer-loc nonce))
+           #:promise? #t))))
   (define (enliven sturdyref-vow)
     (on sturdyref-vow
         (lambda (sturdyref)
@@ -1446,7 +1441,7 @@
    [(install-netlayer netlayer)
     (on (<- netlayer 'netlayer-name)
         (lambda (netlayer-name)
-          (when ($$ netlayer-map 'has-key? netlayer-name)
+          (when ($$ netlayer-map 'ref netlayer-name)
             (error (format #f "Already has netlayer key ~a" netlayer-name)))
 
           ($$ netlayer-map 'set netlayer-name netlayer)

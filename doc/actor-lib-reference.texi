@@ -187,8 +187,6 @@ the @code{dflt} value if needed.
 => $<ghash (2)>
 > ($ ag 'ref "cesna")
 => "plane"
-> ($ ag 'has-key? "dog")
-=> #t
 > ($ ag 'remove "cesna")
 > ($ ag 'ref "cesna")
 => #f
