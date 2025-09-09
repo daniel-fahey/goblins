@@ -1157,21 +1157,6 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
 
 ;; Vat persistence
 ;; ===============
-
-
-(define (transactormap-calculate-obj-delta am)
-  "Gets the refrs of all objects that changed in last transaction"
-  (define am-data
-    (actormap-data am))
-  (define delta-obj-map
-    (transactormap-data-delta am-data))
-  ;; Extract just the refr.
-  (hash-fold
-   (lambda (refr mactor prev)
-     (cons refr prev))
-   '()
-   delta-obj-map))
-
 (define (vat-take-portrait!* vat)
   (define persistence-env
     (vat-persistence-env vat))
@@ -1227,12 +1212,13 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
         ;; From the set of changed objects in the last transaction, find the ones which
         ;; appear in the portrait of the object graph by checking if they have an
         ;; assigned slot. For the ones found queue them up for depiction
-        (for-each
-         (lambda (changed-obj)
-           (when (and (local-object-refr? changed-obj)
-                      (val->slot-refr changed-obj))
-             (enq! process-queue changed-obj)))
-         (transactormap-calculate-obj-delta new-am))
+        (let ((am-data (actormap-data new-am)))
+          (hash-for-each
+           (lambda (obj _)
+             (when (and (local-object-refr? obj)
+                        (val->slot-refr obj))
+             (enq! process-queue obj)))
+           (transactormap-data-delta am-data)))
 
         (while (not (q-empty? process-queue))
           (let ((obj (deq! process-queue)))
