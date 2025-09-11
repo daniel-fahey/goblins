@@ -3001,23 +3001,28 @@ Type: Actormap PersistenceEnv -> Void"
     (actormap-restore-with-far-refrs! am persistence-env portraits roots))
   (apply values root-objects))
 
-(define (actormap-restore-with-far-refrs! am persistence-env portraits roots)
+(define (actormap-restore-with-far-refrs! am persistence-env portraits init-roots)
   "Restore a self portrait in an actormap"
-  (define slots->resolvers
-    (make-hash-table))
-  (define slots->refrs
-    (make-hash-table))
-
-  ;; This is to restore the actormaps aurie-id counter which is used
-  ;; to give new objects a unique ID within the actormap. It should be
-  ;; above all the persisted object IDs.
-  (define highest-slot 0)
-
-  ;; Handle restoring far refrs
-  (define far-refr-resolvers
-    (make-hash-table))
-  (define far-refr-vows
-    (make-hash-table))
+  (define roots
+    (if (pair? init-roots)
+        init-roots
+        (list init-roots)))
+  ;; We need to go through all portraits to be able to determine the current
+  ;; aurie counter. This is an incrementing integer used by aurie to give refrs
+  ;; a unique identifier for both local (as the slot) and intra-vat persistence
+  ;; (vat ID + refr aurie ID).
+  ;; To do this we must go through all portraits within the `portraits' hashmap
+  ;; and determine the highest aurie ID. Once determined we can set this on our
+  ;; actormap so newly spawned refrs get a unique ID.
+  ;; TODO: Do we possibly want to serialize the counter so we don't need to do
+  ;; this?
+  (define highest-slot
+    (hash-fold
+     (lambda (slot depiction n)
+       (max slot n))
+     0
+     portraits))
+  (set-actormap-aurie-counter! am highest-slot)
 
   ;; TODO: Make a more generalized approach to "churn" code.
   ;; There are lots of places around the code base which does
@@ -3038,55 +3043,50 @@ Type: Actormap PersistenceEnv -> Void"
            (enq! far-msg-queue msg)))
      msgs))
 
-  (define (depiction->debug-name depiction)
-    ;; All depictions should be objects
-    (match depiction
-      [(_persistence-name debug-name _portrait-version _portrait-data)
-       debug-name]))
+  ;; We want to restore from the roots of the graph outwards. This is for
+  ;; several reasons. Mostly the portrait data might contain some orphaned
+  ;; objects which would not only waste resources but cause problems if
+  ;; spawned (objects can have side-effects when spawned).
+  ;; The restore queue manages all the objects which need restoring.
+  (define restore-queue (make-q))
+  (define vat-connector (actormap-vat-connector am))
+  (define slots->resolvers (make-hash-table))
+  (define slots->refrs (make-hash-table))
+  (define (maybe-install-refr-for-slot! slot)
+    (match (hashq-ref slots->refrs slot)
+      (#f
+       (let*-values (((vow resolver) (spawn-promise-and-resolver))
+                     ((vow-symlink) (make-mactor:local-link vow))
+                     ((debug-name)
+                      (match (hashq-ref portraits slot)
+                        [(_persistence-name debug-name _portrait-version _portrait-data)
+                         debug-name]))
+                     ((refr) (make-local-object-refr debug-name vat-connector slot)))
+         (enq! restore-queue slot)
+         (actormap-set! am refr vow-symlink)
+         (hashq-set! slots->resolvers slot resolver)
+         (hashq-set! slots->refrs slot refr)
+         refr))
+      (refr refr)))
 
-  ;; We *need* to ensure we set the aurie-id counter on the actormap to the
-  ;; highest within the graph before creating any new local-object-refrs.
-  ;; Unfortunately that means having a pass over the graph just to calculate
-  ;; the highest aurie ID for the counter.
-  ;; TODO: Do we possibly want to serialize the counter so we don't need to do
-  ;; this? - not sure.
-  (hash-for-each
-   (lambda (slot depiction)
-     (when (< highest-slot slot)
-       (set! highest-slot slot)))
-    portraits)
-  (set-actormap-aurie-counter! am highest-slot)
+  ;; Two tables for handling far refrs.
+  (define far-refr-resolvers (make-hash-table))
+  (define far-refr-vows (make-hash-table))
 
-  ;; Now loop through and make a refr for each object, we will point that refr
-  ;; at a vow and later change it to point directly at the refr.
-  (hash-for-each
-   (lambda (slot depiction)
-     (let*-values (((vow resolver) (actormap-run! am spawn-promise-and-resolver))
-                   ((vow-symlink) (make-mactor:local-link vow))
-                   ((debug-name) (depiction->debug-name depiction))
-                   ((vat-connector) (actormap-vat-connector am))
-                   ((refr) (make-local-object-refr debug-name vat-connector slot)))
-       (actormap-set! am refr vow-symlink)
-       (hashq-set! slots->resolvers slot resolver)
-       (hashq-set! slots->refrs slot refr)))
-   portraits)
-
-  (define (restore-slot! slot portrait)
-    (define resolver
-      (hashq-ref slots->resolvers slot))
-    (define refr
-      (hashq-ref slots->refrs slot))
+  ;; Restore an object within the graph
+  (define (restore-slot! slot)
+    (define portrait (hashq-ref portraits slot))
     (define-values (obj-name obj-debug-name obj-portrait-version obj-portrait)
       (match portrait
-        [(name debug-name portrait-version portrait-data)
-         (values name debug-name portrait-version portrait-data)]
-        [_ (error "Unknown portrait data")]))
+        ((name debug-name portrait-version portrait-data)
+         (values name debug-name portrait-version portrait-data))
+        (_ (error "Unknown portrait data"))))
     (define restored-args
       (actormap-run! am (lambda () (restore-one obj-portrait))))
-    (define obj-spec
-      (persistence-env-ref persistence-env obj-name))
-    (define rehydrator
-      (object-spec-rehydrator obj-spec))
+    (define obj-spec (persistence-env-ref persistence-env obj-name))
+    (define rehydrator (object-spec-rehydrator obj-spec))
+    (define refr (hashq-ref slots->refrs slot))
+    (define resolver (hashq-ref slots->resolvers slot))
 
     (define (restore-one depicted)
       (match depicted
@@ -3118,7 +3118,7 @@ Type: Actormap PersistenceEnv -> Void"
               (match data
                 [(label payload)
                  (make-tagged label payload)])]
-             ['near (hashq-ref slots->refrs (car data))]
+             ['near (maybe-install-refr-for-slot! (car data))]
              ['far
               ;; Cache the vow since we may have several refrences to the same obj
               (match (hash-ref far-refr-vows data #f)
@@ -3175,11 +3175,17 @@ Type: Actormap PersistenceEnv -> Void"
     ;; Install the mactor in the refr we created.
     (actormap-set! am refr (actormap-ref am restored-obj-refr)))
 
-  ;; Restore all the objects in the vows we have setup.
-  (hash-for-each
-   (lambda (slot portrait)
-     (restore-slot! slot portrait))
-   portraits)
+  ;; We want to start restoring from the roots, enqueue them to our restore queue
+  (actormap-run! am (lambda () (for-each maybe-install-refr-for-slot! roots)))
+
+  ;; Keep processing the queue of objects until we've restored all of them. When
+  ;; a portrait is read, if any near-refrs are found (refrs we need to restore)
+  ;; then maybe-install-refr-for-slot! will be called. If this is called for the
+  ;; first time, it'll install the promise for the refr and queue it for
+  ;; restoration
+  (while (not (q-empty? restore-queue))
+    (let ((next-slot-to-restore (deq! restore-queue)))
+      (restore-slot! next-slot-to-restore)))
 
   ;; When an actor is spawned it might send messages
   ;; so keep track of those so we can dispatch them after.
@@ -3194,18 +3200,17 @@ Type: Actormap PersistenceEnv -> Void"
 
   ;; Dispatch the far messages.
   (while (not (q-empty? far-msg-queue))
-         (let ((msg (deq! far-msg-queue)))
-           (dispatch-message msg)))
+    (let ((msg (deq! far-msg-queue)))
+      (dispatch-message msg)))
 
-  (match roots
-    [(? list? root-slots)
-     (define restored-roots
-       (map (lambda (slot)
-              (hashq-ref slots->refrs slot))
-            root-slots))
-     (values far-refr-resolvers restored-roots)]
-    [(? integer? slot)
-     (values far-refr-resolvers (list (hashq-ref slots->refrs slot)))]))
+  ;; TODO: We technically have all the data we need to know which objects are
+  ;; orphaned. This might be useful information to return so the store can GC
+  ;; them.
+  (define restored-roots
+    (map (lambda (slot)
+           (hashq-ref slots->refrs slot))
+         roots))
+  (values far-refr-resolvers restored-roots))
 
 (define (actormap-restore-from-store! am env store)
   "Reads portrait graph from STORE and restores into provided AM.

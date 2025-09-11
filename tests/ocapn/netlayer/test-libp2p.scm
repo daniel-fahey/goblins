@@ -100,19 +100,6 @@
    #:name "Restore libp2p vat"))
 
 
-;; TODO: could block, make it timeout...
-;; IMPORTANT: TODO: There's currently a "bug" in aurie where old objects
-;; are not cleaned up properly... this results in both the ^libp2p-FRESH
-;; and ^libp2p-SETUP objects remaining around when we really only want
-;; to keep ^libp2p-SETUP.
-;;
-;; Unfortunately due to this bug both objects are restored. It just so
-;; happens it always spawns the fresh one first, then setup. To deal
-;; with that we throw away the fresh one. This is kinda brittle and
-;; awful but it's take a lot to work around what isn't a libp2p netlayer
-;; but, an aurie deficiency...
-(accept control-socket-sock O_NONBLOCK)
-
 (define control-socket-io*
   (with-vat test-vat
     (spawn ^line-delimited-port
