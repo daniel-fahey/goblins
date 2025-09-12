@@ -62,10 +62,8 @@ Type: -> Queue"
             (car head)))))))
 
 (define (^queue bcom)
-  (^queue* bcom))
-(define (restore-queue _version length head tail)
-  (spawn ^queue* length head tail))
+  (spawn ^queue*))
 
 (define queue-env
   (make-persistence-env
-   `((((goblins actor-lib queue) ^queue) ,^queue ,restore-queue))))
+   `((((goblins actor-lib queue) ^queue) ,^queue*))))

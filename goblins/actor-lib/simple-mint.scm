@@ -69,16 +69,7 @@ Purse Methods:
 number of tokens to subtract from this Purse."
   (define-values (decr-seal decr-unseal _decr-sealed?)
     (spawn-sealer-triplet))
-  (^mint* bcom decr-seal decr-unseal))
-
-(define (restore-mint _version decr-seal decr-unseal)
   (spawn ^mint* decr-seal decr-unseal))
-
-(define mint-env
-  (make-persistence-env
-   `((((goblins actor-lib simple-mint) ^mint) ,^mint ,restore-mint)
-     (((goblins actor-lib simple-mint) ^purse) ,^purse))
-   #:extends (list cell-env sealers-env)))
 
 (define (withdraw amount from-purse)
   "Return a new purse containing AMOUNT that has been withdrawn from
@@ -88,3 +79,9 @@ Type: Number Purse -> Purse"
   (let ((new-purse ($ from-purse 'sprout)))
     ($ new-purse 'deposit amount from-purse)
     new-purse))
+
+(define mint-env
+  (make-persistence-env
+   `((((goblins actor-lib simple-mint) ^mint) ,^mint*)
+     (((goblins actor-lib simple-mint) ^purse) ,^purse))
+   #:extends (list cell-env sealers-env)))
