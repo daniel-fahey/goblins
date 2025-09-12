@@ -28,6 +28,9 @@
              (srfi srfi-11)
              (fibers conditions))
 
+;; Don't kill the process on SIGPIPE.
+(sigaction SIGPIPE SIG_IGN)
+
 ;; Provide an ability for the user to choose the netlayer
 (define chosen-netlayer
   (match (command-line)
