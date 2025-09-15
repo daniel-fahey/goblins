@@ -28,8 +28,8 @@
              (srfi srfi-11)
              (fibers conditions))
 
-;; Don't kill the process on SIGPIPE.
-(sigaction SIGPIPE SIG_IGN)
+(define peer-locator-output-file
+  (getenv "GOBLINS_OCAPN_PEER_LOCATOR"))
 
 ;; Provide an ability for the user to choose the netlayer
 (define chosen-netlayer
@@ -153,7 +153,7 @@
   (define testing-netlayer
     (match chosen-netlayer
       ['tcp-testing-only
-       (spawn ^tcp-testing-netlayer "localhost" 24680)]
+       (spawn ^tcp-testing-netlayer "localhost")]
       ['onion
        (spawn ^onion-netlayer)]))
   (define mycapn (spawn-mycapn testing-netlayer))
@@ -186,6 +186,10 @@
 
   (on (<- testing-netlayer 'our-location)
       (lambda (loc)
+        (when peer-locator-output-file
+          (call-with-output-file peer-locator-output-file
+            (lambda (port)
+              (display (ocapn-id->string loc) port))))
         (format #t "Connect test suite to: ~a\n" (ocapn-id->string loc)))))
 
 (define forever (make-condition))
