@@ -141,6 +141,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/ocapn/netlayer/test-libp2p.scm \
         tests/ocapn/netlayer/test-prelay.scm \
         tests/ocapn/netlayer/test-prelay-utils.scm \
+        tests/persistence-store/test-bloblin.scm \
         tests/persistence-store/test-syrup.scm \
         tests/persistence-store/test-memory.scm \
         tests/ocapn/test-ids.scm \

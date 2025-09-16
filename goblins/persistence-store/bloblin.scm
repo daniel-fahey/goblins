@@ -560,37 +560,36 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
 
   (define (get-active-or-chosen-bloblin-state root-churn-id)
     (if root-churn-id
-        (values (open-bloblin-file
-                 (make-bloblin-file-path bloblin-dir
-                                         root-churn-id))
-                #t)
+        (open-bloblin-file (make-bloblin-file-path bloblin-dir root-churn-id))
         ;; no root-churn-id provided, so return the active-bloblin-state
         (begin
           (try-to-load-bloblin-state!)
-          (unless active-bloblin-state
-            (error "No bloblin graphs written to read from"))
-          (values active-bloblin-state #f))))
+          active-bloblin-state)))
 
   (define memory-read-proc
     (methods
      [(graph-and-slots #:key root-churn-id delta-id)
       (define bloblin-state
         (get-active-or-chosen-bloblin-state root-churn-id))
-      (define portraits
-        (if delta-id
-            (bloblin-get-arbitrary-generation bloblin-state delta-id)
-            (bloblin-get-latest-generation bloblin-state)))
-      (when root-churn-id
-        (bloblin-state-close! bloblin-state))
-      (values (bloblin-state-vat-aurie-id bloblin-state)
-              (bloblin-state-roots-version bloblin-state)
-              portraits
-              (bloblin-state-roots bloblin-state))]
+      (if bloblin-state
+          (let ((portraits
+                 (if delta-id
+                     (bloblin-get-arbitrary-generation bloblin-state delta-id)
+                     (bloblin-get-latest-generation bloblin-state))))
+            (when root-churn-id
+              (bloblin-state-close! bloblin-state))
+            (values (bloblin-state-vat-aurie-id bloblin-state)
+                    (bloblin-state-roots-version bloblin-state)
+                    portraits
+                    (bloblin-state-roots bloblin-state)))
+          (values #f #f #f #f))]
      ;; TODO: We can do a way more efficient version of this, just
      ;; trying to get this out the door
      [(object-portrait slot #:key root-churn-id delta-id)
       (define bloblin-state
         (get-active-or-chosen-bloblin-state root-churn-id))
+      (unless bloblin-state
+        (error "Cannot read object from empty store" slot))
       (define portraits
         (if delta-id
             (bloblin-get-arbitrary-generation bloblin-state delta-id)
