@@ -1180,7 +1180,7 @@
 ;; Far refrs are restored as promises which asynchronously wait on the aurie
 ;; registry. This is so that vats aren't dependent on each other when restoring.
 ;; When a object with a far refr persists before the promises resolve we
-;; shouldn't loose the far refr info we knew at resturation.
+;; shouldn't loose the far refr info we knew at restoration.
 (define persistence-registry
   (with-vat aurie-vat
     (spawn ^persistence-registry)))
@@ -1282,7 +1282,7 @@
    aurie-vat*
    (lambda () (<- send-far-refr*))))
 
-;; Test that objects not in roots persist after resturation
+;; Test that objects not in roots persist after restoration
 (define memory (make-memory-store))
 (define-values (aurie-vat0 cell0)
   (spawn-persistent-vat
