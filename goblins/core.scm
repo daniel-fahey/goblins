@@ -738,13 +738,13 @@ Type: Any -> Boolean"
 (define (near-promise-broken? promise-refr)
   (define mactor (near-mactor promise-refr))
   (if (mactor:aurie-local-link? mactor)
-      (near-promise-broken? (mactor-link-point-to mactor))
+      (near-promise-broken? (mactor:aurie-local-link-point-to mactor))
       (mactor:broken? mactor)))
 
 (define* (near-promise-settled? promise-refr #:key [broken-ok? #t])
   (match (near-mactor promise-refr)
     [(? mactor:aurie-local-link? mactor)
-     (near-promise-settled? (mactor-link-point-to mactor)
+     (near-promise-settled? (mactor:aurie-local-link-point-to mactor)
                             #:broken-ok? broken-ok?)]
     [(or (? mactor:local-link?) (? mactor:encased?)) #t]
     [(? mactor:broken?) broken-ok?]
@@ -753,10 +753,9 @@ Type: Any -> Boolean"
 (define (near-settled-promise-value promise-refr)
   (define mactor (near-mactor promise-refr))
   (match mactor
-    [(or (? mactor:local-link?) (? mactor:aurie-local-link?))
-     (mactor-link-point-to mactor)]
-    [(? mactor:encased?)
-     (mactor:encased-val mactor)]
+    [(? mactor:local-link?) (mactor:local-link-point-to mactor)]
+    [(? mactor:aurie-local-link?) (mactor:aurie-local-link-point-to mactor)]
+    [(? mactor:encased?) (mactor:encased-val mactor)]
     [(? mactor:broken?)
      (raise-exception (mactor:broken-problem mactor))]))
 
@@ -764,7 +763,7 @@ Type: Any -> Boolean"
   (match (near-mactor promise-refr)
     [(or (? mactor:local-link?) (? mactor:encased?)) #t]
     [(? mactor:aurie-local-link? mactor)
-     (near-promise-resolved? (mactor-link-point-to mactor)
+     (near-promise-resolved? (mactor:aurie-local-link-point-to mactor)
                              #:broken-ok? broken-ok?)]
     [(? mactor:broken?) broken-ok?]
     [_ #f]))
@@ -772,10 +771,10 @@ Type: Any -> Boolean"
 (define (near-resolved-promise-value promise-refr)
   (define mactor (near-mactor promise-refr))
   (match mactor
-    [(or (? mactor:local-link?) (? mactor:remote-link?))
-     (mactor-link-point-to mactor)]
+    [(? mactor:local-link?) (mactor:local-link-point-to mactor)]
+    [(? mactor:remote-link?) (mactor:remote-link-point-to mactor)]
     [(? mactor:aurie-local-link?)
-     (near-resolved-promise-value (mactor-link-point-to mactor))]
+     (near-resolved-promise-value (mactor:aurie-local-link-point-to mactor))]
     [(? mactor:encased?)
      (mactor:encased-val mactor)]
     [(? mactor:broken?)
@@ -1396,7 +1395,7 @@ Type: Any -> Boolean"
       [(? mactor:aurie-local-link?)
        ;; Local links usually are promises, so message send to where we point to
        (syscaller-send-message syscaller
-                               (mactor-link-point-to orig-mactor)
+                               (mactor:aurie-local-link-point-to orig-mactor)
                                resolve-me
                                args)
        *unspecified*]
@@ -1578,8 +1577,13 @@ Type: Any -> Boolean"
     (define mactor
       (actormap-ref-or-die actormap to-refr))
     (match mactor
-      [(or (? mactor:local-link?) (? mactor:aurie-local-link?))
-       (let ((point-to (mactor-link-point-to mactor)))
+      [(? mactor:local-link?)
+       (let ((point-to (mactor:local-link-point-to mactor)))
+         (if (near-refr? point-to)
+             (syscaller-handle-listen syscaller point-to listener wants-partial?)
+             (syscaller-send-listen syscaller point-to listener wants-partial?)))]
+      [(? mactor:aurie-local-link?)
+       (let ((point-to (mactor:aurie-local-link-point-to mactor)))
          (if (near-refr? point-to)
              (syscaller-handle-listen syscaller point-to listener wants-partial?)
              (syscaller-send-listen syscaller point-to listener wants-partial?)))]
@@ -1945,8 +1949,11 @@ Type: Promise (Optional (Any -> Any))
          ;; TODO: At some point later, probably remove the eager followup listen
          (emit-captp-listen-request! captp-connector followup-question-finder
                                      followup-resolver)))]
-    [(or (? mactor:local-link?) (? mactor:aurie-local-link?))
-     (let ((point-to (mactor-link-point-to mactor)))
+    [(? mactor:local-link?)
+     (let ((point-to (mactor:local-link-point-to mactor)))
+       (syscaller-send-ref-request syscaller type point-to by resolver))]
+    [(? mactor:aurie-local-link?)
+     (let ((point-to (mactor:aurie-local-link-point-to mactor)))
        (syscaller-send-ref-request syscaller type point-to by resolver))]
     [(? mactor:closer?)
      (let ((point-to (mactor:closer-point-to mactor)))
@@ -2809,7 +2816,8 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
            [(? mactor:encased? mactor)
             (make-tagged* 'encase (process-one (mactor:encased-val mactor)))]
            [(? mactor:local-link? mactor)
-            (make-tagged* 'encase (process-one (mactor-link-point-to mactor)))]
+            (make-tagged* 'encase
+                          (process-one (mactor:local-link-point-to mactor)))]
            [_ (make-tagged* 'broken)])]
         [(? ocapn-id?)
          (make-tagged* 'ocapn-id (ocapn-id->string value))]

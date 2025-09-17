@@ -1200,7 +1200,7 @@
 (with-vat b-vat*
   ($ b-cell* ($ b-cell*)))
 
-(test-equal "Aurie doesn't loose information when restoring far refrs"
+(test-equal "Aurie doesn't lose information when restoring far refrs"
   b-cell-portrait
   (b-store-read-proc 'object-portrait b-cell-aurie-id))
 (vat-halt! b-vat*)

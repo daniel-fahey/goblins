@@ -160,8 +160,6 @@
             mactor:aurie-local-link-point-to
             mactor:aurie-local-link-depiction
 
-            mactor-link-point-to
-
             <mactor:encased>
             make-mactor:encased
             mactor:encased?
@@ -468,12 +466,12 @@ Type: Any -> Boolean"
 ;;; those are managed by captp.)
 ;;;
 ;;; The mactor:aurie-local-link is a special type of symlink which is used
-;;; during restoration. It's generally used to point at unresolved promised, it
+;;; during restoration. It's generally used to point at unresolved promises, it
 ;;; includes a special slot to include additional info to help persist it.
 ;;; Currently, Aurie persists unresolved promises as broken, which means far
 ;;; refrs which are resolved initially as unresolved promises, would have become
-;;; broken. This isn't what we want so we can include extra info in this mactor
-;;; which Aurie can then use later when persisting this.
+;;; broken. This isn't what we want so we can include the underlying portrait
+;;; data in this mactor which Aurie can then use later when persisting this.
 ;;;
 ;;; See also:
 ;;;  - The comments above each of these below
@@ -588,7 +586,7 @@ Type: Any -> Boolean"
   mactor:local-link?
   (point-to mactor:local-link-point-to))
 
-;; Special local link type used by aurie. It includes a slot (depiction) which
+;; Special local link type used by aurie. It includes a field (depiction) which
 ;; can hold additional info to help aurie persist it correctly. See the world
 ;; of mactors comment for a better explanation.
 (define-record-type <mactor:aurie-local-link>
@@ -596,12 +594,6 @@ Type: Any -> Boolean"
   mactor:aurie-local-link?
   (point-to mactor:aurie-local-link-point-to)
   (depiction mactor:aurie-local-link-depiction))
-
-(define (mactor-link-point-to mactor)
-  (match mactor
-    (($ <mactor:local-link> point-to) point-to)
-    (($ <mactor:aurie-local-link> point-to _) point-to)
-    (($ <mactor:remote-link> point-to) point-to)))
 
 ;; A promise that has resolved to some value
 (define-record-type <mactor:encased>
