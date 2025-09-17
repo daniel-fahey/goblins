@@ -101,7 +101,7 @@
   "I am a red robot with 100 hit points left. Lets rumble!"
   (actormap-peek restored-am1 restored-roadblock))
 
-;; This is a good sanity check and verifies define-actor without resturation.
+;; This is a good sanity check and verifies define-actor without restoration.
 (test-equal
     "Check first restored robot has same output as non-restored robot"
   (actormap-peek am1 smashtron500)

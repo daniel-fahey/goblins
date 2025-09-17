@@ -1179,8 +1179,8 @@
 
 ;; Far refrs are restored as promises which asynchronously wait on the aurie
 ;; registry. This is so that vats aren't dependent on each other when restoring.
-;; When a object with a far refr persists before the promises resolve we
-;; shouldn't loose the far refr info we knew at restoration.
+;; When an object with a far refr persists before the promises resolve we
+;; shouldn't lose the far refr info we knew at restoration.
 (define persistence-registry
   (with-vat aurie-vat
     (spawn ^persistence-registry)))

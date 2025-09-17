@@ -51,7 +51,7 @@ which are named. The known sealers are an alist of:
 
 (unique name . spawn-sealer-triplet)
 
-When persisted the unique name is serialized and upon resturation it
+When persisted the unique name is serialized and upon restoration it
 is used.
 
 The namespace argument should be a symbol which is unique to this
@@ -63,7 +63,7 @@ Optionally a default-make-sealer-triplet can be provided which will be
 the default when spawning a new sealer triplet with the
 spawn-sealer-triplet function returned if no specific one is
 provided."
-  
+
   (define known-sealer-triplet-ids
     (alist-switch-direction known-sealers))
 
@@ -93,7 +93,7 @@ provided."
     #:frozen
     (define (unseal-it value)
       ($ triplet 'unseal ($ value)))
-    
+
     (lambda (sealed-value)
       (if (local-object-refr? sealed-value)
           (unseal-it sealed-value)
@@ -109,7 +109,7 @@ provided."
       (if (promise-refr? maybe-sealed)
           (on maybe-sealed is-sealed? #:promise? #t)
           (is-sealed? maybe-sealed))))
-  
+
   (define* (spawn-sealer-triplet #:optional name
                                  #:key (make-sealer-triplet default-make-sealer-triplet))
     "Return seal, unseal, and check capabilities.
@@ -131,7 +131,7 @@ Type: (Optional (U String Symbol))
     (values (spawn-named 'sealer ^sealer sealer-triplet)
             (spawn-named 'unsealer ^unsealer sealer-triplet)
             (spawn-named 'sealed? ^sealed? sealer-triplet)))
-  
+
   (define sealers-env
     (make-persistence-env
      `(((,namespace ^sealer-triplet) ,^sealer-triplet)

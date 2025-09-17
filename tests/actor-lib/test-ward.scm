@@ -44,7 +44,7 @@
       (bcom (^inbox bcom mailbox-name
                     admin-warden (cons msg messages)))]
      [(mailbox-name) mailbox-name]))
-  
+
   (define revoked-beh
     (lambda _ (error "revoked")))
 
@@ -182,12 +182,12 @@
 (define-values (am* inbox* admin-incanter*)
   (persist-and-restore am inbox-env inbox admin-incanter))
 
-(test-equal "Check warding extends work after resturation"
+(test-equal "Check warding extends work after restoration"
  "My first name"
  (actormap-peek am* inbox* 'mailbox-name))
 
 (test-error
- "Test we can't set the name without an incanter after resturation"
+ "Test we can't set the name without an incanter after restoration"
  #t
  (actormap-poke! am* inbox* 'set-name "A brand new name"))
 

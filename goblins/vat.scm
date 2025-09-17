@@ -1401,7 +1401,7 @@ registry to allow for both this vat and others who share the same registry
 to both persist and rehydrate local far refrs (i.e. refrs on other local vats).
 This value should be the refr of a spawned ^persistence-registry object.
 
-If UPGRADE is provided, upon resturation the vat will check the version of the
+If UPGRADE is provided, upon restoration the vat will check the version of the
 graph roots read from the store, if that version does not match VERSION then the
 upgrade procedure will be called, this procedure should take in the current
 version of the roots and then the roots and return two values, the new version

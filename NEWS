@@ -91,8 +91,8 @@ move away from using them as they will be removed in future releases:
   goblins process was stopped during updating the file, the data would become
   currupt. This fixes that by writing to temporary file and then atomically
   replacing the real store file preventing this corruption.
-- Previously messages sent during resturation which resulted in an error
-  would break resturation. This is now fixed to handle these errors properly.
+- Previously messages sent during restoration which resulted in an error
+  would break restoration. This is now fixed to handle these errors properly.
 - When sending messages to a promise chained with a promise for messages sent
   over CapTP did not result in promise pipelining behavior expected. This is now
   fixed to properly handle the promises chaining situation.
