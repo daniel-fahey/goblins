@@ -1141,6 +1141,8 @@
    (lambda () (spawn ^cell (list a-cell a-cell)))
    b-vat-store
    #:persistence-registry persistence-registry))
+(vat-halt! a-vat)
+(vat-halt! b-vat)
 
 ;; Now restore from the same memory stores using an aurie registry
 (define persistence-registry*
@@ -1172,6 +1174,36 @@
      (and (with-vat b-vat* (far-refr? hopefully-far-refr1))
           (eq? hopefully-far-refr1 a-cell*)
           (eq? hopefully-far-refr1 hopefully-far-refr2))]))
+(vat-halt! a-vat*)
+(vat-halt! b-vat*)
+
+;; Far refrs are restored as promises which asynchronously wait on the aurie
+;; registry. This is so that vats aren't dependent on each other when restoring.
+;; When a object with a far refr persists before the promises resolve we
+;; shouldn't loose the far refr info we knew at resturation.
+(define persistence-registry
+  (with-vat aurie-vat
+    (spawn ^persistence-registry)))
+(define-values (b-vat* b-cell*)
+  (spawn-persistent-vat
+   cell-env
+   (lambda () (error "Should be being restored from the memory"))
+   b-vat-store
+   #:persistence-registry persistence-registry))
+(define b-store-read-proc (persistence-store-read-proc b-vat-store))
+(define b-cell-aurie-id (local-object-refr-aurie-id b-cell*))
+(define b-cell-portrait (b-store-read-proc 'object-portrait b-cell-aurie-id))
+
+;; b-cell contains a list with far-refrs to a-cell (a-cell a-cell).
+;; Set the same contents to b-cell as it has now to cause it to `bcom` and thus
+;; persist. We can then check to see it's portrait is the same.
+(with-vat b-vat*
+  ($ b-cell* ($ b-cell*)))
+
+(test-equal "Aurie doesn't loose information when restoring far refrs"
+  b-cell-portrait
+  (b-store-read-proc 'object-portrait b-cell-aurie-id))
+(vat-halt! b-vat*)
 
 ;; Test upgrading the roots of a vat
 (define memory (make-memory-store))

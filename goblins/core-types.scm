@@ -154,6 +154,14 @@
             mactor:local-link?
             mactor:local-link-point-to
 
+            <mactor-aurie-local-link>
+            make-mactor:aurie-local-link
+            mactor:aurie-local-link?
+            mactor:aurie-local-link-point-to
+            mactor:aurie-local-link-depiction
+
+            link-point-to
+
             <mactor:encased>
             make-mactor:encased
             mactor:encased?
@@ -418,23 +426,23 @@ Type: Any -> Boolean"
 ;;;
 ;;; Here are the categories and transition states:
 ;;;
-;;;        Unresolved                     Resolved
-;;;  __________________________  ___________________________
-;;; |                          ||                           |
+;;;         Unresolved                      Resolved
+;;;  ____________________________  ___________________________
+;;; |                            ||                           |
 ;;;
-;;;                 .----------------->.        [object]
-;;;                 |                  |
-;;;                 |    .--.          |    .-->[local-link]
-;;;     [naive]-->. |    v  |          |    |
-;;;               +>+->[closer]------->'--->+-->[encased]
-;;;  [question]-->' |       |               |
-;;;                 |       |               '-->[broken]
-;;;                 '------>'--->[remote-link]    ^
-;;;                                  |            |
-;;;                                  '----------->'
+;;; [aurie-local-link] .------------------->.        [object]
+;;;                    |                    |
+;;;                    |    .--.            |    .-->[local-link]
+;;;     [naive]----->. |    v  |            |    |
+;;;                  +>+->[closer]--------->'--->+-->[encased]
+;;;    [question]--->' |       |                 |
+;;;                    |       |                 '-->[broken]
+;;;                    '------>'--->[remote-link]      ^
+;;;                                     |              |
+;;;                                     '------------->'
 ;;;
-;;; |________________________________________||_____________|
-;;;                  Eventual                     Settled
+;;; |__________________________________________||_____________|
+;;;                    Eventual                     Settled
 ;;;
 ;;; The four major categories of mactors:
 ;;;
@@ -458,6 +466,11 @@ Type: Any -> Boolean"
 ;;; resolves to a local object, it must point to it via mactor:local-link.)
 ;;; (remote-refrs of course never correspond to a mactor on this peer;
 ;;; those are managed by captp.)
+;;;
+;;; The mactor:aurie-local-link is a special type of symlink which is used
+;;; during resturation. This is because far refrs are restored as promises
+;;; which are only resolved when the far vat restores and the refrs are
+;;; registered with the ^persistence-registry.
 ;;;
 ;;; See also:
 ;;;  - The comments above each of these below
@@ -571,6 +584,20 @@ Type: Any -> Boolean"
   (make-mactor:local-link point-to)
   mactor:local-link?
   (point-to mactor:local-link-point-to))
+
+;; Special aurie type used during resturation. These point at unresolved
+;; Promises.
+(define-record-type <mactor:aurie-local-link>
+  (make-mactor:aurie-local-link point-to depiction)
+  mactor:aurie-local-link?
+  (point-to mactor:aurie-local-link-point-to)
+  (depiction mactor:aurie-local-link-depiction))
+
+(define (link-point-to mactor)
+  (match mactor
+    (($ <mactor:local-link> point-to) point-to)
+    (($ <mactor:aurie-local-link> point-to _) point-to)
+    (($ <mactor:remote-link> point-to) point-to)))
 
 ;; A promise that has resolved to some value
 (define-record-type <mactor:encased>
