@@ -232,26 +232,23 @@ the most recent version"
                             (1+ latest-churn-id)
                             0))
          (bloblin-file-path (make-bloblin-file-path
-                             bloblin-dir this-churn-id)))
-    ;; TODO: We should write to a temp file first then move it over
-
-
-    ;; Maybe an unnecessary test; including for robustness for
-    ;; now. Regardless if this existed, it *should have* appeared in
-    ;; churn-ids.
-    (when (file-exists? bloblin-file-path)
-      (error "Bloblin file mysteriously appeared before opening, multiple writers possible"))
-    (let ((bloblin-file
-           (open-file bloblin-file-path "wb+")))
+                             bloblin-dir this-churn-id))
+         (bloblin-tmp-file-path (string-append bloblin-file-path "-XXXXXX")))
+    (let* ((bloblin-tmp-file
+            (mkstemp (string-append bloblin-file-path "-XXXXXX")))
+           (bloblin-tmp-file-path (port-filename bloblin-tmp-file)))
       ;; Write the header
       (syrup-write (make-tagged* 'bloblin0
                                  roots
                                  roots-version)
-                   bloblin-file)
-      (force-output bloblin-file)
+                   bloblin-tmp-file)
+      ;; Close the file and move it into the correct place. This is to prevent
+      ;; any situations where a partial header might be written and cause issues
+      (close-port bloblin-tmp-file)
+      (rename-file bloblin-tmp-file-path bloblin-file-path)
 
       ;; Now return the new initialized bloblin-state
-      (make-bloblin-state bloblin-file
+      (make-bloblin-state (open-file bloblin-file-path "wb+")
                           #f
                           vat-aurie-id
                           (make-hash-table) (make-hash-table)
@@ -461,7 +458,7 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
 ;; An efficient way to get the most recent generation, which is the
 ;; most common case, based on indexed data in the bloblin-state. We
 ;; look at the mapping of all known aurie-ids to their most recent
-;; geneartions. From there we look up the file positions of those
+;; generations. From there we look up the file positions of those
 ;; generations and we read only the relevant generations.
 (define (bloblin-get-latest-generation bloblin-state)
   (define (%bloblin-get-latest-generation)
