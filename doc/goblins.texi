@@ -301,7 +301,7 @@ a mapping of @strong{References} to @strong{Object Behavior}.
 
 @menu
 * The ``vat model'' of computation::
-* Cooporative multitasking within vats::
+* Cooperative multitasking within vats::
 @end menu
 
 @node The ``vat model'' of computation
@@ -369,8 +369,8 @@ SwingSet} kernel), Goblins brings some novel contributions to the
 table in terms of transactionality and time-travel debugging,
 enhancing an already powerful distributed programming paradigm.
 
-@node Cooporative multitasking within vats
-@section Cooporative multitasking within vats
+@node Cooperative multitasking within vats
+@section Cooperative multitasking within vats
 
 An individual vat is not parallel, i.e. only one object within a vat
 can be working at any given time, however vats can work with one
@@ -387,7 +387,7 @@ Lets take the following example which has two actors @code{^sleeper},
 which sleeps for 10 seconds then returns @code{'awake}, and
 @code{^hello} which just returns the symbol @code{'hello}. Both actors
 are spawned within the same vat, we then use another vat to invoke
-both of them at the same time ascynhronously:
+both of them at the same time asynchronously:
 
 @lisp
 (use-modules (goblins)

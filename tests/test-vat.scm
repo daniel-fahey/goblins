@@ -951,7 +951,7 @@
 ;;   (read-memory-store))
 
 ;; (test-equal "Correct number of portraits exist after spawning persistent vat"
-;;   4 ;; 2 persistent-greeters + 2 incremeneters
+;;   4 ;; 2 persistent-greeters + 2 incrementers
 ;;   (hash-count (const #t) portraits))
 
 ;; (test-equal "Correct number of roots returned after spawning persistent vat"
@@ -987,7 +987,7 @@
 ;;   (with-vat persistent-vat1
 ;;     ($ bob1 "Carol"))
 ;;   "Hello Carol, my name is Bob (called 1).")
-  
+
 ;; Test persisting an actor which introduces new actors
 ;; not previously in the graph.
 (define-actor (^list bcom #:optional [items '()])
@@ -1026,7 +1026,7 @@
 
 (define-values (vat-aurie-id roots-version portraits _roots)
   (read-from-store 'graph-and-slots))
-  
+
 (test-equal "Check the version is saved properly"
   72
   roots-version)

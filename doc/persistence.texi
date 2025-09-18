@@ -970,7 +970,7 @@ provided @var{envs}.
 
 @end deffn
 
-@deffn {Syntax} namespace-env nameaspace objects @dots{}
+@deffn {Syntax} namespace-env namespace objects @dots{}
 
 Makes a new persistence environment with all of the objects provided in
 @var{objects} namespaced within @var{namespace}.

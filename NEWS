@@ -16,7 +16,7 @@ Hoot.
 **** Fixed a bug where multiple sessions between two OCapN peers could exist
 
 It's an important property of OCapN that only one session can exist between two
-peers. OCapN has machinary to ensure this but due to a bug with how we were
+peers. OCapN has machinery to ensure this but due to a bug with how we were
 treating OCapN Locators (i.e. `(goblins ocapn ids)`), multiple sessions could
 be established if only the hints differed.
 
@@ -89,7 +89,7 @@ move away from using them as they will be removed in future releases:
   populate the correct session information and also check this information.
 - When using the =(goblins persistence-store syrup)= store, sometimes if the
   goblins process was stopped during updating the file, the data would become
-  currupt. This fixes that by writing to temporary file and then atomically
+  corrupt. This fixes that by writing to temporary file and then atomically
   replacing the real store file preventing this corruption.
 - Previously messages sent during restoration which resulted in an error
   would break restoration. This is now fixed to handle these errors properly.
@@ -179,7 +179,7 @@ This is useful for automated testing.
 This meta-netlayer now propagates connection severance in the
 netlayers it manages.
 
-**** Added new =timeout= procecurse
+**** Added new =timeout= procedure
 
 The =timeout= procedure is for creating promises that resolve after a
 certain amount of time has passed.  =timeout= can be found in the new
@@ -449,7 +449,7 @@ and receive promises like you'd expect from Goblins' actors.
 - Fix race condition during in churns when using =call-with-vat=.
 - Fix timeout issue in some tests caused by
   =resolve-vow-and-return-result=
-- Fix issue sending =*unspecified*= accross CapTP.
+- Fix issue sending =*unspecified*= across CapTP.
 - Fix ordering issues for expected and actual in tests.
 - Improves error messages when invalid OCapN URIs are parsed.
 *** API Changes
@@ -691,7 +691,7 @@ Guile Goblins has been updated to speak the OCapN protocol, finally
 allowing Guile users to be able to easily make awesome
 object-capability-secure peer-to-peer programs!  Furthermore, the
 OCapN implementation is compatible with Racket Goblins, allowing both
-flavors of Goblins to interopate with each other.
+flavors of Goblins to interoperate with each other.
 
 **** Vats are now record types supporting custom event loops
 

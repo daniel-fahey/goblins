@@ -829,7 +829,7 @@ methods directly, as in:
 > (define (^hello-goodbye-how-are-you bcom)
     new-behs)
 > (define hello-goodbye-how-are-you
-    (spawn ^hellow-goodbye-how-are-you))
+    (spawn ^hello-goodbye-how-are-you))
 > ($ hello-goodbye-how-are-you 'how-are-you)
 => "How are you?"
 @end lisp

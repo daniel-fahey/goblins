@@ -24,6 +24,6 @@
                 (if found-method
                     (apply found-method args)
                     (error 'connector-dispatcher-error
-                           "Unnown method: ~a" method))))))
+                           "unknown method: ~a" method))))))
       (set-procedure-property! these-methods 'name 'id)
       these-methods)))

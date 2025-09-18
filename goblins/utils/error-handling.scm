@@ -77,5 +77,5 @@
       (cond-expand
        (guile (apply make-stack args))
        ;; TODO: Ideally we'd be trimming the stack to get rid
-       ;; of some core hoot and goblins machinary.
+       ;; of some core hoot and goblins machinery.
        (hoot (capture-stack (stack-height)))))))

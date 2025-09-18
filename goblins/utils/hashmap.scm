@@ -246,7 +246,7 @@
                      (lp rest))))))))))))
 
 (define (hashmap-set hashmap key val)
-  "Extend @var{hashmap} by assocating @var{key} with @var{val} and
+  "Extend @var{hashmap} by associating @var{key} with @var{val} and
 return a hashmap."
   (match hashmap
     (($ <hashmap> root hash equiv)

@@ -20,7 +20,7 @@
 ;; This timing report is more or less lifted form guile's `,time' meta command
 ;; located in guile/module/system/repl/command.scm
 ;; commit: d8df317bafcdd9fcfebb636433c4871f2fab28b2
-;; Licence: LGPL v3.
+;; License: LGPL v3.
 (define (time-it thunk)
   (let* ((gc-start (gc-run-time))
          (real-start (get-internal-real-time))

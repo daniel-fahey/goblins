@@ -233,7 +233,7 @@
   op:deliver-only?
   op:deliver-only marshall::op:deliver-only unmarshall::op:deliver-only
   ;; Position in the table for the target
-  ;; (sender's imports, reciever's exports)
+  ;; (sender's imports, receiver's exports)
   (to-desc op:deliver-only-to-desc)
    ;; Either arguments to the method or to the procedure, depending
    ;; on whether method exists
@@ -376,7 +376,7 @@
    ;;   Note that currently this requires a certain amount of VatTP
    ;;   crossover, since we have to give a way to connect to VatTP...
   (exporter-location desc:handoff-give-exporter-location)
-   ;; session: which session betweein gifter and exporter at the location
+   ;; session: which session between gifter and exporter at the location
    ;;   : bytes?
   (gifter-exporter-session desc:handoff-give-gifter-exporter-session)
    ;; gifter-side: which "named side" of the session is the gifter
@@ -521,7 +521,7 @@
   (label cmd-send-tagged-ref-label)
   (answer-this-question cmd-send-tagged-ref-answer-this-question))
 
-;; We don't want to leak information about exceptions across CapTP boundries.
+;; We don't want to leak information about exceptions across CapTP boundaries.
 ;; Eventually we want to have specific intentional error sharing across CapTP,
 ;; but until then we emit a mystery exception without additional information.
 ;; Leaking data is a security issue.

@@ -1016,7 +1016,7 @@ Takes a portrait of a single object returning the portrait data"
       (define-meta-command ((vat-replace-behavior goblins) repl #:optional new-env)
         "vat-replace-behavior [NEW-PERSISTENCE-ENV]
 Upgrades the behavior in the vat with new behavior in either the current environment
-or the provided enviroment."
+or the provided environment."
         (with-goblins-error-messages
          (if new-env
              (vat-replace-behavior! (current-vat*) (repl-eval repl new-env))

@@ -25,7 +25,7 @@
 (define-values (read write stop!)
   (actormap-run! am spawn-inbox))
 
-;; Can write a message and then recieve it
+;; Can write a message and then receive it
 (actormap-poke! am write 'foo)
 (test-equal "Message written to inbox can be read"
   'foo

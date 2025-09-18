@@ -261,18 +261,18 @@
 ;;; S. Grannovetter's "The Strength of Weak Ties" paper.  The connection is
 ;;; that while the "Weak Ties" paper was describing the kinds of social
 ;;; connections between people (Alice knows Bob, Bob knows Carol), similar
-;;; patterns arise in ocap systems (the object Alice has a refernce to Bob,
+;;; patterns arise in ocap systems (the object Alice has a reference to Bob,
 ;;; and Bob has a reference to Carol).
 ;;;
 ;;; With that in mind, we're now ready to look at things more structurally.
-;
-;
-;                  .============================.
-;                  | Goblins abstraction layers |
-;                  '============================'
-;
-; Generally, things look like so:
-;
+;;;
+;;;
+;;;                  .============================.
+;;;                  | Goblins abstraction layers |
+;;;                  '============================'
+;;;
+;;; Generally, things look like so:
+;;;
 ;;;   (peer (vat (actormap {refr: (mactor object-handler)})))
 ;;;
 ;;; However, we could really benefit from looking at those in more detail,
@@ -312,7 +312,7 @@
 ;;;    |    |    both asynchronous messages + promises via `<-` and
 ;;;    |    |    classic synchronous call-and-return invocations via `$`.
 ;;;    |    |    However, while any actor can call any other actor via
-;;;    |    |    <-, only near actors may use $ for synchronous call-retun
+;;;    |    |    <-, only near actors may use $ for synchronous call-return
 ;;;    |    |    invocations.  In the general case, a turn starts by
 ;;;    |    |    delivering to an actor in some vat a message passed with <-,
 ;;;    |    |    but during that turn many other near actors may be called
@@ -423,7 +423,7 @@
 ;;; There are a few kinds of references, explained below:
 ;;;
 ;;;                                     live refrs :
-;;;                     (runtime or captp session) : offline-storeable
+;;;                     (runtime or captp session) : offline-storable
 ;;;                     ========================== : =================
 ;;;                                                :
 ;;;                local?           remote?        :
@@ -435,13 +435,13 @@
 ;;;
 ;;; On the left hand side we see live references (only valid within this
 ;;; process runtime or between peers across captp sessions) and
-;;; offline-storeable references (sturdy refrs, a kind of bearer URI,
+;;; offline-storable references (sturdy refrs, a kind of bearer URI,
 ;;; and certificate chains, which are like "deeds" indicating that the
 ;;; possessor of some cryptographic material is permitted access).
 ;;;
-;;; All offline-storeable references must first be converted to live
+;;; All offline-storable references must first be converted to live
 ;;; references before they can be used (authority to do this itself a
-;;; capability, as well as authority to produce these offline-storeable
+;;; capability, as well as authority to produce these offline-storable
 ;;; objects).
 ;;;
 ;;; Live references subdivide into local (on the same peer) and
@@ -531,7 +531,7 @@ Type: TransActormap -> Void"
     (define parent (transactormap-data-parent tm-data))
     (define parent-mtype (actormap-metatype parent))
     ;; TODO: Should we actually return the root-wht instead,
-    ;;   since that's what we're comitting to?
+    ;;   since that's what we're committing to?
     (define root-actormap
       (cond
        [(eq? parent-mtype whactormap-metatype)
@@ -1024,7 +1024,7 @@ Type: Any -> Boolean"
          ;; Let the fulfill-proc set up how we resolve this
          ;; (see the `await' procedure for an example)
          (fulfill-proc waiting-resolver)
-         ;; We wait on the coroutine to see if it succeds or not,
+         ;; We wait on the coroutine to see if it succeeds or not,
          ;; and re-awaken to the continuation set up by `await*'
          ;; which will act appropriately depending on whether
          ;; we tell it this succeeds or fails.
@@ -1212,8 +1212,8 @@ Type: Any -> Boolean"
           (make-mactor:local-link resolve-to-val)]
          [(? remote-object-refr?)
           ;; The promise resolver checks for remote-object-refrs and breaks
-          ;; the promise if it occurs. The CapTP severence is sealed to
-          ;; ensure it's only CapTP severence which can break it. Use the
+          ;; the promise if it occurs. The CapTP severance is sealed to
+          ;; ensure it's only CapTP severance which can break it. Use the
           ;; partition unsealer/tm from CapTP for this purpose.
           (let* ([connector (remote-refr-captp-connector resolve-to-val)]
                  [partition-unsealer-tm-cons (connector 'partition-unsealer-tm-cons)])
@@ -1330,12 +1330,12 @@ Type: Any -> Boolean"
     [(? mactor:remote-link? refr)
      (let* ((eventual (mactor:remote-link-eventual refr))
             (tm? (m~eventual-resolver-tm? eventual)))
-       ;; TODO: Do we want to pass through the CapTP severence reason
+       ;; TODO: Do we want to pass through the CapTP severance reason
        ;; to the broken promise or leave as it is now...
        (if (tm? sealed-problem)
            (actormap-set! actormap promise-id
-                          (make-mactor:broken "Broken due to CapTP severence"))
-           (error "Only CapTP severence can break a resolved promise")))]
+                          (make-mactor:broken "Broken due to CapTP severance"))
+           (error "Only CapTP severance can break a resolved promise")))]
     [#f (error "no actor with this id")]
     [_ (error "can only resolve eventual references")]))
 
@@ -1683,7 +1683,7 @@ Type: Any -> Boolean"
   (define sys (make-syscaller am))
   ;; The purpose of closing things is to detect certain kinds of errors
   ;; where the syscaller is captured and remains open post-execution.
-  ;; However, it's kind of probabalistic to do this at all, since the
+  ;; However, it's kind of probabilistic to do this at all, since the
   ;; open/closed nature is temporal... still, this has helped identify
   ;; some bugs so it's probably worth keeping.
   ;; However, we now not only close on leaving the dynamic wind, we also
@@ -2067,7 +2067,7 @@ Type: Promise (Optional (Any -> Any))
     (bcom (^resolver bcom promise sealer #:self self)))
 
   ;; Promises resolved to a remote-link value can be resolved again
-  ;; by breaking them. This should be due to a CapTP severence occuring.
+  ;; by breaking them. This should be due to a CapTP severance occurring.
   (define (remote-resolved-beh method val)
     (define sys (get-syscaller-or-die))
     (case method
@@ -2086,8 +2086,8 @@ Type: Promise (Optional (Any -> Any))
          ;; If it's a reference to a remote object, ask to be informed if the
          ;; CapTP session severs, then break the promise...
          (on-sever val
-                   (lambda (sealed-severence)
-                     ($ self 'break sealed-severence))
+                   (lambda (sealed-severance)
+                     ($ self 'break sealed-severance))
                    #:sealed? #t)
          (syscaller-fulfill-promise sys promise (sealer val))
          (bcom remote-resolved-beh))
@@ -2272,7 +2272,7 @@ Type: Actormap Actor Any ... -> Any"
 
 (define (actormap-reckless-poke! actormap to-refr . args)
   "Invoke TO-REFR with ARGS in ACTORMAP, committing the results
-directly to ACTORMAP reather than creating a new generation. Return
+directly to ACTORMAP rather than creating a new generation. Return
 the results.
 
 Type: Actormap Actor Any ... -> Any"
@@ -2313,7 +2313,7 @@ results.
 If RECKLESS? is #t, operate directly in ACTORMAP without creating a
 new generation.
 
-Type: Actormap (-> Any) (Optioan (#:reckless? Boolean)) -> Any"
+Type: Actormap (-> Any) (Optional (#:reckless? Boolean)) -> Any"
   (define actor-refr
     (actormap-spawn! actormap
                      (lambda (bcom)
@@ -2359,7 +2359,7 @@ If provided, ERROR-HANDLER is a procedure to handle exceptions.
 If RECKLESS? is #t, operate directly in ACTORMAP without creating a
 new generation; otherwise create a new generation of Actormap. If
 CATCH-ERRORS? is #t, capture the stack and abort to a prompt;
-otherwise propogate the error.
+otherwise propagate the error.
 
 Type: Actormap Message (Optional (#:error-handler (Exception -> Any)))
 (Optional (#:reckless? Boolean)) (Optional (#:catch-errors? Boolean))
@@ -2459,7 +2459,7 @@ Type: Actormap Message (Optional (#:error-handler (Exception -> Any)))
 send messages to far objects, then dispatch messages to far objects.
 
 If CATCH-ERRORS is #t, collect the stack and abort to a prompt on
-errors; otherwise, propogate errors.
+errors; otherwise, propagate errors.
 
 If MAKE-TRANSACTORMAP? is #t, create a new generation for the
 operation; otherwise, act directly in AM.
@@ -2541,7 +2541,7 @@ results, a reference to an Actormap representing the new generation,
 and any messages generated.
 
 If CATCH-ERRORS? is #t, capture the stack and abort to a prompt on
-error; otherwise, propogate the error.
+error; otherwise, propagate the error.
 
 Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) ->
 (Values Any Actormap (List Message))"
@@ -2567,7 +2567,7 @@ resolve THUNK without sending messages to far objects, then send out
 messages. Return the results.
 
 If CATCH-ERRORS? is #t, capture the stack and abort to a prompt on
-error; otherwise, propogate the error.
+error; otherwise, propagate the error.
 
 Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (define (churn-run-values->list . args)
@@ -2794,7 +2794,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
              (hashq-set! new-child-objs value #t))
            (make-tagged* 'near slot))]
         [(and (? am-far-refr? refr) (? local-object-refr?))
-         ;; Far refrs need to be serailized as a tuple of:
+         ;; Far refrs need to be serialized as a tuple of:
          ;; (<vat-aurie-id> <refr-aurie-id>)
          (let* ((vat-connector (local-object-refr-vat-connector refr))
                 (vat-aurie-id (and vat-connector (vat-connector 'aurie-vat-id)))

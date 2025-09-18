@@ -32,7 +32,7 @@
   (strong-random-bytes 32))
 
 (define (refr->storable-id local-refr)
-  "Convert a local-refr to a persistence object identifer."
+  "Convert a local-refr to a persistence object identifier."
   ;; If the nonce registry stored and restored by the persistence system then
   ;; local refrs would be woken up as promises for far local-refrs. This causes
   ;; problems for looking them up in the future as the refr and promise won't be

@@ -60,7 +60,7 @@ commands:
 
 Note that =./configure= uses a default prefix. You can check the load path with ~guile -c "(display %load-path)";~.
 E.g. if this shows =(/usr/local/share/guile/3.0 /usr/local/share/guile/site/3.0 /usr/local/share/guile/site /usr/local/share/guile)=,
-you can set the corrrect prefix with ~./configure GUILE=$(which guile) --prefix=/usr/local~.
+you can set the correct prefix with ~./configure GUILE=$(which guile) --prefix=/usr/local~.
 
 * Contributing
 

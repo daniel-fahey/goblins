@@ -61,7 +61,7 @@
                (eight (<- doubler four)))
        (+ four eight)))))
 
-(test-equal "on-each will iterater over each item the vow resolves to"
+(test-equal "on-each will iterate over each item the vow resolves to"
   #(ok (3 2 1))
   (resolve-vow-and-return-result
    a-vat

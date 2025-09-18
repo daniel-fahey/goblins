@@ -48,11 +48,11 @@
    am
    registry 'register bob))
 
-(test-assert "swiss nums for different objects are not the same"
+(test-assert "swissnums for different objects are not the same"
   (not (equal? alice-swiss-num
                bob-swiss-num)))
 
-(test-equal "the same object registered twice will yeild the same swiss-num"
+(test-equal "the same object registered twice will yield the same swissnum"
   alice-swiss-num
   (actormap-peek am registry 'register alice))
 

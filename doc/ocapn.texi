@@ -541,7 +541,7 @@ persistence system, an example of this is:
     (spawn-persistent-vat
      (make-persistence-env #:extends (list onion-netlayer-env captp-env))
      (lambda ()
-       (define netlyaer
+       (define netlayer
          (spawn ^onion-netlayer))
        (values netlayer
                (spawn-mycapn netlayer)))
@@ -800,7 +800,7 @@ The @var{url} argument allows for specifying a custom URL for use as a
 hint when generating OCapN sturdyrefs.  By default, the URL looks like
 @code{ws(s)://$host:$port}. Custom URLs are often necessary, such as
 in the case of a relay that uses @url{https://nginx.org/,nginx} as the
-publicly accesible web server with a reverse proxy to the netlayer
+publicly accessible web server with a reverse proxy to the netlayer
 bound on the loopback device.  @var{url} is also necessary when the
 server is bound to a @var{host} address of @code{0.0.0.0} to produce a
 usable address for the sturdyref hint.
@@ -1032,7 +1032,7 @@ in with the @var{#:mycapn} argument.
 For remote references, it can be useful to know when the connection to
 be the remote peer has broken (intentionally or otherwise).  In
 Goblins, this is known as a @emph{sever} event.
-Severence can be detected using @code{on-sever} which is provided by
+Severance can be detected using @code{on-sever} which is provided by
 the @code{(goblins)} module.
 
 @deffn {Procedure} on-sever remote-refr handler
@@ -1047,9 +1047,9 @@ a procedure or Goblins object. @var{handler} is called with two
 arguments: the severance type (a symbol) and the reason (a string).
 
 @code{on-sever} returns to the caller a Goblins object which when
-invoked cancels the interest in severence.
+invoked cancels the interest in severance.
 
-NOTE: If severance has already occured when calling @code{on-sever},
+NOTE: If severance has already occurred when calling @code{on-sever},
 the @code{handler} will be informed immediately.
 
 @end deffn

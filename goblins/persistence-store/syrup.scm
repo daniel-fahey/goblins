@@ -49,8 +49,8 @@
            (roots-version 0))
        (make-portrait-graph current-data-version new-aurie-vat-id
                             roots-version portraits slots))]
-    ;; There was a development branch with aurie-vat-id but no ugprade code,
-    ;; lets add that just incase.
+    ;; There was a development branch with aurie-vat-id but no upgrade code,
+    ;; lets add that just in case.
     ;; TODO: This development branch probably was only used by spritely, we
     ;; probably can remove this in a few versions.
     [(aurie-vat-id 0 portraits slots)
@@ -102,7 +102,7 @@
            (lambda (key value)
              (hashq-set! portraits-as-hash-table key value))
            portraits-as-ghash)
-            
+
           (values (portrait-graph-aurie-vat-id portrait-graph)
                   (portrait-graph-roots-version portrait-graph)
                   portraits-as-hash-table
@@ -152,5 +152,5 @@
       (unless (and saved-portraits saved-slots)
         (error "Cannot read an object from an empty store"))
       (hashq-ref saved-portraits slot)]))
-  
+
   (make-persistence-store read-proc write-proc))

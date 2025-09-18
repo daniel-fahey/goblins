@@ -161,7 +161,7 @@
 ;; But we shouldn't be able to act on greety against the uncommitted
 ;; actormap, because nothing happened there...
 (test-error (actormap-peek am greety "Marge"))
-;; But now let's commmit it...
+;; But now let's commit it...
 (transactormap-merge! greety-tm)
 ;; And now we should be able to.
 (test-equal "Check actor can be used (peek'ed) after committed to transactormap"
@@ -279,7 +279,7 @@
       (format #f "*Vroom vroom!*  You drive your ~a ~a ~a!"
               color company-name model)))
   (define (make-car model color)
-    (error "Your car exploded on the factory floor!  Ooops!")
+    (error "Your car exploded on the factory floor!  Oops!")
     (spawn ^car model color))
   make-car)
 

@@ -126,7 +126,7 @@ commands are processed.  When the fiber halts, CLEANUP is run."
 (define* (^read-write-io bcom wrapped #:key init cleanup)
   "Spawn a read and write interface for running commands over WRAPPED
 
-Like the ^io object, this spawns a seperate fiber which processes one
+Like the ^io object, this spawns a separate fiber which processes one
 command at a time. This however allows for both reading and writing by
 having a 'read method (taking in a procedure as its only argument),
 and a 'write method (also taking a single procedure as its only

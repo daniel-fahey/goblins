@@ -21,6 +21,6 @@
 
 The returned promise will be fulfilled with @var{result}."
   ;; Note: This is assuming fibers based vats which might not be a great
-  ;; assumption to be made for a general utility like a sleep prcoedure.
+  ;; assumption to be made for a general utility like a sleep procedure.
   ;; Maybe in the future we'd want to make this more general.
   (spawn-fibrous-vow (lambda () (sleep seconds) result)))

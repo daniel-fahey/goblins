@@ -13,7 +13,7 @@ so as to not lose it.
      - tor onion services
      - dns + tls sockets
      - store and forward
-     - carrier pidgeons with microsd card backpacks
+     - carrier pigeons with microsd card backpacks
      - "fake" network
      - d-bus support?
      - DIDs (Decentralized Identifiers)
@@ -80,14 +80,14 @@ so as to not lose it.
 
 ;; Features of CapTP:
 ;;  - Illusion of programming against objects without caring about location
-;;  - (Acylcic) cooperative distributed garbage collection
+;;  - (acyclic) cooperative distributed garbage collection
 ;;  - Promise pipelining: send messages to objects before they even exist!
 ;;    Optimization from network perspective
 ;;    (programmer convenience from language perspective)
 ;;  - Transport agnostic
 ;;  - Support for introductions/"handoffs"
 ;;  - E-order (?!?!?!!!!?!?!??!)
-;; 
+;;
 #+END_SRC
 
 
@@ -122,7 +122,7 @@ so as to not lose it.
    ;;   Note that currently this requires a certain amount of VatTP
    ;;   crossover, since we have to give a way to connect to VatTP...
    exporter-location
-   ;; session: which session betweein gifter and exporter at the location
+   ;; session: which session between gifter and exporter at the location
    ;;   : bytes?
    session
    ;; gifter-side: which "named side" of the session is the gifter

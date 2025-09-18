@@ -359,8 +359,8 @@
     (with-vat peer2-vat
       (spawn-unix-domain-socket-netlayer-and-mycapn server-socket-addr*)))
 
-  ;; Put something in the cell to make doubley sure it can't be
-  ;; somehow refercing the old cell on the halted vat, probably
+  ;; Put something in the cell to make doubly sure it can't be
+  ;; somehow referring the old cell on the halted vat, probably
   ;; not needed but just in case.
   (with-vat peer1-vat*
     ($ peer1-cell* 'aurie-works))
@@ -413,7 +413,7 @@
       ($ peer2-mycapn 'enliven cell-sref)))
 
   ;; Once we're connected, lets shutdown the intro server and see if we get
-  ;; notified of the severence...
+  ;; notified of the severance...
   (with-vat server-vat
     (on cell-vow
         (lambda (cell-refr)

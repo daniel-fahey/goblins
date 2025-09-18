@@ -205,7 +205,7 @@
                      (lp))))))))))
      (hoot))
 
-    ;; WebSocket client abstraction for Hoot that mimicks
+    ;; WebSocket client abstraction for Hoot that mimics
     ;; guile-websocket's API.
     (cond-expand
      (guile)
@@ -532,7 +532,7 @@ The @var{url} argument allows for specifying a custom URL for use as a
 hint when generating OCapN sturdyrefs.  By default, the URL looks like
 @code{ws(s)://$host:$port}. Custom URLs are often necessary, such as
 in the case of a relay that uses @url{https://nginx.org/,nginx} as the
-publicly accesible web server with a reverse proxy to the netlayer
+publicly accessible web server with a reverse proxy to the netlayer
 bound on the loopback device.  @var{url} is also necessary when the
 server is bound to a @var{host} address of @code{\"0.0.0.0\"} to
 produce a usable address for the sturdyref hint.
@@ -576,7 +576,7 @@ peer-to-peer network."
         ;; TODO Remove me when aurie cleans up old objects.
         ;;
         ;; Aurie currently does not clean-up/GC any object. That means any
-        ;; object that's been in the object graph will always be restord even if
+        ;; object that's been in the object graph will always be restored even if
         ;; it's not used. Normally this takes a bit more resources, but doesn't
         ;; cause any problems. However because the pre-setup websocket actors
         ;; have the swapper, they will set things up and then use their swap

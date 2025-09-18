@@ -469,7 +469,7 @@
       [($ <tagged> 'exn:fail:mystery '())
        (make-exception
         (make-mystery-exception)
-        (make-exception-with-message "Unknown error occured with remote object")
+        (make-exception-with-message "Unknown error occurred with remote object")
         (make-exception-with-irritants '()))]
       [($ <tagged> 'void '())
        *unspecified*]
@@ -623,7 +623,7 @@
 
 
         ;; TODO: Here's where we have to record that a listening interest
-        ;; has occured, assuming we do the "automatically notify on session
+        ;; has occurred, assuming we do the "automatically notify on session
         ;; severance" thing?
         ;;
         ;; Which means we'll also have to track incoming resolutions to
@@ -881,7 +881,7 @@
               ;; and work with the router to pass it along
               (on (<- router 'make-handoff-receive-withdrawal exporter-location)
                   (match-lambda
-                    [(handoff-withdrawl sessionmeta)
+                    [(handoff-withdrawal sessionmeta)
                      (define receiver-exporter-session-coordinator
                        (match sessionmeta
                          [($ <sessionmeta> _ _ _ coordinator _) coordinator]))
@@ -903,7 +903,7 @@
                              (desc:sig-envelope handoff-receive
                                                 handoff-receive-sig)))
                        ($$ our-handoff-count (1+ ($$ our-handoff-count)))
-                       ($$ handoff-withdrawl signed-handoff-receive))])
+                       ($$ handoff-withdrawal signed-handoff-receive))])
                     #:promise? #t))
               #:promise? #t)))
 
@@ -1194,10 +1194,10 @@
 
   (methods
    [(make-handoff-receive-withdrawal remote-location)
-    (define (^handoff-receive-withdrawl bcom remote-bootstrap-obj)
+    (define (^handoff-receive-withdrawal bcom remote-bootstrap-obj)
       (define (active-beh signed-handoff-receive)
         ;; Feels maybe a little silly to mistrust the use of
-        ;; 'make-handoff-receive-withdrawl, but we can so lets mistrust.
+        ;; 'make-handoff-receive-withdrawal, but we can so lets mistrust.
         (define handoff-give
           (desc:sig-envelope-signed
            (desc:handoff-receive-signed-give
@@ -1227,7 +1227,7 @@
             ($$ locations->open-session-names 'ref remote-location))
           (define sessionmeta
             ($$ open-session-names->sessionmeta 'ref session-name))
-          (list (spawn ^handoff-receive-withdrawl remote-bootstrap-obj)
+          (list (spawn ^handoff-receive-withdrawal remote-bootstrap-obj)
                 sessionmeta))
         #:promise? #t)]
 
@@ -1465,11 +1465,11 @@
 
   ;; For sturdyrefs
   ;; TODO: Eventually... well this whole sturdyref nonsense we want
-  ;; to make more configureable
+  ;; to make more configurable
   (define-values (registry locator)
     (spawn-nonce-registry-and-locator))
 
-  ;; Seflish spawn
+  ;; Selfish spawn
   (let* ((self (spawn ^cell))
          (mycapn (spawn ^mycapn self netlayer-map registry locator)))
     ($$ self mycapn)

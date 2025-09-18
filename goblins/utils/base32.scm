@@ -135,7 +135,7 @@ Will pad with = symbols if PAD? is #t."
              (let (;; The current buffered byte, completed
                    (byte-to-write
                     (logior buf (ash n shift-this-buf)))
-                   ;; Shift everyting over for the new buffer
+                   ;; Shift everything over for the new buffer
                    ;; cutting off anything bigger than a byte
                    (new-buf (logand (ash n (- 8 next-buf-pos)) #xff)))
                (put-u8 out-port byte-to-write)

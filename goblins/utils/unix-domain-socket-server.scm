@@ -103,7 +103,7 @@
                 (let-values (((vow resolver) (spawn-promise-and-resolver)))
                   ($$ peer->connection 'set to (cons vow resolver))
                   vow)]
-               ;; We already have a promsie pair setup...
+               ;; We already have a promise pair setup...
                [(vow . resolver) vow]
                ;; The peer is connected to us, return the client.
                [(? live-refr? client) client]))

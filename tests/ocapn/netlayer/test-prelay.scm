@@ -250,14 +250,14 @@
                      ($ frank-on-e-resolver 'fulfill (list type reason))))
          (<-np ec-netlayer 'halt)))))
 
-(test-equal "When prelay client netlayer halts, serverence works for clients refrs"
+(test-equal "When prelay client netlayer halts, severance works for clients refrs"
   #(ok (disconnect "Remote disconnected"))
   (resolve-vow-and-return-result
    test-vat
    (lambda ()
      frank-on-e-severed-vow)))
 
-(test-equal "When otherside prelay client netlayer disconnects, serverence works for our clients refrs"
+(test-equal "When other side prelay client netlayer disconnects, severance works for our clients refrs"
   #(ok (disconnect "Remote disconnected"))
   (resolve-vow-and-return-result
    test-vat
@@ -332,8 +332,8 @@
      (all-of elsa-on-f-severed-vow frank-on-e-severed-vow))))
 
 ;; We want to verify that a netlayer client (^prelay-netlayer) will automatically
-;; attempt to reconnect if a severence happens, since we can't restart the fake
-;; netlayer, we'll have the severence happen at the server side and reconstruct
+;; attempt to reconnect if a severance happens, since we can't restart the fake
+;; netlayer, we'll have the severance happen at the server side and reconstruct
 ;; the prelay server.
 (define-values (reconnect-server-vat reconnect-server-loc
                                      reconnect-server-netlayer

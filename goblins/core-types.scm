@@ -458,7 +458,7 @@ Type: Any -> Boolean"
 ;;; understanding the difference is observing that a mactor:remote-link
 ;;; might become broken upon network disconnect from that object.
 ;;;
-;;; One intersting observation is that if you have a local-object-refr that
+;;; One interesting observation is that if you have a local-object-refr that
 ;;; it is sure to correspond to a mactor:object.  A local-promise-refr can
 ;;; correspond to any object state *except* for mactor:object (if a promise
 ;;; resolves to a local object, it must point to it via mactor:local-link.)
@@ -509,7 +509,7 @@ Type: Any -> Boolean"
 ;; The other kinds of mactors correspond to promises and their resolutions.
 
 ;; There are two supertypes here which are not used directly:
-;; mactor:unresolved and mactor:eventual.  See above for an explaination
+;; mactor:unresolved and mactor:eventual.  See above for an explanation
 ;; of what these mean.
 ;; These are never directly exposed as mactors, hence the ~
 (define-record-type <m~eventual>

@@ -70,7 +70,7 @@
         (if (eqv? bstr1-byte bstr2-byte)
             ;; they're the same, so loop
             (lp (1+ pos))
-            ;; otherwise, just compare nubmers
+            ;; otherwise, just compare numbers
             (< bstr1-byte bstr2-byte)))])))
 
 (define (string->bytes/latin-1 str)

@@ -64,11 +64,11 @@
 
 ;; Vectors
 (define vec (actormap-spawn! am ^vector 5 'hello))
-(test-equal "Check newely spawned vector has correct length"
+(test-equal "Check newly spawned vector has correct length"
   5
   (actormap-peek am vec 'length))
 
-(test-equal "Check newely spawned vector has fill value specified"
+(test-equal "Check newly spawned vector has fill value specified"
   '(hello hello hello hello hello)
    (actormap-peek am vec 'as-list))
 

@@ -72,7 +72,7 @@ will bind @code{val} to @code{42}.
 The @code{bcom} argument warrants further explanation.  It is a
 capability which allows the actor to change its own behavior.  It must
 be called in a tail position, since @code{bcom} returns a
-datastructure demonstrating that this object is choosing to change its
+data structure demonstrating that this object is choosing to change its
 value (part of Goblins' quasi-functional design).
 
 @code{bcom} can also take a second argument which will be returned

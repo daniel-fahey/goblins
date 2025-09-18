@@ -94,7 +94,7 @@ Methods:
 
 (define-actor (^vector* bcom vec)
   ;; Everything within the vec is within a cell so that the entire
-  ;; vector isn't written out each time by aurie everytime something
+  ;; vector isn't written out each time by aurie every time something
   ;; is set.
   #:frozen
   (methods

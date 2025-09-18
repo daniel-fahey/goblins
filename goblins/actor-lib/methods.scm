@@ -30,7 +30,7 @@
      (cons 'method-name method-expr))))
 
 ;; TODO: This is *not* a performant version of methods.  It's setting
-;; up an alist... that requires unnecessary list traveral.
+;; up an alist... that requires unnecessary list traversal.
 ;; Instead we could make this more efficient by having an inlined set
 ;; of tests, kind of like how a cond can expand into a set of nested
 ;; `if' expressions.

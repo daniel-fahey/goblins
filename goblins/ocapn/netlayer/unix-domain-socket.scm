@@ -113,7 +113,7 @@
       (make-ocapn-peer 'unix-domain-socket peer-designator #f))
     (<-np server-io 'write (make-uds-msg-writer
                             (make-uds:register our-loc our-challenge)))
-    ;; When the server responds and we've verified add it to our proccesses list
+    ;; When the server responds and we've verified add it to our processes list
     (on-match (<- server-io 'read read-uds-msg)
       ((? eof-object?)
        ($$ sever-resolver 'fulfill 'disconnect)

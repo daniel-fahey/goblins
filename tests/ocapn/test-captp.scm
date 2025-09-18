@@ -418,7 +418,7 @@
      (let ((echo-vow (<- b-mycapn 'enliven echo-sref)))
        (<- echo-vow `#(a-vector ,echo-on-b))))))
 
-;; We're wanting to test reconneciton after severence but to do that, we
+;; We're wanting to test reconnection after severance but to do that, we
 ;; need to sever. Thankfully we have the 'halt method on a fake netlayer to
 ;; ensure the connection is severed, unfortunately that doesn't allow you to
 ;; restart the connection. To do that, we need to spawn a new fake netlayer
@@ -515,8 +515,8 @@
               (lambda _
                 remote-refr-vow)
               #:promise? #t)))))
-  (test-equal "severence of CapTP connection breaks enlivened vows to remote refrs"
-    #(err ("Broken due to CapTP severence"))
+  (test-equal "severance of CapTP connection breaks enlivened vows to remote refrs"
+    #(err ("Broken due to CapTP severance"))
     result))
 
 (define-values (a-vat a-netlayer a-mycapn)
@@ -558,8 +558,8 @@
               (lambda _
                 vow-containing-remote-refr)
               #:promise? #t)))))
-  (test-equal "severence of CapTP connection breaks vows pointing to remote refrs"
-    #(err ("Broken due to CapTP severence"))
+  (test-equal "severance of CapTP connection breaks vows pointing to remote refrs"
+    #(err ("Broken due to CapTP severance"))
     result))
 
 ;; Check we can't have two connections to the same location if only the hints differ

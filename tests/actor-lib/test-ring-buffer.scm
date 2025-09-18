@@ -122,7 +122,7 @@
 (test-equal "Check contents are correct after resize to smaller size"
   '(four five six)
   (actormap-peek am rb 'head 3))
-(test-equal "Check length is correct after reisze to smaller size"
+(test-equal "Check length is correct after resize to smaller size"
   3
   (actormap-peek am rb 'length))
 (test-equal "Check capacity is correct after resize to smaller size"

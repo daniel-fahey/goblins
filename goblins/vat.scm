@@ -179,7 +179,7 @@
 ;;; Anyway, you could implement a vat-like event loop yourself, but this
 ;;; module implements the general behavior.  The most important thing if
 ;;; you do so is to resolve promises based on turn result and also
-;;; implement the vat-connnector behavior (currently the handle-message
+;;; implement the vat-connector behavior (currently the handle-message
 ;;; and vat-id methods, though it's not unlikely this module will get
 ;;; out of date... oops)
 
@@ -188,7 +188,7 @@
 ;; launches a vat, and things weirdly break... because geiser
 ;; sets redirects output so that it can capture it to display to the
 ;; user when hacking that way, but those ports are closed at the
-;; end of the evaulation.  But since the vat would run in its own
+;; end of the evaluation.  But since the vat would run in its own
 ;; fiber/thread, any attempts to write to output/error ports would
 ;; throw an exception.  This redirects them "back".
 (define (port-redirect-dynamic-wrap proc)
@@ -1289,7 +1289,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
 ;;
 ;; Inter-vat Aurie works by:
 ;;  - vats having randomly generated identifiers made *specifically*
-;;    for being identified for Aurie integerchange.  There's not meant
+;;    for being identified for Aurie interchange.  There's not meant
 ;;    to be any way to make them yourself; a persistent vat booting up
 ;;    will automatically make its own id, register with the given
 ;;    registry, and upon being restored, reawake with that id.
