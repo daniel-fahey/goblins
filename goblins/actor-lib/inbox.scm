@@ -24,8 +24,8 @@
                       [messages (spawn ^queue)]
                       [pending (spawn ^queue)]
                       [stopped? #f])
-  #:self-portrait (lambda () (list read-warden write-warden stop-warden messages stopped?))
-  #:restore (lambda (read-warden write-warden stop-warden messages stopped?)
+  #:portrait (lambda () (list read-warden write-warden stop-warden messages stopped?))
+  #:restore (lambda (_version read-warden write-warden stop-warden messages stopped?)
               (spawn ^inbox read-warden write-warden stop-warden
                      messages (spawn ^queue) stopped?))
 
