@@ -190,11 +190,11 @@
             object-spec-constructor
             object-spec-rehydrator
 
-            <versioned-data>
+            <versioned>
             versioned
-            versioned-data?
-            versioned-data-version
-            versioned-data-data
+            versioned?
+            versioned-version
+            versioned-data
 
             <redefinable-object>
             make-redefinable-object
@@ -636,16 +636,18 @@ Type: Any -> Boolean"
            (redefinable-object-rehydrator cstr))
       (_object-spec-rehydrator obj-spec)))
 
-;; This while looking similar to the above this is used to specify versioned data
-;; by objects in their self-portrait function. The `versioned' constructor is exported
-;; which is used to created <version> + <portrait data> so the persistence system
-;; can reliably detect when being given versioned data. This tagging is not exposed
-;; anywhere else, including the resulting portraits.
-(define-record-type <versioned-data>
+;; This is to tag some aurie data or refr as being of a specific version. It's
+;; typically used in both an actor's self-portrait procedure, or to return from
+;; a rehydration procedure to provide a specific version for the portrait/refr.
+;; The `versioned' constructor is exported which is used to created
+;; <version> + <data> so the persistence system can reliably detect when being
+;; given versioned data. This tagging is not exposed anywhere else, including
+;; the resulting data.
+(define-record-type <versioned>
   (versioned version data)
-  versioned-data?
-  (version versioned-data-version)
-  (data versioned-data-data))
+  versioned?
+  (version versioned-version)
+  (data versioned-data))
 
 ;; Used as a sort of "box" to restore objects to while keeping the actor
 ;; definition eq to itself when in persistence-envs

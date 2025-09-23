@@ -1193,6 +1193,53 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
 (define (vat-take-portrait! vat)
   (call-system-op-with-vat vat vat-take-portrait!*))
 
+(define (vat-persist-objects! vat am objects)
+  ;; Objects may have additional objects within their portrait
+  ;; which need persisting (because they're new). This queue
+  ;; lets us build up all the objects needing persisting.
+  (define process-queue (make-q))
+  ;; Because we need to perform membership testing on the objects which are
+  ;; queued, also maintain a hash-table which works in unison with the queue
+  ;; above.
+  (define process-queue-ht (make-hash-table))
+  (define (enqueue! object)
+    (hashq-set! process-queue-ht object #t)
+    (enq! process-queue object))
+  (define (dequeue!)
+    (define object (deq! process-queue))
+    (hashq-remove! process-queue-ht object)
+    object)
+
+  ;; Queue the initial set of objects
+  (for-each
+   (lambda (object)
+     (enqueue! object))
+   objects)
+
+  (define vat-persistence (vat-persistence-env vat))
+  (define read-portrait! (vat-persistence-read-portrait! vat-persistence))
+  (define slot->portraits (make-hash-table))
+  ;; Read the portraits of all queued objects. If they have any new objects in
+  ;; their portrait data, then we need to queue those too for persistence.
+  (while (not (q-empty? process-queue))
+    (let ((object (dequeue!)))
+      (define-values (slot portrait new-child-objs)
+        (read-portrait! am object))
+
+      (hashq-set! slot->portraits slot portrait)
+
+      ;; Check for new objects in the portrait data
+      (hash-for-each
+       (lambda (obj _val)
+         (unless (hashq-ref process-queue-ht obj)
+           (enqueue! obj)))
+       new-child-objs)))
+
+  ;; Save the portraits to the store
+  (define store (vat-persistence-store vat-persistence))
+  (define save-portraits! (persistence-store-save-proc store))
+  (save-portraits! 'save-delta slot->portraits))
+
 (define (vat-maybe-persist-changed-objs! vat new-am)
   (define vat-persistence
     (vat-persistence-env vat))
@@ -1202,9 +1249,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
            [slot->portraits (make-hash-table)]
            [persist-on (vat-persistence-persist-on vat-persistence)]
            [val->slot-refr (vat-persistence-val->slot-ref vat-persistence)]
-           [read-portrait! (vat-persistence-read-portrait! vat-persistence)]
-           [store (vat-persistence-store vat-persistence)]
-           [save-portraits! (persistence-store-save-proc store)])
+           [store (vat-persistence-store vat-persistence)])
 
       ;; On the first churn when a persistent vat is setting up these are not available
       ;; despite the vat being setup for persistence. In such a case skip this.
@@ -1212,30 +1257,17 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
         ;; From the set of changed objects in the last transaction, find the ones which
         ;; appear in the portrait of the object graph by checking if they have an
         ;; assigned slot. For the ones found queue them up for depiction
-        (let ((am-data (actormap-data new-am)))
-          (hash-for-each
-           (lambda (obj _)
-             (when (and (local-object-refr? obj)
-                        (val->slot-refr obj))
-             (enq! process-queue obj)))
-           (transactormap-data-delta am-data)))
-
-        (while (not (q-empty? process-queue))
-          (let ((obj (deq! process-queue)))
-            (define-values (slot portrait new-child-objs)
-              (read-portrait! new-am obj))
-
-            (hashq-set! slot->portraits slot portrait)
-
-            ;; The object may have changed by adding a new object not previously in the
-            ;; object graph. In such cases we need to ensure they're queued also.
-            (hash-for-each
-             (lambda (obj _val)
-               (unless (memq obj (car process-queue))
-                 (enq! process-queue obj)))
-             new-child-objs)))
-
-        (save-portraits! 'save-delta slot->portraits)))))
+        (let* ((am-data (actormap-data new-am))
+               (objects-to-persist
+                (hash-fold
+                 (lambda (obj _ prev)
+                   (if (and (local-object-refr? obj)
+                            (val->slot-refr obj))
+                       (cons obj prev)
+                       prev))
+                 '()
+                 (transactormap-data-delta am-data))))
+          (vat-persist-objects! vat new-am objects-to-persist))))))
 
 (define (vat-take-single-object-portrait vat refr)
   (define (take-object-portrait vat)
@@ -1430,20 +1462,26 @@ using the migrations macro."
      #:log? log?
      #:log-capacity log-capacity))
 
-  (define-values (far-refr-resolvers roots spawned-new?)
+  (define-values (far-refr-resolvers roots read-portrait!* val->slot-ref*
+                                     changed-objects spawned-new?)
     (if (and portraits root-slots)
         (match (call-system-op-with-vat
                 vat (lambda (vat)
-                      (define vat-am
-                        (vat-actormap vat))
+                      (define vat-am (vat-actormap vat))
                       (call-with-values
                           (lambda ()
-                            (actormap-restore-with-far-refrs!
+                            (actormap-restore-with-far-refrs!*
                              vat-am persistence-env portraits root-slots))
                         list)))
-          [(far-refr-resolvers roots) (values far-refr-resolvers roots #f)])
+          [(changed-objects refrs->slots far-refr-resolvers roots)
+           (define-values (read-portrait! val->slot-ref)
+             (make-actormap-read-portrait! persistence-env roots #:slot->val refrs->slots))
+           (values far-refr-resolvers roots read-portrait! val->slot-ref changed-objects #f)])
         (with-vat vat
-          (values #f (call-with-values spawn-roots-thunk list) #t))))
+          (define roots (call-with-values spawn-roots-thunk list))
+          (define-values (read-portrait! val->slot-ref)
+            (make-actormap-read-portrait! persistence-env roots))
+          (values #f roots read-portrait! val->slot-ref '() #t))))
 
   (define (upgrade-roots)
     (define-values (new-version new-roots)
@@ -1454,13 +1492,16 @@ using the migrations macro."
                        roots-version new-version version))))
 
   ;; If we need to upgrade, apply the upgrader
+  (define upgrade-roots? (or spawned-new? (equal? roots-version version)))
   (define upgraded-roots
-    (if (or spawned-new? (equal? roots-version version))
+    (if upgrade-roots?
         roots
         (upgrade-roots)))
 
   (define-values (read-portrait! val->slot-ref)
-    (make-actormap-read-portrait! persistence-env upgraded-roots))
+    (if upgrade-roots?
+        (make-actormap-read-portrait! persistence-env upgraded-roots)
+        (values read-portrait!* val->slot-ref*)))
 
   (call-system-op-with-vat
    vat (lambda (vat)
@@ -1470,13 +1511,12 @@ using the migrations macro."
          (set-vat-persistence-val->ref! vat-persistence val->slot-ref)
          (set-vat-persistence-roots! vat-persistence upgraded-roots)
 
-         ;; Finally if it's new, we'll take a full portrait and save it, otherwise
-         ;; we need to just read the portrait (without saving as nothing has changed)
-         ;; of each object, so that we have them all in slot->val.
-         (if (or spawned-new? (not (equal? roots-version version)))
-             (vat-take-portrait!* vat)
-             (actormap-take-portrait-with-read-portrait vat-am read-portrait!
-                                                        val->slot-ref upgraded-roots))))
+         ;; If we've upgraded the roots, or spawned anew, take a full portrait.
+         (when upgrade-roots?
+           (vat-take-portrait!* vat))
+
+         (unless (null? changed-objects)
+           (vat-persist-objects! vat vat-am changed-objects))))
 
   ;; TODO: If there's no aurie registry should we break all the
   ;; promises requested immediately?

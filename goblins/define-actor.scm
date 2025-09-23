@@ -22,8 +22,8 @@
                           set-redefinable-object-constructor!
                           set-redefinable-object-rehydrator!
                           versioned
-                          versioned-data?
-                          versioned-data-version))
+                          versioned?
+                          versioned-version))
   #:export (define-actor define-hackable))
 
 
@@ -135,15 +135,15 @@
                                        (define version #,version)
                                        (define (self-portrait)
                                          (define result (self-portrait-proc))
-                                         (if (versioned-data? result)
+                                         (if (versioned? result)
                                              ;; let's make sure the result's version matches
-                                             (if (equal? (versioned-data-version result)
+                                             (if (equal? (versioned-version result)
                                                          version)
                                                  ;; the version matches, so just return it
                                                  result
                                                  ;; otherwise else, mismatching versions!
                                                  (raise-portrait-version-mismatch
-                                                  version (versioned-data-version result)))
+                                                  version (versioned-version result)))
                                              ;; and if it isn't versioned data, let's version it!
                                              (versioned version result)))))
                                    ;; portrait but no version
@@ -188,9 +188,13 @@
                    (define upgrader #,upgrade)
                    (define-values (new-version new-roots)
                      (apply upgrader args))
-                   (if provided-restore
-                       (apply provided-restore new-version new-roots)
-                       (apply spawn constructor-id new-roots)))))
+                   (define refr
+                     (if provided-restore
+                         (apply provided-restore new-version new-roots)
+                         (apply spawn constructor-id new-roots)))
+                   (if (versioned? refr)
+                       refr
+                       (versioned new-version refr)))))
 
             (restore
              #`(define-redefinable-object-with-rehydrator constructor-id

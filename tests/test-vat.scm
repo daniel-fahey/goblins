@@ -1377,4 +1377,112 @@
      (<-tagged-ref tagged-vow "hello")))
   #(ok beepboop))
 
+;; Check upgrade which adds a new object to the graph
+(define-actor (^upgrade-me _bcom cell)
+  (lambda ()
+    'version-0))
+
+(define upgrade-me-env
+  (make-persistence-env
+   `((((tests test-vat) ^upgrade-me) ,^upgrade-me))
+   #:extends cell-env))
+
+(define upgrade-me-store (make-memory-store))
+(define-values (vat upgrade-me upgrade-me-cell)
+  (spawn-persistent-vat
+   upgrade-me-env
+   (lambda ()
+     ;; Cell is used in a later test.
+     (define cell (spawn ^cell))
+     (values (spawn ^upgrade-me cell)
+             cell))
+   upgrade-me-store))
+
+(vat-halt! vat)
+
+(define-actor (^upgrade-me _bcom cell current-version)
+  #:version 1
+  #:restore
+  (lambda* (old-version cell #:optional current-version)
+    (if (= old-version 0)
+        (spawn ^upgrade-me cell 'version-1)
+        (spawn ^upgrade-me cell current-version)))
+  (lambda ()
+    current-version))
+
+(define-values (vat1 upgrade-me1 upgrade-me-cell1)
+  (spawn-persistent-vat
+   upgrade-me-env
+   (lambda ()
+     (error "should restore from store"))
+   upgrade-me-store))
+
+;; Verify we've got the upgraded version
+(test-equal "Make sure upgrade process has been run when we have one"
+  'version-1
+  (with-vat vat1 ($ upgrade-me1)))
+
+;; Now halt the vat and read the ^upgrade-me actor from the store so we can
+;; check it's upgraded.
+(vat-halt! vat1)
+
+;; Need to redefine it without the upgrade procedure or we won't know if the new
+;; data comes from the store (which it needs to), or the upgrade running again.
+(define-actor (^upgrade-me _bcom cell current-version)
+  #:version 1
+  (lambda ()
+    current-version))
+
+(define am (make-actormap))
+(define-values (restored-upgrade-me restored-upgrade-me-cell)
+  (actormap-restore-from-store! am upgrade-me-env upgrade-me-store))
+
+(test-equal "Upgraded actor is persisted without changing itself"
+  'version-1
+  (actormap-peek am restored-upgrade-me))
+
+;; Check that an actor changes from being messaged during upgrade is persisted.
+(define-actor (^upgrade-me _bcom cell current-version)
+  #:version 2
+  #:restore
+  (lambda (old-version cell current-version)
+    ;; Check that there isn't an issue with sending messages to objects
+    ;; not within the graph. To do that lets just spawn a promsie pair
+    ;; and message the resolver. They're not going to be in the graph.
+    (define-values (vow resolver)
+      (spawn-promise-and-resolver))
+    ;; Important that it's <-/<-np not $ so that it's handled in the churn code.
+    (<-np resolver 'fulfill #t)
+    ;; Send a message to the cell that's in the graph (should be persisted).
+    (when (= old-version 1)
+      (<-np cell 'sent-from-upgrade-me-migration))
+    ;; Spawn the upgrade-me actor.
+    (spawn ^upgrade-me cell 'version-2))
+  (lambda ()
+    current-version))
+
+;; Spawn it to run the migration
+(define-values (vat2 upgrade-me2 upgrade-me-cell2)
+  (spawn-persistent-vat
+   upgrade-me-env
+   (lambda ()
+     (error "should restore from store"))
+   upgrade-me-store))
+(vat-halt! vat2)
+
+;; Need to redefine it without the upgrade procedure or we won't know if the new
+;; data comes from the store (which it needs to), or the upgrade running again.
+(define-actor (^upgrade-me _bcom cell current-version)
+  #:version 2
+  (lambda ()
+    current-version))
+
+;; Again re-spawn from the store to ensure everything was persisted.
+(define am* (make-actormap))
+(define-values(restored-upgrade-me1 restored-upgrade-me-cell1)
+  (actormap-restore-from-store! am* upgrade-me-env upgrade-me-store))
+(test-equal "Check message sent in actor upgrade that results in bcom is persisted"
+  'sent-from-upgrade-me-migration
+  (actormap-peek am* restored-upgrade-me-cell1))
+
 (test-end "test-vat")
