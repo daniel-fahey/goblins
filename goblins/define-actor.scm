@@ -110,8 +110,9 @@
           ((kw . _)
            (keyword? (syntax->datum #'kw))
            (syntax-violation 'define-actor "invalid keyword" stx #'kw))
-          (rest-body (values body frozen? version portrait restore upgrade
-                             self)))))
+          (_
+           (values body frozen? version portrait restore upgrade
+                   self)))))
     (syntax-case stx ()
       [(_ (constructor-id bcom arg ...) body ...)
        (let-values (((kwless-body frozen? version portrait restore upgrade self)
