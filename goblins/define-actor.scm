@@ -107,6 +107,9 @@
            (lp #'rest frozen? version portrait restore #'upgrader self))
           ((#:self self . rest)
            (lp #'rest frozen? version portrait restore upgrade #'self))
+          ((kw . _)
+           (keyword? (syntax->datum #'kw))
+           (syntax-violation 'define-actor "invalid keyword" stx #'kw))
           (rest-body (values body frozen? version portrait restore upgrade
                              self)))))
     (syntax-case stx ()
