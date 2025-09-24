@@ -1080,6 +1080,26 @@ serialization format.
 Note: Stores are currently not designed in a thread safe manner so
 care should be taken to ensure they are only accessed by one vat.
 
+@node Bloblin Store
+@subsection Bloblin Store
+
+This provides a fast and efficient Syrup based store. The store is given a
+directory to write to, within which it stores files which contain one full graph
+after which just the deltas are streamed to it. This provides a fast and
+efficient storage mechanism.
+
+The store is provided by @code{(goblins persistence-store bloblin)}.
+
+@deffn {Procedure} make-bloblin-store bloblin-dir [#:deltas-per-file]
+
+Return a memory store which will write its data to @var{bloblin-dir}. This
+directory is expected to be used solely for Bloblin's data to exist within. The
+number of deltas streamed to a single file before a new file is written to can
+be configured with @var{deltas-per-file}, by default it occurs every 1000
+deltas.
+
+@end deffn
+
 @node Memory store
 @subsection Memory store
 
@@ -1113,6 +1133,7 @@ Returns a syrup store which stores the data in a file specified in
 @var{backing-file}.
 
 @end deffn
+
 
 @node Web localStorage store
 @subsection Web localStorage store
