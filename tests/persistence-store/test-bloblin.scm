@@ -15,6 +15,7 @@
 (define-module (tests persistence-store test-bloblin)
   #:use-module (goblins)
   #:use-module (goblins core-types)
+  #:use-module (goblins actor-lib cell)
   #:use-module (goblins persistence-store bloblin)
   #:use-module (goblins utils crypto)
   #:use-module (srfi srfi-64)
@@ -22,7 +23,7 @@
 
 (test-begin "test-bloblin")
 
-(define tempdir (mkdtemp "/tmp/goblins-test-XXXXXX"))
+(define tempdir (mkdtemp "/tmp/goblins-test-0-XXXXXX"))
 (define store (make-bloblin-store tempdir))
 (define vat-aurie-id (strong-random-bytes 32))
 
@@ -141,7 +142,7 @@
    `((((tests persistence-store bloblin) ^greeter) ,^greeter)
      (((tests persistence-store bloblin) ^incrementer) ,^incrementer))))
 
-(define tempdir (mkdtemp "/tmp/goblins-test-XXXXXX"))
+(define tempdir (mkdtemp "/tmp/goblins-test-1-XXXXXX"))
 (define store (make-bloblin-store tempdir))
 (define-values (vat alice bob incrementer)
   (spawn-persistent-vat
@@ -172,5 +173,72 @@
 (test-equal "Check can use bloblin store with vats"
   3
   (with-vat vat* ($ incrementer*)))
+
+;; Check that bloblin creates a new file after deltas-per-file reached.
+
+;; Glorified `ls *.bloblin`
+(define (bloblins-in-dir dirname)
+  (define (bloblin-file? filename)
+    (string-suffix? ".bloblin" filename))
+  (define dir (opendir dirname))
+  (define bloblins
+    (let lp ((entry (readdir dir)))
+      (match entry
+        ;; Skip the
+        ((? eof-object?) '())
+        ((? bloblin-file?) (cons entry (lp (readdir dir))))
+        (_ (lp (readdir dir))))))
+  (closedir dir)
+  ;; I think these should probably be in order? sort them anyway...
+  (sort bloblins string<?))
+
+(define tempdir (mkdtemp "/tmp/goblins-test-2-XXXXXX"))
+(define store (make-bloblin-store tempdir #:deltas-per-file 3))
+(define-values (vat my-cell)
+  (spawn-persistent-vat
+   cell-env
+   (lambda ()
+     (spawn ^cell))
+   store))
+
+;; Sanity check we start with one file
+(test-equal "Bloblin begins by writing one bloblin file"
+ '("0.bloblin")
+ (bloblins-in-dir tempdir))
+
+;; Each `with-vat` should be one churn, and deltas are written per churn.
+;; Check that after 3 of them (deltas-per-file value), we get another file.
+;; First lets just verify we just have the one churn file
+(with-vat vat ($ my-cell 1))
+(with-vat vat ($ my-cell 2))
+
+;; After creating deltas - 1 (check we still only have one file)
+(test-equal "Bloblin writes deltas and doesn't create a new file until reached limit"
+ '("0.bloblin")
+ (bloblins-in-dir tempdir))
+
+;; Finally write the next delta, creating the file
+(with-vat vat ($ my-cell 3))
+
+(test-equal "Bloblin creates a new file once the deltas-in-file has been reached"
+ '("0.bloblin" "1.bloblin")
+ (bloblins-in-dir tempdir))
+
+;; Remove the first file and check we can still restore
+(vat-halt! vat)
+;; TODO: make platform independent.
+(delete-file (format #f "~a/0.bloblin" tempdir))
+
+(define store (make-bloblin-store tempdir #:deltas-per-file 3))
+(define-values (vat* my-cell*)
+  (spawn-persistent-vat
+   cell-env
+   (lambda ()
+     (spawn ^cell))
+   store))
+
+(test-equal "Check our cell has the value we wrote to it"
+  3
+  (with-vat vat* ($ my-cell*)))
 
 (test-end "test-bloblin")

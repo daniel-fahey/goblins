@@ -22,6 +22,7 @@
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (ice-9 match)
+  #:use-module (rnrs io ports)
   #:export (make-bloblin-store))
 
 ;;; Welcome to Bloblin, a "reasonably disk efficient enough" Goblins
@@ -75,11 +76,9 @@
                      (string-append (number->string root-churn-id) ".bloblin"))
                file-name-separator-string))
 
-;; To see why we need this, expose yourself to the following curse
-;; by evaluating:
-;;   (char-set->list char-set:digit)
-(define char-set:integer-digit
-  (string->char-set "0123456789"))
+;; char-set:digit contains non-arabic digits/numerals, which is not what we want
+;; here, hence we're creating our own:
+(define char-set:arabic-numerals (string->char-set "0123456789"))
 
 (define (file-name->root-churn-id filename)
   "Return integer associated with .bloblin filename, assuming it is one
@@ -87,7 +86,7 @@
 If not, we return #f."
   (define churn-id-str
     (basename filename ".bloblin"))
-  (and (string-every char-set:integer-digit churn-id-str)
+  (and (string-every char-set:arabic-numerals churn-id-str)
        (string->number churn-id-str)))
 
 (define (dir-contents->root-churn-ids dir-contents)
@@ -168,6 +167,15 @@ the most recent version"
   (next-gen-id bloblin-state-next-gen-id
                set-bloblin-state-next-gen-id!))
 
+(define (bloblin-read-header! file)
+  (define header (syrup-read file))
+  (when (eq? header the-eof-object)
+    (error "Could not read header from bloblin file" (port-filename file)))
+  (define header-label (tagged-label header))
+  (unless (eq? header-label 'bloblin0)
+    (error "Wrong bloblin version, expecting bloblin0, got ~a" header-label))
+  header)
+
 (define (bloblin-state-close! bloblin-state)
   (close-port (bloblin-state-file bloblin-state))
   (set-bloblin-state-closed?! bloblin-state #t))
@@ -219,10 +227,26 @@ the most recent version"
     (set-bloblin-state-next-debug-name-id! bloblin-state
                                            (1+ seen-debug-name-id))))
 
+(define (atomically-create-file-with-contents file-path syrup-contents)
+  ;; Opens a temp file first to write syrup-contents, this is then closed and
+  ;; atomically moved to the file-path, this is to prevent partial data being
+  ;; written that isn't valid. It'll then open the real path, read what we wrote
+  ;; just in case? and return the file port for further writing.
+  (define tmp-file (mkstemp (string-append file-path "-XXXXXX")))
+  (define tmp-file-path (port-filename tmp-file))
+  (syrup-write syrup-contents tmp-file)
+  (close-port tmp-file)
+  (rename-file tmp-file-path file-path)
+  (define actual-file (open-file file-path "rb+"))
+  (unless (equal? (syrup-read actual-file) syrup-contents)
+    (error "Got something unexpected when atomically writing contents"))
+  actual-file)
+
 (define (setup-new-bloblin-file! roots roots-version
                                  bloblin-dir vat-aurie-id)
   (unless (file-exists? bloblin-dir)
     (mkdir bloblin-dir))
+
   ;; Find out what the next churn id is, open the relevant file
   (let* ((churn-ids (bloblin-vat-dir->root-churn-ids bloblin-dir))
          (latest-churn-id (match churn-ids
@@ -231,24 +255,12 @@ the most recent version"
          (this-churn-id (if latest-churn-id
                             (1+ latest-churn-id)
                             0))
-         (bloblin-file-path (make-bloblin-file-path
-                             bloblin-dir this-churn-id))
-         (bloblin-tmp-file-path (string-append bloblin-file-path "-XXXXXX")))
-    (let* ((bloblin-tmp-file
-            (mkstemp (string-append bloblin-file-path "-XXXXXX")))
-           (bloblin-tmp-file-path (port-filename bloblin-tmp-file)))
-      ;; Write the header
-      (syrup-write (make-tagged* 'bloblin0
-                                 roots
-                                 roots-version)
-                   bloblin-tmp-file)
-      ;; Close the file and move it into the correct place. This is to prevent
-      ;; any situations where a partial header might be written and cause issues
-      (close-port bloblin-tmp-file)
-      (rename-file bloblin-tmp-file-path bloblin-file-path)
-
+         (bloblin-file-path (make-bloblin-file-path bloblin-dir this-churn-id)))
+    (let* ((header (make-tagged* 'bloblin0 vat-aurie-id roots roots-version))
+           (bloblin-file
+            (atomically-create-file-with-contents bloblin-file-path header)))
       ;; Now return the new initialized bloblin-state
-      (make-bloblin-state (open-file bloblin-file-path "wb+")
+      (make-bloblin-state bloblin-file
                           #f
                           vat-aurie-id
                           (make-hash-table) (make-hash-table)
@@ -329,14 +341,10 @@ the most recent version"
   (bloblin-close-on-error bloblin-state %write-generation!))
 
 (define (open-bloblin-file-read-header bloblin-file-path)
-  (define bloblin-file
-    (open-file bloblin-file-path "rb+"))
+  (define bloblin-file (open-file bloblin-file-path "rb+"))
+  (seek bloblin-file 0 SEEK_SET)
   (define header
-    (syrup-read bloblin-file))
-  (when (eq? header the-eof-object)
-    (error "Could not read header from bloblin file" bloblin-file-path))
-  (unless (eq? (tagged-label header) 'bloblin0)
-    (error "Wrong bloblin version, expecting bloblin0"))
+    (bloblin-read-header! bloblin-file))
   (match (tagged-data header)
     ((vat-aurie-id roots roots-version)
      (make-bloblin-state
@@ -414,8 +422,7 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
 
 (define (open-bloblin-file bloblin-file-path)
   "Open bloblin file and return <bloblin-state> object"
-  (define bloblin-state
-    (open-bloblin-file-read-header bloblin-file-path))
+  (define bloblin-state (open-bloblin-file-read-header bloblin-file-path))
   (bloblin-file-read-body bloblin-state)
   bloblin-state)
 
@@ -513,9 +520,7 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
     (seek bloblin-file 0 SEEK_SET)
 
     ;; Read the header, a no-op
-    (let ((header (syrup-read bloblin-file)))
-      (unless (and (tagged? header) (eq? (tagged-label header) 'bloblin0))
-        (error "Expected bloblin0 header, got:" header)))
+    (bloblin-read-header! bloblin-file)
 
     ;; Now we read generations until we hit the gen-id specified
     (let lp ((i 0))
@@ -540,7 +545,8 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
   (bloblin-ensure-open bloblin-state)
   (bloblin-close-on-error bloblin-state %bloblin-get-arbitrary-generation))
 
-(define (make-bloblin-store bloblin-dir)
+;; If deltas-per-file is #f, never make new files.
+(define* (make-bloblin-store bloblin-dir #:key [deltas-per-file 1000])
   (define active-bloblin-state #f)  ; Active file to read/write from
 
   ;; We try to load bloblin state from a recent bloblin file, if that
@@ -645,6 +651,22 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
         (try-to-load-bloblin-state!)
         (unless active-bloblin-state
           (error "Tried to save bloblin delta without having saved full graph"))
-        (write-generation! active-bloblin-state delta-portraits))]))
+        (write-generation! active-bloblin-state delta-portraits)
+        ;; After `deltas-per-file` amount of deltas written to a single file, we
+        ;; want to start a new file to prevent them from getting too large and
+        ;; aid GC. If we've written over that, start a new file.
+        (let ((next-gen-id (bloblin-state-next-gen-id active-bloblin-state)))
+          (when (and deltas-per-file (> next-gen-id deltas-per-file))
+            (define current-portraits
+              (bloblin-get-latest-generation active-bloblin-state))
+            (bloblin-state-close! active-bloblin-state)
+            (define new-bloblin-state
+              (setup-new-bloblin-file!
+               (bloblin-state-roots active-bloblin-state)
+               (bloblin-state-roots-version active-bloblin-state)
+               bloblin-dir
+               (bloblin-state-vat-aurie-id active-bloblin-state)))
+            (set! active-bloblin-state new-bloblin-state)
+            (write-generation! active-bloblin-state current-portraits))))]))
 
   (make-persistence-store memory-read-proc memory-save-proc))
