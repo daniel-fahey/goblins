@@ -2288,7 +2288,8 @@ transaction, and any messages generated.
 
 Type: Actormap (-> Any) -> (Values Any Actormap (List Message ...))"
   (define-values (actor-refr new-actormap)
-    (actormap-spawn (make-transactormap actormap) (lambda (bcom) thunk)))
+    (actormap-spawn-named (make-transactormap actormap) 'actormap-run*-wrapper
+                          (lambda (bcom) thunk)))
   (define-values (returned-val new-actormap2 new-msgs)
     (actormap-turn* (make-transactormap new-actormap) actor-refr '()))
   (values returned-val new-actormap2 new-msgs))
@@ -2315,10 +2316,10 @@ new generation.
 
 Type: Actormap (-> Any) (Optional (#:reckless? Boolean)) -> Any"
   (define actor-refr
-    (actormap-spawn! actormap
-                     (lambda (bcom)
-                       (lambda ()
-                         (call-with-values thunk list)))))
+    (actormap-spawn-named! actormap 'actormap-run-wrapper
+                           (lambda (bcom)
+                             (lambda ()
+                               (call-with-values thunk list)))))
   (define actormap-poker!
     (if reckless?
         actormap-reckless-poke!
@@ -2547,7 +2548,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) ->
 (Values Any Actormap (List Message))"
   (define vat-connector (actormap-vat-connector actormap))
   (define-values (actor-refr new-actormap)
-    (actormap-spawn actormap (lambda (_bcom) thunk)))
+    (actormap-spawn-named actormap 'actormap-churn-wrapper
+                          (lambda (_bcom) thunk)))
   (define-values (returned-val _nam new-msgs)
     (actormap-churn new-actormap (make-message vat-connector actor-refr #f '())
                     #:catch-errors? catch-errors?
