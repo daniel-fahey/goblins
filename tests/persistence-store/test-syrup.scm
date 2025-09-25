@@ -1,6 +1,7 @@
 (define-module (tests persistence-store test-syrup)
   #:use-module (goblins)
   #:use-module (goblins core-types)
+  #:use-module (goblins persistence-store memory)
   #:use-module (goblins persistence-store syrup)
   #:use-module (goblins contrib syrup)
   #:use-module (srfi srfi-9)
@@ -90,5 +91,24 @@
 (test-assert "Can read version 0 portrait graph data"
   (match (call-with-values (lambda () (read-from-store 'graph-and-slots)) list)
     [(aurie-vat-id roots-version portrait slots) #t]))
+
+;; Even though this belongs to core, we're testing it here as it needs a store
+;; to test against.
+(define memory-store (make-memory-store))
+(define am (make-actormap))
+(define alice (actormap-spawn! am ^greeter "Alice"))
+(actormap-poke! am alice "Bob")
+(actormap-save-to-store! am env memory-store alice)
+
+;; Now convert to the syrup store and check we can still read it.
+(define syrup-filename (tmpnam))
+(define new-syrup-store (make-syrup-store syrup-filename))
+(persistence-store-copy! memory-store new-syrup-store)
+;; Now try and restore and hopefully we'll get alice who's been called once.
+(define am* (make-actormap))
+(define restored-alice (actormap-restore-from-store! am* env new-syrup-store))
+(test-equal "persistence-store-copy! will transfer between stores"
+  "Hello Bob, my name is Alice (called: 1)"
+  (actormap-peek am* restored-alice "Bob"))
 
 (test-end "test-syrup-store")

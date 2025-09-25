@@ -144,6 +144,7 @@
             <-list-ref
             <-tagged-ref
 
+            persistence-store-copy!
 
             ;; Deprecated
             spawn-promise-cons
@@ -3307,3 +3308,11 @@ Returns the root objects of the graph."
   "Return debug name for @var{refr}, or @code{#f} if there is none."
   (and (local-object-refr? refr)
        (local-object-refr-debug-name refr)))
+
+(define (persistence-store-copy! old-store new-store)
+  "Copies the data from @var{old-store} to @{new-store}"
+  (define read-proc (persistence-store-read-proc old-store))
+  (define save-proc (persistence-store-save-proc new-store))
+  (define-values (aurie-vat-id roots-version portraits roots)
+    (read-proc 'graph-and-slots))
+  (save-proc 'save-graph aurie-vat-id roots-version portraits roots))

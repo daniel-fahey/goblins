@@ -1080,6 +1080,19 @@ serialization format.
 Note: Stores are currently not designed in a thread safe manner so
 care should be taken to ensure they are only accessed by one vat.
 
+The procedure @code{persistence-store-copy!} from @code{(goblins)}
+can be used to convert between any two stores. This can be done with:
+
+@lisp
+(use-modules (goblins)
+             (goblins persistence-store syrup)
+             (goblins persistence-store bloblin))
+
+(define old-store (make-syrup-store "my-old-store.syrup"))
+(define new-store (make-bloblin-store "new-bloblin-store"))
+(persistence-store-copy! old-store new-store)
+@end lisp
+
 @node Bloblin Store
 @subsection Bloblin Store
 

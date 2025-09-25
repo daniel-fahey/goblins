@@ -117,6 +117,8 @@
                <-list-ref
                <-tagged-ref
 
+               persistence-store-copy!
+
                ;; Deprecated
                spawn-promise-cons
                spawn-promise-values)
