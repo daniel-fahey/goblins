@@ -1,4 +1,5 @@
 ;;; Copyright 2025 Christine Lemmer-Webber
+;;; Copyright 2025 Jessica Tallon
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -30,18 +31,20 @@
 ;;;
 ;;; Notes on its design are below.
 ;;;
-;;; /path/to/this-auriedb/<full-persistence-id>.bloblin
+;;; <bloblin-dir>/<full-persistence-id>.bloblin
 ;;;
 ;;; - Then we write the header
 ;;;   #+BEGIN_SRC text
-;;;     ['auriedb0 vat-aurie-id       ; aurie id of this vat
-;;;                roots              ; these are assumed to not change from version to version
-;;;                roots-version]     ; this is for upgrading roots
+;;;     ['bloblin0 vat-aurie-id       ; aurie id of this vat
+;;;                roots              ; list of root slots
+;;;                roots-version]     ; version of the roots (for upgrades)
 ;;;   #+END_SRC
 ;;;
-;;; - Then each churn. The first one is a "full" churn. Every one after
-;;;   that is a delta.
+;;; - Each full graph ('save-graph) writes a brand new bloblin file. However
+;;;   deltas are streamed to the same bloblin file. Writing a new file after X
+;;;   deltas written is supported too.
 ;;;
+;;;   This is a portrait (delta or otherwise)
 ;;;   #+BEGIN_SRC text
 ;;;     [write-time  ; seconds in UTC since unix epoch
 ;;;      new-types   ; described below
@@ -49,13 +52,15 @@
 ;;;      portraits]  ; a compressed (via accrued types and obj-ids) mapping
 ;;;   #+END_SRC
 ;;;
-;;; - new-types is:
+;;; - Types are compressed by being written once, then being referred to with a
+;;;   unique type ID (integer). These look like:
 ;;;
 ;;;   #+BEGIN_SRC text
 ;;;   {type-id-int: type-symbol}
 ;;;   #+END_SRC
 ;;;
-;;; - new-obj-ids is:
+;;; - Like types above, debug names are also compressed by being written once
+;;;   and then referred to with a unique ID (integer). These look like:
 ;;;
 ;;;   #+BEGIN_SRC text
 ;;;   {obj-id-int: debug-name}
@@ -66,15 +71,25 @@
 ;;;
 ;;; Many of these ideas could also be pretty easily moved to an indexeddb
 ;;; version.
+;;;
+;;; Terminology used within the document:
+;;; - full graph: The portrait data of all the objects within a persistence
+;;;   graph.
+;;; - delta: portrait data of a subset of objects within the graph (which have
+;;;   changed or been introduced).
+;;; - generation: A set of portraits, either a full graph or delta. Generations
+;;;   come in order and often (although not always) depend on the generation
+;;;   which comes before it. These are similar to transactions in actormaps or
+;;;   commits in git.
 
 
 ;;; Path utilities
 ;;; ==============
 
 (define (make-bloblin-file-path bloblin-dir root-churn-id)
-  (string-join (list bloblin-dir
-                     (string-append (number->string root-churn-id) ".bloblin"))
-               file-name-separator-string))
+  (string-append bloblin-dir
+                 file-name-separator-string
+                 (string-append (number->string root-churn-id) ".bloblin")))
 
 ;; char-set:digit contains non-arabic digits/numerals, which is not what we want
 ;; here, hence we're creating our own:
@@ -84,29 +99,28 @@
   "Return integer associated with .bloblin filename, assuming it is one
 
 If not, we return #f."
-  (define churn-id-str
-    (basename filename ".bloblin"))
+  (define churn-id-str (basename filename ".bloblin"))
   (and (string-every char-set:arabic-numerals churn-id-str)
        (string->number churn-id-str)))
 
 (define (dir-contents->root-churn-ids dir-contents)
-  "Get all the root churn ids as integers from DIR-CONTENTS list
+  "Get all the root churn ids as integers from @var{dir-contents} list
 
 Sorts and returns with largest first so that we can easily `car' off
 the most recent version"
   (define root-churn-ids
     (fold
      (lambda (fname lst)
-       (define churn-id
-         (file-name->root-churn-id fname))
+       (define churn-id (file-name->root-churn-id fname))
        (if churn-id
            (cons churn-id lst)
            lst))
-     '() dir-contents))
+     '()
+      dir-contents))
   (sort root-churn-ids >))
 
 (define (bloblin-vat-dir->root-churn-ids bloblin-vat-dir)
-  "Take BLOBLIN-VAT-DIR and return a list of root churn ids inside"
+  "Take @var{bloblin-vat-dir} and return a list of root churn ids inside"
   (if (file-exists? bloblin-vat-dir)
       (let* ((dir (opendir bloblin-vat-dir))
              (root-churn-ids
@@ -121,7 +135,7 @@ the most recent version"
 (define (bloblin-vat-dir-next-churn-id bloblin-vat-dir)
   (match (bloblin-vat-dir->root-churn-ids bloblin-vat-dir)
     (() 0)
-    ((latest-dir-num rest ...) (1+ latest-dir-num))))
+    ((latest-dir-num . rest) (1+ latest-dir-num))))
 
 ;;; State for an active bloblin file
 (define-record-type <bloblin-state>
@@ -147,30 +161,27 @@ the most recent version"
   (debug-names->debug-name-ints bloblin-state-debug-names->debug-name-ints)
   (debug-name-ints->debug-names bloblin-state-debug-name-ints->debug-names)
   ;; Counters for those compressed identifiers
-  (next-type-id bloblin-state-next-type-id
-                set-bloblin-state-next-type-id!)
+  (next-type-id bloblin-state-next-type-id set-bloblin-state-next-type-id!)
   (next-debug-name-id bloblin-state-next-debug-name-id
                       set-bloblin-state-next-debug-name-id!)
   ;; The roots of this file
   (roots bloblin-state-roots)
   (roots-version bloblin-state-roots-version)
-  ;; These store what generation in the file different entries are
-  ;; stored at
+  ;; These store what generation in the file different entries are stored at
   (aurie-id->gen-id bloblin-state-aurie-id->gen-id)
   ;;: TODO: We need some consistent naming around what's a "root churn"
   ;;; and what's a delta/generation
   ;; Map generations to positions in the file
   (generation->pos bloblin-state-generation->pos)
-  ;; Despite all the Lore about the Data held in Aurie, this is
-  ;; not a TNG reference. Store which generation is next
-  ;; for the next write.
-  (next-gen-id bloblin-state-next-gen-id
-               set-bloblin-state-next-gen-id!))
+  ;; Despite all the Lore about the Data held in Aurie, this is not a TNG
+  ;; reference. Store which generation is next for the next write.
+  (next-gen-id bloblin-state-next-gen-id set-bloblin-state-next-gen-id!))
 
-(define (bloblin-read-header! file)
-  (define header (syrup-read file))
+(define (bloblin-read-header! port)
+  "Read and validate the bloblin header from @var{port}, returning the header"
+  (define header (syrup-read port))
   (when (eq? header the-eof-object)
-    (error "Could not read header from bloblin file" (port-filename file)))
+    (error "Could not read header from bloblin file" (port-filename port)))
   (define header-label (tagged-label header))
   (unless (eq? header-label 'bloblin0)
     (error "Wrong bloblin version, expecting bloblin0, got ~a" header-label))
@@ -189,17 +200,14 @@ the most recent version"
 ;; on an error, and instead debug the open file
 (define %close-on-error? (make-parameter #t))
 
-;; TODO: re-enable
 (define (bloblin-close-on-error bloblin-state run-me)
-  ;; (define (close-up err)
-  ;;   (when (%close-on-error?)
-  ;;     (bloblin-state-close! bloblin-state)))
-  ;; (with-exception-handler close-up run-me)
-  (run-me))
+  (define (close-up err)
+    (when (%close-on-error?)
+      (bloblin-state-close! bloblin-state)))
+  (with-exception-handler close-up run-me))
 
 (define (increment-next-type-id! bloblin-state)
-  (define cur-next-type-id
-    (bloblin-state-next-type-id bloblin-state))
+  (define cur-next-type-id (bloblin-state-next-type-id bloblin-state))
   (set-bloblin-state-next-type-id! bloblin-state (1+ cur-next-type-id)))
 
 (define (increment-next-debug-name-id! bloblin-state)
@@ -209,21 +217,16 @@ the most recent version"
    bloblin-state (1+ cur-next-debug-name-id)))
 
 (define (increment-next-gen-id! bloblin-state)
-  (define cur-next-gen-id
-    (bloblin-state-next-gen-id bloblin-state))
-  (set-bloblin-state-next-gen-id!
-   bloblin-state (1+ cur-next-gen-id)))
+  (define cur-next-gen-id (bloblin-state-next-gen-id bloblin-state))
+  (set-bloblin-state-next-gen-id! bloblin-state (1+ cur-next-gen-id)))
 
 ;; Update type ids / debug-name-ids if we've seen ids at or bigger
 ;; than the next type id
 (define (maybe-increment-next-type-id! bloblin-state seen-type-id)
-  (when (>= seen-type-id
-            (bloblin-state-next-type-id bloblin-state))
-    (set-bloblin-state-next-type-id! bloblin-state
-                                     (1+ seen-type-id))))
+  (when (>= seen-type-id (bloblin-state-next-type-id bloblin-state))
+    (set-bloblin-state-next-type-id! bloblin-state (1+ seen-type-id))))
 (define (maybe-increment-next-debug-name-id! bloblin-state seen-debug-name-id)
-  (when (>= seen-debug-name-id
-            (bloblin-state-next-debug-name-id bloblin-state))
+  (when (>= seen-debug-name-id (bloblin-state-next-debug-name-id bloblin-state))
     (set-bloblin-state-next-debug-name-id! bloblin-state
                                            (1+ seen-debug-name-id))))
 
@@ -273,29 +276,27 @@ the most recent version"
 (define (write-generation! bloblin-state portraits)
   (define (%write-generation!)
     (match bloblin-state
-      (($ <bloblin-state> bloblin-file _closed?
+      (($ <bloblin-state> bloblin-file _
           vat-aurie-id
           types->type-ints type-ints->types
           debug-names->debug-name-ints debug-name-ints->debug-names
           next-type-id next-debug-name-id
-          _roots _roots-version
+          _ _
           aurie-id->gen-id
           generation->pos next-gen-id)
        (define this-generation next-gen-id)
 
-       ;; Used to record in aurie-id->gen-id where each of these
-       ;; entries are
-       (define cur-file-pos
-         (ftell bloblin-file))
+       ;; Used to record in aurie-id->gen-id where each of these entries are
+       (define cur-file-pos (ftell bloblin-file))
 
-       ;; For tracking when we've added new types that we'll
-       ;; record at the start of this generation entry
+       ;; For tracking when we've added new types that we'll record at the start
+       ;; of this generation entry
        (define new-types (make-hashvmap))
        (define new-debug-names (make-hashvmap))
 
-       ;; Here we "compress" the portraits, but it's really just mapping
-       ;; the aurie env types and debug names to integers.
-       ;; Maybe further compression would happen in the future.
+       ;; Here we "compress" the portraits, but it's really just mapping the
+       ;; aurie environment types and debug names to integers. Maybe further
+       ;; compression would happen in the future.
        (define compressed-portraits
          (hash-fold
           (lambda (k portrait hm)
@@ -323,9 +324,8 @@ the most recent version"
                                                           debug-name-id debug-name))
                        debug-name-id)))
                (hashv-set! aurie-id->gen-id k this-generation)
-               (hashmap-set hm k
-                            (list type-id debug-name-id
-                                  portrait-version portrait-data)))))
+               (hashmap-set hm k (list type-id debug-name-id
+                                       portrait-version portrait-data)))))
           (make-hashmap)
           portraits))
 
@@ -343,8 +343,7 @@ the most recent version"
 (define (open-bloblin-file-read-header bloblin-file-path)
   (define bloblin-file (open-file bloblin-file-path "rb+"))
   (seek bloblin-file 0 SEEK_SET)
-  (define header
-    (bloblin-read-header! bloblin-file))
+  (define header (bloblin-read-header! bloblin-file))
   (match (tagged-data header)
     ((vat-aurie-id roots roots-version)
      (make-bloblin-state
@@ -366,34 +365,27 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
           vat-aurie-id
           types->type-ints type-ints->types
           debug-names->debug-name-ints debug-name-ints->debug-names
-          _next-type-id _next-debug-name-id
-          _roots _roots-version
+          _ _ _ _
           aurie-id->gen-id
           generation->pos _next-gen-id)
        (let lp ()
          (define last-good-position (ftell bloblin-file))
-         (define gen
-           (syrup-read bloblin-file))
-         (define this-generation-id
-           (bloblin-state-next-gen-id bloblin-state))
-         (match gen
+         (define this-generation-id (bloblin-state-next-gen-id bloblin-state))
+         (match (syrup-read bloblin-file)
            ((? eof-object?)
-            ;; One way or another, we're done.
-            ;; But first let's check if there was corruption from
-            ;; an incomplete write of a generation.
+            ;; One way or another, we're done. But first let's check if there
+            ;; was corruption from an incomplete write of a generation.
             (unless (= (ftell bloblin-file) last-good-position)
               ;; Oops, indeed, it looks like this was corrupt!
               ;; Let's seek back and truncate the file.
               (seek bloblin-file last-good-position SEEK_SET)
               (truncate-file bloblin-file)
               (force-output bloblin-file)))
-           ((_gen-time new-types new-debug-names portraits)
+           ((_ new-types new-debug-names portraits)
             ;; Update all the types
             (hashmap-for-each (lambda (type-id type-name)
-                                (hash-set! types->type-ints
-                                           type-name type-id)
-                                (hashv-set! type-ints->types
-                                            type-id type-name)
+                                (hash-set! types->type-ints type-name type-id)
+                                (hashv-set! type-ints->types type-id type-name)
                                 (maybe-increment-next-type-id! bloblin-state
                                                                type-id))
                               new-types)
@@ -426,21 +418,19 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
   (bloblin-file-read-body bloblin-state)
   bloblin-state)
 
-;; When a user asks for the most recent generation, which is the
-;; most common case, we can use this for an efficient way to read
-;; only the relevant generations to slurp up all the relevant
-;; portraits
+;; When a user asks for the most recent generation, which is the most common
+;; case, we can use this for an efficient way to read only the relevant
+;; generations to slurp up all the relevant portraits
 (define (aurie-id-generation-mapping->visit-plan aurie-id->gen-id)
   (define visit-plan (make-hash-table))
   (hash-for-each
    (lambda (aurie-id gen-id)
      (hashv-set! visit-plan gen-id
-                 (cons aurie-id
-                       (hashv-ref visit-plan gen-id '()))))
+                 (cons aurie-id (hashv-ref visit-plan gen-id '()))))
    aurie-id->gen-id)
   (values visit-plan
           ;; A sorted itinerary
-          (sort (hash-fold (lambda (key _val lst)
+          (sort (hash-fold (lambda (key _ lst)
                              (cons key lst))
                            '()
                            visit-plan)
@@ -459,24 +449,21 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
        (or (hashv-ref type-ints->types type-id)
            (error "type not found with this compressed id:" type-id)))
      (hashv-set! portraits aurie-id
-                 (list type debug-name
-                       portrait-version portrait-data)))))
+                 (list type debug-name portrait-version portrait-data)))))
 
-;; An efficient way to get the most recent generation, which is the
-;; most common case, based on indexed data in the bloblin-state. We
-;; look at the mapping of all known aurie-ids to their most recent
-;; generations. From there we look up the file positions of those
-;; generations and we read only the relevant generations.
+;; An efficient way to get the most recent generation, which is the most common
+;; case, based on indexed data in the bloblin-state. We look at the mapping of
+;; all known aurie-ids to their most recent generations. From there we look up
+;; the file positions of those generations and we read only the relevant
+;; generations.
 (define (bloblin-get-latest-generation bloblin-state)
   (define (%bloblin-get-latest-generation)
     (define bloblin-file (bloblin-state-file bloblin-state))
     (define old-pos (ftell bloblin-file))
     (define debug-name-ints->debug-names
       (bloblin-state-debug-name-ints->debug-names bloblin-state))
-    (define type-ints->types
-      (bloblin-state-type-ints->types bloblin-state))
-    (define generation->pos
-      (bloblin-state-generation->pos bloblin-state))
+    (define type-ints->types (bloblin-state-type-ints->types bloblin-state))
+    (define generation->pos (bloblin-state-generation->pos bloblin-state))
     (define-values (visit-plan itinerary)
       (aurie-id-generation-mapping->visit-plan
        (bloblin-state-aurie-id->gen-id bloblin-state)))
@@ -489,11 +476,11 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
              (pos (hashv-ref generation->pos gen-id)))
         (seek bloblin-file pos SEEK_SET)
         (match (syrup-read bloblin-file)
-          ((_write-time _nt _ndn compressed-portraits)
+          ((_ _ _ compressed-portraits)
            (do ((aurie-ids aurie-ids (cdr aurie-ids)))
                ((null? aurie-ids))
              (match aurie-ids
-               ((aurie-id . _rest-ids)
+               ((aurie-id . _)
                 (%insert-compressed-portrait!
                  portraits aurie-id
                  (hashmap-ref compressed-portraits aurie-id)
@@ -527,7 +514,7 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
       (match (syrup-read bloblin-file)
         ((? eof-object?)
          (error "Requested generation-id exceeds entries in file"))
-        ((_write-time _types _debug-names compressed-portraits)
+        ((_ _ _ compressed-portraits)
          (hashmap-for-each
           (lambda (aurie-id compressed-portrait)
             (%insert-compressed-portrait!
@@ -549,8 +536,8 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
 (define* (make-bloblin-store bloblin-dir #:key [deltas-per-file 1000])
   (define active-bloblin-state #f)  ; Active file to read/write from
 
-  ;; We try to load bloblin state from a recent bloblin file, if that
-  ;; exists. If it doesn't, we'll back out.
+  ;; We try to load bloblin state from a recent bloblin file, if that exists. If
+  ;; it doesn't, we'll back out.
   (define (try-to-load-bloblin-state!)
     (unless active-bloblin-state
       ;; See if there's a "latest" bloblin state, load that
@@ -562,18 +549,18 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
                 (make-bloblin-file-path bloblin-dir latest-root-churn-id)))))))
 
   (define (get-active-or-chosen-bloblin-state root-churn-id)
-    (if root-churn-id
-        (open-bloblin-file (make-bloblin-file-path bloblin-dir root-churn-id))
-        ;; no root-churn-id provided, so return the active-bloblin-state
-        (begin
-          (try-to-load-bloblin-state!)
-          active-bloblin-state)))
+    (cond (root-churn-id
+           (open-bloblin-file
+            (make-bloblin-file-path bloblin-dir root-churn-id)))
+          ;; no root-churn-id provided, so return the active-bloblin-state
+          (else
+           (try-to-load-bloblin-state!)
+           active-bloblin-state)))
 
   (define memory-read-proc
     (methods
      [(graph-and-slots #:key root-churn-id delta-id)
-      (define bloblin-state
-        (get-active-or-chosen-bloblin-state root-churn-id))
+      (define bloblin-state (get-active-or-chosen-bloblin-state root-churn-id))
       (if bloblin-state
           (let ((portraits
                  (if delta-id
@@ -586,8 +573,10 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
                     portraits
                     (bloblin-state-roots bloblin-state)))
           (values #f #f #f #f))]
-     ;; TODO: We can do a way more efficient version of this, just
-     ;; trying to get this out the door
+     ;; This isn't really currently used within Aurie, however it's here because
+     ;; in the future (sleepy actors?) we might want to be able to pull one
+     ;; portrait out. This might need work when it starts getting used more to
+     ;; make it more efficient.
      [(object-portrait slot #:key root-churn-id delta-id)
       (define bloblin-state
         (get-active-or-chosen-bloblin-state root-churn-id))
@@ -599,38 +588,7 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
             (bloblin-get-latest-generation bloblin-state)))
       (when root-churn-id
         (bloblin-state-close! bloblin-state))
-      (hash-ref portraits slot)]
-     ;; @@: Could be more efficient, fine for now.
-     ;; This is meant to be a tool for the REPL in the future, or something.
-     ;; Playing around in the meanwhile.
-     #;[(get-generations)
-      (error-if-no-portraits)
-      ;; We actually pull the generations off of here and sort them
-      ;; just in case we allow dropping generations in the future of
-      ;; this API
-      (let ((generations (sort (hashmap-fold
-                                (lambda (k _v result)
-                                  (cons k result))
-                                '()
-                                portrait-revisions)
-                               <)))
-        (map (lambda (i)
-               (let* ((entry (hashmap-ref portrait-revisions i))
-                      (portraits (churn-entry-portraits entry))
-                      (num-refrs (hash-fold (lambda (_k _v result)
-                                              (1+ result))
-                                            0 portraits)))
-                 ;; We may eventually put other info in here
-                 `(,i (delta? ,(churn-entry-delta? entry))
-                      (num-portraits ,num-refrs)
-                      ,@(cond
-                         [(churn-entry-full-churn-data entry)
-                          =>
-                          (lambda (fc-data)
-                            `((roots ,(full-churn-data-roots fc-data))))]
-                         [else '()]))))
-             generations))]
-     ))
+      (hash-ref portraits slot)]))
 
   (define memory-save-proc
     (methods
@@ -657,16 +615,16 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
         ;; aid GC. If we've written over that, start a new file.
         (let ((next-gen-id (bloblin-state-next-gen-id active-bloblin-state)))
           (when (and deltas-per-file (> next-gen-id deltas-per-file))
-            (define current-portraits
-              (bloblin-get-latest-generation active-bloblin-state))
-            (bloblin-state-close! active-bloblin-state)
-            (define new-bloblin-state
-              (setup-new-bloblin-file!
-               (bloblin-state-roots active-bloblin-state)
-               (bloblin-state-roots-version active-bloblin-state)
-               bloblin-dir
-               (bloblin-state-vat-aurie-id active-bloblin-state)))
-            (set! active-bloblin-state new-bloblin-state)
-            (write-generation! active-bloblin-state current-portraits))))]))
+            (let ((current-portraits
+                   (bloblin-get-latest-generation active-bloblin-state))
+                  (new-bloblin-state
+                   (setup-new-bloblin-file!
+                    (bloblin-state-roots active-bloblin-state)
+                    (bloblin-state-roots-version active-bloblin-state)
+                    bloblin-dir
+                    (bloblin-state-vat-aurie-id active-bloblin-state))))
+              (bloblin-state-close! active-bloblin-state)
+              (set! active-bloblin-state new-bloblin-state)
+              (write-generation! active-bloblin-state current-portraits)))))]))
 
   (make-persistence-store memory-read-proc memory-save-proc))
