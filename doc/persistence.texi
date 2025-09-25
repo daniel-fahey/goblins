@@ -1083,10 +1083,11 @@ care should be taken to ensure they are only accessed by one vat.
 @node Bloblin Store
 @subsection Bloblin Store
 
-This provides a fast and efficient Syrup based store. The store is given a
-directory to write to, within which it stores files which contain one full graph
-after which just the deltas are streamed to it. This provides a fast and
-efficient storage mechanism.
+This provides a fast and efficient Syrup based store. Goblins vats are usually
+efficient providing only the deltas (i.e. the portraits of changed objects),
+rather than the full graph. This store is able to be fast by streaming these
+deltas to the file. This is much faster than writing out the full graph each
+time an object changes (or rather for each churn).
 
 The store is provided by @code{(goblins persistence-store bloblin)}.
 

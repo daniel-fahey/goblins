@@ -177,6 +177,17 @@ the most recent version"
   ;; reference. Store which generation is next for the next write.
   (next-gen-id bloblin-state-next-gen-id set-bloblin-state-next-gen-id!))
 
+(define (make-initial-bloblin-state bloblin-file vat-aurie-id roots roots-version)
+  (make-bloblin-state bloblin-file
+                      #f
+                      vat-aurie-id
+                      (make-hash-table) (make-hash-table)
+                      (make-hash-table) (make-hash-table)
+                      0 0
+                      roots roots-version
+                      (make-hash-table)
+                      (make-hash-table) 0))
+
 (define (bloblin-read-header! port)
   "Read and validate the bloblin header from @var{port}, returning the header"
   (define header (syrup-read port))
@@ -241,8 +252,7 @@ the most recent version"
   (close-port tmp-file)
   (rename-file tmp-file-path file-path)
   (define actual-file (open-file file-path "rb+"))
-  (unless (equal? (syrup-read actual-file) syrup-contents)
-    (error "Got something unexpected when atomically writing contents"))
+  (seek actual-file 0 SEEK_END)
   actual-file)
 
 (define (setup-new-bloblin-file! roots roots-version
@@ -263,15 +273,8 @@ the most recent version"
            (bloblin-file
             (atomically-create-file-with-contents bloblin-file-path header)))
       ;; Now return the new initialized bloblin-state
-      (make-bloblin-state bloblin-file
-                          #f
-                          vat-aurie-id
-                          (make-hash-table) (make-hash-table)
-                          (make-hash-table) (make-hash-table)
-                          0 0
-                          roots roots-version
-                          (make-hash-table)
-                          (make-hash-table) 0))))
+      (make-initial-bloblin-state bloblin-file vat-aurie-id
+                                  roots roots-version))))
 
 (define (write-generation! bloblin-state portraits)
   (define (%write-generation!)
@@ -291,43 +294,41 @@ the most recent version"
 
        ;; For tracking when we've added new types that we'll record at the start
        ;; of this generation entry
-       (define new-types (make-hashvmap))
-       (define new-debug-names (make-hashvmap))
+       (define new-types (make-hash-table))
+       (define new-debug-names (make-hash-table))
 
        ;; Here we "compress" the portraits, but it's really just mapping the
        ;; aurie environment types and debug names to integers. Maybe further
        ;; compression would happen in the future.
-       (define compressed-portraits
-         (hash-fold
-          (lambda (k portrait hm)
-            ;; Piece apart the portrait to compress it
-            (match portrait
-              ((type-name debug-name portrait-version portrait-data)
-               (define type-id
-                 (or (hash-ref types->type-ints type-name)
-                     (let ((type-id (bloblin-state-next-type-id bloblin-state)))
-                       (hash-set! types->type-ints type-name type-id)
-                       (hashv-set! type-ints->types type-id type-name)
-                       (increment-next-type-id! bloblin-state)
-                       (set! new-types (hashmap-set new-types
-                                                    type-id type-name))
-                       type-id)))
-               (define debug-name-id
-                 (or (hash-ref debug-names->debug-name-ints debug-name)
-                     (let ((debug-name-id (bloblin-state-next-debug-name-id
-                                           bloblin-state)))
-                       (hash-set! debug-names->debug-name-ints debug-name debug-name-id)
-                       (hashv-set! debug-name-ints->debug-names debug-name-id debug-name)
+       (define compressed-portraits (make-hash-table))
+       (hash-for-each
+        (lambda (k portrait)
+          ;; Piece apart the portrait to compress it
+          (match portrait
+            ((type-name debug-name portrait-version portrait-data)
+             (define type-id
+               (or (hash-ref types->type-ints type-name)
+                   (let ((type-id (bloblin-state-next-type-id bloblin-state)))
+                     (hash-set! types->type-ints type-name type-id)
+                     (hashv-set! type-ints->types type-id type-name)
+                     (increment-next-type-id! bloblin-state)
+                     (hash-set! new-types type-id type-name)
+                     type-id)))
+             (define debug-name-id
+               (or (hash-ref debug-names->debug-name-ints debug-name)
+                   (let ((debug-name-id (bloblin-state-next-debug-name-id
+                                         bloblin-state)))
+                     (hash-set! debug-names->debug-name-ints debug-name debug-name-id)
+                     (hashv-set! debug-name-ints->debug-names debug-name-id debug-name)
 
-                       (increment-next-debug-name-id! bloblin-state)
-                       (set! new-debug-names (hashmap-set new-debug-names
-                                                          debug-name-id debug-name))
-                       debug-name-id)))
-               (hashv-set! aurie-id->gen-id k this-generation)
-               (hashmap-set hm k (list type-id debug-name-id
-                                       portrait-version portrait-data)))))
-          (make-hashmap)
-          portraits))
+                     (increment-next-debug-name-id! bloblin-state)
+                     (hash-set! new-debug-names debug-name-id debug-name)
+                     debug-name-id)))
+             (hashv-set! aurie-id->gen-id k this-generation)
+             (hash-set! compressed-portraits k
+                        (list type-id debug-name-id portrait-version
+                              portrait-data)))))
+          portraits)
 
        (syrup-write (list (current-time)
                           new-types new-debug-names
@@ -342,7 +343,6 @@ the most recent version"
 
 (define (open-bloblin-file-read-header bloblin-file-path)
   (define bloblin-file (open-file bloblin-file-path "rb+"))
-  (seek bloblin-file 0 SEEK_SET)
   (define header (bloblin-read-header! bloblin-file))
   (match (tagged-data header)
     ((vat-aurie-id roots roots-version)
