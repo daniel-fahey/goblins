@@ -85,7 +85,7 @@
 
   (define (error-if-no-portraits)
     (unless last-churn-id
-      (error "No portrait data has been stored yet")))
+      (persistence-error "No portrait data has been stored")))
 
   (define memory-read-proc
     (methods

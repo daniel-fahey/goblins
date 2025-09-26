@@ -61,9 +61,7 @@
      (make-portrait-graph current-data-version aurie-vat-id
                           roots-version portraits slots)]
     [something-else
-     ;; TODO: Make aurie specific errors so they can be caught later.
-     (error (format #f "Could not read portrait graph data, got: ~a"
-                    something-else))]))
+     (persistence-error "Unrecognized portrait graph data" something-else)]))
 
 (define (portrait-graph-constructor . args)
   ;; In the future, use migrations macro and do the correct version check here.
@@ -135,8 +133,7 @@
       (set! roots-version version)
       (write-depictions backing-file aurie-vat-id version portraits slots)]
      [(save-delta portraits)
-      (unless (and saved-portraits saved-slots)
-        (error "Cannot save deltas until a whole graph has been stored first"))
+      (unless (and saved-portraits saved-slots) (delta-before-graph-error))
       (hash-for-each
        (lambda (slot new-portrait-data)
          (hashq-set! saved-portraits slot new-portrait-data))
@@ -149,8 +146,7 @@
      [(graph-and-slots)
       (values aurie-vat-id roots-version saved-portraits saved-slots)]
      [(object-portrait slot)
-      (unless (and saved-portraits saved-slots)
-        (error "Cannot read an object from an empty store"))
+      (unless (and saved-portraits saved-slots) (empty-store-error))
       (hashq-ref saved-portraits slot)]))
 
   (make-persistence-store read-proc write-proc))

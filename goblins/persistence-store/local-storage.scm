@@ -104,8 +104,7 @@
       (set! roots-version version)
       (write-depictions name aurie-vat-id version portraits slots)]
      [(save-delta portraits)
-      (unless (and saved-portraits saved-slots)
-        (error "Cannot save deltas until a whole graph has been stored first"))
+      (unless (and saved-portraits saved-slots) (delta-before-graph-error))
       (hash-for-each
        (lambda (slot new-portrait-data)
          (hashq-set! saved-portraits slot new-portrait-data))
@@ -118,8 +117,7 @@
      [(graph-and-slots)
       (values aurie-vat-id roots-version saved-portraits saved-slots)]
      [(object-portrait slot)
-      (unless (and saved-portraits saved-slots)
-        (error "Cannot read an object from an empty store"))
+      (unless (and saved-portraits saved-slots) (empty-store-error))
       (hashq-ref saved-portraits slot)]))
 
   (make-persistence-store read-proc write-proc))

@@ -40,9 +40,9 @@
                (define (migrator version migration-data)
                  (match version
                    [(? unsupported? old-version)
-                    ;; We want to define an exception type for all persistence related errors, so they can be caught.
-                    (error (format #f "Data version ~a is too old, minimum supported version is ~a"
-                                   old-version min))]
+                    (persistence-error
+                     (format #f "Data version ~a older than minimum ~a"
+                             old-version min))]
                    [from-version
                     (match migration-data
                       [(data ...) body ...])]

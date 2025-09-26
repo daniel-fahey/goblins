@@ -1274,7 +1274,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
     (define persistence-env
       (vat-persistence-env vat))
     (unless persistence-env
-      (error "Cannot get portrait in a non-persistent capable vat" vat))
+      (persistence-error "Cannot take portrait in non-persistent vat" vat))
 
     (define environ
       (vat-persistence-environ persistence-env))
@@ -1289,7 +1289,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
       (actormap-ref am refr))
 
     (unless mactor
-      (error "refr not found in vat" refr))
+      (persistence-error "refr not found in vat" refr vat))
     (define take-self-portrait
       (mactor:object-self-portrait mactor))
     (take-self-portrait))
@@ -1300,7 +1300,8 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
     (define vat-persistence
       (vat-persistence-env vat))
     (unless vat-persistence
-      (error "Cannot replace the behavior on a non-persistent vat"))
+      (persistence-error
+       "Cannot replace behavior in non-persistent vat" vat))
 
     (when new-env
       (set-vat-persistence-environ! vat-persistence new-env))
@@ -1488,8 +1489,9 @@ using the migrations macro."
       (with-vat vat (apply upgrade roots-version roots)))
     (if (equal? new-version version)
         new-roots
-        (error (format #f "Migration upgraded the roots from ~a to ~a, but expected upgrade to ~a"
-                       roots-version new-version version))))
+        (persistence-error
+         (format #f "Migration upgraded roots version from ~a to ~a but expected ~a"
+                 roots-version new-version version))))
 
   ;; If we need to upgrade, apply the upgrader
   (define upgrade-roots? (or spawned-new? (equal? roots-version version)))

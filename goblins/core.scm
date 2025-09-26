@@ -2694,7 +2694,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
 
 Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
   (when (null? roots)
-    (error "At least one root object must be specified to take a portrait"))
+    (persistence-error
+     "Cannot take portrait without at least one root object"))
 
   (define (maybe-create-obj-slot! obj)
     "Looks up or creates slot for object"
@@ -2716,7 +2717,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
   (define (read-portrait! am this-obj)
     (define slot (local-object-refr-aurie-id this-obj))
     (unless (hash-ref slot->val slot #f)
-      (error "Object does not appear in the persistence graph" this-obj))
+      (persistence-error "Object not in persistence graph" this-obj))
 
     ;; Keep track of new (previously not in the object graph) objects,
     ;; while this is represented as a hashmap, really it's working
@@ -2726,7 +2727,8 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
 
     (define this-obj-self-portrait-fn
       (mactor:object-self-portrait (or (actormap-ref am this-obj)
-                                       (error "Object not in actormap:" this-obj))))
+                                       (persistence-error
+                                        "Object not in actormap" this-obj))))
     (define this-obj-constructor-refr
       (mactor:object-constructor-refr (actormap-ref am this-obj)))
     (define this-obj-spec
@@ -2811,7 +2813,8 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
             (match (mactor:aurie-local-link-depiction mactor)
               (('far (vat-id refr-id)) (make-tagged* 'far vat-id refr-id))
               (depiction
-               (error "Unknown depiction in aurie-local-link" depiction)))]
+               (persistence-error
+                "Unknown depiction in aurie-local-link" depiction)))]
            ;; Unfortunately, for now, unresolved promises become broken
            [(or (? mactor:broken?) (? mactor:naive?)) (make-tagged* 'broken)]
            [(? mactor:encased? mactor)
@@ -2826,11 +2829,13 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
          (make-tagged* 'persistable-obj-id
                        (persistable-object-identifier-vat-id value)
                        (persistable-object-identifier-object-id value))]
-        [_ (error "Unserializable value!" 'value: value 'obj this-obj)]))
+        [_ (persistence-error "Unserializable value" value this-obj)]))
 
     (define (process-portrait obj-spec portrait-data)
       (unless obj-spec
-        (error "Don't know how to persist:" this-obj this-obj-constructor-refr))
+        (persistence-error
+         "Don't know how to persist object"
+         this-obj this-obj-constructor-refr))
       (match portrait-data
         [(? versioned? data)
          (define-values (portrait-version portrait-data)
@@ -2846,7 +2851,8 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
     (define returned-self-portrait
       (if this-obj-self-portrait-fn
           (actormap-run am this-obj-self-portrait-fn)
-          (error "No self portrait function found for object" this-obj)))
+          (persistence-error
+           "No self-portrait function found for object" this-obj)))
 
     (define depiction-to-save
       (process-portrait this-obj-spec returned-self-portrait))
@@ -3112,7 +3118,8 @@ Type: Actormap PersistenceEnv -> Void"
       (match portrait
         ((name debug-name portrait-version portrait-data)
          (values name debug-name portrait-version portrait-data))
-        (_ (error "Unknown portrait data"))))
+        (something-else
+         (persistence-error "Unknown portrait data" something-else))))
     (define restored-args
       (actormap-run! am (lambda () (restore-one obj-portrait))))
     (define obj-spec (persistence-env-ref persistence-env obj-name))
@@ -3172,15 +3179,17 @@ Type: Actormap PersistenceEnv -> Void"
                 vow)]
              ['broken
               (let-values (((vow resolver) (spawn-promise-and-resolver)))
-                ;; TODO: An actual error type?
-                ($ resolver 'break "Aurie broken promise")
+                ($ resolver 'break
+                   (make-exception
+                    (make-persistence-error)
+                    (make-exception-with-message "Broken promise")))
                 vow)]
              ['ocapn-id (string->ocapn-id (car data))]
              ['persistable-obj-id
               (match data
                 [(vat-id object-id)
                  (make-persistable-object-identifier vat-id object-id)])]
-             [_ (error "Unknown depiction type" type)]))]
+             [_ (persistence-error "Unknown depiction type" type)]))]
         [(? hashmap?)
          (hashmap-fold
           (lambda (k v prev)
@@ -3195,7 +3204,7 @@ Type: Actormap PersistenceEnv -> Void"
           depicted)]
         [(? list?) (map restore-one depicted)]
         [(? depictable-atom?) depicted]
-        [_ (error "Unknown value in portrait data" depicted)]))
+        [_ (persistence-error "Unknown value in portrait data" depicted)]))
 
     (define-values (restored-obj-refr new-am new-msgs)
       (actormap-run*
@@ -3293,7 +3302,7 @@ Returns the root objects of the graph."
   (define vat-connector
     (local-refr-vat-connector local-refr))
   (unless vat-connector
-    (error "local-refr ~a has no vat connector" local-refr))
+    (persistence-error "local-refr has no vat connector" local-refr))
   (make-persistable-object-identifier
    (vat-connector 'aurie-vat-id)
    (local-object-refr-aurie-id local-refr)))

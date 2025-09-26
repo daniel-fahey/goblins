@@ -23,6 +23,7 @@
 (define-module (goblins core-types)
   #:use-module (srfi srfi-9)
   #:use-module (srfi srfi-9 gnu)
+  #:use-module (ice-9 exceptions)
   #:use-module (ice-9 format)
   #:use-module (ice-9 match)
   #:use-module (goblins utils define-applicable-record-type)
@@ -212,7 +213,14 @@
             make-persistable-object-identifier
             persistable-object-identifier?
             persistable-object-identifier-vat-id
-            persistable-object-identifier-object-id))
+            persistable-object-identifier-object-id
+
+            &persistence-error
+            make-persistence-error
+            persistence-error?
+            persistence-error
+            delta-before-graph-error
+            empty-store-error))
 
 ;; Actormaps, etc
 ;; ==============
@@ -685,3 +693,28 @@ a persisted version of an object spawned via CONSTRUCTOR."
   persistable-object-identifier?
   (vat-id persistable-object-identifier-vat-id)
   (object-id persistable-object-identifier-object-id))
+
+(define-exception-type &persistence-error &error
+  make-persistence-error
+  persistence-error?)
+
+(define-syntax persistence-error
+  (syntax-rules ()
+    ((_) (raise-exception (make-persistence-error)))
+    ((_ message)
+     (raise-exception
+      (make-exception
+       (make-persistence-error)
+       (make-exception-with-message message))))
+    ((_ message . irritants)
+     (raise-exception
+      (make-exception
+       (make-persistence-error)
+       (make-exception-with-message message)
+       (make-exception-with-irritants irritants))))))
+
+(define-syntax-rule (delta-before-graph-error irritants ...)
+  (persistence-error "Cannot save delta before full graph" irritants ...))
+
+(define-syntax-rule (empty-store-error irritants ...)
+  (persistence-error "Cannot read from empty store" irritants ...))

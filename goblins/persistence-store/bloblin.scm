@@ -192,10 +192,11 @@ the most recent version"
   "Read and validate the bloblin header from @var{port}, returning the header"
   (define header (syrup-read port))
   (when (eq? header the-eof-object)
-    (error "Could not read header from bloblin file" (port-filename port)))
+    (persistence-error "Cannot read bloblin header from file" port))
   (define header-label (tagged-label header))
   (unless (eq? header-label 'bloblin0)
-    (error "Wrong bloblin version, expecting bloblin0, got ~a" header-label))
+    (persistence-error
+     "Wrong bloblin version; expecting bloblin0" header-label))
   header)
 
 (define (bloblin-state-close! bloblin-state)
@@ -204,7 +205,7 @@ the most recent version"
 
 (define (bloblin-ensure-open bloblin-state)
   (when (bloblin-state-closed? bloblin-state)
-    (error "Trying to operate on a closed bloblin file")))
+    (persistence-error "Cannot operate on closed bloblin file")))
 
 ;; This is intentionally a parameter, because when debugging
 ;; what's gone wrong with bloblin, you might not want to close
@@ -444,10 +445,10 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
     ((type-id debug-name-id portrait-version portrait-data)
      (define debug-name
        (or (hashv-ref debug-name-ints->debug-names debug-name-id)
-           (error "debug-name not found with this compressed id:" debug-name-id)))
+           (persistence-error "debug-name-id not found" debug-name-id)))
      (define type
        (or (hashv-ref type-ints->types type-id)
-           (error "type not found with this compressed id:" type-id)))
+           (persistence-error "type-id not found" type-id)))
      (hashv-set! portraits aurie-id
                  (list type debug-name portrait-version portrait-data)))))
 
@@ -500,8 +501,9 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
     (define type-ints->types
       (bloblin-state-type-ints->types bloblin-state))
     (define portraits (make-hash-table))
-    (unless (>= gen-id 0)
-      (error "gen-id must be an integer greater or equal to zero" gen-id))
+    (unless (and (exact-integer? gen-id) (>= gen-id 0))
+      (persistence-error
+       "gen-id must be exact integer greater than or equal to zero" gen-id))
 
     ;; Seek to start of file
     (seek bloblin-file 0 SEEK_SET)
@@ -513,7 +515,8 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
     (let lp ((i 0))
       (match (syrup-read bloblin-file)
         ((? eof-object?)
-         (error "Requested generation-id exceeds entries in file"))
+         (persistence-error "Requested gen-id exceeds entries in file"
+                            gen-id bloblin-file))
         ((_ _ _ compressed-portraits)
          (hashmap-for-each
           (lambda (aurie-id compressed-portrait)
@@ -580,8 +583,7 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
      [(object-portrait slot #:key root-churn-id delta-id)
       (define bloblin-state
         (get-active-or-chosen-bloblin-state root-churn-id))
-      (unless bloblin-state
-        (error "Cannot read object from empty store" slot))
+      (unless bloblin-state (empty-store-error))
       (define portraits
         (if delta-id
             (bloblin-get-arbitrary-generation bloblin-state delta-id)
@@ -607,8 +609,7 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
       ;; themselves? It definitely makes sense to skip them here.
       (unless (zero? (hash-count (const #t) delta-portraits))
         (try-to-load-bloblin-state!)
-        (unless active-bloblin-state
-          (error "Tried to save bloblin delta without having saved full graph"))
+        (unless active-bloblin-state (delta-before-graph-error))
         (write-generation! active-bloblin-state delta-portraits)
         ;; After `deltas-per-file` amount of deltas written to a single file, we
         ;; want to start a new file to prevent them from getting too large and
