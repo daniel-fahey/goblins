@@ -1005,6 +1005,15 @@ Send ARGS to REFR using the snapshot for the current debugger event."
                      (apply actormap-peek (vat-event-snapshot event)
                             (repl-eval repl `(list ,refr ,@args))))))))
 
+      (define-meta-command ((vat-log-resize goblins) repl new-size)
+        "vat-log-resize NEW-SIZE
+Resizes the debug log of the current vat to NEW-SIZE."
+        (with-goblins-error-messages
+         (unless (and (exact-integer? new-size) (positive? new-size))
+           (repl-error
+            (format #f "NEW-SIZE must be a positive integer, got ~a" new-size)))
+         (vat-log-resize! (current-vat*) new-size)))
+
       (define-meta-command ((vat-take-object-portrait goblins) repl refr)
         "vat-take-object-portrait REFR
 Takes a portrait of a single object returning the portrait data"

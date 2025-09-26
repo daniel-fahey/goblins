@@ -524,3 +524,7 @@ works by querying the actormap snapshot that has been captured for
 this event.  @var{refr} must be @emph{near} to the vat to which the
 focused event belongs.
 @end deffn
+
+@deffn {Command} vat-log-resize new-size
+Set the size of the current vat's log to @var{new-size}.
+@end deffn

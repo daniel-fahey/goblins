@@ -265,4 +265,13 @@
            (meta vat-replace-behavior new-env)
            (eval ($ ($ foo))))
 
+(test-repl ",vat-log-resize changes the size of the vat's log"
+           "Size is: 2"
+           (meta import (goblins vat))
+           (eval (define vat (spawn-vat)))
+           (eval (vat-log-resize! vat 100))
+           (meta enter-vat vat)
+           (meta vat-log-resize 2)
+           (eval (format #f "Size is: ~a" (vat-log-capacity vat))))
+
 (test-end "test-repl")
