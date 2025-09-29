@@ -2336,10 +2336,24 @@ Type: Actormap (-> Any) (Optional (#:reckless? Boolean)) -> Any"
   "While handling listen request")
 
 (define (simple-display-error msg err stack)
-  (newline (current-error-port))
-  (display ";; === Caught error: ===\n" (current-error-port))
-  (format (current-error-port) ";;  message: ~s\n" msg)
-  (format (current-error-port) ";;  exception: ~s\n" err)
+  (define-syntax-rule (print str arg ...)
+    (format (current-error-port) str arg ...))
+  ;; XXX: We'd really rather use record destructuring, but $ issues...
+  (define print-message
+    (match-lambda
+      ((? message? msg)
+       (print "In message to ~s:~%" (message-to msg))
+       (let ((msg-args (message-args msg)))
+         (unless (null? msg-args)
+           (print "  ~s~%" msg-args))))
+      ((? ref-request? rr)
+       (print "In ref-request to ~s:~%  ref-by: ~s~%"
+              (ref-request-to rr) (ref-request-ref-by rr)))
+      (obj (print "In message:~%  ~s~%" obj))))
+
+  (print "~%Goblins exception:~%")
+  (print-message msg)
+  (print-exception* stack err)
   (display-backtrace* err stack))
 
 (define (make-no-op msg)
