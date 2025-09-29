@@ -20,6 +20,7 @@
   #:use-module (goblins contrib syrup)
   #:use-module (goblins utils base32)
   #:use-module (goblins utils hashmap)
+  #:use-module (goblins utils persistence)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-9)
   #:use-module (ice-9 match)
@@ -617,7 +618,9 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
         (let ((next-gen-id (bloblin-state-next-gen-id active-bloblin-state)))
           (when (and deltas-per-file (> next-gen-id deltas-per-file))
             (let ((current-portraits
-                   (bloblin-get-latest-generation active-bloblin-state))
+                   (remove-orphaned-objects
+                    (bloblin-get-latest-generation active-bloblin-state)
+                    (bloblin-state-roots active-bloblin-state)))
                   (new-bloblin-state
                    (setup-new-bloblin-file!
                     (bloblin-state-roots active-bloblin-state)

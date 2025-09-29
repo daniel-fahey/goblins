@@ -100,6 +100,7 @@ SOURCES = goblins.scm \
           goblins/utils/bytes-stuff.scm \
           goblins/utils/ghash.scm \
           goblins/utils/js-data.scm \
+          goblins/utils/persistence.scm \
           goblins/utils/crypto.scm \
           goblins/utils/define-applicable-record-type.scm \
           goblins/utils/error-handling.scm \
@@ -155,6 +156,7 @@ TESTS = tests/actor-lib/test-cell.scm \
         tests/utils/test-bytes-stuff.scm \
         tests/utils/test-ghash.scm \
         tests/utils/test-ring-buffer.scm \
+        tests/utils/test-persistence.scm \
         tests/utils/test-crypto.scm \
         tests/utils/test-hashmap.scm \
         tests/contrib/test-syrup.scm
