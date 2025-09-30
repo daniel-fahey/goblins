@@ -1104,13 +1104,18 @@ time an object changes (or rather for each churn).
 
 The store is provided by @code{(goblins persistence-store bloblin)}.
 
-@deffn {Procedure} make-bloblin-store bloblin-dir [#:deltas-per-file]
+@deffn {Procedure} make-bloblin-store bloblin-dir [#:deltas-per-file] [#:max-bloblin-files]
 
 Return a memory store which will write its data to @var{bloblin-dir}. This
 directory is expected to be used solely for Bloblin's data to exist within. The
 number of deltas streamed to a single file before a new file is written to can
 be configured with @var{deltas-per-file}, by default it occurs every 1000
 deltas.
+
+If @var{max-bloblin-files} is specified, only @var{max-bloblin-files} number of
+bloblin files will be kept (deleting the older bloblin files). By default this
+is @code{#f}, which disables deletion of older bloblin files allowing them to
+accumulate over time.
 
 @end deffn
 

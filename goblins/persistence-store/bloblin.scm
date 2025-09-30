@@ -536,8 +536,23 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
   (bloblin-ensure-open bloblin-state)
   (bloblin-close-on-error bloblin-state %bloblin-get-arbitrary-generation))
 
+(define (cleanup-old-bloblin-files bloblin-dir max-bloblin-files)
+  "Keeps only up to @var{max-bloblin-files} in @var{bloblin-dir}."
+  ;; This returns the bloblin files in order of newer first.
+  (define bloblin-file-ids (bloblin-vat-dir->root-churn-ids bloblin-dir))
+  (define amount-of-files (length bloblin-file-ids))
+  (when (< max-bloblin-files amount-of-files)
+    (for-each
+     (lambda (id)
+       (delete-file (make-bloblin-file-path bloblin-dir id)))
+     (drop bloblin-file-ids max-bloblin-files))))
+
+
 ;; If deltas-per-file is #f, never make new files.
-(define* (make-bloblin-store bloblin-dir #:key [deltas-per-file 1000])
+(define* (make-bloblin-store bloblin-dir
+                             #:key
+                             [deltas-per-file 1000]
+                             [max-bloblin-files #f])
   (define active-bloblin-state #f)  ; Active file to read/write from
 
   ;; We try to load bloblin state from a recent bloblin file, if that exists. If
@@ -603,7 +618,10 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
       (set! active-bloblin-state
             (setup-new-bloblin-file! roots version bloblin-dir vat-aurie-id))
       ;; Now write out this particular generation
-      (write-generation! active-bloblin-state portraits)]
+      (write-generation! active-bloblin-state portraits)
+      ;; Finally delete old files if needed
+      (when max-bloblin-files
+        (cleanup-old-bloblin-files bloblin-dir max-bloblin-files))]
      [(save-delta delta-portraits)
       ;; We can skip writing deltas if there's nothing changed.
       ;; @@: Should we do the bail-out on saving a delta in vats
@@ -629,6 +647,9 @@ read the rest of the file and catch up BLOBLIN-STATE as appropriate."
                     (bloblin-state-vat-aurie-id active-bloblin-state))))
               (bloblin-state-close! active-bloblin-state)
               (set! active-bloblin-state new-bloblin-state)
-              (write-generation! active-bloblin-state current-portraits)))))]))
+              (write-generation! active-bloblin-state current-portraits)
+              ;; Delete old bloblin files if needed.
+              (when max-bloblin-files
+                (cleanup-old-bloblin-files bloblin-dir max-bloblin-files))))))]))
 
   (make-persistence-store memory-read-proc memory-save-proc))
