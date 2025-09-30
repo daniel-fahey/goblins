@@ -19,18 +19,162 @@ against them.  See @ref{Vats} for most event loop type programming, or
 transactional operations.  Most users will just use vats.
 
 @menu
-* Object construction::
+* Object definition::
 * Synchronous calls::
 * Promises::
 * Asynchronous calls::
 * Object reference procedures::
-* define-actor::
 @end menu
 
-@node Object construction
-@subsection Object construction
+@node Object definition
+@subsection Object definition
 
-Objects can be spawned with the @code{spawn} operator:
+Goblins objects are fundamentally just procedures wrapped in a
+constructor definition.  Any procedure accepting at least one argument
+(@code{bcom}) and returning another procedure (the behavior) works as an
+object constructor, like this one:
+
+@lisp
+(define (^greeter bcom our-name)
+  (lambda (your-name)
+    (string-append "Hello, " your-name "!")))
+@end lisp
+
+In some cases, manually defining objects like this may be necessary.
+However, in the general case, the recommended approach is to use the
+@code{define-actor} macro, which would look like this:
+
+@lisp
+(define-actor (^greeter bcom our-name)
+  (lambda (your-name)
+    (string-append "Hello, " your-name "!")))
+@end lisp
+
+@code{define-actor} simplifies common patterns like persistence
+(@pxref{Persistence}) and makes live hacking more convenient:
+
+@anchor{define-actor}
+@deffn {Syntax} define-actor (object-name var @dots{} @
+                             [#:optional vardef @dots{}] @
+                             [#:key vardef @dots{}]) @
+                             [#:restore procedure] @
+                             [#:portrait thunk] @
+                             [#:version version] @
+                             [#:frozen] @
+                             [#:upgrade migrator] @
+                             [#:self name] @
+                             body @dots{}
+
+Defines a goblins object with @var{object-name}. The argument syntax
+is that of @code{define*} or @code{lambda*} in that it takes
+@code{#:key} and @code{#:optional}, however it does not support
+@code{#:rest}, nor @code{#:allow-other-keys}. The object by default is
+redefinable which aids in live hacking.
+
+When @code{#:restore} is given with a procedure, that procedure is
+called to restore the actor upon rehydration from Goblins persistence
+system. It's called with the initial argument being the version of the
+portrait data followed by the portrait data given by the portrait
+data. When no restore function is provided the default behavior of
+dropping the version and applying the other arguments to the
+constructor is used.
+
+When @code{#:portrait} is given with a thunk, that is called to
+produce the object's self portrait in order to persist it. This thunk
+is run within the body of the object so all arguments to the object
+are available. When no portrait is given, the self portrait will match
+the arguments provided to the constructor.
+
+When @code{#:version} is provided it will tag the portrait with that
+version.
+
+When @code{#:frozen} it does not define the object as a redefinable
+object (useful for live hacking) and prevents @code{#:restore} being
+used. Frozen objects have a slight performance improvement on spawning.
+
+When @code{#:upgrade} is provided, it uses this to migrate the portrait
+data to the newest version. This is designed to work with the @code{migrations}
+macro, however can be used on its own. This cannot be used in combination with
+@code{#:restore}.
+
+When @code{#:self} is provided with a identifier, that identifier is
+bound to the refr of the actor itself.
+
+Here is an example defining a simple cell object, portrait would be
+the @var{val}:
+@lisp
+(define-actor (^cell bcom #:optional val)
+  (case-lambda
+    ;; Called with no arguments; return the current value
+    [() val]
+    ;; Called with one argument, we become a version of ourselves
+    ;; with this new value
+    [(new-val)
+     (bcom (^cell bcom new-val))]))
+@end lisp
+
+Here's an example of a thermostat which takes in the temperature as a
+cell and a reference to a heater. It defines a portrait which removes
+the value from the cell. It specifies a version of @code{1}, as it
+needs to do version upgrade. Finally in the restore function it
+matches on the version and converts from Celsius to Kelvin if it's the
+original version and spawns the ^thermostat with the cellified set
+temperature:
+@lisp
+(define-actor (^thermostat bcom set-temp-cell heater-refr)
+  #:portrait (lambda ()
+	       (list ($ set-temp-cell) heater-refr))
+  #:version 1
+  #:restore (lambda (version set-temp heater-refr)
+	      ;; Version 0 used C, convert to kelvin
+	      (define maybe-converted-temp
+		(match version
+		  [0 (+ set-temp 273.15)]
+		  [1 set-temp]))
+	      (spawn ^thermostat
+		     (spawn ^cell maybe-converted-temp)
+		     heater-refr))
+  (methods
+   [(set-temp new-temp) ($ set-temp-cell new-temp)]
+   ;; Invoked with current room temp
+   [(tick current-temp)
+    (if (< current-temp ($ set-temp-cell))
+	(<-np heater-refr 'turn-on)
+	(<-np heater-refr 'turn-off))]))
+@end lisp
+
+NOTE: this actor could have kept the temperature in the cell, there's
+usually no reason to unpack values like this, it's just for example
+purposes.
+
+Sometimes it's useful to have an actor which can refer to itself. Take
+the example of a deck of playing cards using its own method within
+another method:
+
+@lisp
+(define-actor (^deck bcom #:optional crds)
+  #:self self
+  ;; define helpers etc. here...
+
+  (define-cell cards (or crds (init-deck)))
+  (methods
+   ...
+   ((top) (car ($ cards)))
+   ((draw)
+    (let ((top ($ self 'top)))
+      ($ cards (cdr ($ cards)))
+      top))
+   ...))
+@end lisp
+
+The identifier specified after the @code{#:self} becomes bound to the
+refr of the object. The self keyword is bound within the objects
+behavior but is not available when the object is constructed.
+
+@end deffn
+
+Once you have a constructor, you can use it to create live objects with
+the @code{spawn} operator:
 
 @deffn {Procedure} spawn constructor args @dots{}
 
@@ -576,126 +720,6 @@ Return @code{#t} if @var{obj} is a @emph{far} object or promise, else
 @deffn {Procedure} refr-name refr
 
 Return debug name for @var{refr}, or @code{#f} if there is none.
-
-@end deffn
-
-@node define-actor
-@subsection define-actor
-
-@deffn {Syntax} define-actor (object-name var @dots{} @
-                             [#:optional vardef @dots{}] @
-                             [#:key vardef @dots{}]) @
-                             [#:restore procedure] @
-                             [#:portrait thunk] @
-                             [#:version version] @
-                             [#:frozen] @
-                             [#:upgrade migrator] @
-                             [#:self name] @
-                             body @dots{}
-
-Defines a goblins object with @var{object-name}. The argument syntax
-is that of @code{define*} or @code{lambda*} in that it takes
-@code{#:key} and @code{#:optional}, however it does not support
-@code{#:rest}, nor @code{#:allow-other-keys}. The object by default is
-redefinable which aids in live hacking.
-
-When @code{#:restore} is given with a procedure, that procedure is
-called to restore the actor upon rehydration from Goblins persistence
-system. It's called with the initial argument being the version of the
-portrait data followed by the portrait data given by the portrait
-data. When no restore function is provided the default behavior of
-dropping the version and applying the other arguments to the
-constructor is used.
-
-When @code{#:portrait} is given with a thunk, that is called to
-produce the object's self portrait in order to persist it. This thunk
-is run within the body of the object so all arguments to the object
-are available. When no portrait is given, the self portrait will match
-the arguments provided to the constructor.
-
-When @code{#:version} is provided it will tag the portrait with that
-version.
-
-When @code{#:frozen} it does not define the object as a redefinable
-object (useful for live hacking) and prevents @code{#:restore} being
-used. Frozen objects have a slight performance improvement on spawning.
-
-When @code{#:upgrade} is provided, it uses this to migrate the portrait
-data to the newest version. This is designed to work with the @code{migrations}
-macro, however can be used on its own. This cannot be used in combination with
-@code{#:restore}.
-
-When @code{#:self} is provided with a identifier, that identifier is
-bound to the refr of the actor itself.
-
-Here is an example defining a simple cell object, portrait would be
-the @var{val}:
-@lisp
-(define-actor (^cell bcom #:optional val)
-  (case-lambda
-    ;; Called with no arguments; return the current value
-    [() val]
-    ;; Called with one argument, we become a version of ourselves
-    ;; with this new value
-    [(new-val)
-     (bcom (^cell bcom new-val))]))
-@end lisp
-
-Here's an example of a thermostat which takes in the temperature as a
-cell and a reference to a heater. It defines a portrait which removes
-the value from the cell. It specifies a version of @code{1}, as it
-needs to do version upgrade. Finally in the restore function it
-matches on the version and converts from Celsius to Kelvin if it's the
-original version and spawns the ^thermostat with the cellified set
-temperature:
-@lisp
-(define-actor (^thermostat bcom set-temp-cell heater-refr)
-  #:portrait (lambda ()
-	       (list ($ set-temp-cell) heater-refr))
-  #:version 1
-  #:restore (lambda (version set-temp heater-refr)
-	      ;; Version 0 used C, convert to kelvin
-	      (define maybe-converted-temp
-		(match version
-		  [0 (+ set-temp 273.15)]
-		  [1 set-temp]))
-	      (spawn ^thermostat
-		     (spawn ^cell maybe-converted-temp)
-		     heater-refr))
-  (methods
-   [(set-temp new-temp) ($ set-temp-cell new-temp)]
-   ;; Invoked with current room temp
-   [(tick current-temp)
-    (if (< current-temp ($ set-temp-cell))
-	(<-np heater-refr 'turn-on)
-	(<-np heater-refr 'turn-off))]))
-@end lisp
-
-NOTE: this actor could have kept the temperature in the cell, there's
-usually no reason to unpack values like this, it's just for example
-purposes.
-
-Sometimes it's useful to have an actor which can refer to itself. Take the example of a deck of playing cards using its own method within another method:
-
-@lisp
-(define-actor (^deck bcom #:optional crds)
-  #:self self
-  ;; define helpers etc. here...
-
-  (define-cell cards (or crds (init-deck)))
-  (methods
-   ...
-   ((top) (car ($ cards)))
-   ((draw)
-    (let ((top ($ self 'top)))
-      ($ cards (cdr ($ cards)))
-      top))
-   ...))
-@end lisp
-
-The identifier specified after the @code{#:self} becomes bound to the
-refr of the object. The self keyword is bound within the objects
-behavior but is not available when the object is constructed.
 
 @end deffn
 
