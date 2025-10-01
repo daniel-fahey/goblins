@@ -54,36 +54,40 @@
 
 (define-syntax define-actor
   (lambda (stx)
-    (define* (args->arg-names args #:key is-keyword?)
-      (define (identifier->keyword id)
-        "Convert identifier to keyword for identifier. (e.g. 'name' -> #:name"
-        (datum->syntax #f (symbol->keyword (syntax->datum id))))
-      (define (cons-id id lst)
-        "Add the provided ID to the list of arguments"
-        ;; If we're handling keyword arguments, add the keyword for
-        ;; the identifier as well as the identifier itself so that
-        ;; when applied it works at as e.g. (#:name name)
-        ;; Otherwise just add the id.
-        (if is-keyword?
-            (cons* (identifier->keyword id) id lst)
-            (cons id lst)))
-
+    (define (identifier->keyword id)
+      (datum->syntax id (symbol->keyword (syntax->datum id))))
+    (define (parse-arg arg)
+      (syntax-case arg ()
+        (id
+         (identifier? #'id)
+         #'id)
+        ((id default)
+         (identifier? #'id)
+         #'id)))
+    (define (parse-arg-names args)
       ;; Go through each argument to the actor pulling out the
       ;; identifier only (e.g. skip #:key, #:optional, default values,
-      ;; etc.). If it's a keyword argument we want to include the
-      ;; identifier's keyword and the identifier itself.
-      (syntax-case args ()
-        (() '())
-        ((#:key . rest)
-         (args->arg-names #'rest #:is-keyword? #t))
-        ((#:optional . rest)
-         (args->arg-names #'rest #:is-keyword? #f))
-        (((id default) . rest)
-         (identifier? #'id)
-         (cons-id #'id (args->arg-names #'rest #:is-keyword? is-keyword?)))
-        ((id . rest)
-         (identifier? #'id)
-         (cons-id #'id (args->arg-names #'rest #:is-keyword? is-keyword?)))))
+      ;; etc.).
+      (let lp ((args args) (keyword? #f))
+        (syntax-case args ()
+          (() '())
+          ((#:key . rest)
+           (lp #'rest #t))
+          ((#:allow-other-keys . rest)
+           (lp #'rest #f))
+          ((#:optional . rest)
+           (lp #'rest #f))
+          ((#:rest . rest)
+           (lp #'rest #f))
+          ((arg . rest)
+           (let ((id (parse-arg #'arg)))
+             ;; If we're handling keyword arguments, add the keyword
+             ;; for the identifier as well as the identifier itself so
+             ;; that when applied it works as e.g. (#:name name),
+             ;; otherwise just add the id.
+             (if keyword?
+                 (cons* (identifier->keyword id) id (lp #'rest keyword?))
+                 (cons id (lp #'rest keyword?))))))))
     ;; Walk through the body and extract all the keyword arguments which are
     ;; "special" to define-actor
     (define (extract-body-keywords body)
@@ -117,7 +121,7 @@
       [(_ (constructor-id bcom arg ...) body ...)
        (let-values (((kwless-body frozen? version portrait restore upgrade self)
                           (extract-body-keywords #'(body ...))))
-         (with-syntax (((arg-name ...) (args->arg-names #'(arg ...)))
+         (with-syntax (((arg-name ...) (parse-arg-names #'(arg ...)))
                        ((kwless-body-extra ... kwless-body-final) kwless-body))
            (define constructor
              (with-syntax ((real-constructor

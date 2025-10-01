@@ -61,8 +61,13 @@
   (actormap-peek restored-am restored-sword-cell)
   'sword)
 
-;; Test an object which uses keys and optional values
-(define-actor (^robot _bcom name #:optional color #:key [hp 100] ready?)
+;; Test an object which uses keyword, optional, and rest arguments
+(define-actor (^robot _bcom name
+                      #:optional color
+                      #:key [hp 100] ready?
+                      ;; Unused but here just to make sure
+                      ;; define-actor doesn't throw a syntax error.
+                      #:allow-other-keys #:rest rest)
   (lambda ()
     (string-append
      "I am a "
@@ -388,8 +393,12 @@
 (test-assert "Only the migration from 1 to 2 is called"
   (and migration-2-called migration-1-called))
 
-;; Check you can use both keyword/optional args with selfish
-(define-actor (^knows-self bcom #:optional bar #:key foo)
+;; Check you can use keyword/optional/rest args with selfish
+(define-actor (^knows-self bcom #:optional bar #:key foo
+                           ;; Unused but here just to make sure
+                           ;; define-actor doesn't throw a syntax
+                           ;; error.
+                           #:allow-other-keys #:rest rest)
   #:self self
   (lambda ()
     (list foo bar self)))
