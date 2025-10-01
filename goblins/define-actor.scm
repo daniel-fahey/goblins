@@ -90,7 +90,7 @@
                  (cons id (lp #'rest keyword?))))))))
     ;; Walk through the body and extract all the keyword arguments which are
     ;; "special" to define-actor
-    (define (extract-body-keywords body)
+    (define (parse-keywords body)
       (let lp ((body body)
                (frozen? #f)
                (version #f)
@@ -115,62 +115,87 @@
            (keyword? (syntax->datum #'kw))
            (syntax-violation 'define-actor "invalid keyword" stx #'kw))
           (_
-           (values body frozen? version portrait restore upgrade
-                   self)))))
+           (values body frozen? version portrait restore upgrade self)))))
+    ;; Parse procedure properties (literal string or vector) from
+    ;; body.
+    (define (parse-properties body)
+      (syntax-case body ()
+        (()
+         (syntax-violation 'define-actor "empty body" stx))
+        ((exp) ; single expression, no properties
+         (values #() #'(exp)))
+        ((properties body* . body) ; docstring or property list
+         (let ((datum (syntax->datum #'properties)))
+           (or (string? datum) (vector? datum)))
+         (values #'properties #'(body* . body)))
+        (_ (values #() body))))
+    (define (parse-body body)
+      (let*-values (((body frozen? version portrait restore upgrade self)
+                     (parse-keywords body))
+                    ((properties body)
+                     (parse-properties body)))
+        (values properties body frozen? version portrait restore upgrade self)))
     (syntax-case stx ()
-      [(_ (constructor-id bcom arg ...) body ...)
-       (let-values (((kwless-body frozen? version portrait restore upgrade self)
-                          (extract-body-keywords #'(body ...))))
+      ((_ (constructor-id bcom arg ...) body ...)
+       (let-values (((properties body frozen? version portrait restore upgrade self)
+                     (parse-body #'(body ...))))
          (with-syntax (((arg-name ...) (parse-arg-names #'(arg ...)))
-                       ((kwless-body-extra ... kwless-body-final) kwless-body))
+                       ((body ... body*) body))
            (define constructor
              (with-syntax ((real-constructor
                             #`(lambda* (bcom arg ...)
-                               ;; Define the self-portrait in one of several ways depending
-                               ;; on whether portrait and/or version are supplied...
-                               #,@(cond
+                                ;; Procedure properties will go in the
+                                ;; wrapper constructor in the case of
+                                ;; #:self.
+                                #,(if self #() properties)
+                                ;; Define the self-portrait in one of several ways depending
+                                ;; on whether portrait and/or version are supplied...
+                                #,(cond
                                    ;; If there's a portrait AND a version, we want to enforce
                                    ;; that if the inner portrait gives a portrait that we error
                                    ;; out on seeing another version added
                                    ((and portrait version)
                                     ;; doing the let here makes sure the portrait procedure and
                                     ;; version are instantiated once, not on every call
-                                    #`((define self-portrait-proc #,portrait)
-                                       (define version #,version)
-                                       (define (self-portrait)
-                                         (define result (self-portrait-proc))
-                                         (if (versioned? result)
-                                             ;; let's make sure the result's version matches
-                                             (if (equal? (versioned-version result)
-                                                         version)
-                                                 ;; the version matches, so just return it
-                                                 result
-                                                 ;; otherwise else, mismatching versions!
-                                                 (raise-portrait-version-mismatch
-                                                  version (versioned-version result)))
-                                             ;; and if it isn't versioned data, let's version it!
-                                             (versioned version result)))))
+                                    #`(begin
+                                        (define self-portrait-proc #,portrait)
+                                        (define version #,version)
+                                        (define (self-portrait)
+                                          (define result (self-portrait-proc))
+                                          (if (versioned? result)
+                                              ;; let's make sure the result's version matches
+                                              (if (equal? (versioned-version result)
+                                                          version)
+                                                  ;; the version matches, so just return it
+                                                  result
+                                                  ;; otherwise else, mismatching versions!
+                                                  (raise-portrait-version-mismatch
+                                                   version (versioned-version result)))
+                                              ;; and if it isn't versioned data, let's version it!
+                                              (versioned version result)))))
                                    ;; portrait but no version
                                    (portrait
-                                    #`((define self-portrait #,portrait)))
+                                    #`(define self-portrait #,portrait))
                                    ;; version but no portrait
                                    (version
-                                    #`((define version #,version)
-                                       (define (self-portrait)
-                                         (versioned #,version
-                                                    (list arg-name ...)))))
+                                    #`(begin
+                                        (define version #,version)
+                                        (define (self-portrait)
+                                          (versioned #,version
+                                                     (list arg-name ...)))))
                                    ;; default with default version
                                    (else
-                                    #'((define (self-portrait)
-                                         (list arg-name ...)))))
-                               kwless-body-extra ...
-                               (portraitize kwless-body-final self-portrait))))
+                                    #'(define (self-portrait)
+                                        (list arg-name ...))))
+                                body ...
+                                (portraitize body* self-portrait))))
                (if self
                    (let ((constructor-id
                           #`(lambda* (_bcom arg ...)
-                             (define constructor-id real-constructor)
-                             (define #,self (spawn constructor-id arg-name ...))
-                             #,self)))
+                              #,properties
+                              (define constructor-id real-constructor)
+                              (define #,self (spawn constructor-id arg-name ...))
+                              #,self)))
                      constructor-id)
                    #`(let ((constructor-id real-constructor))
                        constructor-id))))
@@ -206,7 +231,7 @@
                  #,restore))
             (else
              #`(define-redefinable-object constructor-id
-                 #,constructor)))))])))
+                 #,constructor)))))))))
 
 (define-syntax-rule (define-hackable (constructor-id bcom args ...) body ...)
   (define-redefinable-object constructor-id
