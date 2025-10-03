@@ -93,6 +93,7 @@ SOURCES = goblins.scm \
           goblins/ocapn/netlayer/testuds.scm \
           goblins/ocapn/netlayer/utils.scm \
           goblins/persistence-store/bloblin.scm \
+          goblins/persistence-store/local-storage.scm \
           goblins/persistence-store/memory.scm \
           goblins/persistence-store/syrup.scm \
           goblins/utils/assert-type.scm \
@@ -237,7 +238,6 @@ EXTRA_DIST += README.org \
               live-guile.sh \
               build-aux/test-driver.scm \
               build-aux/run-test-suite.scm \
-              goblins/persistence-store/local-storage.scm \
               doc/goblins.css \
               doc/build-html.scm \
               hoot-ffi/imports.js \
