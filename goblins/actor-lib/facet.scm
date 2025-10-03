@@ -19,14 +19,14 @@
   #:use-module (ice-9 match)
   #:export (^facet facet facet-env))
 
-;; TODO: When define-actor supports #:rest, use define-actor instead.
-(define* (^facet bcom wrap-me #:rest methods)
+(define-actor (^facet bcom wrap-me #:rest methods)
   "Construct an object which limits user access to methods of WRAP-ME.
 
 The METHODS argument is the collection of methods of WRAP-ME to be
 exposed to the user.
 
 The resulting actor can be invoke with any of METHODS."
+  #:frozen
   (define $/<- (select-$/<- wrap-me))
   (define main-beh
     (lambda args
