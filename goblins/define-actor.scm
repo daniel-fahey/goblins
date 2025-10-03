@@ -31,15 +31,18 @@
   (define name
     (cond-expand
      (guile
-      (if (and (defined? 'name) (redefinable-object? name))
+      (let ((proc* proc)
+            (rehydrator* rehydrator))
+        (cond
+         ((and (defined? 'name) (redefinable-object? name))
           ;; We've already defined this, just update the constructor refr
-          (begin
-            (set-redefinable-object-constructor! name proc)
-            (set-redefinable-object-rehydrator! name rehydrator)
-            name)
+          (set-redefinable-object-constructor! name proc*)
+          (set-redefinable-object-rehydrator! name rehydrator*)
+          name)
+         (else
           ;; First time (or currently not a redefinable object),
           ;; lets define it.
-          (make-redefinable-object proc rehydrator)))
+          (make-redefinable-object proc* rehydrator*)))))
      ;; Hoot programs are currently static objects and so redefinable objects
      ;; are not meaningful for hoot. Consider actors as frozen under hoot.
      (hoot
