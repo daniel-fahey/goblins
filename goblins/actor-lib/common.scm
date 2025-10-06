@@ -1,5 +1,5 @@
 ;;; Copyright 2020-2021 Christine Lemmer-Webber
-;;; Copyright 2023 Juliana Sims
+;;; Copyright 2023, 2025 Juliana Sims
 ;;;
 ;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;; you may not use this file except in compliance with the License.
@@ -27,6 +27,34 @@
             ^vector
             common-env))
 
+(define (list->vhash lst)
+  (fold (lambda (i vh)
+          (vhash-consq i #t vh))
+        vlist-null
+        lst))
+
+(define (vhash->list vh)
+  (vhash-fold (lambda (k v lst)
+                (cons k lst))
+              (list)
+              vh))
+
+(define-actor (^seteq* bcom vh)
+  ;; Vhashes don't have a readable format, so use ^seteq as a wrapper to aid
+  ;; persistence.
+  #:portrait (lambda () (vhash->list vh))
+  #:restore (lambda (version . args)
+              (spawn ^seteq* (list->vhash args)))
+  (methods
+   [(add val)
+    (bcom (^seteq* bcom (vhash-consq val #t vh)))]
+   [(remove val)
+    (bcom (^seteq* bcom (vhash-delq val vh)))]
+   [(member? val)
+    (and (vhash-assq val vh) #t)]
+   [(as-list)
+    (vhash->list vh)]))
+
 ;; And the rest, eventually...
 (define (^seteq bcom . initial)
   "Construct an actor representing a set where identity is compared
@@ -37,29 +65,7 @@ Methods:
 `remove val': Remove VAL from the set.
 `member? val': Return #t if VAL is in the set, else #f.
 `as-list': Return the set as a cons list."
-  (define (seteq vh)
-    (define main-beh
-      (methods
-       [(add val)
-        (bcom (seteq (vhash-consq val #t vh)))]
-       [(remove val)
-        (bcom (seteq (vhash-delq val vh)))]
-       [(member? val)
-        (and (vhash-assq val vh) #t)]
-       [(as-list)
-        (vhash-fold (lambda (k v lst)
-                      (cons k lst))
-                    (list)
-                    vh)]))
-    (define (self-portrait)
-      (main-beh 'as-list))
-    (portraitize main-beh self-portrait))
-  (define vh
-    (fold (lambda (i vh)
-            (vhash-consq i #t vh))
-          vlist-null
-          initial))
-  (seteq vh))
+  (spawn ^seteq* (list->vhash initial)))
 
 (define-actor (^ghash bcom #:optional [ht (make-ghash)])
   "Construct an actor providing a transactional interface to
@@ -136,6 +142,6 @@ have the initial value of @var{fill}."
 (define common-env
   (make-persistence-env
    `((((goblins actor-lib common) ^ghash) ,^ghash)
-     (((goblins actor-lib common) ^seteq) ,^seteq)
+     (((goblins actor-lib common) ^seteq) ,^seteq*)
      (((goblins actor-lib common) ^vector) ,^vector*))
    #:extends cell-env))
