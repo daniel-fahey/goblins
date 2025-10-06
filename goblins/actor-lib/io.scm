@@ -17,6 +17,7 @@
   #:use-module (ice-9 match)
   #:use-module (goblins core)
   #:use-module (goblins default-vat-scheduler)
+  #:use-module (goblins define-actor)
   #:use-module (goblins vat)
   #:use-module (goblins inbox)
   #:use-module (goblins actor-lib methods)
@@ -96,8 +97,8 @@ Returns two values to its continuation:
 
 ;; TODO: We need to set up a guardian to automatically clean up when
 ;; this actor reference goes out of scope
-(define* (^io bcom wrapped
-              #:key init cleanup)
+(define-actor (^io bcom wrapped
+                   #:key init cleanup)
   "Spawn an interface for running commands over WRAPPED
 
 `^io' sets up a separate fiber which processes one command at a
@@ -105,6 +106,7 @@ time (taking the wrapped resource as their only argument) if this
 actor is sent a procedure, or halts if given the 'halt symbol.  If
 INIT is provided as a procedure, it is run first before any other
 commands are processed.  When the fiber halts, CLEANUP is run."
+  #:frozen
   (define-values (run-me stop-me!)
     (run-wrapped wrapped #:init init #:cleanup cleanup))
   (define main-beh
@@ -123,7 +125,7 @@ commands are processed.  When the fiber halts, CLEANUP is run."
     (lambda _ (error "IO access halted!")))
   main-beh)
 
-(define* (^read-write-io bcom wrapped #:key init cleanup)
+(define-actor (^read-write-io bcom wrapped #:key init cleanup)
   "Spawn a read and write interface for running commands over WRAPPED
 
 Like the ^io object, this spawns a separate fiber which processes one
@@ -135,6 +137,7 @@ resource without blocking the other.
 
 Like ^io, this supports a 'halt method which stops both fibers and
 runs any CLEANUP provided."
+  #:frozen
   (define init-completed?
     (make-condition))
   (define read-io
