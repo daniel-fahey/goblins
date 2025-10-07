@@ -411,98 +411,92 @@ be a demonstration of passing references around over CapTP, including
 using Third Party Handoffs for sending references from other OCapN
 sessions.
 
-The next sections will get into the details of how to use the CapTP
-API@.
-
 @node Using the CapTP API
 @section Using the CapTP API
 
-Goblins uses an actor to communicate over CapTP@.  This actor can be
-spawned using the @code{spawn-mycapn} procedure from the
-@code{(goblins ocapn captp)} module:
+Goblins relies on a @code{^mycapn} coordination object to communicate
+over OCapN.  The @code{(goblins ocapn captp)} module provides a
+procedure to spawn one:
 
-@lisp
-> (define mycapn (spawn-mycapn netlayer))
-@end lisp
+@deffn {Procedure} spawn-mycapn netlayers @dots{}
 
-Where @code{netlayer} refers to a CapTP netlayer object.  See the next
-section for details on available netlayers.
-
-Local actors need to be registered so that they can receive messages
-over CapTP@.  Registering an actor generates a CapTP identifier for
-that actor:
-
-@lisp
-> (define alice (spawn ^greeter "Alice"))
-> (define alice-captp-id ($ mycapn 'register alice 'onion))
-@end lisp
-
-To use this actor on another peer, that peer needs a
-``sturdyref'' to the actor.  A sturdyref is a special URI that
-uniquely identifies the actor on the network.  The
-@code{ocapn-id->string} procedure from the @code{(goblins ocapn ids)}
-module can generate such a URI:
-
-@lisp
-> (ocapn-id->string community-sref)
-=> "ocapn://jv4arqqwntmxs3rljkx3ao5bucci37rxxb575vypovntyve76mmyf4ad.onion/s/nGxw4_p6s91IF-R5r6MMYsZzoByODX46MV7AWTApX5s"
-@end lisp
-
-To generate a Guile URI object instead of a string, use
-@code{ocapn-id->uri} instead.
-
-On the other peer, the sturdyref can be ``enlivened'' to create a
-promise that, when resolved, yields a remote object:
-
-@lisp
-> (define vow ($ mycapn 'enliven (string->ocapn-id "ocapn://...")))
-> vow
-=> #<local-promise>
-> (on vow
-      (lambda (obj)
-        (display obj)
-        (newline)))
-; #<remote-object>
-@end lisp
-
-Sending messages to remote objects using @code{<-} looks the same as
-sending messages to local objects.  The message will be transparently
-sent over CapTP to the remote object!
-
-@enumerate
-@item
-@anchor{Keeping a persistent sturdyref for an object}Keeping a persistent sturdyref for an object
-
-
-When an object is registered, it is given a ``swiss num'' (object
-specific part of the sturdyref). This can be extracted from the ocapn
-id:
-
-@lisp
-> (define swiss-num (ocapn-sturdyref-swiss-num alice-captp-id))
-> swiss-num
-=> #vu8(156 108 112 227 250 122 179 221 72 23 228 121 175 163 12 98 198 115 160 28 142 13 126 58 49 94 192 89 48 41 95 155)
-@end lisp
-
-Often it is desirable to have an object have a persistent sturdyref
-between sessions; to do this, you need to do two things:
+Spawn and return a @code{^mycapn} object.  @var{netlayers}, if provided,
+are netlayer objects; @pxref{Netlayers}.  The @code{^mycapn} object has
+three public methods:
 
 @itemize
 @item
-Register the object at a specific swiss num
+@code{install-netlayer netlayer}: Add @var{netlayer} to this
+@code{^mycapn} object's set of netlayers.  Return a promise that will
+fulfill when the netlayer is ready.
+
 @item
-Restore the netlayer (see the netlayer section)
+@code{register obj netlayer-name}: Create and return a sturdyref to the
+object @var{obj} using the netlayer named by @var{netlayer-name}.
+
+@item
+@code{enliven studyref-vow}: Return a promise to the object represented
+by @var{sturdyref-vow}, a promise to a sturdyref.
+
 @end itemize
 
-To install the object at a given swiss num, get the nonce
-registry. This is an object which holds all of the swiss nums to each
-registered object in mycapn. The following is how this can be done:
+@end deffn
+
+@defvr {Persistence Environment} captp-env
+@end defvr
+
+The @code{(goblins ocapn ids)} module provides procedures for working
+with sturdyrefs and other @emph{ocapn-ids}.  For example, to share a
+remote reference to an object, first use the @code{register} method of a
+@code{^mycapn} object, then transform the resulting sturdyref into a
+string for out-of-band transmission using @code{ocapn-id->string}:
+
+@deffn {Procedure} ocapn-id->string ocapn-id
+
+Return a string representing the sturdyref or peer ID @var{ocapn-id}.
+
+@end deffn
+
+This procedure has a corollary for transforming the string
+representation of a sturdyref back into an object, such as for
+consumption by the @code{enliven} method of a @code{^mycapn} object:
+
+@deffn {Procedure} string->ocapn-id string-uri
+
+Return a sturdyref or peer ID corresponding to the string
+@var{string-uri}.
+
+@end deffn
+
+Together with netlayers, these three procedures allow for the
+construction and use of objects which can be accessed from remote
+machines.  If we are operating in the context of a vat and
+@code{netlayer} refers to a configured Tor netlayer (@pxref{Tor Onion
+Services}), we could share a greeter actor like this:
 
 @lisp
-> (define registry ($ mycapn 'get-registry)) ;; nonce registry
-> (define alice-captp-id ($ registry 'register alice swiss-num))
+> (define (^greeter _bcom name)
+    (lambda (friend)
+      (format #f "Hello, ~a; I'm ~a!" friend name)))
+> (define mycapn (spawn-mycapn netlayer))
+> (define alice (spawn ^greeter "Alice"))
+> (define alice-ocapn-id ($ mycapn 'register alice 'onion))
+> (ocapn-id->string alice-ocapn-id)
+=> "ocapn://jv4arqqwntmxs3rljkx3ao5bucci37rxxb575vypovntyve76mmyf4ad.onion/s/nGxw4_p6s91IF-R5r6MMYsZzoByODX46MV7AWTApX5s"
 @end lisp
-@end enumerate
+
+The first string of letters and numbers after ``ocapn://'' is part of
+the Tor address.  The last one, though, is a @emph{swiss-num} generated
+during object registration to uniquely identify that object.
+@xref{Nonce Registry}.  Because a swiss-num is a capability and part of
+a sturdyref, all one must do to enliven Alice on a remote machine with a
+similarly-configured @code{^mycapn} is provide that sturdyref:
+
+@lisp
+> (define alice ($ mycapn 'enliven (string->ocapn-id "ocapn://...")))
+> (on (<- alice "Bob") display)
+=> Hello, Bob; I'm Alice!
+@end lisp
 
 @node Netlayers
 @section Netlayers
