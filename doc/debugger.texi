@@ -529,7 +529,7 @@ focused event belongs.
 Set the size of the current vat's log to @var{new-size}.
 @end deffn
 
-@deffn {Command} vat-take-object-portrait refr
+@deffn {Command} vat-object-portrait refr
 Print the portrait data for the object @var{refr}.
 @end deffn
 

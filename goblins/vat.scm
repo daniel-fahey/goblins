@@ -114,7 +114,7 @@
             spawn-persistent-vat
             vat-take-portrait!
             vat-replace-behavior!
-            vat-take-single-object-portrait
+            vat-single-object-portrait
 
             define-vat-run
 
@@ -1269,7 +1269,7 @@ Type: (Optional (#:name (U String Symbol)) (Optional (#:log? Boolean))
                  (transactormap-data-delta am-data))))
           (vat-persist-objects! vat new-am objects-to-persist))))))
 
-(define (vat-take-single-object-portrait vat refr)
+(define (vat-single-object-portrait vat refr)
   (define (take-object-portrait vat)
     (define persistence-env
       (vat-persistence-env vat))

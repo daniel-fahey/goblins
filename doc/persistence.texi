@@ -138,10 +138,10 @@ object state.
 
 When debugging it can be useful to see the serialized form of an
 object.  To do this from the REPL, use the
-@command{vat-take-object-portrait} metacommand:
+@command{vat-object-portrait} metacommand:
 
 @lisp
-goblins[1]> ,vat-take-object-portrait my-cell
+goblins[1]> ,vat-object-portrait my-cell
 (apple)
 @end lisp
 
@@ -215,7 +215,7 @@ some big problems when we try it out:
 
 @lisp
 goblins[1]> (define ship (spawn ^player-ship 0 0))
-goblins[1]> ,vat-take-object-portrait ship
+goblins[1]> ,vat-object-portrait ship
 (0 0)
 @end lisp
 
@@ -224,7 +224,7 @@ coordinate changes:
 
 @lisp
 goblins[1]> ($ ship 'tick)
-goblins[1]> ,vat-take-object-portrait ship
+goblins[1]> ,vat-object-portrait ship
 (0 0)
 @end lisp
 
@@ -232,7 +232,7 @@ Hmm, that's not right.  Well, what happens if we kill the player?
 
 @lisp
 goblins[1]> ($ ship 'kill)
-goblins[1]> ,vat-take-object-portrait ship
+goblins[1]> ,vat-object-portrait ship
 (0 0)
 @end lisp
 
@@ -267,7 +267,7 @@ Let's test it out:
 
 @lisp
 goblins[1]> (define ship (spawn ^player-ship 0 0))
-goblins[1]> ,vat-take-object-portrait ship
+goblins[1]> ,vat-object-portrait ship
 (0 0 #:active? #t)
 @end lisp
 
@@ -275,7 +275,7 @@ Looks good so far.  Now let's try ticking it:
 
 @lisp
 goblins[1]> ($ ship 'tick)
-goblins[1]> ,vat-take-object-portrait ship
+goblins[1]> ,vat-object-portrait ship
 (1 0 #:active? #t)
 @end lisp
 
@@ -283,7 +283,7 @@ Great!  Finally, let's make sure we can kill it:
 
 @lisp
 goblins[1]> ($ ship 'kill)
-goblins[1]> ,vat-take-object-portrait ship
+goblins[1]> ,vat-object-portrait ship
 (1 0 #:active? #f)
 @end lisp
 

@@ -1014,13 +1014,13 @@ Resizes the debug log of the current vat to NEW-SIZE."
             (format #f "NEW-SIZE must be a positive integer, got ~a" new-size)))
          (vat-log-resize! (current-vat*) new-size)))
 
-      (define-meta-command ((vat-take-object-portrait goblins) repl refr)
-        "vat-take-object-portrait REFR
-Takes a portrait of a single object returning the portrait data"
+      (define-meta-command ((vat-object-portrait goblins) repl refr)
+        "vat-object-portrait REFR
+Print the portrait data for the object REFR"
         (with-goblins-error-messages
          (let* ((vat (current-vat*)))
            (format #t "~s\n"
-                   (vat-take-single-object-portrait vat (repl-eval repl refr))))))
+                   (vat-single-object-portrait vat (repl-eval repl refr))))))
 
       (define-meta-command ((vat-replace-behavior goblins) repl #:optional new-env)
         "vat-replace-behavior [NEW-PERSISTENCE-ENV]
