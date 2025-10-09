@@ -23,8 +23,8 @@
 
 (define-syntax expand-method-defn
   (syntax-rules ()
-    ((_ ((method-name method-args ...) body ...))
-     (let ((method-name (lambda* (method-args ...) body ...)))
+    ((_ ((method-name . method-args) body ...))
+     (let ((method-name (lambda* method-args body ...)))
        (cons 'method-name method-name)))
     ((_ (method-name method-expr))
      (cons 'method-name method-expr))))
