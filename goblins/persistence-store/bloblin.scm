@@ -246,8 +246,7 @@ the most recent version"
 (define (atomically-create-file-with-contents file-path syrup-contents)
   ;; Opens a temp file first to write syrup-contents, this is then closed and
   ;; atomically moved to the file-path, this is to prevent partial data being
-  ;; written that isn't valid. It'll then open the real path, read what we wrote
-  ;; just in case? and return the file port for further writing.
+  ;; written that isn't valid.
   (define tmp-file (mkstemp (string-append file-path "-XXXXXX")))
   (define tmp-file-path (port-filename tmp-file))
   (syrup-write syrup-contents tmp-file)
