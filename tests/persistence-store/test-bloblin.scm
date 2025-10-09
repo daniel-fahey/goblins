@@ -230,7 +230,7 @@
 
     ;; Sanity check we start with one file
     (test-equal "Bloblin begins by writing one bloblin file"
-      '("0.bloblin")
+      '("0000.bloblin")
       (bloblins-in-dir tempdir))
 
     ;; Each `with-vat` should be one churn, and deltas are written per churn.
@@ -241,14 +241,14 @@
 
     ;; After creating deltas - 1 (check we still only have one file)
     (test-equal "Bloblin writes deltas and doesn't create a new file until reached limit"
-      '("0.bloblin")
+      '("0000.bloblin")
       (bloblins-in-dir tempdir))
 
     ;; Finally write the next delta, creating the file
     (with-vat vat ($ my-cell 3))
 
     (test-equal "Bloblin creates a new file once the deltas-in-file has been reached"
-      '("0.bloblin" "1.bloblin")
+      '("0000.bloblin" "0001.bloblin")
       (bloblins-in-dir tempdir))
 
     ;; Remove the first file and check we can still restore
@@ -256,7 +256,7 @@
 
     ;; Delete the initial portrait, this lets us check we can restore from the
     ;; second portrait file.
-    (delete-file (string-append tempdir file-name-separator-string "0.bloblin"))
+    (delete-file (string-append tempdir file-name-separator-string "0000.bloblin"))
 
     (define-values (vat* my-cell*)
       (spawn-persistent-vat
@@ -293,7 +293,7 @@
     (with-vat vat ($ my-cell 5))
 
     (test-equal "Old bloblin files are cleaned up"
-      '("1.bloblin" "2.bloblin")
+      '("0001.bloblin" "0002.bloblin")
       (bloblins-in-dir tempdir))))
 
 (test-end "test-bloblin")

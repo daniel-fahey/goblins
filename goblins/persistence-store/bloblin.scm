@@ -90,7 +90,8 @@
 (define (make-bloblin-file-path bloblin-dir root-churn-id)
   (string-append bloblin-dir
                  file-name-separator-string
-                 (string-append (number->string root-churn-id) ".bloblin")))
+                 (string-pad (number->string root-churn-id) 4 #\0)
+                 ".bloblin"))
 
 ;; char-set:digit contains non-arabic digits/numerals, which is not what we want
 ;; here, hence we're creating our own:
