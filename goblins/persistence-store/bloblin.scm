@@ -335,6 +335,7 @@ the most recent version"
                           new-types new-debug-names
                           compressed-portraits)
                     bloblin-file)
+       (newline bloblin-file)
        (force-output bloblin-file)
        (hashv-set! generation->pos this-generation cur-file-pos)
        (increment-next-gen-id! bloblin-state))))
