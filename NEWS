@@ -3,6 +3,94 @@
 #+startup: show2levels
 
 * Releases
+** v0.17.0
+*** Highlights
+**** Bloblin store
+This is a new persistence store which provides a fast and efficient Syrup based
+store. Goblins vats are usually efficient providing only the deltas (i.e. the
+portraits of changed objects), rather than the full graph. This store is able to
+be fast by streaming these deltas to the file. This is much faster than writing
+out the full graph each time an object changes (or rather for each churn).
+
+This Bloblin store together with other changes in this release make for dramatic
+improvements in persistence performance.
+**** =^vector= and =^ring-buffer= actors in actor-lib
+There are two new actors added to our standard library of actors provided with
+Goblins. These are the =^vector= actor which wraps Scheme vector
+implementation and =^ring-buffer= providing a
+[[https://en.wikipedia.org/wiki/Circular_buffer][ring buffer]] (sometimes call a
+circular buffer) implementation.
+
+**** Persistence performance improvements and bug fixes
+Performance has improved for taking object portraits (the most time critical
+part of the persistence system). There were a number of actormap procedures
+which were used when taking a portrait of every changed object, these called
+=procedure-name= which is very expensive. This fix along with Bloblin should
+make persistence much faster.
+
+While not the bug fix section of the NEWS file, there are two persistence
+related bugs which are large enough to deserve being called out here in the
+highlights. The first bug occurred when performing actor upgrades through the
+persistence system. If an actor changed via an upgrade, but didn't later call
+=bcom= when running, the actors upgrade and any changes there after were not
+persisted. This issue is now fixed. If an actor changes its version, the actor
+is persisted after restoration.
+
+The second persistence bug this release fixes concerns orphaned objects (i.e.
+objects which no longer appear in the persistence graph). These objects are no
+longer spawned upon restoration. This both used to waste resources by spawning
+them even though they were not used, but also could cause side effects by
+messaging other actors. The restoration now walks the graph of objects from the
+roots, restoring only the objects which actually appear in the graph.
+*** Bug fixes & Smaller features
+- =define-actor= has had several bugs fixed, these are:
+  - It now supports #:rest and #:allow-other-keys.
+  - Invalid keywords now throw a syntax error.
+  - Support for procedure properties and docstrings.
+- Documented the OCapN procedures =spawn-mycapn=, =ocapn-id->string= and
+  =string->ocapn-id=.
+- Documented REPL all our metacommands.
+- Install =(goblins persistence-store local-storage)=.
+- Improved formatting of error messages.
+- Added =,vat-log-resize= REPL command.
+- Added procedure to convert between two persistence stores.
+- Persistence speedups when taking portrait.
+- Actors which upgrade have their changes persisted immediately.
+- Only restore actors which appear in the graph (not orphaned objects).
+- =^inbox= actor's self portrait procedure was fixed.
+- Several spelling corrections in error messages and docs.
+- Restored far refrs always persist correctly (previously would sometimes
+  become broken promises).
+- Fix the persistence environment for the simple mint and =^queue= actors
+  (previously had incorrect restoration procedures).
+*** Known issues
+**** Actors using define-actor along with its #:self keyword cannot persist
+Issue: [[https://codeberg.org/spritely/goblins/issues/256][#256]]
+
+Objects that are defined with =define-actor= and use the =#:self=
+keyword should be persisted properly, but this currently is not the
+case.  Instead, an error occurs.
+
+**** Prelay connections are unencrypted and unauthenticated
+Issue: [[https://codeberg.org/spritely/goblins/issues/144][#144]]
+
+Messages sent through the Prelay netlayer can be viewed by the relay
+server, modified and new messages inserted by the server or silently
+removed and thus not delivered by the Prelay netlayer.
+
+This means that, for the time being, you should only use the Prelay
+netlayers where you can place high trust in the relaying server.  An
+end-to-end encrypted relay is planned for a future release.
+
+**** Lack of dialback within CapTP
+Issue: [[https://codeberg.org/spritely/goblins/issues/50][#50]]
+
+When a node connects to another node in Goblins it provides the
+location from where it's accessible (i.e. the OCapN node address). One
+feature of OCapN is to ensure only one connection exists to any given
+node, since the address provided by a new incoming connection is never
+authenticated, this could lead to a denial of service by a malicious
+actor claiming to be a node it is not.
 ** v0.16.1
 *** Bug fixes
 **** Fixed bug where netlayers could not be used with Hoot
