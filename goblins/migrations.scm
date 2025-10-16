@@ -13,6 +13,7 @@
 ;;; limitations under the License.
 
 (define-module (goblins migrations)
+  #:use-module (goblins core-types)
   #:use-module (ice-9 match)
   #:use-module (srfi srfi-1)
   #:use-module (srfi srfi-11)
