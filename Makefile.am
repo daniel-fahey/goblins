@@ -117,6 +117,7 @@ SOURCES = goblins.scm \
           goblins/repl.scm
 
 TESTS = tests/actor-lib/test-cell.scm \
+        tests/actor-lib/test-methods.scm \
         tests/actor-lib/test-common.scm \
         tests/actor-lib/test-facet.scm \
         tests/actor-lib/test-io.scm \
