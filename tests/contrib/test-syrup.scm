@@ -169,4 +169,9 @@
   cat
   (apply (cdr unmarshall::animal) (tagged-data sticky-cat)))
 
+(test-equal "Check pseudosingles work"
+  #vu8(70 66 105 117 195)
+  (syrup-encode (make-pseudosingle 58.365)))
+
 (test-end "test-syrup")
+~

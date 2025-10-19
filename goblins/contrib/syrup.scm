@@ -227,9 +227,9 @@
        (let ((encoded-symbol (string->utf8 (symbol->string obj))))
          (write-as-netstring! port encoded-symbol #:joiner singlequote-bv))]
       ;; Single flonum floats are like F<big-endian-encoded-single-float>
-      [(? pseudosingle?)
+      [($ <pseudosingle> float)
        (let ([bv (make-bytevector 4)])
-         (bytevector-ieee-single-set! bv 0 obj (endianness big))
+         (bytevector-ieee-single-set! bv 0 float (endianness big))
          (put-bytevector port F-bv)
          (put-bytevector port bv))]
       ;; Double flonum floats are like D<big-endian-encoded-double-float>
