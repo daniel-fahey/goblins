@@ -174,4 +174,3 @@
   (syrup-encode (make-pseudosingle 58.365)))
 
 (test-end "test-syrup")
-~
