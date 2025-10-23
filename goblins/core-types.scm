@@ -706,12 +706,12 @@ a persisted version of an object spawned via CONSTRUCTOR."
       (make-exception
        (make-persistence-error)
        (make-exception-with-message message))))
-    ((_ message . irritants)
+    ((_ message irritants ...)
      (raise-exception
       (make-exception
        (make-persistence-error)
        (make-exception-with-message message)
-       (make-exception-with-irritants irritants))))))
+       (make-exception-with-irritants (list irritants ...)))))))
 
 (define-syntax-rule (delta-before-graph-error irritants ...)
   (persistence-error "Cannot save delta before full graph" irritants ...))
