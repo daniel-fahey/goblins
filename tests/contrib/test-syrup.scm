@@ -66,17 +66,17 @@
        125 93 62))
 
 (test-equal "Correctly encodes zoo structure"
-  (syrup-encode zoo-structure)
-  zoo-expected-bytes)
+  zoo-expected-bytes
+  (syrup-encode zoo-structure))
 
 ;; The extra encoding is a workaround for complexity around checking equality :P
 (test-equal "Correctly decodes zoo structure"
-  (syrup-encode (syrup-decode zoo-expected-bytes))
-  (syrup-encode zoo-structure))
+  (syrup-encode zoo-structure)
+  (syrup-encode (syrup-decode zoo-expected-bytes)))
 
 (test-equal "csexp backwards compat"
-  (syrup-decode (bytes "(3:zoo (3:cat 7:tabatha))"))
-  (list (bytes "zoo") (list (bytes "cat") (bytes "tabatha"))))
+  (list (bytes "zoo") (list (bytes "cat") (bytes "tabatha")))
+  (syrup-decode (bytes "(3:zoo (3:cat 7:tabatha))")))
 
 (define-record-type <foop>
   (make-foop blorp blap)
@@ -86,16 +86,16 @@
 
 (define (foop->record fb)
   (make-tagged* 'foop (foop-blorp fb) (foop-blap fb)))
-  
+
 (test-equal "marshaller works"
+ (bytes "[4'meep4'moop<4'foop5'fizzy5'water>3'bop]")
  (syrup-encode (list 'meep 'moop (make-foop 'fizzy 'water) 'bop)
-               #:marshallers (list (cons foop? foop->record)))
- (bytes "[4'meep4'moop<4'foop5'fizzy5'water>3'bop]"))
+               #:marshallers (list (cons foop? foop->record))))
 
 (test-equal "unmarshaller works"
+ (list 'meep 'moop (make-foop 'fizzy 'water) 'bop)
  (syrup-decode (bytes "[4'meep4'moop<4'foop5'fizzy5'water>3'bop]")
-               #:unmarshallers (list (cons 'foop make-foop)))
- (list 'meep 'moop (make-foop 'fizzy 'water) 'bop))
+               #:unmarshallers (list (cons 'foop make-foop))))
 
 (define-record-type <animal>
   (make-animal name noise)
@@ -148,16 +148,14 @@
 
 (test-equal "Check that syrup-encode will marshall with marshallers correctly"
   marshalled-friends
-  (syrup-encode friends
-                #:marshallers marshallers))
+  (syrup-encode friends #:marshallers marshallers))
 
 (test-equal "Check that syrup-encode will unmarshall with unmarshallers correctly"
   friends
-  (syrup-decode marshalled-friends
-                #:unmarshallers unmarshallers))
+  (syrup-decode marshalled-friends #:unmarshallers unmarshallers))
 
 (test-assert
-    "Check the can-unmarshall function works for the correct label"
+ "Check the can-unmarshall function works for the correct label"
   ((car unmarshall::animal) (tagged-label sticky-cat)))
 
 (define sticky-banana ((cdr marshall::fruit) banana))

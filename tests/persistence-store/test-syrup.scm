@@ -37,14 +37,14 @@
   (persistence-store-read-proc store))
 
 (test-equal "Single object lookup works as expected"
-  (read-from-store 'object-portrait (car slots))
   '(((tests persistence-store test-syrup) ^greeter)
     ;; Debug name
     ^greeter
     ;; Version
     0
     ;; Data
-    ("Alice" 0)))
+    ("Alice" 0))
+  (read-from-store 'object-portrait (car slots)))
 
 ;; Increment alice's counter a few times
 (actormap-poke! am alice "Carol")

@@ -1340,12 +1340,12 @@
     (spawn ^hashmap)))
 
 (test-equal "<-hashmap-ref works across vats"
+  #(ok bar)
   (resolve-vow-and-return-result
    vat2
    (lambda ()
      (define hm-vow (<- hm-actor))
-     (<-hashmap-ref hm-vow "foo")))
-  #(ok bar))
+     (<-hashmap-ref hm-vow "foo"))))
 
 (define (^list bcom)
   (lambda ()
@@ -1355,12 +1355,12 @@
     (spawn ^list)))
 
 (test-equal "<-list-ref works across vats"
+  #(ok foo)
   (resolve-vow-and-return-result
    vat2
    (lambda ()
      (define lst-vow (<- list-actor))
-     (<-list-ref lst-vow 0)))
-  #(ok foo))
+     (<-list-ref lst-vow 0))))
 
 (define (^tagged bcom)
   (lambda ()
@@ -1370,12 +1370,12 @@
     (spawn ^tagged)))
 
 (test-equal "<-tagged-ref works across vats"
+  #(ok beepboop)
   (resolve-vow-and-return-result
    vat2
    (lambda ()
      (define tagged-vow (<- tagged-actor))
-     (<-tagged-ref tagged-vow "hello")))
-  #(ok beepboop))
+     (<-tagged-ref tagged-vow "hello"))))
 
 ;; Check upgrade which adds a new object to the graph
 (define-actor (^upgrade-me _bcom cell)

@@ -661,8 +661,8 @@
   (actormap-restore! second-actormap greeter-env astrid-greeter-portrait astrid-greeter-roots))
 
 (test-equal "Restored greeter reports correct number of times called"
-  (actormap-peek second-actormap restored-astrid-greeter "Ludvig")
-  "Hello Ludvig, my name is *restored Astrid* (called 3).")
+  "Hello Ludvig, my name is *restored Astrid* (called 3)."
+  (actormap-peek second-actormap restored-astrid-greeter "Ludvig"))
 
 
 (set-redefinable-object-constructor!
@@ -680,8 +680,9 @@
 (actormap-replace-behavior! first-actormap greeter-env)
 
 (test-equal "Actors are updated when the behavior is replaced by new behavior"
-  (actormap-peek first-actormap astrid-greeter "Ludvig")
-  "Salutations Ludvig, I am called *restored Astrid*, delighted to make your acquaintance! (called: 3)")
+  "Salutations Ludvig, I am called *restored Astrid*, delighted to make your acquaintance! (called: 3)"
+  (actormap-peek first-actormap astrid-greeter "Ludvig"))
+
 
 ;; Test that when we restore what we get back is eq?
 (define (^ro-cell _bcom value)
@@ -920,23 +921,24 @@
 (define am (make-actormap))
 (define hm1 (hashmap ("foo" 10) ("bar" 'baz)))
 (test-equal "Check <-hash-ref works when given a hashmap, not a refr"
+  'baz
   (actormap-run
    am
    (lambda ()
-     (<-hashmap-ref hm1 "bar")))
-  'baz)
+     (<-hashmap-ref hm1 "bar"))))
 
 (test-equal "Check <-hash-ref with already resolved vow"
+  #(ok baz)
   (am-resolve-vow-and-return-result
    am
    (lambda ()
      (define-values (vow resolver)
        (spawn-promise-and-resolver))
      ($ resolver 'fulfill hm1)
-     (<-hashmap-ref vow "bar")))
-  #(ok baz))
+     (<-hashmap-ref vow "bar"))))
 
 (test-equal "Check <-hash-ref with promise chaining"
+  #(ok baz)
   (am-resolve-vow-and-return-result
    am
    (lambda ()
@@ -950,8 +952,7 @@
      (<-np resolver1 'fulfill vow2)
      (<-np resolver2 'fulfill vow3)
      (<-np resolver3 'fulfill hm1)
-     hashref-vow))
-  #(ok baz))
+     hashref-vow)))
 
 (test-assert "Check <-hash-ref breaks when fulfilled with non-hashmap"
   (match (am-resolve-vow-and-return-result
@@ -966,22 +967,23 @@
 
 (define lst '(foo bar baz))
 (test-equal "Check <-list-ref works when given a raw list"
+  'foo
   (actormap-run
    am
    (lambda ()
-     (<-list-ref lst 0)))
-  'foo)
+     (<-list-ref lst 0))))
 (test-equal "Check <-list-ref works with already resolved vow"
+  #(ok foo)
   (am-resolve-vow-and-return-result
    am
    (lambda ()
      (define-values (vow resolver)
        (spawn-promise-and-resolver))
      ($ resolver 'fulfill lst)
-     (<-list-ref vow 0)))
-  #(ok foo))
+     (<-list-ref vow 0))))
 
 (test-equal "Check <-list-ref works with promise chaining"
+  #(ok foo)
   (am-resolve-vow-and-return-result
    am
    (lambda ()
@@ -995,8 +997,7 @@
      (<-np resolver1 'fulfill vow2)
      (<-np resolver2 'fulfill vow3)
      (<-np resolver3 'fulfill lst)
-     listref-vow))
-  #(ok foo))
+     listref-vow)))
 
 (test-assert "Check <-list-ref breaks when fulfilled with non-list"
   (match (am-resolve-vow-and-return-result
@@ -1011,22 +1012,23 @@
 
 (define tagged-val (make-tagged "hello" 'beepboop))
 (test-equal "Check <-tagged-ref works when given a raw tagged value"
+  'beepboop
   (actormap-run
    am
    (lambda ()
-     (<-tagged-ref tagged-val "hello")))
-  'beepboop)
+     (<-tagged-ref tagged-val "hello"))))
 (test-equal "Check <-tagged-ref works with already resolved vow"
+  #(ok beepboop)
   (am-resolve-vow-and-return-result
    am
    (lambda ()
      (define-values (vow resolver)
        (spawn-promise-and-resolver))
      ($ resolver 'fulfill tagged-val)
-     (<-tagged-ref vow "hello")))
-  #(ok beepboop))
+     (<-tagged-ref vow "hello"))))
 
 (test-equal "Check <-tagged-ref works with promise chaining"
+  #(ok beepboop)
   (am-resolve-vow-and-return-result
    am
    (lambda ()
@@ -1040,8 +1042,7 @@
      (<-np resolver1 'fulfill vow2)
      (<-np resolver2 'fulfill vow3)
      (<-np resolver3 'fulfill tagged-val)
-     tagged-ref-vow))
-  #(ok beepboop))
+     tagged-ref-vow)))
 
 (test-assert "Check <-tagged-ref breaks when fulfilled with non-tagged-value"
   (match (am-resolve-vow-and-return-result

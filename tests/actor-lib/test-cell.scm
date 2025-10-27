@@ -24,19 +24,16 @@
 
 (define a-cell
   (actormap-spawn! am ^cell))
-(test-eq
- "cell without default value and unset is #f"
+(test-eq "cell without default value and unset is #f"
  #f
  (actormap-peek am a-cell))
 
 (actormap-poke! am a-cell 'foo)
-(test-eq
- "cell after being set retains value"
+(test-eq "cell after being set retains value"
  'foo
  (actormap-peek am a-cell))
 
-(test-eq
- "cell default values"
+(test-eq "cell default values"
  'hello
  (actormap-peek am (actormap-spawn! am ^cell 'hello)))
 
@@ -45,12 +42,10 @@
    am
    (lambda ()
      (cell->read-only a-cell))))
-(test-eq
-    "Read from a read-only cell"
+(test-eq "Read from a read-only cell"
   'foo
   (actormap-peek am ro-a-cell))
-(test-error
- "Cannot write to a read-only cell"
+(test-error "Cannot write to a read-only cell"
  #t
  (actormap-poke! am ro-a-cell 'foobar))
 
@@ -82,12 +77,10 @@
   'goodbye
   (actormap-peek am* ro-cell*))
 
-(test-error
- "After rehydration read-only cell can't be written"
+(test-error "After rehydration read-only cell can't be written"
  #t
  (actormap-poke! am* ro-cell* 'hello-again))
-(test-error
- "After rehydration write-only cell cannot be written"
+(test-error "After rehydration write-only cell cannot be written"
  #t
  (actormap-peek am* wo-cell))
 

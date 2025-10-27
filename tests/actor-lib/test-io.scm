@@ -83,8 +83,8 @@
                          #t)))))
 
   (test-equal "Init is just called once on read-write IO"
-    init-called
-    1)
+    1
+    init-called)
   ;; Write something to the channel
   (with-vat a-vat
     ($ rw-io 'write
@@ -93,11 +93,11 @@
          #t)))
   ;; Can we read it?
   (test-equal "Can read a character from read-write IO"
+    #(ok "Hello!")
     (resolve-vow-and-return-result
      a-vat
      (lambda ()
-       ($ rw-io 'read get-message)))
-    #(ok "Hello!"))
+       ($ rw-io 'read get-message))))
 
   (with-vat a-vat
     ($ rw-io 'halt))

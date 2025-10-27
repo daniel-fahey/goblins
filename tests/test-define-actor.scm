@@ -58,8 +58,8 @@
   (actormap-restore! restored-am cell-env portraits roots))
 
 (test-equal "Got back the sword we put in from the sword cell"
-  (actormap-peek restored-am restored-sword-cell)
-  'sword)
+  'sword
+  (actormap-peek restored-am restored-sword-cell))
 
 ;; Test an object which uses keyword, optional, and rest arguments
 (define-actor (^robot _bcom name
@@ -97,22 +97,18 @@
 (define-values (restored-smashtron500 restored-roadblock)
   (actormap-restore! restored-am1 robot-env robot-portraits robot-roots))
 
-(test-equal
-    "Check first restored robot has correct output"
+(test-equal "Check first restored robot has correct output"
   "I am a robot with 200 hit points left. ... not ready yet!"
   (actormap-peek restored-am1 restored-smashtron500))
-(test-equal
-    "Check second restored robot has correct output"
+(test-equal "Check second restored robot has correct output"
   "I am a red robot with 100 hit points left. Lets rumble!"
   (actormap-peek restored-am1 restored-roadblock))
 
 ;; This is a good sanity check and verifies define-actor without restoration.
-(test-equal
-    "Check first restored robot has same output as non-restored robot"
+(test-equal "Check first restored robot has same output as non-restored robot"
   (actormap-peek am1 smashtron500)
   (actormap-peek restored-am1 restored-smashtron500))
-(test-equal
-    "Check first restored robot has same output as non-restored robot"
+(test-equal  "Check first restored robot has same output as non-restored robot"
   (actormap-peek am1 roadblock)
   (actormap-peek restored-am1 restored-roadblock))
 
@@ -368,12 +364,12 @@
 (define ks* (actormap-spawn! am ^knows-self))
 
 (test-equal "Actor who knows self through #:self can eq to their own refr"
-  (actormap-peek am ks ks)
-  "that's me!")
+  "that's me!"
+  (actormap-peek am ks ks))
 
 (test-equal "Actor who knows self through #:self knows when it isn't themself"
-  (actormap-peek am ks ks*)
-  "I dunno who that is")
+  "I dunno who that is"
+  (actormap-peek am ks ks*))
 
 ;; Check first upgrading from v1
 (define-values (am-v2 alice-v2)

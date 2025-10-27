@@ -58,31 +58,19 @@
 
 (test-eq "alice swiss num retrieves alice"
   alice
-  (actormap-peek
-   am
-   registry 'fetch alice-swiss-num))
+  (actormap-peek am registry 'fetch alice-swiss-num))
 
 (test-eq "bob swiss num retrieves bob"
   bob
-  (actormap-peek
-   am
-   registry 'fetch bob-swiss-num))
+  (actormap-peek am registry 'fetch bob-swiss-num))
 
 (test-eq "locator fetch and registry fetch retrieve same object"
-  (actormap-peek
-   am
-   registry 'fetch alice-swiss-num)
-  (actormap-peek
-   am
-   locator 'fetch alice-swiss-num))
+  (actormap-peek am registry 'fetch alice-swiss-num)
+  (actormap-peek am locator 'fetch alice-swiss-num))
 
 (test-equal "retrieved objects can be invoked"
   'i-am-bob
-  (actormap-peek
-   am
-   (actormap-peek
-    am
-    locator 'fetch bob-swiss-num)))
+  (actormap-peek am (actormap-peek am locator 'fetch bob-swiss-num)))
 
 ;; Persistence
 (define env

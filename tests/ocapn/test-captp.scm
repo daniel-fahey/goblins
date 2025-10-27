@@ -403,7 +403,7 @@
 (define ghash-to-send
   (ghash ('echo echo-on-b)))
 (test-equal "Test we're able to send ghashes with refrs inside"
-  (list->vector `(ok ,ghash-to-send))
+  `#(ok ,ghash-to-send)
   (resolve-vow-and-return-result
    b-vat
    (lambda ()
@@ -450,34 +450,34 @@
 
 ;; op:get, op:index and op:untag
 (test-equal "Can get item from a hashmap with op:get"
+  #(ok bar)
   (resolve-vow-and-return-result
    b-vat
    (lambda ()
     (define echo ($ b-mycapn 'enliven echo-sref))
     (define hashmap-vow
       (<- echo (hashmap ("foo" 'bar))))
-    (<-hashmap-ref hashmap-vow "foo")))
-  #(ok bar))
+    (<-hashmap-ref hashmap-vow "foo"))))
 
 (test-equal "Can get index from a list with op:index"
+  #(ok beep)
   (resolve-vow-and-return-result
    b-vat
    (lambda ()
     (define echo ($ b-mycapn 'enliven echo-sref))
     (define list-vow
       (<- echo (list 'beep 'boop)))
-    (<-list-ref list-vow 0)))
-  #(ok beep))
+    (<-list-ref list-vow 0))))
 
 (test-equal "Can get tagged value with op:untag"
+  #(ok goodbye)
   (resolve-vow-and-return-result
    b-vat
    (lambda ()
     (define echo ($ b-mycapn 'enliven echo-sref))
     (define tagged-vow
       (<- echo (make-tagged "hello" 'goodbye)))
-    (<-tagged-ref tagged-vow "hello")))
-  #(ok goodbye))
+    (<-tagged-ref tagged-vow "hello"))))
 
 ;; Test that promises pointing at remote-refrs are broken
 ;; if CapTP breaks...

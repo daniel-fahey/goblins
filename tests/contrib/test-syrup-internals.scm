@@ -19,11 +19,11 @@
 (snarf-syrup-internals netstring-encode)
 
 (test-equal "netstring-encode works"
+  "12:Hello world!"
   (bytevector->string
    (netstring-encode
     (string->bytevector "Hello world!" "ISO-8859-1"))
-   "ISO-8859-1")
-  "12:Hello world!")
+   "ISO-8859-1"))
 
 ;;; Byte utilities tests
 ;;; ====================
@@ -36,10 +36,10 @@
                        bytes-append)
 
 (test-equal "bytes-append works"
+  #vu8(0 0 0 0 11 11 22 22)
   (bytes-append #vu8(00 00 00 00)
                 #vu8(11 11)
-                #vu8(22 22))
-  #vu8(0 0 0 0 11 11 22 22))
+                #vu8(22 22)))
 
 (test-assert "same bytestring isn't less"
   (not (bytes<? (bytes "meep")

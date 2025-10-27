@@ -101,8 +101,7 @@
  (lambda ()
    ($ pubsub 'publish 'third)))
 
-(test-equal
-    "Check first no longer subscribed listener didn't get the message"
+(test-equal "Check first no longer subscribed listener didn't get the message"
   '(second)
   (car (actormap-peek am listener1)))
 
