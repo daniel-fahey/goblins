@@ -2703,14 +2703,120 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (make-persistence-env
    `(((namespace object) ,object) ...)))
 
+(define (actormap-read-object-portrait am persistence-env object slot-ref)
+  (define slot (local-object-refr-aurie-id object))
+  ;; A hash-table is used here to basically be a mutable set
+  (define new-child-objects (make-hash-table))
+  (define mactor (actormap-ref am object))
+  (define debug-name (local-object-refr-debug-name object))
+  (define take-object-portrait
+    (mactor:object-self-portrait (or mactor
+                                     (persistence-error
+                                        "Object not in actormap" object))))
+  (define constructor-refr (mactor:object-constructor-refr mactor))
+  (define object-spec
+    (or (persistence-env-ref-by-constructor persistence-env constructor-refr)
+        (persistence-error "Don't know how to persist object"
+                           object constructor-refr)))
+  (define (am-near-refr? refr)
+    (actormap-run am (lambda () (near-refr? refr))))
+  (define (am-far-refr? refr)
+    (actormap-run am (lambda () (far-refr? refr))))
+  (define (process-one value)
+    (match value
+      [(? depictable-atom? atom) atom]
+      [(or (? pair?) ())
+       ;; If the list is a regular list, don't tag it, but if it's a dotted list
+       ;; we need to tag it as 'dotted-list.
+       (let lp ((processed-list '())
+                (remaining value))
+         (match remaining
+           [() (reverse processed-list)]
+           [(head . rest) (lp (cons (process-one head) processed-list) rest)]
+           [last
+            (make-tagged
+             'dotl
+             (lp (cons (process-one last) processed-list) '()))]))]
+      [(? char?) (make-tagged* 'char (char->integer value))]
+      [(? vector? vec)
+       (make-tagged
+        'vec
+        (let lp ((i 0))
+          (if (= i (vector-length vec))
+              '()
+               (cons (process-one (vector-ref vec i))
+                     (lp (1+ i))))))]
+      [(? hashmap?)
+       (hashmap-fold
+        (lambda (k v prev)
+          (hashmap-set prev (process-one k) (process-one v)))
+        (make-ghash)
+        value)]
+      [(? gset?)
+       (gset-fold
+        (lambda (item prev)
+          (gset-add prev (process-one item)))
+        (make-gset)
+        value)]
+      [(? keyword? kw) (make-tagged* 'kw (keyword->symbol kw))]
+      [(? tagged? tagged)
+       (make-tagged* 'tagged
+                     (tagged-label tagged)
+                     (tagged-data tagged))]
+      [(? zilch?) (make-tagged* 'zilch #f)]
+      [(? unspecified?) (make-tagged* 'void #f)]
+      [(and (? am-near-refr?) (? local-object-refr?))
+       (make-tagged* 'near (slot-ref value))]
+      [(and (? am-far-refr? refr) (? local-object-refr?))
+       ;; Far refrs need to be serialized as a tuple of:
+       ;; (<vat-aurie-id> <refr-aurie-id>)
+       (let* ((vat-connector (local-object-refr-vat-connector refr))
+              (vat-aurie-id (and vat-connector (vat-connector 'aurie-vat-id)))
+              (refr-aurie-id (local-object-refr-aurie-id refr)))
+         (if vat-aurie-id
+             (make-tagged* 'far vat-aurie-id refr-aurie-id)
+             (make-tagged* 'broken)))]
+      [(? local-promise-refr? vow)
+       ;; The mactors can be difficult to follow, refer to world of mactors
+       ;; comment in core-types.scm
+       (match (actormap-ref am vow)
+         [(? mactor:aurie-local-link? mactor)
+          (match (mactor:aurie-local-link-depiction mactor)
+            (('far (vat-id refr-id)) (make-tagged* 'far vat-id refr-id))
+            (depiction
+             (persistence-error
+              "Unknown depiction in aurie-local-link" depiction)))]
+         ;; Unfortunately, for now, unresolved promises become broken
+         [(or (? mactor:broken?) (? mactor:naive?)) (make-tagged* 'broken)]
+         [(? mactor:encased? mactor)
+          (make-tagged* 'encase (process-one (mactor:encased-val mactor)))]
+         [(? mactor:local-link? mactor)
+          (make-tagged* 'encase
+                        (process-one (mactor:local-link-point-to mactor)))]
+         [_ (make-tagged* 'broken)])]
+      [(? ocapn-id?) (make-tagged* 'ocapn-id (ocapn-id->string value))]
+      [(? persistable-object-identifier?)
+       (make-tagged* 'persistable-obj-id
+                     (persistable-object-identifier-vat-id value)
+                     (persistable-object-identifier-object-id value))]
+      [_ (persistence-error "Unserializable value" value object)]))
+
+  (define-values (portrait-version portrait-data)
+    (match (take-object-portrait)
+      ((? versioned? data)
+       (values (versioned-version data) (versioned-data data)))
+      ;; No version was given, let's tag it as version 0
+      (data (values 0 data))))
+  (define depiction (process-one portrait-data))
+  (list (object-spec-name object-spec) debug-name portrait-version depiction))
+
 (define* (make-actormap-read-portrait! persistence-env roots
                                        #:key [slot->val (make-hash-table)])
   "Creates a read-portrait function for a given graph to take single object portraits of the graph.
 
 Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
   (when (null? roots)
-    (persistence-error
-     "Cannot take portrait without at least one root object"))
+    (persistence-error "Cannot take portrait without at least one root object"))
 
   (define (maybe-create-obj-slot! obj)
     "Looks up or creates slot for object"
@@ -2734,145 +2840,18 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
     (unless (hash-ref slot->val slot #f)
       (persistence-error "Object not in persistence graph" this-obj))
 
-    ;; Keep track of new (previously not in the object graph) objects,
-    ;; while this is represented as a hashmap, really it's working
-    ;; like a set of new child objects.
-    (define new-child-objs
-      (make-hash-table))
+    ;; A hash-table is used here to basically be a mutable set
+    (define new-child-objects (make-hash-table))
+    (define (slot-ref object)
+      (define-values (slot new?)
+        (maybe-create-obj-slot! object))
+      (when new?
+        (hashq-set! new-child-objects object #t))
+      slot)
 
-    (define this-obj-self-portrait-fn
-      (mactor:object-self-portrait (or (actormap-ref am this-obj)
-                                       (persistence-error
-                                        "Object not in actormap" this-obj))))
-    (define this-obj-constructor-refr
-      (mactor:object-constructor-refr (actormap-ref am this-obj)))
-    (define this-obj-spec
-      (persistence-env-ref-by-constructor persistence-env this-obj-constructor-refr))
-    (define obj-debug-name
-      (local-object-refr-debug-name this-obj))
-
-    (define (am-near-refr? refr)
-      (actormap-run am (lambda () (near-refr? refr))))
-
-    (define (am-far-refr? refr)
-      (actormap-run am (lambda () (far-refr? refr))))
-
-    (define (process-one value)
-      (match value
-        [(? depictable-atom? atom) atom]
-        [(or (? pair?) ())
-         ;; If the list is a regular list, don't tag it, but if it's a dotted list
-         ;; we need to tag it as 'dotted-list.
-         (let lp ((processed-list '())
-                  (remaining value))
-           (match remaining
-             [()
-              (reverse processed-list)]
-             [(head . rest)
-              (lp (cons (process-one head) processed-list) rest)]
-             [last
-              (make-tagged
-               'dotl
-               (lp (cons (process-one last) processed-list) '()))]))]
-        [(? char?)
-         (make-tagged* 'char (char->integer value))]
-        [(? vector? vec)
-         (make-tagged
-          'vec
-          (let lp ((i 0))
-            (if (= i (vector-length vec))
-                '()
-                (cons (process-one (vector-ref vec i))
-                      (lp (1+ i))))))]
-        [(? hashmap?)
-         (hashmap-fold
-          (lambda (k v prev)
-            (hashmap-set prev (process-one k) (process-one v)))
-          (make-ghash)
-          value)]
-        [(? gset?)
-         (gset-fold
-          (lambda (item prev)
-            (gset-add prev (process-one item)))
-          (make-gset)
-          value)]
-        [(? keyword? kw)
-         (make-tagged* 'kw (keyword->symbol kw))]
-        [(? tagged? tagged)
-         (make-tagged* 'tagged
-                       (tagged-label tagged)
-                       (tagged-data tagged))]
-        [(? zilch?)
-         (make-tagged* 'zilch #f)]
-        [(? unspecified?)
-         (make-tagged* 'void #f)]
-        [(and (? am-near-refr?) (? local-object-refr?))
-         (let-values (((slot created?) (maybe-create-obj-slot! value)))
-           (when created?
-             (hashq-set! new-child-objs value #t))
-           (make-tagged* 'near slot))]
-        [(and (? am-far-refr? refr) (? local-object-refr?))
-         ;; Far refrs need to be serialized as a tuple of:
-         ;; (<vat-aurie-id> <refr-aurie-id>)
-         (let* ((vat-connector (local-object-refr-vat-connector refr))
-                (vat-aurie-id (and vat-connector (vat-connector 'aurie-vat-id)))
-                (refr-aurie-id (local-object-refr-aurie-id refr)))
-           (if vat-aurie-id
-               (make-tagged* 'far vat-aurie-id refr-aurie-id)
-               (make-tagged* 'broken)))]
-        [(? local-promise-refr? vow)
-         ;; The mactors can be difficult to follow, refer to world of mactors
-         ;; comment in core-types.scm
-         (match (actormap-ref am vow)
-           [(? mactor:aurie-local-link? mactor)
-            (match (mactor:aurie-local-link-depiction mactor)
-              (('far (vat-id refr-id)) (make-tagged* 'far vat-id refr-id))
-              (depiction
-               (persistence-error
-                "Unknown depiction in aurie-local-link" depiction)))]
-           ;; Unfortunately, for now, unresolved promises become broken
-           [(or (? mactor:broken?) (? mactor:naive?)) (make-tagged* 'broken)]
-           [(? mactor:encased? mactor)
-            (make-tagged* 'encase (process-one (mactor:encased-val mactor)))]
-           [(? mactor:local-link? mactor)
-            (make-tagged* 'encase
-                          (process-one (mactor:local-link-point-to mactor)))]
-           [_ (make-tagged* 'broken)])]
-        [(? ocapn-id?)
-         (make-tagged* 'ocapn-id (ocapn-id->string value))]
-        [(? persistable-object-identifier?)
-         (make-tagged* 'persistable-obj-id
-                       (persistable-object-identifier-vat-id value)
-                       (persistable-object-identifier-object-id value))]
-        [_ (persistence-error "Unserializable value" value this-obj)]))
-
-    (define (process-portrait obj-spec portrait-data)
-      (unless obj-spec
-        (persistence-error
-         "Don't know how to persist object"
-         this-obj this-obj-constructor-refr))
-      (match portrait-data
-        [(? versioned? data)
-         (define-values (portrait-version portrait-data)
-           (values (versioned-version data) (versioned-data data)))
-         (list (object-spec-name obj-spec)
-               obj-debug-name
-               portrait-version
-               (process-one portrait-data))]
-        [(? list? args)
-         ;; No versioning was given, lets tag this as version 0
-         (process-portrait obj-spec (versioned 0 args))]))
-
-    (define returned-self-portrait
-      (if this-obj-self-portrait-fn
-          (actormap-run am this-obj-self-portrait-fn)
-          (persistence-error
-           "No self-portrait function found for object" this-obj)))
-
-    (define depiction-to-save
-      (process-portrait this-obj-spec returned-self-portrait))
-
-    (values slot depiction-to-save new-child-objs))
+    (define depiction
+      (actormap-read-object-portrait am persistence-env this-obj slot-ref))
+    (values slot depiction new-child-objects))
 
   ;; Really, this changed; the main purpose of this is to avoid giving
   ;; aurie ids away unless you're actually working with Aurie itself.
