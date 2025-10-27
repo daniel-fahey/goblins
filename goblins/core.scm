@@ -550,7 +550,7 @@ Type: TransActormap -> Void"
     (unless (transactormap-data-merged? tm-data)
       (hash-for-each
        (lambda (key val)
-         (hashq-set! root-wht key val))
+         (actormap-set! root-actormap key val))
        (transactormap-data-delta tm-data))
       (merge-actormap-aurie-counters! root-actormap transactormap)
       (set-transactormap-data-merged?! tm-data #t))
@@ -2291,11 +2291,13 @@ transaction, and any messages generated.
 
 Type: Actormap (-> Any) -> (Values Any Actormap (List Message ...))"
   (define-values (actor-refr new-actormap)
-    (actormap-spawn-named (make-transactormap actormap) 'actormap-run*-wrapper
+    (actormap-spawn-named actormap 'actormap-run*-wrapper
                           (lambda (bcom) thunk)))
   (define-values (returned-val new-actormap2 new-msgs)
-    (actormap-turn* (make-transactormap new-actormap) actor-refr '()))
-  (values returned-val new-actormap2 new-msgs))
+    (actormap-turn* new-actormap actor-refr '()))
+  (unless (eq? new-actormap2 new-actormap)
+    (transactormap-buffer-merge! new-actormap2))
+  (values returned-val new-actormap new-msgs))
 
 ;; non-committal version of actormap-run
 (define (actormap-run actormap thunk)
@@ -2926,8 +2928,7 @@ a transactormap which the user can choose whether or not to commit.
 
 Type: Actormap PersistenceEnv -> TransactorMap"
   (define metatype (actormap-metatype am))
-  (define actormap-for-each
-    (actormap-metatype-for-each-proc metatype))
+  (define actormap-for-each (actormap-metatype-for-each-proc metatype))
   (define new-actormap (make-transactormap am))
 
   (define (has-new-beh? object-spec mactor)
@@ -2952,7 +2953,9 @@ Type: Actormap PersistenceEnv -> TransactorMap"
       (let-values (((_val new-am new-msgs)
                     (actormap-turn-message am (deq! msg-queue))))
         (queue-messages! new-msgs)
-        (transactormap-merge! new-am))))
+        ;; If the turn fails, the actormap returned will be the same.
+        (unless (eq? am new-am)
+          (transactormap-buffer-merge! new-am)))))
 
   (actormap-for-each
    (lambda (refr mactor)
@@ -3001,7 +3004,7 @@ Type: Actormap PersistenceEnv -> TransactorMap"
                         (make-mactor:local-link refr))
 
          (dispatch-messages-for-am! new-am* (reverse new-msgs))
-         (transactormap-merge! new-am*))))
+         (transactormap-buffer-merge! new-am*))))
    am)
   new-actormap)
 
