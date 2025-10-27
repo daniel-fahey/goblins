@@ -78,6 +78,7 @@
             actormap-replace-behavior
             actormap-replace-behavior!
             actormap-restore!
+            actormap-restore-object
             actormap-restore-with-far-refrs!
             actormap-restore-with-far-refrs!*
             actormap-restore-from-store!
@@ -3044,6 +3045,94 @@ Type: Actormap PersistenceEnv -> Void"
     (actormap-restore-with-far-refrs! am persistence-env portraits roots))
   (apply values root-objects))
 
+(define (actormap-restore-object am persistence-env slot->value-ref
+                                 far->refr
+                                 portrait)
+  (define (restore-one depicted)
+    (match depicted
+      [(? tagged? depiction)
+       (let ([type (tagged-label depiction)]
+             [data (tagged-data depiction)])
+         (match type
+           ['dotl
+            (let lp ((remaining data))
+              (match remaining
+                [(last) (restore-one last)]
+                [(head . rest) (cons (restore-one head) (lp rest))]))]
+           ['vec
+            (let ((vec (make-vector (length data))))
+              (let lp ((index 0)
+                       (lst data))
+                (match lst
+                  (() vec)
+                  ((head . tail)
+                   (vector-set! vec index (restore-one head))
+                   (lp (+ 1 index) tail)))))]
+           ['char (integer->char (car data))]
+           ['list (map restore-one data)]
+           ['kw (symbol->keyword (car data))]
+           ['zilch zilch]
+           ['void *unspecified*]
+           ['tagged
+            (match data
+              [(label payload) (make-tagged label payload)])]
+           ['near (slot->value-ref (car data))]
+           ['far (far->refr data)]
+           ['encase
+            ;; This is a promise which contains a value, re-encase
+            ;; in a promise and return that.
+            (let-values (((vow resolver) (spawn-promise-and-resolver)))
+              ($ resolver 'fulfill (restore-one (car data)))
+              vow)]
+           ['broken
+            (let-values (((vow resolver) (spawn-promise-and-resolver)))
+              ($ resolver 'break
+                 (make-exception
+                  (make-persistence-error)
+                  (make-exception-with-message "Broken promise")))
+              vow)]
+           ['ocapn-id (string->ocapn-id (car data))]
+           ['persistable-obj-id
+            (match data
+              [(vat-id object-id)
+               (make-persistable-object-identifier vat-id object-id)])]
+           [_ (persistence-error "Unknown depiction type" type)]))]
+      [(? hashmap?)
+       (hashmap-fold
+        (lambda (k v prev)
+          (hashmap-set prev (restore-one k) (restore-one v)))
+        (make-ghash) depicted)]
+      [(? gset?)
+       (gset-fold
+        (lambda (item prev)
+          (gset-add prev (restore-one item)))
+        (make-gset)
+        depicted)]
+      [(? list?) (map restore-one depicted)]
+      [(? depictable-atom?) depicted]
+      [_ (persistence-error "Unknown value in portrait data" depicted)]))
+  (define-values (obj-name obj-debug-name obj-portrait-version obj-portrait)
+    (match portrait
+      ((name debug-name portrait-version portrait-data)
+       (values name debug-name portrait-version portrait-data))
+      (something-else
+       (persistence-error "Unknown portrait data" something-else))))
+  (define obj-spec (persistence-env-ref persistence-env obj-name))
+  (define rehydrator (object-spec-rehydrator obj-spec))
+  (actormap-run*
+   am
+   (lambda ()
+     (define restored-args (restore-one obj-portrait))
+     (match (apply rehydrator obj-portrait-version restored-args)
+       ((? versioned? restored-obj)
+        (let ((refr (versioned-data restored-obj))
+              (version (versioned-version restored-obj)))
+          (if (equal? obj-portrait-version version)
+              (list refr version #t)
+              (list refr version #f))))
+       ;; portrait doesn't provide a version.
+       (refr (list refr 0 #f))))))
+
 (define (actormap-restore-with-far-refrs! am persistence-env portraits init-roots)
   ;; TODO: Maybe we should require roots always to be a list?
   (define roots
@@ -3124,118 +3213,35 @@ Type: Actormap PersistenceEnv -> Void"
   ;; Two tables for handling far refrs.
   (define far-refr-resolvers (make-hash-table))
   (define far-refr-vows (make-hash-table))
+  (define (far->refr data)
+    (match (hash-ref far-refr-vows data #f)
+      (#f
+       (let*-values (((vow resolver) (spawn-promise-and-resolver))
+                     ((aurie-link)
+                      (make-mactor:aurie-local-link vow `(far ,data)))
+                     ((syscaller) (get-syscaller-or-die))
+                     ((aurie-vow)
+                      (syscaller-spawn-mactor syscaller aurie-link #f)))
+         (hash-set! far-refr-resolvers data resolver)
+         (hash-set! far-refr-vows data aurie-vow)
+         aurie-vow))
+      (vow vow)))
 
   ;; Restore an object within the graph
   (define (restore-slot! slot)
     (define portrait (hashq-ref portraits slot))
-    (define-values (obj-name obj-debug-name obj-portrait-version obj-portrait)
-      (match portrait
-        ((name debug-name portrait-version portrait-data)
-         (values name debug-name portrait-version portrait-data))
-        (something-else
-         (persistence-error "Unknown portrait data" something-else))))
-    (define restored-args
-      (actormap-run! am (lambda () (restore-one obj-portrait))))
-    (define obj-spec (persistence-env-ref persistence-env obj-name))
-    (define rehydrator (object-spec-rehydrator obj-spec))
     (define refr (hashq-ref slots->refrs slot))
     (define resolver (hashq-ref slots->resolvers slot))
 
-    (define (restore-one depicted)
-      (match depicted
-        [(? tagged? depiction)
-         (let ([type (tagged-label depiction)]
-               [data (tagged-data depiction)])
-           (match type
-             ['dotl
-              (let lp ((remaining data))
-                (match remaining
-                  [(last) (restore-one last)]
-                  [(head . rest)
-                   (cons (restore-one head) (lp rest))]))]
-             ['vec
-              (let ((vec (make-vector (length data))))
-                (let lp ((index 0)
-                         (lst data))
-                  (match lst
-                    (() vec)
-                    ((head . tail)
-                     (vector-set! vec index (restore-one head))
-                     (lp (+ 1 index) tail)))))]
-             ['char (integer->char (car data))]
-             ['list (map restore-one data)]
-             ['kw (symbol->keyword (car data))]
-             ['zilch zilch]
-             ['void *unspecified*]
-             ['tagged
-              (match data
-                [(label payload)
-                 (make-tagged label payload)])]
-             ['near (maybe-install-refr-for-slot! (car data))]
-             ['far
-              ;; Cache the vow since we may have several references to the same obj
-              (match (hash-ref far-refr-vows data #f)
-                (#f
-                 (let*-values (((vow resolver) (spawn-promise-and-resolver))
-                               ((aurie-link)
-                                (make-mactor:aurie-local-link vow `(far ,data)))
-                               ((aurie-vow)
-                                (actormap-spawn-mactor! am aurie-link)))
-                   (hash-set! far-refr-resolvers data resolver)
-                   (hash-set! far-refr-vows data aurie-vow)
-                   aurie-vow))
-                (vow vow))]
-             ['encase
-              ;; This is a promise which contains a value, re-encase
-              ;; in a promise and return that.
-              (let-values (((vow resolver) (spawn-promise-and-resolver)))
-                ($ resolver 'fulfill (restore-one (car data)))
-                vow)]
-             ['broken
-              (let-values (((vow resolver) (spawn-promise-and-resolver)))
-                ($ resolver 'break
-                   (make-exception
-                    (make-persistence-error)
-                    (make-exception-with-message "Broken promise")))
-                vow)]
-             ['ocapn-id (string->ocapn-id (car data))]
-             ['persistable-obj-id
-              (match data
-                [(vat-id object-id)
-                 (make-persistable-object-identifier vat-id object-id)])]
-             [_ (persistence-error "Unknown depiction type" type)]))]
-        [(? hashmap?)
-         (hashmap-fold
-          (lambda (k v prev)
-            (hashmap-set prev (restore-one k) (restore-one v)))
-          (make-ghash)
-          depicted)]
-        [(? gset?)
-         (gset-fold
-          (lambda (item prev)
-            (gset-add prev (restore-one item)))
-          (make-gset)
-          depicted)]
-        [(? list?) (map restore-one depicted)]
-        [(? depictable-atom?) depicted]
-        [_ (persistence-error "Unknown value in portrait data" depicted)]))
+    (define-values (restored new-am new-msgs)
+      (actormap-restore-object am persistence-env
+                               maybe-install-refr-for-slot! far->refr
+                               portrait))
 
-    (define-values (restored-obj-refr new-am new-msgs)
-      (actormap-run*
-       am
-       (lambda ()
-         (let ((restored-obj (apply rehydrator obj-portrait-version restored-args)))
-           (match restored-obj
-             ((? versioned?)
-              (let ((refr (versioned-data restored-obj)))
-                (unless (equal? obj-portrait-version
-                                (versioned-version restored-obj))
-                  (hashq-set! changed-objects refr #t))
-                ($ resolver 'fulfill refr)
-                refr))
-             (refr
-              ($ resolver 'fulfill refr)
-              refr))))))
+    (define-values (restored-obj-refr obj-portrait-version updated?)
+      (match restored
+        ((restored-refr version updated?)
+         (values restored-refr version updated?))))
 
     (transactormap-merge! new-am)
     (enq-msgs! (reverse new-msgs))
