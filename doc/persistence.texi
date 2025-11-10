@@ -1110,7 +1110,12 @@ Return a memory store which will write its data to @var{bloblin-dir}. This
 directory is expected to be used solely for Bloblin's data to exist within. The
 number of deltas streamed to a single file before a new file is written to can
 be configured with @var{deltas-per-file}, by default it occurs every 1000
-deltas.
+deltas. If @var{deltas-per-file} is set to @code{#f}, then creating a new file
+based solely on the deltas will be disabled. During normal operation Goblins
+tries to be efficient using only deltas, but Goblins sometimes does still need
+to save a full graph (e.g. when upgrading the roots of a graph). When Goblins
+saves a full graph, Bloblin will always create a new file regardless of what
+@var{deltas-per-file} is set to.
 
 If @var{max-bloblin-files} is specified, only @var{max-bloblin-files} number of
 bloblin files will be kept (deleting the older bloblin files). By default this
