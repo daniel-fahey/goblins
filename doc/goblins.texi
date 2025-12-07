@@ -584,7 +584,7 @@ As you have probably inferred, Goblins-specific operations such as
 @emph{vat}, though there is an even lower-level structure called an
 @emph{actormap} which we will see more about later).  However, the
 subrepl entered by @code{,enter-vat} is a convenience for hacking.  You
-can run also run code within @code{a-vat} like so:
+can also run code within @code{a-vat} like so:
 
 @lisp
 scheme> (call-with-vat a-vat (lambda () ($ alice "Arthur")))
