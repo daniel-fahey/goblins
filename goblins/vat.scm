@@ -1476,7 +1476,7 @@ using the migrations macro."
                         list)))
           [(changed-objects refrs->slots far-refr-resolvers roots)
            (define-values (read-portrait! val->slot-ref)
-             (make-actormap-read-portrait! persistence-env roots #:slot->val refrs->slots))
+             (make-actormap-read-portrait! persistence-env roots #:refrs->slots refrs->slots))
            (values far-refr-resolvers roots read-portrait! val->slot-ref changed-objects #f)])
         (with-vat vat
           (define roots (call-with-values spawn-roots-thunk list))
@@ -1493,15 +1493,15 @@ using the migrations macro."
          (format #f "Migration upgraded roots version from ~a to ~a but expected ~a"
                  roots-version new-version version))))
 
-  ;; If we need to upgrade, apply the upgrader
-  (define upgrade-roots? (or spawned-new? (equal? roots-version version)))
+  (define has-upgraded-roots?
+    (and (not spawned-new?) (not (equal? roots-version version))))
   (define upgraded-roots
-    (if upgrade-roots?
+    (if (or spawned-new? (not has-upgraded-roots?))
         roots
         (upgrade-roots)))
 
   (define-values (read-portrait! val->slot-ref)
-    (if upgrade-roots?
+    (if has-upgraded-roots?
         (make-actormap-read-portrait! persistence-env upgraded-roots)
         (values read-portrait!* val->slot-ref*)))
 
@@ -1514,7 +1514,7 @@ using the migrations macro."
          (set-vat-persistence-roots! vat-persistence upgraded-roots)
 
          ;; If we've upgraded the roots, or spawned anew, take a full portrait.
-         (when upgrade-roots?
+         (when (or has-upgraded-roots? spawned-new?)
            (vat-take-portrait!* vat))
 
          (unless (null? changed-objects)

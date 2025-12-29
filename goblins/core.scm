@@ -2813,7 +2813,7 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
   (list (object-spec-name object-spec) debug-name portrait-version depiction))
 
 (define* (make-actormap-read-portrait! persistence-env roots
-                                       #:key [slot->val (make-hash-table)])
+                                       #:key [refrs->slots (make-hash-table)])
   "Creates a read-portrait function for a given graph to take single object portraits of the graph.
 
 Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
@@ -2824,10 +2824,10 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
     "Looks up or creates slot for object"
     ;; Returns 2 values: (object-slot created?)
     (let ((slot (local-object-refr-aurie-id obj)))
-      (if (hash-ref slot->val slot #f)
+      (if (hashq-ref refrs->slots obj #f)
           (values slot #f)
           (begin
-            (hash-set! slot->val slot obj)
+            (hashq-set! refrs->slots obj slot)
             (values slot #t)))))
 
   (define root-slots
@@ -2839,7 +2839,7 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
 
   (define (read-portrait! am this-obj)
     (define slot (local-object-refr-aurie-id this-obj))
-    (unless (hash-ref slot->val slot #f)
+    (unless (hashq-ref refrs->slots this-obj #f)
       (persistence-error "Object not in persistence graph" this-obj))
 
     ;; A hash-table is used here to basically be a mutable set
@@ -2863,13 +2863,12 @@ Type: PersistenceEnv LiveRefr ... -> Procedure Procedure"
        (let ((slot (local-object-refr-aurie-id obj)))
          ;; return the slot if this is indeed an object in the aurie
          ;; table, otherwise return default value
-         (or (and (hash-ref slot->val slot #f)
+         (or (and (hashq-ref refrs->slots obj #f)
                   slot)
              default-value)))
       ((obj)
        (let ((slot (local-object-refr-aurie-id obj)))
-         (and (hash-ref slot->val slot #f)
-              slot)))))
+         (and (hashq-ref refrs->slots obj #f) slot)))))
 
   (values read-portrait! val->slot-ref))
 
@@ -3110,8 +3109,8 @@ Type: Actormap PersistenceEnv -> Void"
         (let ((refr (versioned-data restored-obj))
               (version (versioned-version restored-obj)))
           (if (equal? obj-portrait-version version)
-              (list refr version #t)
-              (list refr version #f))))
+              (list refr version #f)
+              (list refr version #t))))
        ;; portrait doesn't provide a version.
        (refr (list refr 0 #f))))))
 
@@ -3223,6 +3222,8 @@ Type: Actormap PersistenceEnv -> Void"
     (define-values (restored-obj-refr obj-portrait-version updated?)
       (match restored
         ((restored-refr version updated?)
+         (when updated?
+           (hashq-set! changed-objects refr #t))
          (values restored-refr version updated?))))
 
     (transactormap-merge! new-am)

@@ -1404,9 +1404,11 @@
   #:version 1
   #:restore
   (lambda* (old-version cell #:optional current-version)
-    (if (= old-version 0)
-        (spawn ^upgrade-me cell 'version-1)
-        (spawn ^upgrade-me cell current-version)))
+    (define new-refr
+      (if (= old-version 0)
+          (spawn ^upgrade-me cell 'version-1)
+          (spawn ^upgrade-me cell current-version)))
+    (versioned 1 new-refr))
   (lambda ()
     current-version))
 
