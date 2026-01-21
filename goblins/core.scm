@@ -2763,8 +2763,8 @@ Type: Actormap (-> Any) (Optional (#:catch-errors? Boolean)) -> Any"
       [(? keyword? kw) (make-tagged* 'kw (keyword->symbol kw))]
       [(? tagged? tagged)
        (make-tagged* 'tagged
-                     (tagged-label tagged)
-                     (tagged-data tagged))]
+                     (process-one (tagged-label tagged))
+                     (process-one (tagged-data tagged)))]
       [(? zilch?) (make-tagged* 'zilch #f)]
       [(? unspecified?) (make-tagged* 'void #f)]
       [(and (? am-near-refr?) (? local-object-refr?))
@@ -3056,7 +3056,8 @@ Type: Actormap PersistenceEnv -> Void"
            ['void *unspecified*]
            ['tagged
             (match data
-              [(label payload) (make-tagged label payload)])]
+              [(label payload) (make-tagged (restore-one label)
+                                            (restore-one payload))])]
            ['near (slot->value-ref (car data))]
            ['far (far->refr data)]
            ['encase
